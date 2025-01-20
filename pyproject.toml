@@ -8,16 +8,16 @@ homepage = "https://github.com/BoPeng/ai-marketplace-monitor"
 repository = "https://github.com/BoPeng/ai-marketplace-monitor"
 documentation = "https://ai-marketplace-monitor.readthedocs.io"
 keywords = ["ai-marketplace-monitor"]
-classifiers=[
-    "Development Status :: 2 - Pre-Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
 ]
 
 [tool.poetry.urls]
@@ -28,18 +28,22 @@ ai-marketplace-monitor = 'ai_marketplace_monitor.cli:app'
 
 [tool.poetry.dependencies]
 python = "<3.13,>=3.9"
-typer = {extras = ["all"], version = "^0.13.0"}
+typer = { extras = ["all"], version = "^0.13.0" }
+beautifulsoup4 = "^4.12.3"
+playwright = "^1.49.1"
+rich = "^13.9.4"
+"pushbullet.py" = "^0.12.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
 invoke = "^2.2.0"
 bump2version = "^1.0.1"
-watchdog = {version = "^6.0.0", extras = ["watchmedo"]}
+watchdog = { version = "^6.0.0", extras = ["watchmedo"] }
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.3"
 xdoctest = "^1.2.0"
-coverage = {version = "^7.6.7", extras = ["toml"]}
+coverage = { version = "^7.6.7", extras = ["toml"] }
 pytest-cov = "^6.0.0"
 
 [tool.poetry.group.linters.dependencies]
@@ -74,7 +78,7 @@ exclude_lines = [
   "raise AssertionError",
   "raise NotImplementedError",
   "if 0:",
-  "if __name__ == __main__:"
+  "if __name__ == __main__:",
 ]
 show_missing = true
 
@@ -86,30 +90,59 @@ target-version = "py39"
 output-format = "full"
 line-length = 99
 fix = true
-extend-exclude = [
-    "docs/*",
-]
+extend-exclude = ["docs/*"]
 
 [tool.ruff.lint]
-select = [
-  "E", "F", "W",  # flake8
-  "C",  # mccabe
-  "I",  # isort
-  "N",  # pep8-naming
-  "D",  # flake8-docstrings
-  "ANN",  # flake8-annotations
-  "S",  # flake8-bandit
-  "BLE",  # flake8-blind-except
-  "B",  # flake8-bugbear
-  "A",  # flake8-builtins
-  "G",  # flake8-logging-format
-  "ERA",  # eradicate
-  "ISC",  # flake8-implicit-str-concat
-  "RUF",  # Ruff-specific rules
+ignore = [
+  "ANN001",
+  "ANN101",
+  "D102",
+  "ANN201",
+  "G004",
+  "S311",
+  "F821",
+  "F841",
+  "ANN204",
+  "ANN202",
+  "C419",
+  "E722",
+  "S110",
+  "BLE001", # blank exception
+  "C901",   # too complex (function name too long etc)
+  "D100",   # docstring
+  "D101",   # docstring
+  "D102",   # docstring
+  "D103",   # docstring
+  "D107",   # docstring
+  "D415",   # docstring
+  "ERA001", # commented code
+  "S108",   # use of /tmp
+  "S603",   # subprocess.run security
+  "S607",   # subprocess.run with relative path
+  "E501",   # line too long
+  "S112",   # logging try/except/continue
 ]
-ignore = ["ANN101"]
+select = [
+  "E",
+  "F",
+  "W",   # flake8
+  "C",   # mccabe
+  "I",   # isort
+  "N",   # pep8-naming
+  "D",   # flake8-docstrings
+  "ANN", # flake8-annotations
+  "S",   # flake8-bandit
+  "BLE", # flake8-blind-except
+  "B",   # flake8-bugbear
+  "A",   # flake8-builtins
+  "G",   # flake8-logging-format
+  "ERA", # eradicate
+  "ISC", # flake8-implicit-str-concat
+  "RUF", # Ruff-specific rules
+]
+
 unfixable = [
-  "ERA",  # Don't remove commented-out code
+  "ERA", # Don't remove commented-out code
 ]
 
 [tool.ruff.lint.per-file-ignores]

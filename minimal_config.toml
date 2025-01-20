@@ -1,0 +1,10 @@
+[marketplace.facebook]
+username = 'username'
+password = 'password'
+city = 'houston'
+
+[query.item1]
+keywords = 'search word one'
+
+[notify.user1]
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'

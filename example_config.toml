@@ -1,0 +1,44 @@
+# NOT-IMPLEMENTED
+[ai]
+# Token for open AI, used to intelligently judge the match if the items
+openai_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+# REQUIRED. Right now only facebook is supported.
+[marketplace.facebook]
+# REQUIRED
+username = 'username'
+# REQUIRED
+password = 'password'
+# REQUIRED, can be specified for each search item
+city = 'city'
+
+# OPTIONAL string or list of strings, can be specified for each search item
+locations = ['city', 'surrounding city']
+# OPTIONAL, string or list of strings, can be specified for each search item
+notify = 'user1'
+# NOT-IMPLEMENTED, string or list of strings, can be specified for each search item
+exclude_sellers = []
+
+# REQUIRED for notification
+[notify.user1]
+# REQUIRED, only pushbullet notification is supported now.
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+# Another user
+[notify.user2]
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+# Products to search
+[search.item1]
+# OPTIONAL string or list of strings, default to all marketplaces
+market = 'facebook'
+# REUIRED string or list of strings
+keywords = ['search word one', 'search word two']
+# OPTIONAL words that should not be in the title
+exclude_keywords = ['exclude word one', 'exclude word two']
+# OPTIONAL product specific user to notify
+notify = 'user2'
+
+# OPTIONAL another product
+[search.item2]
+keywords = 'search word one'
