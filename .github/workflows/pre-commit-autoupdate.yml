@@ -31,7 +31,7 @@ jobs:
       - name: Run pre-commit
         run: poetry run pre-commit run --all-files
 
-      - uses: peter-evans/create-pull-request@v7.0.5
+      - uses: peter-evans/create-pull-request@v7.0.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore-update-pre-commit-hooks
