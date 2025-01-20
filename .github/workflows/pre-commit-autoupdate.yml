@@ -1,0 +1,44 @@
+name: "Pre-commit autoupdate"
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  autoupdate:
+    name: autoupdate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: 3.9
+
+      - name: Install system deps
+        shell: bash
+        run: |
+          pip install poetry
+          poetry config virtualenvs.in-project true
+          poetry install --no-root --only dev --only linters --sync
+
+      - name: Run autoupdate
+        run: poetry run pre-commit autoupdate
+        continue-on-error: true
+
+      - name: Run pre-commit
+        run: poetry run pre-commit run --all-files
+
+      - uses: peter-evans/create-pull-request@v7.0.5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore-update-pre-commit-hooks
+          title: Update pre-commit hooks
+          commit-message: "Update pre-commit hooks"
+          body: |
+            # Update pre-commit hooks
+
+            - Update pre-commit hooks to the latest version.
+          delete-branch: true

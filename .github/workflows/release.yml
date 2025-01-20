@@ -1,0 +1,78 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: 3.9
+
+      - name: Install system deps
+        shell: bash
+        run: |
+          pip install poetry
+          poetry config virtualenvs.in-project true
+
+      - name: Build package
+        run: |
+          poetry build --ansi
+
+      - name: Publish package on PyPI
+        uses: pypa/gh-action-pypi-publish@v1.8.11
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
+          attestations: false
+
+      - name: Publish package on TestPyPI
+        uses: pypa/gh-action-pypi-publish@v1.8.11
+        with:
+          user: __token__
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          attestations: false
+
+  github_release:
+    needs: release
+    name: Create Github Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Get version from tag
+        id: tag_name
+        shell: bash
+        run: |
+          echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
+
+      - name: Get Changelog Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2.2.3
+        with:
+          version: ${{ steps.tag_name.outputs.current_version }}
+          path: ./CHANGELOG.md
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.1.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          draft: false
+          prerelease: false

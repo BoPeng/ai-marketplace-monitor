@@ -1,0 +1,12 @@
+version: '2.0'
+
+# Safety Security and License Configuration file
+security: # configuration for the `safety check` command
+    ignore-cvss-severity-below: 0 # A severity number between 0 and 10. Some helpful reference points: 9=ignore all vulnerabilities except CRITICAL severity. 7=ignore all vulnerabilities except CRITICAL
+    ignore-cvss-unknown-severity: False # True or False. We recommend you set this to False.
+    ignore-vulnerabilities: # Here you can list multiple specific vulnerabilities you want to ignore (optionally for a time period)
+        # We recommend making use of the optional `reason` and `expires` keys for each vulnerability that you ignore.
+        # 70612:
+        #     reason: we do not use the vulnerable function
+        #     expires: '2025-10-10'
+    continue-on-vulnerability-error: False # Suppress non-zero exit codes when vulnerabilities are found. Enable this in pipelines and CI/CD processes if you want to pass builds that have vulnerabilities
