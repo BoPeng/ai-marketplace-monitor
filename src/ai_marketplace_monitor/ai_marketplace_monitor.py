@@ -1,88 +1,97 @@
 import random
 import time
 from logging import Logger
+from typing import Any, Dict
 
-import toml
-from playwright.sync_api import sync_playwright
-from pushbullet import Pushbullet
+from playwright.sync_api import Browser, sync_playwright
 
+from .config import Config
 from .facebook import FacebookMarketplace
+from .users import Users
 from .utils import calculate_file_hash
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 
 
 class MarketplaceMonitor:
-    def __init__(self, config_file: str, headless: bool, logger: Logger):
+    def __init__(self, config_file: str, headless: bool, clear_cache: bool, logger: Logger):
         self.config_file = config_file
+        self.config = None
         self.config_hash = None
         self.headless = headless
+        self.clear_cache = clear_cache
         self.logger = logger
+        self.users = None
+
+    def load_config_file(self) -> Dict[str, Any]:
+        """Load the configuration file."""
+        last_invalid_hash = None
+        while True:
+            new_file_hash = calculate_file_hash(self.config_file)
+            config_changed = self.config_hash is None or new_file_hash != self.config_hash
+            if not config_changed:
+                return self.config
+            try:
+                # if the config file is ok, break
+                self.config = Config(self.config_file).config
+                self.config_hash = new_file_hash
+                self.users = Users(self.config)
+                self.logger.debug(self.config)
+                return config_changed
+            except ValueError as e:
+                if last_invalid_hash != new_file_hash:
+                    last_invalid_hash = new_file_hash
+                    self.logger.error(
+                        f"""Error parsing config file:\n\n{e}\n\nPlease fix the file and we will start monitoring as soon as you are done."""
+                    )
+
+                time.sleep(10)
+                continue
 
     def monitor(self) -> None:
         """Main function to monitor the marketplace."""
         # start a browser with playwright
         with sync_playwright() as p:
             # Open a new browser page.
-            browser = p.chromium.launch(headless=self.headless)
+            browser: Browser = p.chromium.launch(headless=self.headless)
             while True:
                 # we reload the config file each time when a scan action is completed
                 # this allows users to add/remove products dynamically.
-                new_file_hash = calculate_file_hash(self.config_file)
-                config_changed = self.config_hash is None or new_file_hash != self.config_hash
-                if config_changed:
-                    self.config_hash = new_file_hash
-                #            #
-                with open(self.config_file, "r") as f:
-                    config = toml.load(f)
+                config_changed = self.load_config_file()
 
-                for marketplace_name, marketplace_config in config["marketplace"].items():
+                for marketplace_name, marketplace_config in self.config["marketplace"].items():
                     if marketplace_name in supported_marketplaces:
                         marketplace_class = supported_marketplaces[marketplace_name]
-                        marketplace = marketplace_class(marketplace_config, logger)
-                        # find products that will be monitored by this market place
+                        marketplace = marketplace_class(
+                            marketplace_name, marketplace_config, browser, self.logger
+                        )
                         #
                         if config_changed:
-                            marketplace.login()
                             marketplace.reset()
+                            marketplace.login()
                         #
-                        for product, product_config in config["product"].items():
+                        for item_name, item_config in self.config["item"].items():
                             if (
-                                "marketplace" not in product_config
-                                or product_config["marketplace"] == marketplace_name
+                                "marketplace" not in item_config
+                                or item_config["marketplace"] == marketplace_name
                             ):
-                                marketplace.add_product(product, product_config)
-
-                        marketplace.search_products()
-                        # wait for some time before next search
-                        # interval (in minutes) can be defined both for the
-                        # marketplace and the product
-                        interval = max(
-                            product_config.get(
-                                "interval", marketplace_config.get("interval", 60), 1
+                                marketplace.add_search_item(item_name, item_config)
+                            #
+                            marketplace.search_products()
+                            # wait for some time before next search
+                            # interval (in minutes) can be defined both for the
+                            # marketplace and the product
+                            search_interval = max(marketplace_config.get("search_interval", 30), 1)
+                            max_search_interval = max(
+                                marketplace_config.get("max_search_interval", 1),
+                                search_interval,
                             )
-                        )
-                        max_interval = max(
-                            product_config.get(
-                                "max_interval", marketplace_config.get("max_interval", 0), interval
+                            time.sleep(
+                                random.randint(search_interval * 60, max_search_interval * 60)
                             )
-                        )
-                        time.sleep(random.randint(interval * 60, max_interval * 60))
                     else:
                         self.logger.error(f"Unsupported marketplace: {marketplace_name}")
 
-    def notify_user(self, user, title, msg):
+    def notify_users(self, users, title, msg):
         # found the user from the user configuration
-        if "users" not in self.config:
-            self.logger.warning("No users specified in the config file.")
-            return
-        if user not in self.config["users"]:
-            self.logger.warning(f"User {user} not found in the config file.")
-            return
-        user_config = self.config["users"][user]
-        if "pushbullet_token" not in user_config:
-            self.logger.warning(f"No pushbullet token specified for user {user}.")
-            return
-
-        pb = Pushbullet(user_config["pushbullet_token"])
-        pb.push_note(msg)
+        Users(users, self.config).notify(title, msg)

@@ -3,12 +3,17 @@ import os
 from logging import Logger
 from typing import Any, Dict
 
+from playwright.sync_api import Browser
+
 
 class Marketplace:
-    def __init__(self: "Marketplace", name: str, config: Dict[str, Any], logger: Logger) -> None:
+    def __init__(
+        self: "Marketplace", name: str, browser: Browser, config: Dict[str, Any], logger: Logger
+    ) -> None:
         self.name = name
         self.search_history = f"{self.name}_search_items.json"
         self.config = config
+        self.browser = browser
         self.logger = logger
         self.browser = None
         self.products = {}
@@ -22,10 +27,10 @@ class Marketplace:
         raise NotImplementedError("Logout method must be implemented by subclasses.")
 
     def reset(self) -> None:
-        self.products = {}
+        self.search_items = {}
 
-    def add_product(self, name, product: Dict[str, Any]) -> None:
-        self.products[name] = product
+    def add_search_item(self, name, product: Dict[str, Any]) -> None:
+        self.search_items[name] = product
 
     def search_products(self) -> None:
         if not self.products:

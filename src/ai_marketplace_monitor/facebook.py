@@ -1,9 +1,10 @@
 import time
 from logging import Logger
-from typing import Dict, List
+from typing import ClassVar, Dict, List
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup
+from playwright.sync_api import Browser
 
 from .marketplace import Marketplace
 
@@ -11,12 +12,62 @@ from .marketplace import Marketplace
 class FacebookMarketplace(Marketplace):
     initial_url = "https://www.facebook.com/login/device-based/regular/login/"
 
-    def __init__(self, config, logger: Logger):
-        super().__init__("facebook", config, logger)
+    name = "facebook"
+
+    allowed_config_keys: ClassVar = {
+        "username",
+        "password",
+        "search_interval",
+        "max_search_interval",
+        "search_city",
+        "acceptable_locations",
+        "exclude_sellers",
+        "notify",
+    }
+
+    def __init__(self, name, config, browser: Browser, logger: Logger):
+        assert name == self.name
+        super().__init__(name, config, browser, logger)
+        #
+        self.page = None
+        self.validate(config)
+
+    @classmethod
+    def validate(cls, config) -> None:
         for key in ("username", "password"):
             if key not in config:
-                raise ValueError(f"Missing required configuration: {key} for market facebook")
-        self.page = None
+                raise ValueError(f"Missing required configuration: {key} for market {cls.name}")
+        # locations, if specified, must be a list (or be converted to a list)
+        if "locations" in config:
+            if isinstance(config["locations"], str):
+                config["locations"] = [config["locations"]]
+            if not isinstance(config["locations"], list) or not all(
+                isinstance(x, str) for x in config["locations"]
+            ):
+                raise ValueError(
+                    f"Marketplace {cls.name} locations must be string or a list of string."
+                )
+        # if exclude_sellers is specified, it must be a list
+        if "exclude_sellers" in config:
+            if isinstance(config["exclude_sellers"], str):
+                config["exclude_sellers"] = [config["exclude_sellers"]]
+
+            if not isinstance(config["exclude_sellers"], list) or not all(
+                isinstance(x, str) for x in config["exclude_sellers"]
+            ):
+                raise ValueError(
+                    f"Marketplace {cls.name} exclude_sellers must be a list of string."
+                )
+
+        for interval_field in ("search_interval", "max_search_interval"):
+            if interval_field in config:
+                if not isinstance(config[interval_field], int):
+                    raise ValueError(f"Marketplace {cls.name} search_interval must be an integer.")
+
+        # if there are other keys in config, raise an error
+        for key in config:
+            if key not in cls.allowed_config_keys:
+                raise ValueError(f"Marketplace contains an invalid key {key}.")
 
     def login(self):
         page = self.browser.new_page()
@@ -169,7 +220,7 @@ class FacebookMarketplace(Marketplace):
         return parsed
 
     def filter_product(self, product, product_config):
-        # get exclude_keywords from both product_config or marketplace_config
+        # get exclude_keywords from both product_config or config
         exclude_keywords = product_config.get(
             "exclude_keywords", self.config.get("exclude_keywords", [])
         )

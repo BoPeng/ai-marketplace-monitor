@@ -104,9 +104,11 @@ ignore = [
   "F841",
   "ANN204",
   "ANN202",
+  "ANN102",
   "C419",
   "E722",
   "S110",
+  "S101",   # use of assert
   "BLE001", # blank exception
   "C901",   # too complex (function name too long etc)
   "D100",   # docstring

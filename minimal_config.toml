@@ -1,10 +1,10 @@
 [marketplace.facebook]
 username = 'username'
 password = 'password'
-city = 'houston'
+search_city = 'houston'
 
-[query.item1]
+[item.name1]
 keywords = 'search word one'
 
-[notify.user1]
+[user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'

@@ -37,11 +37,13 @@ This program
 - Search repeatedly with specified intervals in between
 - Add/remove items dynamically by changing the confirmation file.
 
-- TODO: Exclude explicitly listed spammers
-- TODO: Use embedding-based algorithm to identify likely matches
-- TODO: Use AI to identify spammers
-- TODO: Support other notification methods
-- TODO: Support other marketplaces
+TODO:
+
+- Exclude explicitly listed spammers
+- Use embedding-based algorithm to identify likely matches
+- Use AI to identify spammers
+- Support other notification methods
+- Support other marketplaces
 
 **NOTE**: This is a recipe for programmers, and you are expected to know some Python and command-line operations to make it work. There is no GUI.
 
@@ -75,12 +77,12 @@ A minimal example is provided as [`minimal_config.toml`](minimal_config.toml). B
 [marketplace.facebook]
 username = 'username'
 password = 'password'
-city = 'houston'
+search_city = 'houston'
 
 [query.item1]
 keywords = 'search word one'
 
-[notify.user1]
+[user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
