@@ -31,14 +31,14 @@ jobs:
           poetry build --ansi
 
       - name: Publish package on PyPI
-        uses: pypa/gh-action-pypi-publish@v1.8.11
+        uses: pypa/gh-action-pypi-publish@v1.12.3
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
           attestations: false
 
       - name: Publish package on TestPyPI
-        uses: pypa/gh-action-pypi-publish@v1.8.11
+        uses: pypa/gh-action-pypi-publish@v1.12.3
         with:
           user: __token__
           password: ${{ secrets.TEST_PYPI_TOKEN }}
