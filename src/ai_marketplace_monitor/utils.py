@@ -1,6 +1,6 @@
 import hashlib
 import os
-from typing import List
+from typing import Any, Dict, List
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:
@@ -37,7 +37,7 @@ def merge_dicts(dicts: list) -> dict:
                 d1[key] = value
         return d1
 
-    result = {}
+    result: Dict[str, Any] = {}
     for dictionary in dicts:
         result = merge(result, dictionary)
     return result

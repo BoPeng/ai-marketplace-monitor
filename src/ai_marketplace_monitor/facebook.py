@@ -4,8 +4,8 @@ from logging import Logger
 from typing import ClassVar, Dict, List
 from urllib.parse import quote
 
-from bs4 import BeautifulSoup
-from playwright.sync_api import Browser
+from bs4 import BeautifulSoup  # type: ignore
+from playwright.sync_api import Browser, Page
 
 from .items import SearchedItem
 from .marketplace import Marketplace
@@ -32,7 +32,7 @@ class FacebookMarketplace(Marketplace):
         assert name == self.name
         super().__init__(name, browser, logger)
         #
-        self.page = None
+        self.page: Page | None = None
 
     @classmethod
     def validate(cls, config) -> None:
@@ -82,7 +82,8 @@ class FacebookMarketplace(Marketplace):
 
     def login(self):
         context = self.browser.new_context()  # create a new incognite window
-        self.page = context.new_page()
+        self.page: Page = context.new_page()
+        assert self.page is not None
         # Navigate to the URL, no timeout
         self.page.goto(self.initial_url, timeout=0)
         try:
@@ -105,6 +106,7 @@ class FacebookMarketplace(Marketplace):
     def search(self, item_config) -> List[SearchedItem]:
         if not self.page:
             self.login()
+            assert self.page is not None
 
         # get city from either marketplace config or item config
         search_city = item_config.get("search_city", self.config.get("search_city", ""))
@@ -134,7 +136,9 @@ class FacebookMarketplace(Marketplace):
         for item in found_items:
             self.page.goto(f'https://www.facebook.com{item["post_url"]}', timeout=0)
             html = self.page.content()
-            item |= self.get_item_details(html)
+            details = self.get_item_details(html)
+            for key in ("description", "seller"):
+                item[key] = details[key]
             self.logger.debug(
                 f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
             )
@@ -144,9 +148,9 @@ class FacebookMarketplace(Marketplace):
         # check if any of the items have been returned before
         return found_items
 
-    def get_item_list(self, html) -> List[SearchedItem]:
+    def get_item_list(self, html: str) -> List[SearchedItem]:
         soup = BeautifulSoup(html, "html.parser")
-        parsed = []
+        parsed: List[SearchedItem] = []
 
         def get_listings_from_structure():
             heading = soup.find(attrs={"aria-label": "Collection of Marketplace items"})

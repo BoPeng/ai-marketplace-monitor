@@ -1,7 +1,7 @@
 from logging import Logger
 from typing import Any, ClassVar, Dict, List
 
-from playwright.sync_api import Browser
+from playwright.sync_api import Browser, Page
 
 from .items import SearchedItem
 
@@ -13,7 +13,7 @@ class Marketplace:
         self.name = name
         self.browser = browser
         self.logger = logger
-        self.page = None
+        self.page: Page | None = None
 
     def configure(self, config: Dict[str, Any]) -> None:
         self.config = config

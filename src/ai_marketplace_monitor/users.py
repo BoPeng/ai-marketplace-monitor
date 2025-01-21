@@ -1,6 +1,6 @@
 from typing import Any, ClassVar, Dict
 
-from pushbullet import Pushbullet
+from pushbullet import Pushbullet  # type: ignore
 
 
 class User:

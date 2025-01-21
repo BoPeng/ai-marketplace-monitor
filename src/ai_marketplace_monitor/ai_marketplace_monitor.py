@@ -24,7 +24,11 @@ class MarketplaceMonitor:
     active_marketplaces: ClassVar = {}
 
     def __init__(
-        self, config_files: List[str], headless: bool, clear_cache: bool, logger: Logger
+        self,
+        config_files: List[str] | None,
+        headless: bool | None,
+        clear_cache: bool | None,
+        logger: Logger,
     ) -> None:
         for file_path in config_files or []:
             if not os.path.exists(file_path):
@@ -36,8 +40,8 @@ class MarketplaceMonitor:
             config_files or []
         )
         #
-        self.config = None
-        self.config_hash = None
+        self.config: Dict[str, Any] | None = None
+        self.config_hash: str | None = None
         self.headless = headless
         self.logger = logger
         if clear_cache and os.path.exists(self.search_history_cache):
@@ -50,13 +54,15 @@ class MarketplaceMonitor:
             new_file_hash = calculate_file_hash(self.config_files)
             config_changed = self.config_hash is None or new_file_hash != self.config_hash
             if not config_changed:
+                assert self.config is not None
                 return self.config
             try:
                 # if the config file is ok, break
                 self.config = Config(self.config_files).config
                 self.config_hash = new_file_hash
                 self.logger.debug(self.config)
-                return config_changed
+                assert self.config is not None
+                return self.config
             except ValueError as e:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
@@ -78,6 +84,7 @@ class MarketplaceMonitor:
                 # this allows users to add/remove products dynamically.
                 self.load_config_file()
 
+                assert self.config is not None
                 for marketplace_name, marketplace_config in self.config["marketplace"].items():
                     marketplace_class = supported_marketplaces[marketplace_name]
                     if marketplace_name in self.active_marketplaces:
@@ -153,4 +160,6 @@ class MarketplaceMonitor:
             self.logger.info(
                 f"Sending {user} a message with title [blue]{title}[/blue] and message [blue]{message}[/blue]"
             )
+            assert self.config is not None
+            assert self.config["suser"] is not None
             User(user, self.config["user"][user]).notify(title, message)

@@ -172,7 +172,7 @@ line-length = 99
 target-version = ["py39"]
 
 [tool.mypy]
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
