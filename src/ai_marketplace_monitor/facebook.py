@@ -1,7 +1,7 @@
 import re
 import time
 from logging import Logger
-from typing import ClassVar, List
+from typing import ClassVar, Dict, List
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup
@@ -112,7 +112,14 @@ class FacebookMarketplace(Marketplace):
                 [x for x in self.get_item_list(html) if self.filter_item(x, item_config)]
             )
             time.sleep(5)
-
+        # go to each item and get the description
+        for item in found_items:
+            self.page.goto(f'https://www.facebook.com{item["post_url"]}', timeout=0)
+            html = self.page.content()
+            item |= self.get_item_details(html)
+            time.sleep(5)
+        #
+        found_items = [x for x in found_items if self.filter_item_by_details(x, item_config)]
         # check if any of the items have been returned before
         return found_items
 
@@ -187,6 +194,7 @@ class FacebookMarketplace(Marketplace):
                         "price": price,
                         "post_url": post_url,
                         "location": location,
+                        "seller": "",
                         "description": "",
                     }
                 )
@@ -195,6 +203,25 @@ class FacebookMarketplace(Marketplace):
                 pass
 
         return parsed
+
+    def get_item_details(self, html) -> Dict[str, str]:
+        soup = BeautifulSoup(html, "html.parser")
+        try:
+            cond = soup.find("span", string="Condition")
+            ul = cond.find_parent("ul")
+            description_div = ul.find_next_sibling()
+            description = description_div.get_text(strip=True)
+        except Exception as e:
+            self.logger.debug(e)
+            description = ""
+        #
+        try:
+            profiles = soup.find_all("a", href=re.compile(r"/marketplace/profile"))
+            seller = profiles[-1].get_text()
+        except Exception as e:
+            self.logger.debug(e)
+            description = ""
+        return {"description": description, "seller": seller}
 
     def filter_item(self, item: SearchedItem, item_config) -> bool:
         # get exclude_keywords from both item_config or config
@@ -221,6 +248,33 @@ class FacebookMarketplace(Marketplace):
         ):
             self.logger.debug(
                 f"Excluding item out side of specified locations: [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
+            )
+            return False
+
+        return True
+
+    def filter_item_by_details(self, item: SearchedItem, item_config) -> bool:
+        # get exclude_keywords from both item_config or config
+        exclude_by_description = item_config.get("exclude_by_description", [])
+
+        if exclude_by_description and any(
+            [x.lower() in item["description"].lower() for x in exclude_by_description or []]
+        ):
+            self.logger.debug(
+                f"Excluding specifically listed item by description: [red]{exclude_by_description}[/red]"
+            )
+            return False
+
+        # get exclude_sellers from both item_config or config
+        exclude_sellers = item_config.get("exclude_sellers", []) + self.config.get(
+            "exclude_sellers", []
+        )
+
+        if exclude_sellers and any(
+            [x.lower() in item["seller"].lower() for x in exclude_sellers or []]
+        ):
+            self.logger.debug(
+                f"Excluding specifically listed item by seller: [red]{item['seller']}[/red]"
             )
             return False
 

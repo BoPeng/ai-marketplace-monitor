@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2025-01-21
 
 - Allow the definition of a reusable config file from `~/.ai-marketplace-monitor/config.toml`
+- Allow options `exclude_sellers` and `exclude_by_description`
 - Fix a bug that prevents the sending of phone notification
 
 ## [0.1.0] - 2025-01-20

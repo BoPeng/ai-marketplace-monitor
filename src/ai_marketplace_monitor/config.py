@@ -65,6 +65,29 @@ class Config:
                 raise ValueError(f"Item [blue]{item_name}[/blue] keywords must be a list.")
             if len(item_config["keywords"]) == 0:
                 raise ValueError(f"Item [blue]{item_name}[/blue] keywords list is empty.")
+
+            # exclude_sellers should be a list of strings
+            if "exclude_sellers" in item_config:
+                if isinstance(item_config["exclude_sellers"], str):
+                    item_config["exclude_sellers"] = [item_config["exclude_sellers"]]
+                if not isinstance(item_config["exclude_sellers"], list) or not all(
+                    isinstance(x, str) for x in item_config["exclude_sellers"]
+                ):
+                    raise ValueError(
+                        f"Item [blue]{item_name}[/blue] exclude_sellers must be a list."
+                    )
+            #
+            # exclude_by_description should be a list of strings
+            if "exclude_by_description" in item_config:
+                if isinstance(item_config["exclude_by_description"], str):
+                    item_config["exclude_by_description"] = [item_config["exclude_by_description"]]
+                if not isinstance(item_config["exclude_by_description"], list) or not all(
+                    isinstance(x, str) for x in item_config["exclude_by_description"]
+                ):
+                    raise ValueError(
+                        f"Item [blue]{item_name}[/blue] exclude_by_description must be a list."
+                    )
+
             # if there are other keys in item_config, raise an error
             for key in item_config:
                 if key not in [
@@ -73,6 +96,9 @@ class Config:
                     "notify",
                     "exclude_keywords",
                     "exclude_sellers",
+                    "min_price",
+                    "max_price",
+                    "exclude_by_description",
                 ]:
                     raise ValueError(
                         f"Item [blue]{item_name}[/blue] contains an invalid key {key}."

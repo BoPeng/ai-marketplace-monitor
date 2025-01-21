@@ -10,4 +10,5 @@ class SearchedItem(TypedDict):
     price: str
     post_url: str
     location: str
+    seller: str
     description: str

@@ -20,8 +20,10 @@ max_search_interval = 60
 acceptable_locations = ['city', 'surrounding city']
 # OPTIONAL, string or list of strings, can be specified for each search item
 notify = 'user1'
-# NOT-IMPLEMENTED, string or list of strings, can be specified for each search item
+# OPTIONAL, string or list of strings, can be specified for each search item
 exclude_sellers = []
+#
+exclude_by_description = []
 
 # REQUIRED for notification
 [notify.user1]
@@ -34,11 +36,11 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 
 # OPTIONAL a product
-[query.item2]
+[item.name1]
 keywords = 'search word one'
 
 # Complete item
-[item.name1]
+[item.name2]
 # REUIRED string or list of strings
 keywords = ['search word one', 'search word two']
 
@@ -52,5 +54,7 @@ notify = 'user2'
 search_city = 'another city'
 # OPTIONAL
 acceptable_locations = ['another city', 'surrounding city']
-# NOT-IMPLEMENTED
+# OPTONAL
 exclude_sellers = []
+# OPTIONAL
+exclude_by_description = []
