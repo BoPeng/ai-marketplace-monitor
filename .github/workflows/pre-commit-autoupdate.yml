@@ -12,10 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      - name: Set up Python 3.9
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5.3.0
         with:
-          python-version: 3.9
+          python-version: 3.12
 
       - name: Install system deps
         shell: bash
