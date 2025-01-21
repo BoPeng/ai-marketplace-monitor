@@ -1,11 +1,12 @@
 import time
 from logging import Logger
-from typing import ClassVar, Dict, List
+from typing import ClassVar, List
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import Browser
 
+from .items import SearchedItem
 from .marketplace import Marketplace
 
 
@@ -34,6 +35,9 @@ class FacebookMarketplace(Marketplace):
 
     @classmethod
     def validate(cls, config) -> None:
+        #
+        super().validate(config)
+        #
         for key in ("username", "password"):
             if key not in config:
                 raise ValueError(f"Missing required configuration: {key} for market {cls.name}")
@@ -64,39 +68,31 @@ class FacebookMarketplace(Marketplace):
                 if not isinstance(config[interval_field], int):
                     raise ValueError(f"Marketplace {cls.name} search_interval must be an integer.")
 
-        # if there are other keys in config, raise an error
-        for key in config:
-            if key not in cls.allowed_config_keys:
-                raise ValueError(f"Marketplace contains an invalid key {key}.")
-
     def login(self):
-        page = self.browser.new_page()
+        self.page = self.browser.new_page()
         # Navigate to the URL, no timeout
-        page.goto(self.initial_url, timeout=0)
+        self.page.goto(self.initial_url, timeout=0)
         try:
-            page.wait_for_selector('input[name="email"]').fill(self.config["username"])
-            page.wait_for_selector('input[name="pass"]').fill(self.config["password"])
+            self.page.wait_for_selector('input[name="email"]').fill(self.config["username"])
+            self.page.wait_for_selector('input[name="pass"]').fill(self.config["password"])
             time.sleep(5)
-            page.wait_for_selector('button[name="login"]').click()
+            self.page.wait_for_selector('button[name="login"]').click()
             # in case there is a need to enter additional information
             time.sleep(30)
             self.logger.info("Logging into facebook")
         except:
             pass
 
-    def search(self, product):
+    def search(self, item_config) -> List[SearchedItem]:
         if not self.page:
             self.login()
 
-        # get city from either marketplace config or product config
-        search_city = self.config.get("city", product.get("city", ""))
-        if not search_city:
-            self.logger.error("No city specified for search")
-            return
-        # get max price from either marketplace config or product config
-        max_price = self.config.get("max_price", product.get("max_price", None))
-        # get min price from either marketplace config or product config
-        min_price = self.config.get("min_price", product.get("min_price", None))
+        # get city from either marketplace config or item config
+        search_city = self.config.get("search_city", item_config.get("search_city", ""))
+        # get max price from either marketplace config or item config
+        max_price = self.config.get("max_price", item_config.get("max_price", None))
+        # get min price from either marketplace config or item config
+        min_price = self.config.get("min_price", item_config.get("min_price", None))
 
         marketplace_url = f"https://www.facebook.com/marketplace/{search_city}/?"
         if max_price:
@@ -106,46 +102,20 @@ class FacebookMarketplace(Marketplace):
 
         # search multiple keywords
         found_items = []
-        for keyword in product.get("keywords", []):
-            marketplace_url += f"query={quote(keyword)}"
-
-            self.page.goto(marketplace_url, timeout=0)
+        for keyword in item_config.get("keywords", []):
+            self.page.goto(marketplace_url + f"query={quote(keyword)}", timeout=0)
 
             html = self.page.content()
 
             found_items.extend(
-                [x for x in self.get_product_list(html) if self.filter_item(x, product)]
+                [x for x in self.get_item_list(html) if self.filter_item(x, item_config)]
             )
             time.sleep(5)
 
         # check if any of the items have been returned before
-        new_items = self.find_new_items(found_items)
-        # now, notify users
-        #
-        # get product or marketplace list of users to notify
-        notify_users = product.get("notify_users", [])
-        if isinstance(notify_users, str):
-            notify_users = [notify_users]
-        if "notify_users" in self.config:
-            global_users = self.config["notify_users"]
-            if isinstance(global_users, str):
-                global_users = [global_users]
-            notify_users.extend(global_users)
-        # remove duplicates
-        notify_users = list(set(notify_users))
-        # get notification msg for this product
-        msg = []
-        for item in new_items:
-            self.logger.info(
-                f'New item found: {item["title"]} with URL https://www.facebook.com{item['post_url']}'
-            )
-            msg.append(
-                f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
-            )
-        for user in notify_users:
-            pb = self.notify_user(user, f"{len(new_items)} new item found: ", "\n\n".join(msg))
+        return found_items
 
-    def get_product_list(self, html, product) -> List[Dict[str, str]]:
+    def get_item_list(self, html) -> List[SearchedItem]:
         soup = BeautifulSoup(html, "html.parser")
         parsed = []
 
@@ -205,12 +175,14 @@ class FacebookMarketplace(Marketplace):
                 # Append the parsed data to the list.
                 parsed.append(
                     {
-                        "image": image,
+                        "marketplace": self.name,
+                        "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
                         "title": title,
+                        "image": image,
                         "price": price,
                         "post_url": post_url,
                         "location": location,
-                        "item_id": post_url.split("?")[0].rstrip("/").split("/")[-1],
+                        "description": "",
                     }
                 )
             except Exception as e:
@@ -219,33 +191,31 @@ class FacebookMarketplace(Marketplace):
 
         return parsed
 
-    def filter_product(self, product, product_config):
-        # get exclude_keywords from both product_config or config
-        exclude_keywords = product_config.get(
+    def filter_item(self, item: SearchedItem, item_config) -> bool:
+        # get exclude_keywords from both item_config or config
+        exclude_keywords = item_config.get(
             "exclude_keywords", self.config.get("exclude_keywords", [])
         )
 
         if exclude_keywords and any(
-            [x.lower() in product["title"].lower() for x in exclude_keywords or []]
+            [x.lower() in item["title"].lower() for x in exclude_keywords or []]
         ):
-            self.logger.info(f"Excluding specifically listed item: {product['title']}")
+            self.logger.info(f"Excluding specifically listed item: {item['title']}")
             return False
 
         # if the return description does not contain any of the search keywords
-        search_words = [
-            word for keywords in product_config["keywords"] for word in keywords.split()
-        ]
-        if not any([x.lower() in product["title"].lower() for x in search_words]):
-            self.logger.info(f"Excluding item without search word: {product['title']}")
+        search_words = [word for keywords in item_config["keywords"] for word in keywords.split()]
+        if not any([x.lower() in item["title"].lower() for x in search_words]):
+            self.logger.info(f"Excluding item without search word: {item['title']}")
             return False
 
-        # get locations from either marketplace config or product config
-        allowed_locations = product_config.get("locations", self.config.get("locations", []))
+        # get locations from either marketplace config or item config
+        allowed_locations = item_config.get("locations", self.config.get("locations", []))
         if allowed_locations and not any(
-            [x.lower() in product["location"].lower() for x in allowed_locations]
+            [x.lower() in item["location"].lower() for x in allowed_locations]
         ):
             self.logger.info(
-                f"Excluding item out side of specified locations: {title} from location {location}"
+                f"Excluding item out side of specified locations: {item['title']} from location {item['location']}"
             )
             return False
 

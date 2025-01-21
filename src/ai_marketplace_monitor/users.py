@@ -10,9 +10,10 @@ class User:
         self.name = name
         self.config = config
         self.push_bullet_token = None
+        self.validate(name, config)
 
     @classmethod
-    def validate(cls, username, config: Dict[str, Any]) -> None:
+    def validate(cls, username: str, config: Dict[str, Any]) -> None:
         if "pushbullet_token" not in config:
             raise ValueError("User {username} must have a pushbullet_token")
         if not isinstance(config["pushbullet_token"], str):
@@ -25,19 +26,3 @@ class User:
     def notify(self, title: str, message: str) -> None:
         pb = Pushbullet(self.config["pushbullet_token"])
         pb.push_note(title, message)
-
-
-class Users:
-    def __init__(self, config: Dict[str, Any]) -> None:
-        self.users = {}
-        for username, user_config in config.items():
-            self.users[username] = User(username, user_config)
-
-    def notify(self, user: str, title: str, message: str) -> None:
-        if user not in self.users:
-            return
-        self.users[user].notify(title, message)
-
-    def notify_all(self, title: str, message: str) -> None:
-        for user in self.users:
-            self.notify(user, title, message)

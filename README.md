@@ -79,7 +79,7 @@ username = 'username'
 password = 'password'
 search_city = 'houston'
 
-[query.item1]
+[item.name]
 keywords = 'search word one'
 
 [user.user1]
