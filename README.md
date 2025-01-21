@@ -86,7 +86,29 @@ keywords = 'search word one'
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
-A more complete example is provided at [`example_config.toml`](example_config.toml), which allows more complex search and notification patterns.
+A more complete example is provided at [`example_config.toml`](example_config.toml), which allows more complex search and notification patterns. Briefly:
+
+- `marketplace.facebook` allows
+
+  - `username`: (required)
+  - `password`: (required)
+  - `search_interval`: (optional) minimal interval in minutes between searches
+  - `max_search_interval`: (optional) maximum interval in minutes between searches
+  - `search_city`: (optional if defined for item) search city, which can be obtained from the URL of your search query
+  - `acceptable_locations`: (optional) only allow searched items from these locations
+  - `exclude_sellers`: (optional, not implemented yet) exclude certain sellers
+  - `notify`: (optional) users who should be notified for all items
+
+- `user.username` where `username` is the name listed in `notify`
+
+  - `pushbullet_token`: (rquired) token for user
+
+- `item.item_name` where `item_name` is the name of the item
+  - `keywords`: (required) one of more keywords for searching the item
+  - `marketplace`: (optional), can only be `facebook` if specified.
+  - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
+  - `exclude_sellers`: (optional, not implemented yet) exclude certain sellers
+  - `notify`: (optional) users who should be notified for this item
 
 ### Run the program
 
@@ -101,7 +123,12 @@ You will need to specify the path to the configuration file if it is not named `
 **NOTE**
 
 1. You need to keep the terminal running to allow the program to run indefinitely.
-2. You will see a browser firing up. **You may need to manually enter any prompt that facebook asks for authentication** in addition to the username and password that the program enters for you. You may want to click "OK" for save password etc.
+2. You will see a browser firing up. **You may need to manually enter any prompt (e.g. CAPTCHA) that facebook asks for authentication** in addition to the username and password that the program enters for you. You may want to click "OK" for save password etc.
+
+## Advanced features
+
+- A file `~/.ai-marketplace-monitor/config.yml`, if exists, will be read and merged to the specified configuration file. This allows you to save sensitive information like facebook username, password, and pushbullet token in a separate file.
+- Multiple configuration files can be specified to `--config`, which allows you to spread items into different files.
 
 ## Credits
 

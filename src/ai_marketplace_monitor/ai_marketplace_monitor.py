@@ -17,10 +17,23 @@ supported_marketplaces = {"facebook": FacebookMarketplace}
 
 
 class MarketplaceMonitor:
-    search_history_cache = "search_items.json"
+    search_history_cache = os.path.join(
+        os.path.expanduser("~"), ".ai-marketplace-monitor", "searched_items.json"
+    )
 
-    def __init__(self, config_file: str, headless: bool, clear_cache: bool, logger: Logger):
-        self.config_file = config_file
+    def __init__(
+        self, config_files: List[str], headless: bool, clear_cache: bool, logger: Logger
+    ) -> None:
+        for file_path in config_files or []:
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Config file {file_path} not found.")
+        default_config = os.path.join(
+            os.path.expanduser("~"), ".ai-marketplace-monitor", "config.toml"
+        )
+        self.config_files = ([default_config] if os.path.isfile(default_config) else []) + (
+            config_files or []
+        )
+        #
         self.config = None
         self.config_hash = None
         self.headless = headless
@@ -32,13 +45,13 @@ class MarketplaceMonitor:
         """Load the configuration file."""
         last_invalid_hash = None
         while True:
-            new_file_hash = calculate_file_hash(self.config_file)
+            new_file_hash = calculate_file_hash(self.config_files)
             config_changed = self.config_hash is None or new_file_hash != self.config_hash
             if not config_changed:
                 return self.config
             try:
                 # if the config file is ok, break
-                self.config = Config(self.config_file).config
+                self.config = Config(self.config_files).config
                 self.config_hash = new_file_hash
                 self.logger.debug(self.config)
                 return config_changed
@@ -46,7 +59,7 @@ class MarketplaceMonitor:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
                     self.logger.error(
-                        f"""Error parsing config file:\n\n{e}\n\nPlease fix the file and we will start monitoring as soon as you are done."""
+                        f"""Error parsing config file:\n\n[bold]{e}[/bold]\n\nPlease fix the file and we will start monitoring as soon as you are done."""
                     )
 
                 time.sleep(10)
@@ -72,21 +85,22 @@ class MarketplaceMonitor:
                     if config_changed:
                         marketplace.reset()
 
-                    found_items = []
                     for _, item_config in self.config["item"].items():
                         if (
                             "marketplace" not in item_config
                             or item_config["marketplace"] == marketplace_name
                         ):
-                            found_items.extend(marketplace.search(item_config))
+                            found_items = marketplace.search(item_config)
+                            #
+                            new_items = self.find_new_items(found_items)
+                            # there can be item-specific notification
+                            if new_items:
+                                self.notify_users(
+                                    marketplace_config.get("notify", [])
+                                    + item_config.get("notify", []),
+                                    new_items,
+                                )
                             time.sleep(5)
-                    #
-                    new_items = self.find_new_items(found_items)
-                    if new_items:
-                        self.notify_users(
-                            marketplace_config.get("notify", []) + self.config.get("notify", []),
-                            new_items,
-                        )
 
                     # wait for some time before next search
                     # interval (in minutes) can be defined both for the
@@ -98,17 +112,18 @@ class MarketplaceMonitor:
                     )
                     time.sleep(random.randint(search_interval * 60, max_search_interval * 60))
 
-    def load_searched_items(self):
+    def load_searched_items(self) -> List[SearchedItem]:
         if os.path.isfile(self.search_history_cache):
             with open(self.search_history_cache, "r") as f:
                 return json.load(f)
         return []
 
-    def save_searched_items(self, items):
+    def save_searched_items(self, items: List[SearchedItem]) -> None:
+        os.makedirs(os.path.dirname(self.search_history_cache), exist_ok=True)
         with open(self.search_history_cache, "w") as f:
             json.dump(items, f)
 
-    def find_new_items(self, items):
+    def find_new_items(self, items: List[SearchedItem]) -> List[SearchedItem]:
         past_items = self.load_searched_items()
         past_item_ids = [x["id"] for x in past_items]
         new_items = [x for x in items if x["id"] not in past_item_ids]
@@ -116,7 +131,7 @@ class MarketplaceMonitor:
             self.save_searched_items(past_items + new_items)
         return new_items
 
-    def notify_users(self, users, items: List[SearchedItem]) -> None:
+    def notify_users(self, users: List[str], items: List[SearchedItem]) -> None:
         # get notification msg for this item
         msgs = []
         for item in items:
@@ -128,6 +143,9 @@ class MarketplaceMonitor:
             )
         # found the user from the user configuration
         for user in users:
-            User(user, self.config["user"][user]).notify(
-                f"Found {len(items)} new item from {item['marketplace']}: ", "\n\n".join(msgs)
+            title = f"Found {len(items)} new item from {item['marketplace']}: "
+            message = "\n\n".join(msgs)
+            self.logger.info(
+                f"Sending {user} a message with title [blue]{title}[/blue] and message [blue]{message}[/blue]"
             )
+            User(user, self.config["user"][user]).notify(title, message)

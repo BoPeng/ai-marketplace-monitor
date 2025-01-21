@@ -1,3 +1,4 @@
+import re
 import time
 from logging import Logger
 from typing import ClassVar, List
@@ -94,7 +95,7 @@ class FacebookMarketplace(Marketplace):
         # get min price from either marketplace config or item config
         min_price = self.config.get("min_price", item_config.get("min_price", None))
 
-        marketplace_url = f"https://www.facebook.com/marketplace/{search_city}/?"
+        marketplace_url = f"https://www.facebook.com/marketplace/{search_city}/search?"
         if max_price:
             marketplace_url += f"maxPrice={max_price}&"
         if min_price:
@@ -140,8 +141,8 @@ class FacebookMarketplace(Marketplace):
             try:
                 listings = get_listing_from_css()
             except Exception as e2:
-                self.logger.info("No listings found from structure and css: {e1}, {e2}")
-                self.logger.info("Saving html to test.html")
+                self.logger.debug("No listings found from structure and css: {e1}, {e2}")
+                self.logger.debug("Saving html to test.html")
 
                 with open("test.html", "w") as f:
                     f.write(html)
@@ -169,6 +170,10 @@ class FacebookMarketplace(Marketplace):
                 )  # x9f619 x78zum5 xdt5ytf x1qughib x1rdy4ex xz9dl7a xsag5q8 xh8yej3 xp0eagm x1nrcals
                 # There are 4 divs in 'details', in this order: price, title, location, distance
                 price = details[0].contents[-1].text
+                # if there are two prices (reduced), take the first one
+                if price.count("$") > 1:
+                    match = re.search(r"\$\d+(?:\.\d{2})?", price)
+                    price = match.group(0) if match else price
                 title = details[1].contents[-1].text
                 location = details[2].contents[-1].text
 
@@ -200,13 +205,13 @@ class FacebookMarketplace(Marketplace):
         if exclude_keywords and any(
             [x.lower() in item["title"].lower() for x in exclude_keywords or []]
         ):
-            self.logger.info(f"Excluding specifically listed item: {item['title']}")
+            self.logger.debug(f"Excluding specifically listed item: [red]{item['title']}[/red]")
             return False
 
         # if the return description does not contain any of the search keywords
         search_words = [word for keywords in item_config["keywords"] for word in keywords.split()]
         if not any([x.lower() in item["title"].lower() for x in search_words]):
-            self.logger.info(f"Excluding item without search word: {item['title']}")
+            self.logger.debug(f"Excluding item without search word: [red]{item['title']}[/red]")
             return False
 
         # get locations from either marketplace config or item config
@@ -214,8 +219,8 @@ class FacebookMarketplace(Marketplace):
         if allowed_locations and not any(
             [x.lower() in item["location"].lower() for x in allowed_locations]
         ):
-            self.logger.info(
-                f"Excluding item out side of specified locations: {item['title']} from location {item['location']}"
+            self.logger.debug(
+                f"Excluding item out side of specified locations: [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
             )
             return False
 

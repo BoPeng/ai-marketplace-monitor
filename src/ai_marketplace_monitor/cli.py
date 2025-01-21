@@ -1,10 +1,9 @@
 """Console script for ai-marketplace-monitor."""
 
 import logging
-import os
 import sys
 import time
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 import rich
 import typer
@@ -33,9 +32,13 @@ def version_callback(value: bool) -> None:
 
 @app.command()
 def main(
-    config_file: Annotated[
-        str | None,
-        typer.Option("-r", "--config", help="Path to the configuration file in TOML format."),
+    config_files: Annotated[
+        List[str] | None,
+        typer.Option(
+            "-r",
+            "--config",
+            help="Path to one or more configuration files in TOML format. `~/.ai-marketplace-monitor/config.toml will always be read.",
+        ),
     ] = None,
     headless: Annotated[
         Optional[bool],
@@ -54,24 +57,18 @@ def main(
     ] = None,
 ) -> None:
     """Console script for AI Marketplace Monitor."""
-    if config_file is None:
-        config_file = os.path.join(os.path.dirname(__file__), "config.toml")
-
-    if not os.path.isfile(config_file):
-        sys.exit(f"Config file {config_file} does not exist.")
-
     logging.basicConfig(
         level="DEBUG" if verbose else "INFO",
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler()],
+        handlers=[RichHandler(markup=True)],
     )
 
     logger = logging.getLogger("monitor")
 
     while True:
         try:
-            MarketplaceMonitor(config_file, headless, clear_cache, logger).monitor()
+            MarketplaceMonitor(config_files, headless, clear_cache, logger).monitor()
         except KeyboardInterrupt:
             rich.print("Exiting...")
             sys.exit(0)
