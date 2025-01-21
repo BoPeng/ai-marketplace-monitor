@@ -87,6 +87,8 @@ keywords = 'search word one'
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
+The configuration file needs to be put as `$HOME/.ai-marketplace-monitor/config.toml`, or be specified via option `--config`.
+
 Here is a complete list of options that are acceptable by the program:
 
 - Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
@@ -125,7 +127,7 @@ Start monitoring with the command
 ai-marketplace-monitor
 ```
 
-or
+if you have the configuration stored as `$HOME/.ai-marketplace-monitor/config.toml`, or
 
 ```
 ai-marketplace-monitor --config /path/to/config.toml
@@ -135,7 +137,7 @@ ai-marketplace-monitor --config /path/to/config.toml
 
 1. You need to keep the terminal running to allow the program to run indefinitely.
 2. You will see a browser firing up. **You may need to manually enter username and/or password (if unspecified in config file), and answer any prompt (e.g. CAPTCHA) to login**. You may want to click "OK" to save the password, etc.
-3. If you continue to experience login problem, it can be helpful to remove `password` from `marketplace.facebook` to manually enter password, click ok, and solve CAPTCHA.
+3. If you continue to experience login problem, it can be helpful to remove `username` and `password` from `marketplace.facebook` to authenticate manually. You may want to set `login_wait_time` to be larger than 60 if you need more time to solve the CAPTCHA.
 
 ### Updating search
 
