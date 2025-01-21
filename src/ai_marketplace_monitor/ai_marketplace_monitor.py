@@ -3,7 +3,7 @@ import os
 import random
 import time
 from logging import Logger
-from typing import Any, Dict, List
+from typing import Any, ClassVar, Dict, List
 
 from playwright.sync_api import Browser, sync_playwright
 
@@ -20,6 +20,8 @@ class MarketplaceMonitor:
     search_history_cache = os.path.join(
         os.path.expanduser("~"), ".ai-marketplace-monitor", "searched_items.json"
     )
+
+    active_marketplaces: ClassVar = {}
 
     def __init__(
         self, config_files: List[str], headless: bool, clear_cache: bool, logger: Logger
@@ -74,16 +76,19 @@ class MarketplaceMonitor:
             while True:
                 # we reload the config file each time when a scan action is completed
                 # this allows users to add/remove products dynamically.
-                config_changed = self.load_config_file()
+                self.load_config_file()
 
                 for marketplace_name, marketplace_config in self.config["marketplace"].items():
                     marketplace_class = supported_marketplaces[marketplace_name]
-                    marketplace = marketplace_class(
-                        marketplace_name, marketplace_config, browser, self.logger
-                    )
-                    #
-                    if config_changed:
-                        marketplace.reset()
+                    if marketplace_name in self.active_marketplaces:
+                        marketplace = self.active_marketplaces[marketplace_name]
+
+                    else:
+                        marketplace = marketplace_class(marketplace_name, browser, self.logger)
+                        self.active_marketplaces[marketplace_name] = marketplace
+
+                    # Configure might have been changed
+                    marketplace.configure(marketplace_config)
 
                     for _, item_config in self.config["item"].items():
                         if (

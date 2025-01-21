@@ -9,14 +9,14 @@ from .items import SearchedItem
 class Marketplace:
     allowed_config_keys: ClassVar = {}
 
-    def __init__(
-        self: "Marketplace", name: str, config: Dict[str, Any], browser: Browser, logger: Logger
-    ) -> None:
+    def __init__(self: "Marketplace", name: str, browser: Browser, logger: Logger) -> None:
         self.name = name
-        self.config = config
         self.browser = browser
         self.logger = logger
         self.page = None
+
+    def configure(self, config: Dict[str, Any]) -> None:
+        self.config = config
 
     @classmethod
     def validate(cls, config: Dict[str, Any]) -> None:
@@ -24,10 +24,6 @@ class Marketplace:
         for key in config:
             if key not in cls.allowed_config_keys:
                 raise ValueError(f"Marketplace contains an invalid key {key}.")
-
-    def reset(self):
-        # ask to re-login
-        self.page = None
 
     def search(self, item: Dict[str, Any]) -> List[SearchedItem]:
         raise NotImplementedError("Search method must be implemented by subclasses.")

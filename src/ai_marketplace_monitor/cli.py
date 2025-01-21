@@ -72,8 +72,11 @@ def main(
         except KeyboardInterrupt:
             rich.print("Exiting...")
             sys.exit(0)
-        # if the monitoring tool fails for whatever reason, wait for 60 seconds and starts again
-        time.sleep(60)  # Wait for 60 seconds before checking again
+        except Exception as e:
+            # if the monitoring tool fails for whatever reason, wait for 60 seconds and starts again
+            # However, manual user input might be needed, so this would not work well.
+            logger.error(f"Error: {e}")
+            time.sleep(60)  # Wait for 60 seconds before checking again
 
 
 if __name__ == "__main__":

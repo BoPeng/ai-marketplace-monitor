@@ -28,12 +28,11 @@ class FacebookMarketplace(Marketplace):
         "notify",
     }
 
-    def __init__(self, name, config, browser: Browser, logger: Logger):
+    def __init__(self, name, browser: Browser, logger: Logger):
         assert name == self.name
-        super().__init__(name, config, browser, logger)
+        super().__init__(name, browser, logger)
         #
         self.page = None
-        self.validate(config)
 
     @classmethod
     def validate(cls, config) -> None:
@@ -133,12 +132,12 @@ class FacebookMarketplace(Marketplace):
             time.sleep(5)
         # go to each item and get the description
         for item in found_items:
-            self.logger.debug(
-                f"Checking new item https://www.facebook.com{item["title"]} from https://www.facebook.com{item["post_url"]}"
-            )
             self.page.goto(f'https://www.facebook.com{item["post_url"]}', timeout=0)
             html = self.page.content()
             item |= self.get_item_details(html)
+            self.logger.debug(
+                f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
+            )
             time.sleep(5)
         #
         found_items = [x for x in found_items if self.filter_item_by_details(x, item_config)]
@@ -179,6 +178,10 @@ class FacebookMarketplace(Marketplace):
                 return parsed
 
         for listing in listings:
+            # if the element has no text (only image etc)
+            if not listing.get_text().strip():
+                continue
+
             try:
                 child1 = next(listing.children)
                 child2 = next(child1.children)
@@ -221,7 +224,7 @@ class FacebookMarketplace(Marketplace):
                     }
                 )
             except Exception as e:
-                self.logger.debug(f"Failed to parse listing {listing}")
+                self.logger.debug(f"Failed to parse listing {listing}: {e}")
                 pass
 
         return parsed
@@ -254,7 +257,7 @@ class FacebookMarketplace(Marketplace):
         if exclude_keywords and any(
             [x.lower() in item["title"].lower() for x in exclude_keywords or []]
         ):
-            self.logger.debug(f"Excluding specifically listed item: [red]{item['title']}[/red]")
+            self.logger.debug(f"Excluding item due to keywords: [blue]{item['title']}[/blue]")
             return False
 
         # if the return description does not contain any of the search keywords
@@ -269,7 +272,7 @@ class FacebookMarketplace(Marketplace):
             [x.lower() in item["location"].lower() for x in allowed_locations]
         ):
             self.logger.debug(
-                f"Excluding item out side of specified locations: [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
+                f"Excluding out of area item [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
             )
             return False
 
@@ -283,7 +286,7 @@ class FacebookMarketplace(Marketplace):
             [x.lower() in item["description"].lower() for x in exclude_by_description or []]
         ):
             self.logger.debug(
-                f"Excluding specifically listed item by description: [red]{exclude_by_description}[/red]"
+                f"""Excluding item by description: [red]{exclude_by_description}[/red]:\n[blue]{item["description"][:100]}...[/blue] """
             )
             return False
 
@@ -295,9 +298,7 @@ class FacebookMarketplace(Marketplace):
         if exclude_sellers and any(
             [x.lower() in item["seller"].lower() for x in exclude_sellers or []]
         ):
-            self.logger.debug(
-                f"Excluding specifically listed item by seller: [red]{item['seller']}[/red]"
-            )
+            self.logger.debug(f"Excluding item by seller: [red]{item['seller']}[/red]")
             return False
 
         return True
