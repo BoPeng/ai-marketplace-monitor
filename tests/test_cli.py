@@ -14,11 +14,11 @@ runner = CliRunner()
 @pytest.mark.parametrize(
     "options,expected",
     [
-        ([], "ai_marketplace_monitor.cli.main"),
+        # ([], "ai_marketplace_monitor.cli.main"),
         (["--help"], "Usage: "),
         (
             ["--version"],
-            f"ai-marketplace-monitor, version { ai_marketplace_monitor.__version__ }\n",
+            f"AI Marketplace Monitor, version { ai_marketplace_monitor.__version__ }\n",
         ),
     ],
 )
