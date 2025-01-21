@@ -2,6 +2,14 @@ import hashlib
 import os
 from typing import Any, Dict, List
 
+from joblib import Memory
+
+# home directory for all settings and caches
+amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
+os.makedirs(amm_home, exist_ok=True)
+
+memory = Memory(location=amm_home, verbose=0)
+
 
 def calculate_file_hash(file_paths: List[str]) -> str:
     """Calculate the SHA-256 hash of the file content."""

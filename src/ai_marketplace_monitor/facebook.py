@@ -9,6 +9,7 @@ from playwright.sync_api import Browser, Page
 
 from .items import SearchedItem
 from .marketplace import Marketplace
+from .utils import memory
 
 
 class FacebookMarketplace(Marketplace):
@@ -31,6 +32,9 @@ class FacebookMarketplace(Marketplace):
     def __init__(self, name, browser: Browser, logger: Logger):
         assert name == self.name
         super().__init__(name, browser, logger)
+        # cache the output of website, but ignore the change of "self" and browser
+        # see https://joblib.readthedocs.io/en/latest/memory.html#gotchas for details
+        self.get_item_details = memory.cache(self.get_item_details, ignore=["self"])
         #
         self.page: Page | None = None
 
@@ -133,10 +137,9 @@ class FacebookMarketplace(Marketplace):
             )
             time.sleep(5)
         # go to each item and get the description
+        # if we have not done that before
         for item in found_items:
-            self.page.goto(f'https://www.facebook.com{item["post_url"]}', timeout=0)
-            html = self.page.content()
-            details = self.get_item_details(html)
+            details = self.get_item_details(item["post_url"])
             for key in ("description", "seller"):
                 item[key] = details[key]
             self.logger.debug(
@@ -233,7 +236,10 @@ class FacebookMarketplace(Marketplace):
 
         return parsed
 
-    def get_item_details(self, html) -> Dict[str, str]:
+    def get_item_details(self, post_url: str) -> Dict[str, str]:
+        self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
+        html = self.page.content()
+
         soup = BeautifulSoup(html, "html.parser")
         try:
             cond = soup.find("span", string="Condition")

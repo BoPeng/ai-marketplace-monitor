@@ -11,15 +11,13 @@ from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
 from .users import User
-from .utils import calculate_file_hash
+from .utils import amm_home, calculate_file_hash, memory
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 
 
 class MarketplaceMonitor:
-    search_history_cache = os.path.join(
-        os.path.expanduser("~"), ".ai-marketplace-monitor", "searched_items.json"
-    )
+    search_history_cache = os.path.join(amm_home, "searched_items.json")
 
     active_marketplaces: ClassVar = {}
 
@@ -44,8 +42,11 @@ class MarketplaceMonitor:
         self.config_hash: str | None = None
         self.headless = headless
         self.logger = logger
-        if clear_cache and os.path.exists(self.search_history_cache):
-            os.remove(self.search_history_cache)
+        if clear_cache:
+            if os.path.exists(self.search_history_cache):
+                os.remove(self.search_history_cache)
+            #
+            memory.clear()
 
     def load_config_file(self) -> Dict[str, Any]:
         """Load the configuration file."""
@@ -131,7 +132,6 @@ class MarketplaceMonitor:
         return []
 
     def save_searched_items(self, items: List[SearchedItem]) -> None:
-        os.makedirs(os.path.dirname(self.search_history_cache), exist_ok=True)
         with open(self.search_history_cache, "w") as f:
             json.dump(items, f)
 
