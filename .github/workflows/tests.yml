@@ -49,8 +49,8 @@ jobs:
       - name: Install system deps
         shell: bash
         run: |
-          pip install nox-poetry
-          pip install poetry
+          pip install nox-poetry==1.1.0
+          pip install poetry==1.8.5
           poetry config virtualenvs.in-project true
 
       - name: Run mypy with nox
@@ -88,8 +88,8 @@ jobs:
       - name: Install system deps
         shell: bash
         run: |
-          pip install nox-poetry
-          pip install poetry
+          pip install nox-poetry==1.1.0
+          pip install poetry==1.8.5
           poetry config virtualenvs.in-project true
 
       - name: Download coverage data
