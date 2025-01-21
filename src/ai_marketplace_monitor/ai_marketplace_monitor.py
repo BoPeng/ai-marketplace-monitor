@@ -141,7 +141,7 @@ class MarketplaceMonitor:
         msgs = []
         for item in items:
             self.logger.info(
-                f'New item found: {item["title"]} with URL https://www.facebook.com{item['post_url']}'
+                f"""New item found: {item["title"]} with URL https://www.facebook.com{item["post_url"]}"""
             )
             msgs.append(
                 f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
