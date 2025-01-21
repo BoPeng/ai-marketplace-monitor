@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.5] - 2025-01-21
+## [0.2.6] - 2025-01-21
 
 - Give more time after logging in, allow option `login_wait_time`.
 - Allow entering username and password manually

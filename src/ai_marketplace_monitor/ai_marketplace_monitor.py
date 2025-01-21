@@ -161,5 +161,5 @@ class MarketplaceMonitor:
                 f"Sending {user} a message with title [blue]{title}[/blue] and message [blue]{message}[/blue]"
             )
             assert self.config is not None
-            assert self.config["suser"] is not None
+            assert self.config["user"] is not None
             User(user, self.config["user"][user]).notify(title, message)
