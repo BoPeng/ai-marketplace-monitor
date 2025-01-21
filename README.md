@@ -23,9 +23,9 @@ An AI-based tool for monitoring facebook marketplace
 
 This program
 
-1. Starts a browser (can be in headless mode)
-2. Search one or more products
-3. Notify one or more users of new products with phone notification
+1. Starts a browser
+2. Search one or more products from facebook marketplace indefinitely
+3. Notify you of new products with phone notification
 
 ## Features
 
@@ -47,6 +47,8 @@ This program
 - Support other marketplaces.
 
 **NOTE**: This is a tool for programmers, and you are expected to know some Python and command-line operations to make it work. There is no GUI.
+
+**NOTE**: Yes, I know, there is no AI-related feature yet... (but it is already quite useful as of now.)
 
 ## Quickstart
 
