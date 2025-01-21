@@ -281,7 +281,7 @@ class FacebookMarketplace(Marketplace):
             "acceptable_locations", self.config.get("acceptable_locations", [])
         )
         if allowed_locations and not any(
-            [x.lower() in item["acceptable_locations"].lower() for x in allowed_locations]
+            [x.lower() in item["location"].lower() for x in allowed_locations]
         ):
             self.logger.debug(
                 f"Excluding out of area item [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
