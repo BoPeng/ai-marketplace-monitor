@@ -19,6 +19,7 @@ class FacebookMarketplace(Marketplace):
     allowed_config_keys: ClassVar = {
         "username",
         "password",
+        "login_wait_time",
         "search_interval",
         "max_search_interval",
         "search_city",
@@ -52,6 +53,12 @@ class FacebookMarketplace(Marketplace):
                 raise ValueError(
                     f"Marketplace {cls.name} locations must be string or a list of string."
                 )
+        # login_wait_time should be an integer
+        if "login_wait_time" in config:
+            if not isinstance(config["login_wait_time"], int) or config["login_wait_time"] < 1:
+                raise ValueError(
+                    f"Marketplace {cls.name} login_wait_time must be a positive integer."
+                )
         # if exclude_sellers is specified, it must be a list
         if "exclude_sellers" in config:
             if isinstance(config["exclude_sellers"], str):
@@ -78,11 +85,13 @@ class FacebookMarketplace(Marketplace):
             self.page.wait_for_selector('input[name="pass"]').fill(self.config["password"])
             time.sleep(5)
             self.page.wait_for_selector('button[name="login"]').click()
-            # in case there is a need to enter additional information
-            time.sleep(30)
-            self.logger.info("Logging into facebook")
-        except:
-            pass
+        except Exception as e:
+            self.logger.error(f"An error occurred during logging: {e}")
+
+        # in case there is a need to enter additional information
+        login_wait_time = self.config.get("login_wait_time", 60)
+        self.logger.info(f"Logged into facebook, waiting {login_wait_time}s to get ready.")
+        time.sleep(login_wait_time)
 
     def search(self, item_config) -> List[SearchedItem]:
         if not self.page:
@@ -220,7 +229,7 @@ class FacebookMarketplace(Marketplace):
             seller = profiles[-1].get_text()
         except Exception as e:
             self.logger.debug(e)
-            description = ""
+            seller = ""
         return {"description": description, "seller": seller}
 
     def filter_item(self, item: SearchedItem, item_config) -> bool:

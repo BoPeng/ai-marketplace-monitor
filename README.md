@@ -93,6 +93,7 @@ A more complete example is provided at [`example_config.toml`](example_config.to
 
   - `username`: (required)
   - `password`: (required)
+  - `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
   - `search_interval`: (optional) minimal interval in minutes between searches
   - `max_search_interval`: (optional) maximum interval in minutes between searches
   - `search_city`: (optional if defined for item) search city, which can be obtained from the URL of your search query
