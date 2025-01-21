@@ -34,7 +34,7 @@ class FacebookMarketplace(Marketplace):
         super().__init__(name, browser, logger)
         # cache the output of website, but ignore the change of "self" and browser
         # see https://joblib.readthedocs.io/en/latest/memory.html#gotchas for details
-        self.get_item_details = memory.cache(self.get_item_details, ignore=["self"])
+        self.get_item_details = memory.cache(self._get_item_details, ignore=["self"])
         #
         self.page: Page | None = None
 
@@ -236,7 +236,9 @@ class FacebookMarketplace(Marketplace):
 
         return parsed
 
-    def get_item_details(self, post_url: str) -> Dict[str, str]:
+    # get_item_details is wrapped around this function to cache results for urls
+    def _get_item_details(self, post_url: str) -> Dict[str, str]:
+        assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
         html = self.page.content()
 

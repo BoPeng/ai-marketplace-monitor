@@ -2,7 +2,7 @@ import hashlib
 import os
 from typing import Any, Dict, List
 
-from joblib import Memory
+from joblib import Memory  # type: ignore
 
 # home directory for all settings and caches
 amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
