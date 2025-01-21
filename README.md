@@ -74,7 +74,7 @@ playwright install
 
 ### Write a configuration file
 
-A minimal example is provided as [`minimal_config.toml`](minimal_config.toml). Basically you will need to let the program know which city you are searching in, what item you are searching for, and how you want to get notified.
+One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you want to get notified to run _ai-marketplace-monitor_. A more complete example is provided at [`example_config.toml`](example_config.toml).
 
 ```toml
 [marketplace.facebook]
@@ -87,9 +87,9 @@ keywords = 'search word one'
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
-A more complete example is provided at [`example_config.toml`](example_config.toml), which allows for more complex search and notification patterns. Briefly:
+Here is a complete list of options that are acceptable by the program:
 
-- `marketplace.facebook` allows
+- Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
 
   - `username`: (optional), you can enter manually or keep in config file
   - `password`: (optional), you can enter manually or keep in config file
@@ -103,11 +103,11 @@ A more complete example is provided at [`example_config.toml`](example_config.to
   - `max_price`: (optional) maximum price.
   - `notify`: (optional) users who should be notified for all items
 
-- `user.username` where `username` is the name listed in `notify`
+- One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. PushBullet is currently the only method of notification.
 
   - `pushbullet_token`: (rquired) token for user
 
-- `item.item_name` where `item_name` is the name of the item
+- One or more `item.item_name` where `item_name` is the name of the item.
   - `keywords`: (required) one of more keywords for searching the item
   - `marketplace`: (optional), can only be `facebook` if specified.
   - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
