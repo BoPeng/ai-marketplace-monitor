@@ -107,11 +107,11 @@ class FacebookMarketplace(Marketplace):
             self.login()
 
         # get city from either marketplace config or item config
-        search_city = self.config.get("search_city", item_config.get("search_city", ""))
+        search_city = item_config.get("search_city", self.config.get("search_city", ""))
         # get max price from either marketplace config or item config
-        max_price = self.config.get("max_price", item_config.get("max_price", None))
+        max_price = item_config.get("max_price", self.config.get("max_price", None))
         # get min price from either marketplace config or item config
-        min_price = self.config.get("min_price", item_config.get("min_price", None))
+        min_price = item_config.get("min_price", self.config.get("min_price", None))
 
         marketplace_url = f"https://www.facebook.com/marketplace/{search_city}/search?"
         if max_price:
