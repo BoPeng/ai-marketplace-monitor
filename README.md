@@ -76,8 +76,6 @@ A minimal example is provided as [`minimal_config.toml`](minimal_config.toml). B
 
 ```toml
 [marketplace.facebook]
-username = 'username'
-password = 'password'
 search_city = 'houston'
 
 [item.name]
@@ -91,8 +89,8 @@ A more complete example is provided at [`example_config.toml`](example_config.to
 
 - `marketplace.facebook` allows
 
-  - `username`: (required)
-  - `password`: (required)
+  - `username`: (optional), you can enter manually or keep in config file
+  - `password`: (optional), you can enter manually or keep in config file
   - `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
   - `search_interval`: (optional) minimal interval in minutes between searches
   - `max_search_interval`: (optional) maximum interval in minutes between searches
@@ -134,7 +132,12 @@ ai-marketplace-monitor --config /path/to/config.toml
 **NOTE**
 
 1. You need to keep the terminal running to allow the program to run indefinitely.
-2. You will see a browser firing up. **You may need to manually enter any prompt (e.g. CAPTCHA) that facebook asks for authentication** in addition to the username and password that the program enters for you. You may want to click "OK" to save the password, etc.
+2. You will see a browser firing up. **You may need to manually enter username and/or password (if unspecified in config file), and answer any prompt (e.g. CAPTCHA) to login**. You may want to click "OK" to save the password, etc.
+3. If you continue to experience login problem, it can be helpful to remove `password` from `marketplace.facebook` to manually enter password, click ok, and solve CAPTCHA.
+
+### Updating search
+
+Once the most troublesome step, namely logging into facebook is completed, the program will run indefinitely to search for the items, and notify you with the most relevant listings. If you need to change keywords, block sellers, add/remove locations, or add new items to search, you can modify the configuration file. The program will automatically detect the changes and act accordingly.
 
 ## Advanced features
 

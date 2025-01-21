@@ -1,6 +1,5 @@
 [marketplace.facebook]
-username = 'username'
-password = 'password'
+username = 'username@gmail.com'
 search_city = 'houston'
 
 [item.name1]

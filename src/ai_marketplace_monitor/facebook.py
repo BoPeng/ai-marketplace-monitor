@@ -40,9 +40,14 @@ class FacebookMarketplace(Marketplace):
         #
         super().validate(config)
         #
-        for key in ("username", "password"):
-            if key not in config:
-                raise ValueError(f"Missing required configuration: {key} for market {cls.name}")
+        # username, if specified, must be a string
+        if "username" in config:
+            if not isinstance(config["username"], str):
+                raise ValueError(f"Marketplace {cls.name} username must be a string.")
+        # password, if specified, must be a string
+        if "password" in config:
+            if not isinstance(config["password"], str):
+                raise ValueError(f"Marketplace {cls.name} password must be a string.")
         # locations, if specified, must be a list (or be converted to a list)
         if "locations" in config:
             if isinstance(config["locations"], str):
@@ -77,14 +82,19 @@ class FacebookMarketplace(Marketplace):
                     raise ValueError(f"Marketplace {cls.name} search_interval must be an integer.")
 
     def login(self):
-        self.page = self.browser.new_page()
+        context = self.browser.new_context()  # create a new incognite window
+        self.page = context.new_page()
         # Navigate to the URL, no timeout
         self.page.goto(self.initial_url, timeout=0)
         try:
-            self.page.wait_for_selector('input[name="email"]').fill(self.config["username"])
-            self.page.wait_for_selector('input[name="pass"]').fill(self.config["password"])
-            time.sleep(5)
-            self.page.wait_for_selector('button[name="login"]').click()
+            if "username" in self.config:
+                self.page.wait_for_selector('input[name="email"]').fill(self.config["username"])
+                time.sleep(1)
+            if "password" in self.config:
+                self.page.wait_for_selector('input[name="pass"]').fill(self.config["password"])
+                time.sleep(1)
+            if "username" in self.config and "password" in self.config:
+                self.page.wait_for_selector('button[name="login"]').click()
         except Exception as e:
             self.logger.error(f"An error occurred during logging: {e}")
 
@@ -123,6 +133,9 @@ class FacebookMarketplace(Marketplace):
             time.sleep(5)
         # go to each item and get the description
         for item in found_items:
+            self.logger.debug(
+                f"Checking new item https://www.facebook.com{item["title"]} from https://www.facebook.com{item["post_url"]}"
+            )
             self.page.goto(f'https://www.facebook.com{item["post_url"]}', timeout=0)
             html = self.page.content()
             item |= self.get_item_details(html)
@@ -208,7 +221,7 @@ class FacebookMarketplace(Marketplace):
                     }
                 )
             except Exception as e:
-                self.logger.debug(e)
+                self.logger.debug(f"Failed to parse listing {listing}")
                 pass
 
         return parsed
