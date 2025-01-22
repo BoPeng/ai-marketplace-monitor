@@ -9,7 +9,7 @@ from playwright.sync_api import Browser, Page
 
 from .items import SearchedItem
 from .marketplace import Marketplace
-from .utils import memory
+from .utils import is_substring, memory
 
 
 class FacebookMarketplace(Marketplace):
@@ -268,15 +268,13 @@ class FacebookMarketplace(Marketplace):
             "exclude_keywords", self.config.get("exclude_keywords", [])
         )
 
-        if exclude_keywords and any(
-            [x.lower() in item["title"].lower() for x in exclude_keywords or []]
-        ):
+        if exclude_keywords and is_substring(exclude_keywords, item["title"]):
             self.logger.debug(f"Excluding item due to keywords: [blue]{item['title']}[/blue]")
             return False
 
         # if the return description does not contain any of the search keywords
         search_words = [word for keywords in item_config["keywords"] for word in keywords.split()]
-        if not any([x.lower() in item["title"].lower() for x in search_words]):
+        if not is_substring(search_words, item["title"]):
             self.logger.debug(f"Excluding item without search word: [red]{item['title']}[/red]")
             return False
 
@@ -284,9 +282,7 @@ class FacebookMarketplace(Marketplace):
         allowed_locations = item_config.get(
             "acceptable_locations", self.config.get("acceptable_locations", [])
         )
-        if allowed_locations and not any(
-            [x.lower() in item["location"].lower() for x in allowed_locations]
-        ):
+        if allowed_locations and not is_substring(allowed_locations, item["location"]):
             self.logger.debug(
                 f"Excluding out of area item [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
             )
@@ -298,9 +294,7 @@ class FacebookMarketplace(Marketplace):
         # get exclude_keywords from both item_config or config
         exclude_by_description = item_config.get("exclude_by_description", [])
 
-        if exclude_by_description and any(
-            [x.lower() in item["description"].lower() for x in exclude_by_description or []]
-        ):
+        if exclude_by_description and is_substring(exclude_by_description, item["description"]):
             self.logger.debug(
                 f"""Excluding item by description: [red]{exclude_by_description}[/red]:\n[blue]{item["description"][:100]}...[/blue] """
             )
@@ -311,9 +305,7 @@ class FacebookMarketplace(Marketplace):
             "exclude_sellers", []
         )
 
-        if exclude_sellers and any(
-            [x.lower() in item["seller"].lower() for x in exclude_sellers or []]
-        ):
+        if exclude_sellers and is_substring(exclude_sellers, item["seller"]):
             self.logger.debug(f"Excluding item by seller: [red]{item['seller']}[/red]")
             return False
 

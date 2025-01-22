@@ -49,3 +49,19 @@ def merge_dicts(dicts: list) -> dict:
     for dictionary in dicts:
         result = merge(result, dictionary)
     return result
+
+
+def normalize_string(string):
+    """Normalize a string by removing non-alphanumeric characters and converting to lowercase."""
+    return "".join(filter(str.isalnum, string)).lower()
+
+
+def is_substring(var1: str | List[str], var2: str | List[str]) -> None:
+    """Check if var1 is a substring of var2, after normalizing both strings. One of them can be a list of strings."""
+    if isinstance(var1, str):
+        if isinstance(var2, str):
+            return normalize_string(var1) in normalize_string(var2)
+        return any(normalize_string(var1) in normalize_string(s) for s in var2)
+    # var1 is a list, var2 must be a string
+    assert not isinstance(var2, str)
+    return any(normalize_string(s1) in normalize_string(var2) for s1 in var1)

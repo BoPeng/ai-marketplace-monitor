@@ -119,6 +119,10 @@ Here is a complete list of options that are acceptable by the program:
   - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
   - `notify`: (optional) users who should be notified for this item
 
+Note that
+
+1. Strings will be normalized (remove space and special characters, change to lower case) before comparison, so you do not have to specify both `go pro` and `gopro` for keyword or exclusion searches.
+
 ### Run the program
 
 Start monitoring with the command
