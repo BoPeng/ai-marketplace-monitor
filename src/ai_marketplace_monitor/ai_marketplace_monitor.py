@@ -155,6 +155,7 @@ class MarketplaceMonitor:
         users = list(set(users))
         if not users:
             self.logger.warning("Will notify all users since no user is listed for notify.")
+            assert self.config is not None
             users = list(self.config["user"].keys())
 
         # get notification msg for this item
