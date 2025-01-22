@@ -21,7 +21,7 @@ An AI-based tool for monitoring facebook marketplace
 - Documentation: <https://ai-marketplace-monitor.readthedocs.io>
 - Free software: MIT
 
-This program
+This program is a command line tool that
 
 1. Starts a browser
 2. Search one or more products from facebook marketplace indefinitely
@@ -46,9 +46,7 @@ This program
 - Support other notification methods.
 - Support other marketplaces.
 
-**NOTE**: This is a tool for programmers, and you are expected to know some Python and command-line operations to make it work. There is no GUI.
-
-**NOTE**: Yes, I know, there is no AI-related feature yet... (but it is already quite useful as of now.)
+Yes, I know, there is no AI-related features yet... I am working on them, and you are welcome to [contribute](https://github.com/BoPeng/ai-marketplace-monitor/issues).
 
 ## Quickstart
 
