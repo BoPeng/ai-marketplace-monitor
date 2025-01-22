@@ -167,4 +167,4 @@ class MarketplaceMonitor:
             )
             assert self.config is not None
             assert self.config["user"] is not None
-            User(user, self.config["user"][user]).notify(title, message)
+            User(user, self.config["user"][user], logger=self.logger).notify(title, message)
