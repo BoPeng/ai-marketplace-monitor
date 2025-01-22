@@ -119,9 +119,7 @@ Here is a complete list of options that are acceptable by the program:
   - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
   - `notify`: (optional) users who should be notified for this item
 
-Note that
-
-1. Strings will be normalized (remove space and special characters, change to lower case) before comparison, so you do not have to specify both `go pro` and `gopro` for keyword or exclusion searches.
+Note that strings will be normalized (remove space and special characters, change to lower case) before comparison, so you do not have to specify both `go pro` and `gopro` for keyword or exclusion searches.
 
 ### Run the program
 
@@ -145,7 +143,7 @@ ai-marketplace-monitor --config /path/to/config.toml
 
 ### Updating search
 
-Once the most troublesome step, namely logging into facebook is completed, the program will run indefinitely to search for the items, and notify you with the most relevant listings. If you need to change keywords, block sellers, add/remove locations, or add new items to search, you can modify the configuration file. The program will automatically detect the changes and act accordingly.
+Once the most troublesome step, namely logging into facebook is completed, the program will run indefinitely to search for the items, and notify you with the most relevant listings. If you need to change keywords, block sellers, add/remove locations, or add new items to search, you can modify the configuration file. The program will automatically detect changes in configuration files and act accordingly.
 
 ## Advanced features
 
