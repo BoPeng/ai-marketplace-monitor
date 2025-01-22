@@ -41,3 +41,4 @@ class User:
                 else:
                     self.logger.error(f"Max retries reached. Failed to push note to {self.name}.")
                     return False
+        return True
