@@ -101,6 +101,9 @@ class MarketplaceMonitor:
                             "marketplace" not in item_config
                             or item_config["marketplace"] == marketplace_name
                         ):
+                            if not item_config.get("enabled", True):
+                                continue
+
                             self.logger.info(
                                 f"Searching {marketplace_name} for [blue]{item_name}[/blue]"
                             )
@@ -149,6 +152,11 @@ class MarketplaceMonitor:
         return new_items
 
     def notify_users(self, users: List[str], items: List[SearchedItem]) -> None:
+        users = list(set(users))
+        if not users:
+            self.logger.warning("Will notify all users since no user is listed for notify.")
+            users = list(self.config["user"].keys())
+
         # get notification msg for this item
         msgs = []
         for item in items:

@@ -95,10 +95,15 @@ class Config:
                     raise ValueError(
                         f"Item [blue]{item_name}[/blue] exclude_by_description must be a list."
                     )
+            # if enable is set, if must be true or false (boolean)
+            if "enabled" in item_config:
+                if not isinstance(item_config["enabled"], bool):
+                    raise ValueError(f"Item [blue]{item_name}[/blue] enabled must be a boolean.")
 
             # if there are other keys in item_config, raise an error
             for key in item_config:
                 if key not in [
+                    "enabled",
                     "keywords",
                     "marketplace",
                     "notify",

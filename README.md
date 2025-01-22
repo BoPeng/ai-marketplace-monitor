@@ -113,13 +113,17 @@ Here is a complete list of options that are acceptable by the program:
   - `keywords`: (required) one of more keywords for searching the item
   - `marketplace`: (optional), can only be `facebook` if specified.
   - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
-  - `exclude_sellers`: (optional, not implemented yet) exclude certain sellers
+  - `exclude_sellers`: (optional) exclude certain sellers
+  - `enabled`: (optional), stop searching this item if set to `false`
   - `min_price`: (optional) minimum price.
   - `max_price`: (optional) maximum price.
   - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
   - `notify`: (optional) users who should be notified for this item
 
-Note that strings will be normalized (remove space and special characters, change to lower case) before comparison, so you do not have to specify both `go pro` and `gopro` for keyword or exclusion searches.
+Note that
+
+1. Strings will be normalized (remove space and special characters, change to lower case) before comparison, so you do not have to specify both `go pro` and `gopro` for keyword or exclusion searches.
+2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
 
 ### Run the program
 
