@@ -11,7 +11,7 @@ from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
 from .users import User
-from .utils import amm_home, calculate_file_hash, memory
+from .utils import amm_home, calculate_file_hash, memory, sleep_with_watchdog
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 
@@ -35,7 +35,7 @@ class MarketplaceMonitor:
             os.path.expanduser("~"), ".ai-marketplace-monitor", "config.toml"
         )
         self.config_files = ([default_config] if os.path.isfile(default_config) else []) + (
-            config_files or []
+            [os.path.abspath(os.path.expanduser(x)) for x in config_files or []]
         )
         #
         self.config: Dict[str, Any] | None = None
@@ -68,10 +68,9 @@ class MarketplaceMonitor:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
                     self.logger.error(
-                        f"""Error parsing config file:\n\n[bold]{e}[/bold]\n\nPlease fix the file and we will start monitoring as soon as you are done."""
+                        f"""Error parsing config file:\n\n[red]{e}[/red]\n\nPlease fix the file and we will start monitoring as soon as you are done."""
                     )
-
-                time.sleep(10)
+                sleep_with_watchdog(60, self.config_files)
                 continue
 
     def monitor(self) -> None:
@@ -126,7 +125,10 @@ class MarketplaceMonitor:
                         marketplace_config.get("max_search_interval", 1),
                         search_interval,
                     )
-                    time.sleep(random.randint(search_interval * 60, max_search_interval * 60))
+                    sleep_with_watchdog(
+                        random.randint(search_interval * 60, max_search_interval * 60),
+                        self.config_files,
+                    )
 
     def load_searched_items(self) -> List[SearchedItem]:
         if os.path.isfile(self.search_history_cache):

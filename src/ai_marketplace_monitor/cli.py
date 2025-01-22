@@ -61,7 +61,7 @@ def main(
         level="DEBUG" if verbose else "INFO",
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(markup=True, show_path=False)],
+        handlers=[RichHandler(markup=True, show_path=verbose)],
     )
 
     logger = logging.getLogger("monitor")

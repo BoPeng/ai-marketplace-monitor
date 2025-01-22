@@ -1,8 +1,11 @@
 import hashlib
 import os
+import time
 from typing import Any, Dict, List
 
 from joblib import Memory  # type: ignore
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 # home directory for all settings and caches
 amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
@@ -65,3 +68,38 @@ def is_substring(var1: str | List[str], var2: str | List[str]) -> None:
     # var1 is a list, var2 must be a string
     assert not isinstance(var2, str)
     return any(normalize_string(s1) in normalize_string(var2) for s1 in var1)
+
+
+class ChangeHandler(FileSystemEventHandler):
+    def __init__(self, files: List[str]) -> None:
+        self.changed = False
+        self.files = files
+
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path in self.files:
+            self.changed = True
+
+
+def sleep_with_watchdog(duration: int, files: List[str]):
+    """Sleep for a specified duration while monitoring the change of files"""
+    event_handler = ChangeHandler(files)
+    observers = []
+    for filename in files:
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"File not found: {filename}")
+        observer = Observer()
+        # we can only monitor a directory
+        observer.schedule(event_handler, os.path.dirname(filename), recursive=False)
+        observer.start()
+        observers.append(observer)
+
+    start_time = time.time()
+    try:
+        while time.time() - start_time < duration:
+            if event_handler.changed:
+                return
+            time.sleep(1)
+    finally:
+        for observer in observers:
+            observer.stop()
+            observer.join()

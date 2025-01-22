@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-01-21
+
+- Compare string after normalization (#8)
+- Stop sleeping if config files are changed. Allowing more interactive modification of search terms.
+
 ## [0.3.1] - 2025-01-21
 
 - Give more time after logging in, allow option `login_wait_time`.
