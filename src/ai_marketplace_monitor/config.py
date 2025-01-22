@@ -1,4 +1,6 @@
 import sys
+from logging import Logger
+from typing import List
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -9,10 +11,11 @@ from .utils import merge_dicts
 
 
 class Config:
-    def __init__(self, config_files):
+    def __init__(self, config_files: List[str], logger: Logger):
         configs = []
         for config_file in config_files:
             try:
+                logger.info(f"Loading config file {config_file}")
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))
             except tomllib.TOMLDecodeError as e:

@@ -59,7 +59,7 @@ class MarketplaceMonitor:
                 return self.config
             try:
                 # if the config file is ok, break
-                self.config = Config(self.config_files).config
+                self.config = Config(self.config_files, self.logger).config
                 self.config_hash = new_file_hash
                 self.logger.debug(self.config)
                 assert self.config is not None
@@ -90,7 +90,6 @@ class MarketplaceMonitor:
                     marketplace_class = supported_marketplaces[marketplace_name]
                     if marketplace_name in self.active_marketplaces:
                         marketplace = self.active_marketplaces[marketplace_name]
-
                     else:
                         marketplace = marketplace_class(marketplace_name, browser, self.logger)
                         self.active_marketplaces[marketplace_name] = marketplace
@@ -98,14 +97,18 @@ class MarketplaceMonitor:
                     # Configure might have been changed
                     marketplace.configure(marketplace_config)
 
-                    for _, item_config in self.config["item"].items():
+                    for item_name, item_config in self.config["item"].items():
                         if (
                             "marketplace" not in item_config
                             or item_config["marketplace"] == marketplace_name
                         ):
+                            self.logger.info(
+                                f"Searching {marketplace_name} for [blue]{item_name}[/blue]"
+                            )
                             found_items = marketplace.search(item_config)
                             #
                             new_items = self.find_new_items(found_items)
+                            self.logger.info(f"[blue]{len(new_items)}[/blue] new items are found.")
                             # there can be item-specific notification
                             if new_items:
                                 self.notify_users(

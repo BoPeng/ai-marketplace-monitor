@@ -139,7 +139,7 @@ class FacebookMarketplace(Marketplace):
         # go to each item and get the description
         # if we have not done that before
         for item in found_items:
-            details = self.get_item_details(item["post_url"])
+            details = self.get_item_details(item["title"], item["post_url"])
             for key in ("description", "seller"):
                 item[key] = details[key]
             self.logger.debug(
@@ -224,7 +224,8 @@ class FacebookMarketplace(Marketplace):
                         "title": title,
                         "image": image,
                         "price": price,
-                        "post_url": post_url,
+                        # we do not need all the ?referral_code&referral_sotry_type etc
+                        "post_url": post_url.split("?")[0],
                         "location": location,
                         "seller": "",
                         "description": "",
@@ -237,7 +238,8 @@ class FacebookMarketplace(Marketplace):
         return parsed
 
     # get_item_details is wrapped around this function to cache results for urls
-    def _get_item_details(self, post_url: str) -> Dict[str, str]:
+    def _get_item_details(self, item_title: str, post_url: str) -> Dict[str, str]:
+        self.logger.info(f"Getting details for [blue]{item_title}[/blue]")
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
         html = self.page.content()
