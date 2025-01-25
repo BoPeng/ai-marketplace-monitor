@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Dict, List
 
 from playwright.sync_api import Browser, sync_playwright
 
+from .ai import AIBackend, OpenAIBackend
 from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
@@ -14,6 +15,7 @@ from .users import User
 from .utils import amm_home, calculate_file_hash, memory, sleep_with_watchdog
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
+supported_ai_backends = {"openai": OpenAIBackend}
 
 
 class MarketplaceMonitor:
@@ -41,6 +43,7 @@ class MarketplaceMonitor:
         self.config: Dict[str, Any] | None = None
         self.config_hash: str | None = None
         self.headless = headless
+        self.ai_backend: AIBackend | None = None
         self.logger = logger
         if clear_cache:
             if os.path.exists(self.search_history_cache):
@@ -85,6 +88,17 @@ class MarketplaceMonitor:
                 self.load_config_file()
 
                 assert self.config is not None
+                for ai_name, ai_config in self.config.get("ai", {}).items():
+                    ai_class = supported_ai_backends[ai_name]
+                    ai_class.validate(ai_config)
+                    try:
+                        self.logger.info(f"Connecting to {ai_name}")
+                        self.ai_backend = ai_class(config=ai_config, logger=self.logger)
+                        self.ai_backend.connect()
+                    except Exception as e:
+                        self.logger.error(f"Error connecting to {ai_name}: {e}")
+                        continue
+
                 for marketplace_name, marketplace_config in self.config["marketplace"].items():
                     marketplace_class = supported_marketplaces[marketplace_name]
                     if marketplace_name in self.active_marketplaces:
@@ -109,11 +123,16 @@ class MarketplaceMonitor:
                             )
                             found_items = marketplace.search(item_config)
                             #
-                            new_items = self.find_new_items(found_items)
+                            new_items = [
+                                x
+                                for x in self.find_new_items(found_items)
+                                if self.confirmed_by_ai(
+                                    x, item_name=item_name, item_config=item_config
+                                )
+                            ]
                             self.logger.info(
                                 f"[magenta]{len(new_items)}[magenta] new listing{"" if len(new_items) == 1 else ""} for {item_name} {"is" if len(new_items) == 1 else "are"} found."
                             )
-                            # there can be item-specific notification
                             if new_items:
                                 self.notify_users(
                                     marketplace_config.get("notify", [])
@@ -152,6 +171,14 @@ class MarketplaceMonitor:
         if new_items:
             self.save_searched_items(past_items + new_items)
         return new_items
+
+    def confirmed_by_ai(
+        self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]
+    ) -> bool:
+        if self.ai_backend is None:
+            self.logger.debug("No AI backend configured, skipping AI-based confirmation.")
+            return True
+        return self.ai_backend.confirm(item, item_name, item_config)
 
     def notify_users(self, users: List[str], items: List[SearchedItem]) -> None:
         users = list(set(users))

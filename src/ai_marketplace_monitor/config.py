@@ -37,6 +37,29 @@ class Config:
             if required_section not in self.config:
                 raise ValueError(f"Config file does not contain a {required_section} section.")
 
+        if "ai" in self.config:
+            # this section only accept a key called api-key
+            if not isinstance(self.config["ai"], dict):
+                raise ValueError("ai section must be a dictionary.")
+
+            from .ai_marketplace_monitor import supported_ai_backends
+
+            for key in self.config["ai"]:
+                if key not in supported_ai_backends:
+                    raise ValueError(
+                        f"Config file contains an unsupported AI backend {key} in the ai section."
+                    )
+                else:
+                    backend_class = supported_ai_backends[key]
+                    backend_class.validate(self.config["ai"][key])
+        else:
+            self.config["ai"] = {}
+
+        # check allowed keys in config
+        for key in self.config:
+            if key not in ("marketplace", "user", "item", "ai"):
+                raise ValueError(f"Config file contains an invalid section {key}.")
+
     def validate_marketplaces(self) -> None:
         # check for required fields in each marketplace
         from .ai_marketplace_monitor import supported_marketplaces
@@ -74,6 +97,12 @@ class Config:
             if len(item_config["keywords"]) == 0:
                 raise ValueError(f"Item [magenta]{item_name}[magenta] keywords list is empty.")
 
+            # description, if provided, should be a single string
+            if "description" in item_config:
+                if not isinstance(item_config["description"], str):
+                    raise ValueError(
+                        f"Item [magenta]{item_name}[magenta] description must be a string."
+                    )
             # exclude_sellers should be a list of strings
             if "exclude_sellers" in item_config:
                 if isinstance(item_config["exclude_sellers"], str):
@@ -107,6 +136,7 @@ class Config:
                 if key not in [
                     "enabled",
                     "keywords",
+                    "description",
                     "marketplace",
                     "notify",
                     "exclude_keywords",

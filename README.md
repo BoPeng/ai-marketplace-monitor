@@ -25,7 +25,9 @@ This program is a command line tool that
 
 1. Starts a browser
 2. Search one or more products from facebook marketplace indefinitely
-3. Notify you of new products with phone notification
+3. Use the conditions you specified, and openAI if a token is specified, to exclude
+   irrelevant or uninteresting listings and listings from spamers
+4. Notify you of new products with phone notification
 
 ## Features
 
@@ -41,10 +43,10 @@ This program is a command line tool that
 
 **TODO**:
 
-- Use embedding-based algorithms to identify likely matches.
-- Use AI to identify spammers.
-- Support other notification methods.
-- Support other marketplaces.
+- Support more AI engines
+- Develop better ways to identify spammers
+- Support more notification methods.
+- Support more marketplaces.
 
 Yes, I know, there is no AI-related features yet... I am working on them, and you are welcome to [contribute](https://github.com/BoPeng/ai-marketplace-monitor/issues).
 
@@ -89,6 +91,11 @@ The configuration file needs to be put as `$HOME/.ai-marketplace-monitor/config.
 
 Here is a complete list of options that are acceptable by the program:
 
+- Section `ai.openai`, an optional section, lists the api-key for [openai](https://openai.com/). Specification of this section will enable AI-assistance with openAI.
+
+  - `api-key`: (required), a program token to access openAI REST API.
+  - `model`: (optional), `gpt-4o` will be used if unspecified.
+
 - Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
 
   - `username`: (optional), you can enter manually or keep in config file
@@ -109,6 +116,8 @@ Here is a complete list of options that are acceptable by the program:
 
 - One or more `item.item_name` where `item_name` is the name of the item.
   - `keywords`: (required) one of more keywords for searching the item
+  - `description`: (optional) A longer description of the item that better describes your requirements, such as manufacture, condition, location, seller reputation,
+    if you accept shipping etc. It is currently **only used if AI assistance is enabled**.
   - `marketplace`: (optional), can only be `facebook` if specified.
   - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
   - `exclude_sellers`: (optional) exclude certain sellers
@@ -120,7 +129,7 @@ Here is a complete list of options that are acceptable by the program:
 
 Note that
 
-1. Strings will be normalized (remove space and special characters, change to lower case) before comparison, so you do not have to specify both `go pro` and `gopro` for keyword or exclusion searches.
+1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
 
 ### Run the program

@@ -1,7 +1,8 @@
-# NOT-IMPLEMENTED
-[ai]
+[ai.openai]
 # Token for open AI, used to intelligently judge the match if the items
-openai_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+# OPTIONAL, default to gpt-4o
+model = "gpt-4o"
 
 # REQUIRED. Right now only facebook is supported.
 [marketplace.facebook]
@@ -17,7 +18,7 @@ login_wait_time = 60
 search_interval = 30
 # OPTIONAL, if specified, a random time will be chosen between search_interval and max_search_interval
 max_search_interval = 60
-
+#
 # OPTIONAL string or list of strings, can be specified for each search item
 acceptable_locations = ['city', 'surrounding city']
 # OPTIONAL, string or list of strings, can be specified for each search item
@@ -45,7 +46,8 @@ keywords = 'search word one'
 [item.name2]
 # REUIRED string or list of strings
 keywords = ['search word one', 'search word two']
-
+# OPTIONAL, recommended for AI
+description = "it should be from manufacture, the seller should not offer shipping."
 # OPTIONAL string or list of strings, default to all marketplaces
 marketplace = 'facebook'
 # OPTIONAL words that should not be in the title

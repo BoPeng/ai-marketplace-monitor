@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import time
 from typing import Any, Dict, List
 
@@ -55,8 +56,8 @@ def merge_dicts(dicts: list) -> dict:
 
 
 def normalize_string(string: str) -> str:
-    """Normalize a string by removing non-alphanumeric characters and converting to lowercase."""
-    return "".join(filter(str.isalnum, string)).lower()
+    """Normalize a string by replacing multiple spaces (including space, tab, and newline) with a single space."""
+    return re.sub(r"\s+", " ", string).lower()
 
 
 def is_substring(var1: str | List[str], var2: str | List[str]) -> bool:
