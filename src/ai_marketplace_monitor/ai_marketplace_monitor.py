@@ -68,7 +68,7 @@ class MarketplaceMonitor:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
                     self.logger.error(
-                        f"""Error parsing config file:\n\n[red]{e}[/red]\n\nPlease fix the file and we will start monitoring as soon as you are done."""
+                        f"""Error parsing config file:\n\n[red]{e}[/red]\n\nPlease fix the configuration and I will try again as soon as you are done."""
                     )
                 sleep_with_watchdog(60, self.config_files)
                 continue

@@ -60,7 +60,7 @@ def main(
     logging.basicConfig(
         level="DEBUG" if verbose else "INFO",
         format="%(message)s",
-        datefmt="[%X]",
+        datefmt="[%x %H:%m]",
         handlers=[RichHandler(markup=True, show_path=False if verbose is None else verbose)],
     )
 
