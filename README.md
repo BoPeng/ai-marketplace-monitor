@@ -72,16 +72,23 @@ playwright install
 - Install the app on your phone
 - Go to the PushBullet website and obtain a token
 
+### Sign up with OpenAI (optional)
+
+If you would like to use the AI assistant,
+
+- Sign up for a pro account of open AI
+- Go to the API keys section of your profile, generate a new API key, and copy it
+
 ### Write a configuration file
 
-One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you want to get notified to run _ai-marketplace-monitor_. A more complete example is provided at [`example_config.toml`](example_config.toml).
+One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you want to get notified to run _ai-marketplace-monitor_.
 
 ```toml
 [marketplace.facebook]
 search_city = 'houston'
 
 [item.name]
-keywords = 'search word one'
+keywords = 'Go Pro Hero 11'
 
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -89,7 +96,37 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 The configuration file needs to be put as `$HOME/.ai-marketplace-monitor/config.toml`, or be specified via option `--config`.
 
-Here is a complete list of options that are acceptable by the program:
+A more realistic example using openAI would be
+
+```toml
+[ai.openai]
+api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+[marketplace.facebook]
+search_city = 'houston'
+username = 'your@email.com'
+acceptable_locations = [
+    "sugar land",
+    "stafford",
+    "missouri city",
+    "pearland"
+]
+
+[item.name]
+keywords = 'Go Pro Hero 11'
+description = '''A new or used Go Pro version 11, 12 or 13 in
+    good condition. No other brand of camera is acceptable.
+    Please exclude sellers who offers shipping or asks to
+    purchase the item from his website.'''
+min_price = 100
+max_price = 200
+
+[user.user1]
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
+an example with many of the options.
 
 - Section `ai.openai`, an optional section, lists the api-key for [openai](https://openai.com/). Specification of this section will enable AI-assistance with openAI.
 
