@@ -62,6 +62,7 @@ class MarketplaceMonitor:
                 return self.config
             try:
                 # if the config file is ok, break
+                assert self.logger is not None
                 self.config = Config(self.config_files, self.logger).config
                 self.config_hash = new_file_hash
                 self.logger.debug(self.config)

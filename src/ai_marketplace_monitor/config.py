@@ -11,11 +11,12 @@ from .utils import merge_dicts
 
 
 class Config:
-    def __init__(self, config_files: List[str], logger: Logger):
+    def __init__(self, config_files: List[str], logger: Logger | None = None):
         configs = []
         for config_file in config_files:
             try:
-                logger.info(f"Loading config file {config_file}")
+                if logger:
+                    logger.info(f"Loading config file {config_file}")
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))
             except tomllib.TOMLDecodeError as e:
@@ -143,6 +144,7 @@ class Config:
                     "exclude_sellers",
                     "min_price",
                     "max_price",
+                    "search_city",
                     "exclude_by_description",
                 ]:
                     raise ValueError(

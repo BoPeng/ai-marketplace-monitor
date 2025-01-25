@@ -27,6 +27,8 @@ class FacebookMarketplace(Marketplace):
         "acceptable_locations",
         "exclude_sellers",
         "notify",
+        "min_price",
+        "max_price",
     }
 
     def __init__(self, name, browser: Browser, logger: Logger):
