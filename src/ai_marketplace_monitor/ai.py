@@ -2,6 +2,7 @@ from logging import Logger
 from typing import Any, ClassVar, Dict
 
 from openai import OpenAI
+from deepseek import DeepSeekAPI
 
 from .items import SearchedItem
 
@@ -33,7 +34,9 @@ class AIBackend:
             if not config[key]:
                 raise ValueError(f"AI key {key} is empty.")
 
-    def get_prompt(self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> str:
+    def get_prompt(
+        self, listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+    ) -> str:
         prompt = f"""A user would like to buy a {item_name} from facebook marketplace.
             He used keywords "{'" and "'.join(item_config["keywords"])}" to perform the search."""
         if "description" in item_config:
@@ -53,13 +56,13 @@ class AIBackend:
         if "exclude_by_description" in item_config:
             prompt += f""" He also would like to exclude any items with description matching words "{'" and "'.join(item_config["exclude_by_description"])}"."""
         #
-        prompt += """Now the user has found an item that roughly matches the saearch criteria. """
-        prompt += f"""The item is listed under title "{item['title']}", has a price of {item['price']},
-            It is listed as being sold at {item['location']}, and has the following description
-            "{item['description']}"\n."""
-        prompt += f"""The item is posted at {item['post_url']}.\n"""
-        if "image" in item:
-            prompt += f"""The item has an image url of {item['image']}\n"""
+        prompt += """Now the user has found an item that roughly matches the search criteria. """
+        prompt += f"""The item is listed under title "{listing['title']}", has a price of {listing['price']},
+            It is listed as being sold at {listing['location']}, and has the following description
+            "{listing['description']}"\n."""
+        prompt += f"""The item is posted at {listing['post_url']}.\n"""
+        if "image" in listing:
+            prompt += f"""The item has an image url of {listing['image']}\n"""
         prompt += """Please confirm if the item likely matches what the users would like to buy.
             Please answer only with yes or no."""
         self.logger.debug(f"Prompt: {prompt}")
@@ -77,9 +80,9 @@ class OpenAIBackend(AIBackend):
         if self.client is None:
             self.client = OpenAI(api_key=self.config["api_key"])
 
-    def confirm(self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
+    def confirm(self, listing: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
         # ask openai to confirm the item is correct
-        prompt = self.get_prompt(item, item_name, item_config)
+        prompt = self.get_prompt(listing, item_name, item_config)
 
         assert self.client is not None
         response = self.client.chat.completions.create(
@@ -96,4 +99,27 @@ class OpenAIBackend(AIBackend):
         # check if the response is yes
         self.logger.debug(f"Response: {response}")
         answer = response.choices[0].message.content
-        return True if answer is None else answer.lower().strip().startswith("yes")
+        return True if answer is None else (not answer.lower().strip().startswith("no"))
+
+
+class DeepSeekBackend(AIBackend):
+    allowed_config_keys: ClassVar = ["api_key", "model"]
+    required_config_keys: ClassVar = ["api_key"]
+
+    def connect(self) -> None:
+        if self.client is None:
+            self.client = DeepSeekAPI(api_key=self.config["api_key"])
+
+    def confirm(self, listing: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
+        # ask deepseek
+        #  to confirm the item is correct
+        prompt = self.get_prompt(listing, item_name, item_config)
+
+        assert self.client is not None
+        response = self.client.chat_completions(
+            prompt=prompt, model=self.config.get("model", "deepseek-chat")
+        )
+
+        # check if the response is yes
+        self.logger.debug(f"Response: {response}")
+        return True if response is None else (not response.lower().strip().startswith("no"))

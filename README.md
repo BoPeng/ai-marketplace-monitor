@@ -26,7 +26,7 @@ This program is a command line tool that
 1. Starts a browser
 2. Search one or more products from facebook marketplace indefinitely
 3. Use the conditions you specified, and openAI if a token is specified, to exclude
-   irrelevant or uninteresting listings and listings from spamers
+   irrelevant or uninteresting listings and listings from spammers
 4. Notify you of new products with phone notification
 
 ## Features
@@ -37,6 +37,7 @@ This program is a command line tool that
 - Exclude explicitly listed spammers.
 - Exclude by description.
 - Exclude previously searched items and only notify about new items.
+- Use an AI agent like OpenAI or DeepSeek to confirm if the listing matches your description.
 - Send notifications via PushBullet.
 - Search repeatedly with specified intervals in between.
 - Add/remove items dynamically by changing the configuration file.
@@ -47,8 +48,6 @@ This program is a command line tool that
 - Develop better ways to identify spammers
 - Support more notification methods.
 - Support more marketplaces.
-
-Yes, I know, there is no AI-related features yet... I am working on them, and you are welcome to [contribute](https://github.com/BoPeng/ai-marketplace-monitor/issues).
 
 ## Quickstart
 
@@ -74,10 +73,17 @@ playwright install
 
 ### Sign up with OpenAI (optional)
 
-If you would like to use the AI assistant,
+If you would like to use the OpenAI AI assistant,
 
 - Sign up for a pro account of open AI
 - Go to the API keys section of your profile, generate a new API key, and copy it
+
+### Sign up with DeepSeek (optional)
+
+If you would like to use the DeepSeek AI assistant,
+
+- Sign up for a deepseek account
+- Generate an API key from the API keys section and copy it
 
 ### Write a configuration file
 
@@ -133,6 +139,11 @@ an example with many of the options.
   - `api-key`: (required), a program token to access openAI REST API.
   - `model`: (optional), `gpt-4o` will be used if unspecified.
 
+- Section `ai.deepseek`, an optional section, lists the api-key for [DeepSeek](ttps://platform.deepseek.com). Specification of this section will enable AI-assistance with DeepSeek.
+
+  - `api-key`: (required), a program token to access openAI REST API.
+  - `model`: (optional), the `deepseek-chat` model will be used if unspecified.
+
 - Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
 
   - `username`: (optional), you can enter manually or keep in config file
@@ -168,6 +179,7 @@ Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
+3. If both `openai` and `deepseek` API keys are specified, the program try `deepseek` first, then `openai`.
 
 ### Run the program
 

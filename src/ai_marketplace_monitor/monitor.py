@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Dict, List
 
 from playwright.sync_api import Browser, sync_playwright
 
-from .ai import AIBackend, OpenAIBackend
+from .ai import AIBackend, OpenAIBackend, DeepSeekBackend
 from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
@@ -15,7 +15,7 @@ from .users import User
 from .utils import amm_home, calculate_file_hash, memory, sleep_with_watchdog
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
-supported_ai_backends = {"openai": OpenAIBackend}
+supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
 
 
 class MarketplaceMonitor:
@@ -96,6 +96,8 @@ class MarketplaceMonitor:
                         self.logger.info(f"Connecting to {ai_name}")
                         self.ai_backend = ai_class(config=ai_config, logger=self.logger)
                         self.ai_backend.connect()
+                        # if one works, do not try to load another one
+                        break
                     except Exception as e:
                         self.logger.error(f"Error connecting to {ai_name}: {e}")
                         continue
