@@ -132,7 +132,7 @@ class MarketplaceMonitor:
                                 )
                             ]
                             self.logger.info(
-                                f"[magenta]{len(new_items)}[magenta] new listing{"" if len(new_items) == 1 else ""} for {item_name} {"is" if len(new_items) == 1 else "are"} found."
+                                f"""[magenta]{len(new_items)}[magenta] new listing{"" if len(new_items) == 1 else ""} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
                             )
                             if new_items:
                                 self.notify_users(
