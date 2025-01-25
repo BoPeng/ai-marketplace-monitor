@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-01-25
+
+- Allow section `[ai.openai]`
+- Use openAI to confirm if the item matches what user requests
+- Slightly better logging
+
 ## [0.3.3] - 2025-01-21
 
 - Allow option `enabled` for items
