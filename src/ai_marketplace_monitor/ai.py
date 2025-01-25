@@ -10,11 +10,10 @@ class AIBackend:
     allowed_config_keys: ClassVar = []
     required_config_keys: ClassVar = []
 
-    client: ClassVar = None
-
     def __init__(self, config: Dict[str, Any], logger: Logger):
         self.config = config
         self.logger = logger
+        self.client: OpenAI | None = None
 
     def connect(self) -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
@@ -75,15 +74,14 @@ class OpenAIBackend(AIBackend):
     required_config_keys: ClassVar = ["api_key"]
 
     def connect(self) -> None:
-        if self.client is not None:
-            return self.client
-        self.client = OpenAI(api_key=self.config["api_key"])
+        if self.client is None:
+            self.client = OpenAI(api_key=self.config["api_key"])
 
     def confirm(self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(item, item_name, item_config)
 
-        assert self.config is not None
+        assert self.client is not None
         response = self.client.chat.completions.create(
             model=self.config.get("model", "gpt-4o"),
             messages=[
