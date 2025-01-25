@@ -2,7 +2,6 @@ from logging import Logger
 from typing import Any, ClassVar, Dict
 
 from openai import OpenAI
-from deepseek import DeepSeekAPI
 
 from .items import SearchedItem
 
@@ -108,18 +107,6 @@ class DeepSeekBackend(AIBackend):
 
     def connect(self) -> None:
         if self.client is None:
-            self.client = DeepSeekAPI(api_key=self.config["api_key"])
-
-    def confirm(self, listing: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
-        # ask deepseek
-        #  to confirm the item is correct
-        prompt = self.get_prompt(listing, item_name, item_config)
-
-        assert self.client is not None
-        response = self.client.chat_completions(
-            prompt=prompt, model=self.config.get("model", "deepseek-chat")
-        )
-
-        # check if the response is yes
-        self.logger.debug(f"Response: {response}")
-        return True if response is None else (not response.lower().strip().startswith("no"))
+            self.client = OpenAI(
+                api_key=self.config["api_key"], base_url="https://api.deepseek.com"
+            )

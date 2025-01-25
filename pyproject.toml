@@ -36,7 +36,6 @@ rich = "^13.9.4"
 joblib = "^1.4.2"
 watchdog = "^6.0.0"
 openai = "^1.60.1"
-deepseek = "^1.0.0"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
 
 [tool.poetry.group.dev.dependencies]
