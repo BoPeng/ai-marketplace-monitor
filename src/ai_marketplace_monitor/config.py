@@ -44,7 +44,7 @@ class Config:
         for marketplace_name, marketplace_config in self.config["marketplace"].items():
             if marketplace_name not in supported_marketplaces:
                 raise ValueError(
-                    f"Marketplace [blue]{marketplace_name}[/blue] is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
+                    f"Marketplace [magenta]{marketplace_name}[magenta] is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
                 )
             marketplace_class = supported_marketplaces[marketplace_name]
             marketplace_class.validate(marketplace_config)
@@ -56,12 +56,12 @@ class Config:
             if "marketplace" in item_config:
                 if item_config["marketplace"] not in self.config["marketplace"]:
                     raise ValueError(
-                        f"Item [blue]{item_name}[/blue] specifies a marketplace that does not exist."
+                        f"Item [magenta]{item_name}[magenta] specifies a marketplace that does not exist."
                     )
 
             if "keywords" not in item_config:
                 raise ValueError(
-                    f"Item [blue]{item_name}[/blue] does not contain a keywords to search."
+                    f"Item [magenta]{item_name}[magenta] does not contain a keywords to search."
                 )
             #
             if isinstance(item_config["keywords"], str):
@@ -70,9 +70,9 @@ class Config:
             if not isinstance(item_config["keywords"], list) or not all(
                 isinstance(x, str) for x in item_config["keywords"]
             ):
-                raise ValueError(f"Item [blue]{item_name}[/blue] keywords must be a list.")
+                raise ValueError(f"Item [magenta]{item_name}[magenta] keywords must be a list.")
             if len(item_config["keywords"]) == 0:
-                raise ValueError(f"Item [blue]{item_name}[/blue] keywords list is empty.")
+                raise ValueError(f"Item [magenta]{item_name}[magenta] keywords list is empty.")
 
             # exclude_sellers should be a list of strings
             if "exclude_sellers" in item_config:
@@ -82,7 +82,7 @@ class Config:
                     isinstance(x, str) for x in item_config["exclude_sellers"]
                 ):
                     raise ValueError(
-                        f"Item [blue]{item_name}[/blue] exclude_sellers must be a list."
+                        f"Item [magenta]{item_name}[magenta] exclude_sellers must be a list."
                     )
             #
             # exclude_by_description should be a list of strings
@@ -93,12 +93,14 @@ class Config:
                     isinstance(x, str) for x in item_config["exclude_by_description"]
                 ):
                     raise ValueError(
-                        f"Item [blue]{item_name}[/blue] exclude_by_description must be a list."
+                        f"Item [magenta]{item_name}[magenta] exclude_by_description must be a list."
                     )
             # if enable is set, if must be true or false (boolean)
             if "enabled" in item_config:
                 if not isinstance(item_config["enabled"], bool):
-                    raise ValueError(f"Item [blue]{item_name}[/blue] enabled must be a boolean.")
+                    raise ValueError(
+                        f"Item [magenta]{item_name}[magenta] enabled must be a boolean."
+                    )
 
             # if there are other keys in item_config, raise an error
             for key in item_config:
@@ -114,7 +116,7 @@ class Config:
                     "exclude_by_description",
                 ]:
                     raise ValueError(
-                        f"Item [blue]{item_name}[/blue] contains an invalid key {key}."
+                        f"Item [magenta]{item_name}[magenta] contains an invalid key {key}."
                     )
 
     def validate_users(self) -> None:
@@ -132,7 +134,7 @@ class Config:
                 for user in marketplace_config["notify"]:
                     if user not in self.config["user"]:
                         raise ValueError(
-                            f"User [blue]{user}[/blue] specified in [blue]{marketplace_config['name']}[/blue] does not exist."
+                            f"User [magenta]{user}[magenta] specified in [magenta]{marketplace_config['name']}[magenta] does not exist."
                         )
 
         # if user is specified for any search item, they must exist
@@ -143,5 +145,5 @@ class Config:
                 for user in item_config["notify"]:
                     if user not in self.config["user"]:
                         raise ValueError(
-                            f"User [blue]{user}[/blue] specified in [blue]{item_config['name']}[/blue] does not exist."
+                            f"User [magenta]{user}[magenta] specified in [magenta]{item_config['name']}[magenta] does not exist."
                         )

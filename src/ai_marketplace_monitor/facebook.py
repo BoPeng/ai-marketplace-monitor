@@ -239,7 +239,7 @@ class FacebookMarketplace(Marketplace):
 
     # get_item_details is wrapped around this function to cache results for urls
     def _get_item_details(self, item_title: str, post_url: str) -> Dict[str, str]:
-        self.logger.info(f"Getting details for [blue]{item_title}[/blue]")
+        self.logger.info(f"Getting details for [magenta]{item_title}[magenta]")
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
         html = self.page.content()
@@ -269,7 +269,7 @@ class FacebookMarketplace(Marketplace):
         )
 
         if exclude_keywords and is_substring(exclude_keywords, item["title"]):
-            self.logger.debug(f"Excluding item due to keywords: [blue]{item['title']}[/blue]")
+            self.logger.debug(f"Excluding item due to keywords: [magenta]{item['title']}[magenta]")
             return False
 
         # if the return description does not contain any of the search keywords
@@ -296,7 +296,7 @@ class FacebookMarketplace(Marketplace):
 
         if exclude_by_description and is_substring(exclude_by_description, item["description"]):
             self.logger.debug(
-                f"""Excluding item by description: [red]{exclude_by_description}[/red]:\n[blue]{item["description"][:100]}...[/blue] """
+                f"""Excluding item by description: [red]{exclude_by_description}[/red]:\n[magenta]{item["description"][:100]}...[magenta] """
             )
             return False
 
