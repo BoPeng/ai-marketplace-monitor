@@ -10,7 +10,7 @@ import typer
 from rich.logging import RichHandler
 
 from . import __version__
-from .ai_marketplace_monitor import MarketplaceMonitor
+from .monitor import MarketplaceMonitor
 
 app = typer.Typer()
 

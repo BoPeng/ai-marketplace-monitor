@@ -42,7 +42,7 @@ class Config:
             if not isinstance(self.config["ai"], dict):
                 raise ValueError("ai section must be a dictionary.")
 
-            from .ai_marketplace_monitor import supported_ai_backends
+            from .monitor import supported_ai_backends
 
             for key in self.config["ai"]:
                 if key not in supported_ai_backends:
@@ -62,7 +62,7 @@ class Config:
 
     def validate_marketplaces(self) -> None:
         # check for required fields in each marketplace
-        from .ai_marketplace_monitor import supported_marketplaces
+        from .monitor import supported_marketplaces
 
         for marketplace_name, marketplace_config in self.config["marketplace"].items():
             if marketplace_name not in supported_marketplaces:
