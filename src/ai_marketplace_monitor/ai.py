@@ -3,6 +3,8 @@ from typing import Any, ClassVar, Dict
 
 from openai import OpenAI
 
+from .items import SearchedItem
+
 
 class AIBackend:
     allowed_config_keys: ClassVar = []
@@ -14,7 +16,7 @@ class AIBackend:
         self.config = config
         self.logger = logger
 
-    def connect(self):
+    def connect(self) -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
     @classmethod
@@ -32,22 +34,7 @@ class AIBackend:
             if not config[key]:
                 raise ValueError(f"AI key {key} is empty.")
 
-    def confirm(self, item, item_name, item_config):
-        raise NotImplementedError("Confirm method must be implemented by subclasses.")
-
-
-class OpenAIBackend(AIBackend):
-    allowed_config_keys: ClassVar = ["api_key", "model"]
-    required_config_keys: ClassVar = ["api_key"]
-
-    def connect(self):
-        if self.client is not None:
-            return self.client
-        self.client = OpenAI(api_key=self.config["api_key"])
-        return self
-
-    def confirm(self, item, item_name, item_config):
-        # ask openai to confirm the item is correct
+    def get_prompt(self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> str:
         prompt = f"""A user would like to buy a {item_name} from facebook marketplace.
             He used keywords "{'" and "'.join(item_config["keywords"])}" to perform the search."""
         if "description" in item_config:
@@ -77,6 +64,25 @@ class OpenAIBackend(AIBackend):
         prompt += """Please confirm if the item likely matches what the users would like to buy.
             Please answer only with yes or no."""
         self.logger.debug(f"Prompt: {prompt}")
+        return prompt
+
+    def confirm(self, item, item_name, item_config):
+        raise NotImplementedError("Confirm method must be implemented by subclasses.")
+
+
+class OpenAIBackend(AIBackend):
+    allowed_config_keys: ClassVar = ["api_key", "model"]
+    required_config_keys: ClassVar = ["api_key"]
+
+    def connect(self) -> None:
+        if self.client is not None:
+            return self.client
+        self.client = OpenAI(api_key=self.config["api_key"])
+
+    def confirm(self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
+        # ask openai to confirm the item is correct
+        prompt = self.get_prompt(item, item_name, item_config)
+
         assert self.config is not None
         response = self.client.chat.completions.create(
             model=self.config.get("model", "gpt-4o"),
