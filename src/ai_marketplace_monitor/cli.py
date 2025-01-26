@@ -95,7 +95,8 @@ def main(
 
     while True:
         try:
-            MarketplaceMonitor(config_files, headless, clear_cache, logger).monitor()
+            monitor = MarketplaceMonitor(config_files, headless, clear_cache, logger)
+            monitor.start_monitor()
         except KeyboardInterrupt:
             rich.print("Exiting...")
             sys.exit(0)
@@ -104,6 +105,8 @@ def main(
             # However, manual user input might be needed, so this would not work well.
             logger.error(f"Error: {e}")
             time.sleep(60)  # Wait for 60 seconds before checking again
+        finally:
+            monitor.stop_monitor()
 
 
 if __name__ == "__main__":

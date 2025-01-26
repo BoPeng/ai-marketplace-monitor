@@ -46,6 +46,7 @@ class MarketplaceMonitor:
         self.headless = headless
         self.ai_backend: AIBackend | None = None
         self.logger = logger
+        self.notified_items: List[SearchedItem] = self.load_notified_items()
         if clear_cache:
             if os.path.exists(self.search_history_cache):
                 os.remove(self.search_history_cache)
@@ -94,7 +95,7 @@ class MarketplaceMonitor:
                 self.logger.error(f"Error connecting to {ai_name}: {e}")
                 continue
 
-    def monitor(self: "MarketplaceMonitor") -> None:
+    def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
         # start a browser with playwright
         with sync_playwright() as p:
@@ -129,15 +130,20 @@ class MarketplaceMonitor:
                             self.logger.info(
                                 f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]"
                             )
-                            found_items = marketplace.search(item_config)
-                            #
-                            new_items = [
-                                x
-                                for x in self.find_new_items(found_items)
+                            new_items = []
+                            for item in marketplace.search(item_config):
+                                if self.already_notified(item):
+                                    self.logger.info(
+                                        f"Already sent notification for item {item.post_url}, skipping."
+                                    )
+                                    continue
+                                # for x in self.find_new_items(found_items)
                                 if self.confirmed_by_ai(
-                                    x, item_name=item_name, item_config=item_config
-                                )
-                            ]
+                                    item, item_name=item_name, item_config=item_config
+                                ):
+                                    continue
+                                new_items.append(item)
+
                             self.logger.info(
                                 f"""[magenta]{len(new_items)}[/magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
                             )
@@ -161,6 +167,12 @@ class MarketplaceMonitor:
                         random.randint(search_interval * 60, max_search_interval * 60),
                         self.config_files,
                     )
+
+    def stop_monitor(self: "MarketplaceMonitor") -> None:
+        """Stop the monitor."""
+        for marketplace in self.active_marketplaces.values():
+            marketplace.stop()
+        self.save_notified_items()
 
     def check_items(
         self: "MarketplaceMonitor", items: List[str] | None = None, for_item: str | None = None
@@ -242,26 +254,22 @@ class MarketplaceMonitor:
                         )
                         marketplace.filter_item(listing, item_config)
                         self.confirmed_by_ai(listing, item_name=item_name, item_config=item_config)
+                        if self.already_notified(listing):
+                            self.logger.info(f"Already sent notification for item {item_name}.")
 
-    def load_searched_items(self: "MarketplaceMonitor") -> List[SearchedItem]:
+    def load_notified_items(self: "MarketplaceMonitor") -> List[SearchedItem]:
+
         if os.path.isfile(self.search_history_cache):
             with open(self.search_history_cache, "r") as f:
                 return json.load(f)
         return []
 
-    def save_searched_items(self: "MarketplaceMonitor", items: List[SearchedItem]) -> None:
+    def save_notified_items(self: "MarketplaceMonitor") -> None:
         with open(self.search_history_cache, "w") as f:
-            json.dump(items, f)
+            json.dump(self.notified_items, f)
 
-    def find_new_items(
-        self: "MarketplaceMonitor", items: List[SearchedItem]
-    ) -> List[SearchedItem]:
-        past_items = self.load_searched_items()
-        past_item_ids = [x["id"] for x in past_items]
-        new_items = [x for x in items if x["id"] not in past_item_ids]
-        if new_items:
-            self.save_searched_items(past_items + new_items)
-        return new_items
+    def already_notified(self: "MarketplaceMonitor", item: SearchedItem) -> bool:
+        return any(x["id"] == item["id"] for x in self.notified_items)
 
     def confirmed_by_ai(
         self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: Dict[str, Any]
@@ -289,6 +297,8 @@ class MarketplaceMonitor:
             msgs.append(
                 f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
             )
+            # add to notified items
+            self.notified_items.append(item)
         # found the user from the user configuration
         for user in users:
             title = f"Found {len(items)} new item from {item['marketplace']}: "

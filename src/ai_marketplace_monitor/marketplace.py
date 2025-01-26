@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import Any, ClassVar, Dict, List, Type
+from typing import Any, ClassVar, Dict, Generator, Type
 
 from playwright.sync_api import Browser, Page
 
@@ -22,6 +22,12 @@ class Marketplace:
         self.browser = browser
         self.page = None
 
+    def stop(self: "Marketplace") -> None:
+        if self.browser is not None:
+            self.browser.close()
+            self.browser = None
+            self.page = None
+
     @classmethod
     def validate(cls: Type["Marketplace"], config: Dict[str, Any]) -> None:
         # if there are other keys in config, raise an error
@@ -29,5 +35,5 @@ class Marketplace:
             if key not in cls.allowed_config_keys:
                 raise ValueError(f"Marketplace contains an invalid key {key}.")
 
-    def search(self: "Marketplace", item: Dict[str, Any]) -> List[SearchedItem]:
+    def search(self: "Marketplace", item: Dict[str, Any]) -> Generator[SearchedItem, None, None]:
         raise NotImplementedError("Search method must be implemented by subclasses.")

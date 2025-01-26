@@ -1,7 +1,7 @@
 import re
 import time
 from logging import Logger
-from typing import Any, ClassVar, Dict, List, Type, Union, cast
+from typing import Any, ClassVar, Dict, Generator, List, Type, Union, cast
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup, element  # type: ignore
@@ -120,7 +120,9 @@ class FacebookMarketplace(Marketplace):
         self.logger.info(f"Logged into facebook, waiting {login_wait_time}s to get ready.")
         time.sleep(login_wait_time)
 
-    def search(self: "FacebookMarketplace", item_config: Dict[str, Any]) -> List[SearchedItem]:
+    def search(
+        self: "FacebookMarketplace", item_config: Dict[str, Any]
+    ) -> Generator[SearchedItem, None, None]:
         if not self.page:
             self.login()
             assert self.page is not None
@@ -150,9 +152,12 @@ class FacebookMarketplace(Marketplace):
             time.sleep(5)
         # go to each item and get the description
         # if we have not done that before
-        filtered_items = []
         for item in found_items:
-            details = self.get_item_details(item["post_url"])
+            try:
+                details = self.get_item_details(item["post_url"])
+            except Exception as e:
+                self.logger.error(f"Error getting item details: {e}")
+                continue
             # currently we trust the other items from summary page a bit better
             # so we do not copy title, description etc from the detailed result
             for key in ("description", "seller"):
@@ -161,10 +166,8 @@ class FacebookMarketplace(Marketplace):
                 f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
             )
             if self.filter_item(item, item_config):
-                filtered_items.append(item)
+                yield item
             time.sleep(5)
-        #
-        return filtered_items
 
     # get_item_details is wrapped around this function to cache results for urls
     def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
@@ -378,19 +381,19 @@ class FacebookItemPage(WebPage):
         title, price = self.get_title_and_price()
         description, location = self.get_description_and_location()
 
-        if not title or not price:
-            with open(f"{item_id}.html", "w") as f:
-                f.write(self.html)
+        # if not title or not price:
+        #     with open(f"{item_id}.html", "w") as f:
+        #         f.write(self.html)
 
         if not title:
-            self.logger.warning(
-                f"""No title was found for item {post_url}. Please notify the
-                developer of this issue attaching "{item_id}.html" saved to the current directory."""
+            raise ValueError(
+                f"""No title was found for item {post_url}, which is most likely caused by a network issue.
+                Please report the issue to the developer if the problem persists."""
             )
         if not price:
-            self.logger.warning(
-                f"""No price was found for item {post_url}. Please notify the
-                developer of this issue attaching "{item_id}.html" saved to the current directory."""
+            raise ValueError(
+                f"""No price was found for item {post_url}, which is most likely caused by a network issue.
+                Please report the issue to the developer if the problem persists."""
             )
 
         self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
@@ -406,4 +409,4 @@ class FacebookItemPage(WebPage):
             "seller": self.get_seller(),
         }
         self.logger.debug(pretty_repr(res))
-        return res
+        return cast(SearchedItem, res)
