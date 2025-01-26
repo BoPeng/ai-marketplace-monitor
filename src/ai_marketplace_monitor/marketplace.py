@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List, Type
 
 from playwright.sync_api import Browser, Page
 
@@ -19,7 +19,7 @@ class Marketplace:
         self.config = config
 
     @classmethod
-    def validate(cls: "Marketplace", config: Dict[str, Any]) -> None:
+    def validate(cls: Type["Marketplace"], config: Dict[str, Any]) -> None:
         # if there are other keys in config, raise an error
         for key in config:
             if key not in cls.allowed_config_keys:

@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import Any, ClassVar, Dict
+from typing import Any, ClassVar, Dict, Type
 
 from openai import OpenAI
 
@@ -19,7 +19,7 @@ class AIBackend:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
     @classmethod
-    def validate(cls: "AIBackend", config: Dict[str, Any]) -> None:
+    def validate(cls: Type["AIBackend"], config: Dict[str, Any]) -> None:
         # if there are other keys in config, raise an error
         for key in config:
             if key not in cls.allowed_config_keys:

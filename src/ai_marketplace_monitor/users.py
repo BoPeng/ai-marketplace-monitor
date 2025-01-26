@@ -1,6 +1,6 @@
 import time
 from logging import Logger
-from typing import Any, ClassVar, Dict
+from typing import Any, ClassVar, Dict, Type
 
 from pushbullet import Pushbullet  # type: ignore
 
@@ -16,7 +16,7 @@ class User:
         self.validate(name, config)
 
     @classmethod
-    def validate(cls: "User", username: str, config: Dict[str, Any]) -> None:
+    def validate(cls: Type["User"], username: str, config: Dict[str, Any]) -> None:
         if "pushbullet_token" not in config:
             raise ValueError("User {username} must have a pushbullet_token")
         if not isinstance(config["pushbullet_token"], str):

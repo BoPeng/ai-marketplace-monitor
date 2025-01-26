@@ -1,7 +1,7 @@
 import re
 import time
 from logging import Logger
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List, Type
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup  # type: ignore
@@ -41,7 +41,7 @@ class FacebookMarketplace(Marketplace):
         self.page: Page | None = None
 
     @classmethod
-    def validate(cls: "FacebookMarketplace", config: Dict[str, Any]) -> None:
+    def validate(cls: Type["FacebookMarketplace"], config: Dict[str, Any]) -> None:
         #
         super().validate(config)
         #
@@ -88,19 +88,25 @@ class FacebookMarketplace(Marketplace):
 
     def login(self: "FacebookMarketplace") -> None:
         context = self.browser.new_context()  # create a new incognite window
-        self.page: Page = context.new_page()
+        self.page = context.new_page()
         assert self.page is not None
         # Navigate to the URL, no timeout
         self.page.goto(self.initial_url, timeout=0)
         try:
             if "username" in self.config:
-                self.page.wait_for_selector('input[name="email"]').fill(self.config["username"])
+                selector = self.page.wait_for_selector('input[name="email"]')
+                if selector is not None:
+                    selector.fill(self.config["username"])
                 time.sleep(1)
             if "password" in self.config:
-                self.page.wait_for_selector('input[name="pass"]').fill(self.config["password"])
+                selector = self.page.wait_for_selector('input[name="pass"]')
+                if selector is not None:
+                    selector.fill(self.config["password"])
                 time.sleep(1)
             if "username" in self.config and "password" in self.config:
-                self.page.wait_for_selector('button[name="login"]').click()
+                selector = self.page.wait_for_selector('button[name="login"]')
+                if selector is not None:
+                    selector.click()
         except Exception as e:
             self.logger.error(f"An error occurred during logging: {e}")
 
