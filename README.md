@@ -219,17 +219,17 @@ Note that
 - If you would like to know how the program works, especially how it intereacts with the AI, use option `--verbose` (or `-v`).
 - If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run
 
-```sh
-ai-marketplace-monitor --check your-url
-```
+  ```sh
+  ai-marketplace-monitor --check your-url
+  ```
 
-If you have multiple items specified in your config file, _ai-marketplace-monitor_ will check the product against the configuration of all of them. If you know the _name_ of the item in your config file, you can let the program only check the configuration of this particular item.
+  If you have multiple items specified in your config file, _ai-marketplace-monitor_ will check the product against the configuration of all of them. If you know the _name_ of the item in your config file, you can let the program only check the configuration of this particular item.
 
-```sh
-ai-marketplace-monitor --check your-url --for item_name
-```
+  ```sh
+  ai-marketplace-monitor --check your-url --for item_name
+  ```
 
-Option `--check` will load the details of the item from the cache if it was previously examined. Otherwise a browser will be started to retrieve the page.
+  Option `--check` will load the details of the item from the cache if it was previously examined. Otherwise a browser will be started to retrieve the page.
 
 ## TODO List:
 
