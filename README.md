@@ -127,15 +127,12 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
 an example with many of the options.
 
-- Section `ai.openai`, an optional section, lists the api-key for [openai](https://openai.com/). Specification of this section will enable AI-assistance with openAI.
+- Section `ai.openai` and/or `ai.deepseek`, optional sections listing the api-key for [openai](https://openai.com/) or
+  [DeepSeek](ttps://platform.deepseek.com). Specification of these sections will enable AI-assistance. If both `ai.openai` and `ai.deepseek` are specified, the program try in the order for which they are specified.
 
   - `api-key`: (required), a program token to access openAI REST API.
-  - `model`: (optional), `gpt-4o` will be used if unspecified.
-
-- Section `ai.deepseek`, an optional section, lists the api-key for [DeepSeek](ttps://platform.deepseek.com). Specification of this section will enable AI-assistance with DeepSeek.
-
-  - `api-key`: (required), a program token to access openAI REST API.
-  - `model`: (optional), the `deepseek-chat` model will be used if unspecified.
+  - `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `openami` or `deepseek` respectively.
+  - `base_url`: (optional), in case you use another server
 
 - Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
 
@@ -172,7 +169,6 @@ Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-3. If both `openai` and `deepseek` API keys are specified, the program try `deepseek` first, then `openai`.
 
 ### Run the program
 

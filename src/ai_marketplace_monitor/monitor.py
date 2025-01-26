@@ -122,7 +122,7 @@ class MarketplaceMonitor:
                                 continue
 
                             self.logger.info(
-                                f"Searching {marketplace_name} for [magenta]{item_name}[magenta]"
+                                f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]"
                             )
                             found_items = marketplace.search(item_config)
                             #
@@ -134,7 +134,7 @@ class MarketplaceMonitor:
                                 )
                             ]
                             self.logger.info(
-                                f"""[magenta]{len(new_items)}[magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
+                                f"""[magenta]{len(new_items)}[/magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
                             )
                             if new_items:
                                 self.notify_users(
@@ -208,7 +208,7 @@ class MarketplaceMonitor:
             title = f"Found {len(items)} new item from {item['marketplace']}: "
             message = "\n\n".join(msgs)
             self.logger.info(
-                f"Sending {user} a message with title [magenta]{title}[magenta] and message [magenta]{message}[magenta]"
+                f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"
             )
             assert self.config is not None
             assert self.config["user"] is not None

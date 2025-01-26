@@ -76,10 +76,15 @@ class AIBackend:
 class OpenAIBackend(AIBackend):
     allowed_config_keys: ClassVar = ["api_key", "model"]
     required_config_keys: ClassVar = ["api_key"]
+    default_model = "gpt-4o"
+    # the default is f"https://api.openai.com/v1"
+    base_url = None
 
     def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
-            self.client = OpenAI(api_key=self.config["api_key"])
+            self.client = OpenAI(
+                api_key=self.config["api_key"], base_url=self.config.get("base_url", self.base_url)
+            )
 
     def confirm(
         self: "OpenAIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
@@ -89,7 +94,7 @@ class OpenAIBackend(AIBackend):
 
         assert self.client is not None
         response = self.client.chat.completions.create(
-            model=self.config.get("model", "gpt-4o"),
+            model=self.config.get("model", self.default_model),
             messages=[
                 {
                     "role": "system",
@@ -105,12 +110,8 @@ class OpenAIBackend(AIBackend):
         return True if answer is None else (not answer.lower().strip().startswith("no"))
 
 
-class DeepSeekBackend(AIBackend):
+class DeepSeekBackend(OpenAIBackend):
     allowed_config_keys: ClassVar = ["api_key", "model"]
     required_config_keys: ClassVar = ["api_key"]
-
-    def connect(self: "DeepSeekBackend") -> None:
-        if self.client is None:
-            self.client = OpenAI(
-                api_key=self.config["api_key"], base_url="https://api.deepseek.com"
-            )
+    default_model = "deepseek-chat"
+    base_url = "https://api.deepseek.com"
