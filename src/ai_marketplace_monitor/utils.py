@@ -104,3 +104,12 @@ def sleep_with_watchdog(duration: int, files: List[str]) -> None:
         for observer in observers:
             observer.stop()
             observer.join()
+
+
+def extract_price(price: str) -> str:
+    if price.count("$") > 1:
+        match = re.search(r"\$\d+(?:\.\d{2})?", price)
+        price = match.group(0) if match else price
+    if "\xa0" in price:
+        price = price.split("\xa0")[0]
+    return price

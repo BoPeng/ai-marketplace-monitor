@@ -10,7 +10,7 @@ from rich.pretty import pretty_repr
 
 from .items import SearchedItem
 from .marketplace import Marketplace
-from .utils import is_substring, memory
+from .utils import extract_price, is_substring, memory
 
 
 class FacebookMarketplace(Marketplace):
@@ -280,13 +280,8 @@ class FacebookSearchResultPage(WebPage):
             atag_child2[1].children
         )  # x9f619 x78zum5 xdt5ytf x1qughib x1rdy4ex xz9dl7a xsag5q8 xh8yej3 xp0eagm x1nrcals
         # There are 4 divs in 'details', in this order: price, title, location, distance
-        price = details[0].contents[-1].text
-        # if there are two prices (reduced), take the first one
-        if price.count("$") > 1:
-            match = re.search(r"\$\d+(?:\.\d{2})?", price)
-            price = match.group(0) if match else price
-        if "\xa0" in price:
-            price = price.split("\xa0")[0]
+        price = extract_price(details[0].contents[-1].text)
+
         title = details[1].contents[-1].text
         location = details[2].contents[-1].text
 
@@ -338,10 +333,7 @@ class FacebookItemPage(WebPage):
         try:
             title_element = self.soup.find("h1")
             title = title_element.get_text(strip=True)
-            price = title_element.next_sibling.get_text()
-            if price.count("$") > 1:
-                match = re.search(r"\$\d+(?:\.\d{2})?", price)
-                price = match.group(0) if match else price
+            price = extract_price(title_element.next_sibling.get_text())
         except Exception as e:
             self.logger.debug(e)
 
@@ -378,22 +370,29 @@ class FacebookItemPage(WebPage):
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
         # title
+        item_id = post_url.split("?")[0].rstrip("/").split("/")[-1]
         title, price = self.get_title_and_price()
         description, location = self.get_description_and_location()
 
+        if not title or not price:
+            with open(f"{item_id}.html", "w") as f:
+                f.write(self.html)
+
         if not title:
             self.logger.warning(
-                f"No title was found for item {post_url}. Please notify the developer of this issue."
+                f"""No title was found for item {post_url}. Please notify the
+                developer of this issue attaching "{item_id}.html" saved to the current directory."""
             )
         if not price:
             self.logger.warning(
-                f"No price was found for item {post_url}. Please notify the developer of this issue."
+                f"""No price was found for item {post_url}. Please notify the
+                developer of this issue attaching "{item_id}.html" saved to the current directory."""
             )
 
         self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
         res = {
             "marketplace": "facebook",
-            "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
+            "id": item_id,
             "title": title,
             "image": self.get_image_url(),
             "price": price,
