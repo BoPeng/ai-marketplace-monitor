@@ -8,7 +8,7 @@ from pushbullet import Pushbullet  # type: ignore
 class User:
     allowed_config_keys: ClassVar = {"pushbullet_token"}
 
-    def __init__(self, name: str, config: Dict[str, Any], logger: Logger) -> None:
+    def __init__(self: "User", name: str, config: Dict[str, Any], logger: Logger) -> None:
         self.name = name
         self.config = config
         self.push_bullet_token = None
@@ -16,7 +16,7 @@ class User:
         self.validate(name, config)
 
     @classmethod
-    def validate(cls, username: str, config: Dict[str, Any]) -> None:
+    def validate(cls: "User", username: str, config: Dict[str, Any]) -> None:
         if "pushbullet_token" not in config:
             raise ValueError("User {username} must have a pushbullet_token")
         if not isinstance(config["pushbullet_token"], str):
@@ -26,7 +26,9 @@ class User:
             if key not in cls.allowed_config_keys:
                 raise ValueError(f"User {username} contains an invalid key {key}")
 
-    def notify(self, title: str, message: str, max_retries: int = 6, delay: int = 10) -> bool:
+    def notify(
+        self: "User", title: str, message: str, max_retries: int = 6, delay: int = 10
+    ) -> bool:
         pb = Pushbullet(self.config["pushbullet_token"])
 
         for attempt in range(max_retries):

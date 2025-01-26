@@ -11,7 +11,7 @@ from .utils import merge_dicts
 
 
 class Config:
-    def __init__(self, config_files: List[str], logger: Logger | None = None):
+    def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
         configs = []
         for config_file in config_files:
             try:
@@ -26,13 +26,13 @@ class Config:
         self.config = merge_dicts(configs)
         self.validate()
 
-    def validate(self) -> None:
+    def validate(self: "Config") -> None:
         self.validate_sections()
         self.validate_marketplaces()
         self.validate_search_items()
         self.validate_users()
 
-    def validate_sections(self) -> None:
+    def validate_sections(self: "Config") -> None:
         # check for required sections
         for required_section in ["marketplace", "user", "item"]:
             if required_section not in self.config:
@@ -61,7 +61,7 @@ class Config:
             if key not in ("marketplace", "user", "item", "ai"):
                 raise ValueError(f"Config file contains an invalid section {key}.")
 
-    def validate_marketplaces(self) -> None:
+    def validate_marketplaces(self: "Config") -> None:
         # check for required fields in each marketplace
         from .monitor import supported_marketplaces
 
@@ -73,7 +73,7 @@ class Config:
             marketplace_class = supported_marketplaces[marketplace_name]
             marketplace_class.validate(marketplace_config)
 
-    def validate_search_items(self) -> None:
+    def validate_search_items(self: "Config") -> None:
         # check for keywords in each "item" to be searched
         for item_name, item_config in self.config["item"].items():
             # if marketplace is specified, it must exist
@@ -151,7 +151,7 @@ class Config:
                         f"Item [magenta]{item_name}[magenta] contains an invalid key {key}."
                     )
 
-    def validate_users(self) -> None:
+    def validate_users(self: "Config") -> None:
         # check for required fields in each user
         from .users import User
 

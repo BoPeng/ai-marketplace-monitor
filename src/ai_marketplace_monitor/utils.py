@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, List
 
 from joblib import Memory  # type: ignore
-from watchdog.events import FileSystemEventHandler
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 # home directory for all settings and caches
@@ -72,16 +72,16 @@ def is_substring(var1: str | List[str], var2: str | List[str]) -> bool:
 
 
 class ChangeHandler(FileSystemEventHandler):
-    def __init__(self, files: List[str]) -> None:
+    def __init__(self: "ChangeHandler", files: List[str]) -> None:
         self.changed = False
         self.files = files
 
-    def on_modified(self, event):
+    def on_modified(self: "ChangeHandler", event: FileSystemEvent) -> None:
         if not event.is_directory and event.src_path in self.files:
             self.changed = True
 
 
-def sleep_with_watchdog(duration: int, files: List[str]):
+def sleep_with_watchdog(duration: int, files: List[str]) -> None:
     """Sleep for a specified duration while monitoring the change of files"""
     event_handler = ChangeHandler(files)
     observers = []

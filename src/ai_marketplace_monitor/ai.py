@@ -10,16 +10,16 @@ class AIBackend:
     allowed_config_keys: ClassVar = []
     required_config_keys: ClassVar = []
 
-    def __init__(self, config: Dict[str, Any], logger: Logger):
+    def __init__(self: "AIBackend", config: Dict[str, Any], logger: Logger) -> None:
         self.config = config
         self.logger = logger
         self.client: OpenAI | None = None
 
-    def connect(self) -> None:
+    def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
     @classmethod
-    def validate(cls, config: Dict[str, Any]) -> None:
+    def validate(cls: "AIBackend", config: Dict[str, Any]) -> None:
         # if there are other keys in config, raise an error
         for key in config:
             if key not in cls.allowed_config_keys:
@@ -34,7 +34,7 @@ class AIBackend:
                 raise ValueError(f"AI key {key} is empty.")
 
     def get_prompt(
-        self, listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
     ) -> str:
         prompt = f"""A user would like to buy a {item_name} from facebook marketplace.
             He used keywords "{'" and "'.join(item_config["keywords"])}" to perform the search."""
@@ -67,7 +67,9 @@ class AIBackend:
         self.logger.debug(f"Prompt: {prompt}")
         return prompt
 
-    def confirm(self, item, item_name, item_config):
+    def confirm(
+        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+    ) -> bool:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
 
@@ -75,11 +77,13 @@ class OpenAIBackend(AIBackend):
     allowed_config_keys: ClassVar = ["api_key", "model"]
     required_config_keys: ClassVar = ["api_key"]
 
-    def connect(self) -> None:
+    def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
             self.client = OpenAI(api_key=self.config["api_key"])
 
-    def confirm(self, listing: SearchedItem, item_name: str, item_config: Dict[str, Any]) -> bool:
+    def confirm(
+        self: "OpenAIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+    ) -> bool:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(listing, item_name, item_config)
 
@@ -105,7 +109,7 @@ class DeepSeekBackend(AIBackend):
     allowed_config_keys: ClassVar = ["api_key", "model"]
     required_config_keys: ClassVar = ["api_key"]
 
-    def connect(self) -> None:
+    def connect(self: "DeepSeekBackend") -> None:
         if self.client is None:
             self.client = OpenAI(
                 api_key=self.config["api_key"], base_url="https://api.deepseek.com"

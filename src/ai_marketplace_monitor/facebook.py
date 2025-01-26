@@ -1,7 +1,7 @@
 import re
 import time
 from logging import Logger
-from typing import ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup  # type: ignore
@@ -31,7 +31,7 @@ class FacebookMarketplace(Marketplace):
         "max_price",
     }
 
-    def __init__(self, name, browser: Browser, logger: Logger):
+    def __init__(self: "FacebookMarketplace", name: str, browser: Browser, logger: Logger) -> None:
         assert name == self.name
         super().__init__(name, browser, logger)
         # cache the output of website, but ignore the change of "self" and browser
@@ -41,7 +41,7 @@ class FacebookMarketplace(Marketplace):
         self.page: Page | None = None
 
     @classmethod
-    def validate(cls, config) -> None:
+    def validate(cls: "FacebookMarketplace", config: Dict[str, Any]) -> None:
         #
         super().validate(config)
         #
@@ -86,7 +86,7 @@ class FacebookMarketplace(Marketplace):
                 if not isinstance(config[interval_field], int):
                     raise ValueError(f"Marketplace {cls.name} search_interval must be an integer.")
 
-    def login(self):
+    def login(self: "FacebookMarketplace") -> None:
         context = self.browser.new_context()  # create a new incognite window
         self.page: Page = context.new_page()
         assert self.page is not None
@@ -109,7 +109,7 @@ class FacebookMarketplace(Marketplace):
         self.logger.info(f"Logged into facebook, waiting {login_wait_time}s to get ready.")
         time.sleep(login_wait_time)
 
-    def search(self, item_config) -> List[SearchedItem]:
+    def search(self: "FacebookMarketplace", item_config: Dict[str, Any]) -> List[SearchedItem]:
         if not self.page:
             self.login()
             assert self.page is not None
@@ -153,7 +153,7 @@ class FacebookMarketplace(Marketplace):
         # check if any of the items have been returned before
         return found_items
 
-    def get_item_list(self, html: str) -> List[SearchedItem]:
+    def get_item_list(self: "FacebookMarketplace", html: str) -> List[SearchedItem]:
         soup = BeautifulSoup(html, "html.parser")
         parsed: List[SearchedItem] = []
 
@@ -178,7 +178,7 @@ class FacebookMarketplace(Marketplace):
             try:
                 listings = get_listing_from_css()
             except Exception as e2:
-                self.logger.debug("No listings found from structure and css: {e1}, {e2}")
+                self.logger.debug(f"No listings found from structure and css: {e1}, {e2}")
                 self.logger.debug("Saving html to test.html")
 
                 with open("test.html", "w") as f:
@@ -240,7 +240,9 @@ class FacebookMarketplace(Marketplace):
         return parsed
 
     # get_item_details is wrapped around this function to cache results for urls
-    def _get_item_details(self, item_title: str, post_url: str) -> Dict[str, str]:
+    def _get_item_details(
+        self: "FacebookMarketplace", item_title: str, post_url: str
+    ) -> Dict[str, str]:
         self.logger.info(f"Getting details for [magenta]{item_title}[magenta]")
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
@@ -264,7 +266,9 @@ class FacebookMarketplace(Marketplace):
             seller = ""
         return {"description": description, "seller": seller}
 
-    def filter_item(self, item: SearchedItem, item_config) -> bool:
+    def filter_item(
+        self: "FacebookMarketplace", item: SearchedItem, item_config: Dict[str, Any]
+    ) -> bool:
         # get exclude_keywords from both item_config or config
         exclude_keywords = item_config.get(
             "exclude_keywords", self.config.get("exclude_keywords", [])
@@ -292,7 +296,9 @@ class FacebookMarketplace(Marketplace):
 
         return True
 
-    def filter_item_by_details(self, item: SearchedItem, item_config) -> bool:
+    def filter_item_by_details(
+        self: "FacebookMarketplace", item: SearchedItem, item_config: Dict[str, Any]
+    ) -> bool:
         # get exclude_keywords from both item_config or config
         exclude_by_description = item_config.get("exclude_by_description", [])
 

@@ -129,7 +129,7 @@ model = 'gpt'
         (base_marketplace_cfg + base_item_cfg + base_user_cfg + "\na=1\n", False),
     ],
 )
-def test_config(config_file, config_content, acceptable) -> None:
+def test_config(config_file: str, config_content: str, acceptable: bool) -> None:
     """Test the config command."""
     cfg = config_file(config_content)
     if acceptable:

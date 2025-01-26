@@ -15,15 +15,15 @@ class Marketplace:
         self.logger = logger
         self.page: Page | None = None
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self: "Marketplace", config: Dict[str, Any]) -> None:
         self.config = config
 
     @classmethod
-    def validate(cls, config: Dict[str, Any]) -> None:
+    def validate(cls: "Marketplace", config: Dict[str, Any]) -> None:
         # if there are other keys in config, raise an error
         for key in config:
             if key not in cls.allowed_config_keys:
                 raise ValueError(f"Marketplace contains an invalid key {key}.")
 
-    def search(self, item: Dict[str, Any]) -> List[SearchedItem]:
+    def search(self: "Marketplace", item: Dict[str, Any]) -> List[SearchedItem]:
         raise NotImplementedError("Search method must be implemented by subclasses.")

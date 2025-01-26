@@ -98,21 +98,11 @@ extend-exclude = ["docs/*"]
 
 [tool.ruff.lint]
 ignore = [
-  "ANN001",
-  "ANN101",
-  "D102",
-  "ANN201",
+  "ANN202",
+  "E722",
   "G004",
   "S311",
-  "F821",
-  "F841",
-  "ANN204",
-  "ANN202",
-  "ANN102",
   "B017",
-  "C419",
-  "E722",
-  "S110",
   "S101",   # use of assert
   "BLE001", # blank exception
   "C901",   # too complex (function name too long etc)

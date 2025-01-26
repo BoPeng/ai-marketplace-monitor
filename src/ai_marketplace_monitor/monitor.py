@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Dict, List
 
 from playwright.sync_api import Browser, sync_playwright
 
-from .ai import AIBackend, OpenAIBackend, DeepSeekBackend
+from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
 from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
@@ -24,7 +24,7 @@ class MarketplaceMonitor:
     active_marketplaces: ClassVar = {}
 
     def __init__(
-        self,
+        self: "MarketplaceMonitor",
         config_files: List[str] | None,
         headless: bool | None,
         clear_cache: bool | None,
@@ -51,7 +51,7 @@ class MarketplaceMonitor:
             #
             memory.clear()
 
-    def load_config_file(self) -> Dict[str, Any]:
+    def load_config_file(self: "MarketplaceMonitor") -> Dict[str, Any]:
         """Load the configuration file."""
         last_invalid_hash = None
         while True:
@@ -77,7 +77,7 @@ class MarketplaceMonitor:
                 sleep_with_watchdog(60, self.config_files)
                 continue
 
-    def monitor(self) -> None:
+    def monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
         # start a browser with playwright
         with sync_playwright() as p:
@@ -134,7 +134,7 @@ class MarketplaceMonitor:
                                 )
                             ]
                             self.logger.info(
-                                f"""[magenta]{len(new_items)}[magenta] new listing{"" if len(new_items) == 1 else ""} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
+                                f"""[magenta]{len(new_items)}[magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
                             )
                             if new_items:
                                 self.notify_users(
@@ -157,17 +157,19 @@ class MarketplaceMonitor:
                         self.config_files,
                     )
 
-    def load_searched_items(self) -> List[SearchedItem]:
+    def load_searched_items(self: "MarketplaceMonitor") -> List[SearchedItem]:
         if os.path.isfile(self.search_history_cache):
             with open(self.search_history_cache, "r") as f:
                 return json.load(f)
         return []
 
-    def save_searched_items(self, items: List[SearchedItem]) -> None:
+    def save_searched_items(self: "MarketplaceMonitor", items: List[SearchedItem]) -> None:
         with open(self.search_history_cache, "w") as f:
             json.dump(items, f)
 
-    def find_new_items(self, items: List[SearchedItem]) -> List[SearchedItem]:
+    def find_new_items(
+        self: "MarketplaceMonitor", items: List[SearchedItem]
+    ) -> List[SearchedItem]:
         past_items = self.load_searched_items()
         past_item_ids = [x["id"] for x in past_items]
         new_items = [x for x in items if x["id"] not in past_item_ids]
@@ -176,14 +178,16 @@ class MarketplaceMonitor:
         return new_items
 
     def confirmed_by_ai(
-        self, item: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: Dict[str, Any]
     ) -> bool:
         if self.ai_backend is None:
             self.logger.debug("No AI backend configured, skipping AI-based confirmation.")
             return True
         return self.ai_backend.confirm(item, item_name, item_config)
 
-    def notify_users(self, users: List[str], items: List[SearchedItem]) -> None:
+    def notify_users(
+        self: "MarketplaceMonitor", users: List[str], items: List[SearchedItem]
+    ) -> None:
         users = list(set(users))
         if not users:
             self.logger.warning("Will notify all users since no user is listed for notify.")
