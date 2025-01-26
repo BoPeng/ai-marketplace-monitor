@@ -1,10 +1,10 @@
 import re
 import time
 from logging import Logger
-from typing import Any, ClassVar, Dict, List, Type
+from typing import Any, ClassVar, Dict, List, Type, Union, cast
 from urllib.parse import quote
 
-from bs4 import BeautifulSoup  # type: ignore
+from bs4 import BeautifulSoup, element  # type: ignore
 from playwright.sync_api import Browser, Page
 
 from .items import SearchedItem
@@ -141,9 +141,9 @@ class FacebookMarketplace(Marketplace):
         for keyword in item_config.get("keywords", []):
             self.page.goto(marketplace_url + f"query={quote(keyword)}", timeout=0)
 
-            html = self.page.content()
-
-            found_items.extend(self.get_item_list(html))
+            found_items.extend(
+                FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
+            )
             time.sleep(5)
         # go to each item and get the description
         # if we have not done that before
@@ -162,92 +162,6 @@ class FacebookMarketplace(Marketplace):
         # check if any of the items have been returned before
         return found_items
 
-    def get_item_list(self: "FacebookMarketplace", html: str) -> List[SearchedItem]:
-        soup = BeautifulSoup(html, "html.parser")
-        parsed: List[SearchedItem] = []
-
-        def get_listings_from_structure():
-            heading = soup.find(attrs={"aria-label": "Collection of Marketplace items"})
-            child1 = next(heading.children)
-            child2 = next(child1.children)
-            grid_parent = list(child2.children)[2]  # groups of listings
-            for group in grid_parent.children:
-                grid_child2 = list(group.children)[1]  # the actual grid container
-                return list(grid_child2.children)
-
-        def get_listing_from_css():
-            return soup.find_all(
-                "div",
-                class_="x9f619 x78zum5 x1r8uery xdt5ytf x1iyjqo2 xs83m0k x1e558r4 x150jy0e x1iorvi4 xjkvuk6 xnpuxes x291uyu x1uepa24",
-            )
-
-        try:
-            listings = get_listings_from_structure()
-        except Exception as e1:
-            try:
-                listings = get_listing_from_css()
-            except Exception as e2:
-                self.logger.debug(f"No listings found from structure and css: {e1}, {e2}")
-                self.logger.debug("Saving html to test.html")
-
-                with open("test.html", "w") as f:
-                    f.write(html)
-
-                return parsed
-
-        for listing in listings:
-            # if the element has no text (only image etc)
-            if not listing.get_text().strip():
-                continue
-
-            try:
-                child1 = next(listing.children)
-                child2 = next(child1.children)
-                child3 = next(child2.children)  # span class class="x1lliihq x1iyjqo2"
-                child4 = next(child3.children)  # div
-                child5 = next(child4.children)  # div class="x78zum5 xdt5ytf"
-                child5 = next(child5.children)  # div class="x9f619 x1n2onr6 x1ja2u2z"
-                child6 = next(child5.children)  # div class="x3ct3a4" (real data here)
-                atag = next(child6.children)  # a tag
-                post_url = atag["href"]
-                atag_child1 = next(atag.children)
-                atag_child2 = list(atag_child1.children)  # 2 divs here
-                # Get the item image.
-                image = listing.find("img")["src"]
-
-                details = list(
-                    atag_child2[1].children
-                )  # x9f619 x78zum5 xdt5ytf x1qughib x1rdy4ex xz9dl7a xsag5q8 xh8yej3 xp0eagm x1nrcals
-                # There are 4 divs in 'details', in this order: price, title, location, distance
-                price = details[0].contents[-1].text
-                # if there are two prices (reduced), take the first one
-                if price.count("$") > 1:
-                    match = re.search(r"\$\d+(?:\.\d{2})?", price)
-                    price = match.group(0) if match else price
-                title = details[1].contents[-1].text
-                location = details[2].contents[-1].text
-
-                # Append the parsed data to the list.
-                parsed.append(
-                    {
-                        "marketplace": self.name,
-                        "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
-                        "title": title,
-                        "image": image,
-                        "price": price,
-                        # we do not need all the ?referral_code&referral_sotry_type etc
-                        "post_url": post_url.split("?")[0],
-                        "location": location,
-                        "seller": "",
-                        "description": "",
-                    }
-                )
-            except Exception as e:
-                self.logger.debug(f"Failed to parse listing {listing}: {e}")
-                pass
-
-        return parsed
-
     # get_item_details is wrapped around this function to cache results for urls
     def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
         if not self.page:
@@ -255,63 +169,7 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
-        html = self.page.content()
-
-        soup = BeautifulSoup(html, "html.parser")
-        # title
-        try:
-            title_element = soup.find("h1")
-            title = title_element.get_text(strip=True)
-            price = title_element.next_sibling.get_text()
-            if price.count("$") > 1:
-                match = re.search(r"\$\d+(?:\.\d{2})?", price)
-                price = match.group(0) if match else price
-        except Exception as e:
-            self.logger.debug(e)
-            title = ""
-            price = ""
-        #
-        image = ""
-        try:
-            image = soup.find("img")["src"]
-        except Exception as e:
-            self.logger.debug(e)
-        # description and location
-        try:
-            cond = soup.find("span", string="Condition")
-            if cond is None:
-                raise ValueError("No span for condition is fond")
-            ul = cond.find_parent("ul")
-            if ul is None:
-                raise ValueError("No ul as parent for condition is fond")
-            description_div = ul.find_next_sibling()
-            description = description_div.get_text(strip=True)
-            #
-            location_element = description_div.find_next_siblings()[-1]
-            location = location_element.find("span").get_text()
-        except Exception as e:
-            self.logger.debug(e)
-            description = ""
-            location = ""
-        # seller
-        try:
-            profiles = soup.find_all("a", href=re.compile(r"/marketplace/profile"))
-            seller = profiles[-1].get_text()
-        except Exception as e:
-            self.logger.debug(e)
-            seller = ""
-        #
-        return {
-            "marketplace": "facebook",
-            "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
-            "title": title,
-            "image": image,
-            "price": price,
-            "post_url": post_url,
-            "location": location,
-            "description": description,
-            "seller": seller,
-        }
+        return FacebookItemPage(self.page.content(), self.logger).parse(post_url)
 
     def filter_item(
         self: "FacebookMarketplace", item: SearchedItem, item_config: Dict[str, Any]
@@ -364,3 +222,167 @@ class FacebookMarketplace(Marketplace):
             return False
 
         return True
+
+
+class WebPage:
+    def __init__(self: "WebPage", html: str, logger: Logger) -> None:
+        self.html = html
+        self.soup = BeautifulSoup(self.html, "html.parser")
+        self.logger = logger
+
+
+class FacebookSearchResultPage(WebPage):
+
+    def get_listings_from_structure(
+        self: "FacebookSearchResultPage",
+    ) -> List[Union[element.Tag, element.NavigableString]]:
+        heading = self.soup.find(attrs={"aria-label": "Collection of Marketplace items"})
+        child1 = next(heading.children)
+        child2 = next(child1.children)
+        grid_parent = list(child2.children)[2]  # groups of listings
+        for group in grid_parent.children:
+            grid_child2 = list(group.children)[1]  # the actual grid container
+            return list(grid_child2.children)
+        return []
+
+    def get_listing_from_css(
+        self: "FacebookSearchResultPage",
+    ) -> List[Union[element.Tag, element.NavigableString]]:
+        return self.soup.find_all(
+            "div",
+            class_="x9f619 x78zum5 x1r8uery xdt5ytf x1iyjqo2 xs83m0k x1e558r4 x150jy0e x1iorvi4 xjkvuk6 xnpuxes x291uyu x1uepa24",
+        )
+
+    def parse_listing(
+        self: "FacebookSearchResultPage", listing: Union[element.Tag, element.NavigableString]
+    ) -> SearchedItem | None:
+        # if the element has no text (only image etc)
+        if not listing.get_text().strip():
+            return None
+
+        child1 = next(listing.children)
+        child2 = next(child1.children)
+        child3 = next(child2.children)  # span class class="x1lliihq x1iyjqo2"
+        child4 = next(child3.children)  # div
+        child5 = next(child4.children)  # div class="x78zum5 xdt5ytf"
+        child5 = next(child5.children)  # div class="x9f619 x1n2onr6 x1ja2u2z"
+        child6 = next(child5.children)  # div class="x3ct3a4" (real data here)
+        atag = next(child6.children)  # a tag
+        post_url = atag["href"]
+        atag_child1 = next(atag.children)
+        atag_child2 = list(atag_child1.children)  # 2 divs here
+        # Get the item image.
+        image = listing.find("img")["src"]
+
+        details = list(
+            atag_child2[1].children
+        )  # x9f619 x78zum5 xdt5ytf x1qughib x1rdy4ex xz9dl7a xsag5q8 xh8yej3 xp0eagm x1nrcals
+        # There are 4 divs in 'details', in this order: price, title, location, distance
+        price = details[0].contents[-1].text
+        # if there are two prices (reduced), take the first one
+        if price.count("$") > 1:
+            match = re.search(r"\$\d+(?:\.\d{2})?", price)
+            price = match.group(0) if match else price
+        title = details[1].contents[-1].text
+        location = details[2].contents[-1].text
+
+        # Append the parsed data to the list.
+        return {
+            "marketplace": "facebook",
+            "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
+            "title": title,
+            "image": image,
+            "price": price,
+            # we do not need all the ?referral_code&referral_sotry_type etc
+            "post_url": post_url.split("?")[0],
+            "location": location,
+            "seller": "",
+            "description": "",
+        }
+
+    def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
+        try:
+            listings = self.get_listings_from_structure()
+        except Exception as e1:
+            try:
+                listings = self.get_listing_from_css()
+            except Exception as e2:
+                self.logger.debug(f"No listings found from structure and css: {e1}, {e2}")
+                self.logger.debug("Saving html to test.html")
+
+                with open("test.html", "w") as f:
+                    f.write(self.html)
+
+                return []
+
+        result = [self.parse_listing(listing) for listing in listings]
+        # case from SearchedItem|None to SearchedItem
+        return [cast(SearchedItem, x) for x in result if x is not None]
+
+
+class FacebookItemPage(WebPage):
+    def get_image_url(self: "FacebookItemPage") -> str:
+        try:
+            return self.soup.find("img")["src"]
+        except Exception as e:
+            self.logger.debug(e)
+            return ""
+
+    def get_title_and_price(self: "FacebookItemPage") -> List[str]:
+        try:
+            title_element = self.soup.find("h1")
+            title = title_element.get_text(strip=True)
+            price = title_element.next_sibling.get_text()
+            if price.count("$") > 1:
+                match = re.search(r"\$\d+(?:\.\d{2})?", price)
+                price = match.group(0) if match else price
+        except Exception as e:
+            self.logger.debug(e)
+            title = ""
+            price = ""
+        return [title, price]
+
+    def get_description_and_location(self: "FacebookItemPage") -> List[str]:
+        try:
+            cond = self.soup.find("span", string="Condition")
+            if cond is None:
+                raise ValueError("No span for condition is fond")
+            ul = cond.find_parent("ul")
+            if ul is None:
+                raise ValueError("No ul as parent for condition is fond")
+            description_div = ul.find_next_sibling()
+            description = description_div.get_text(strip=True)
+            #
+            location_element = description_div.find_next_siblings()[-1]
+            location = location_element.find("span").get_text()
+        except Exception as e:
+            self.logger.debug(e)
+            description = ""
+            location = ""
+        return [description, location]
+
+    def get_seller(self: "FacebookItemPage") -> str:
+        try:
+            profiles = self.soup.find_all("a", href=re.compile(r"/marketplace/profile"))
+            seller = profiles[-1].get_text()
+        except Exception as e:
+            self.logger.debug(e)
+            seller = ""
+        return seller
+
+    def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
+        # title
+        title, price = self.get_title_and_price()
+        description, location = self.get_description_and_location()
+
+        return {
+            "marketplace": "facebook",
+            "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
+            "title": title,
+            "image": self.get_image_url(),
+            "price": price,
+            "post_url": post_url,
+            "location": location,
+            "description": description,
+            "seller": self.get_seller(),
+        }
