@@ -6,6 +6,7 @@ from urllib.parse import quote
 
 from bs4 import BeautifulSoup, element  # type: ignore
 from playwright.sync_api import Browser, Page
+from rich.pretty import pretty_repr
 
 from .items import SearchedItem
 from .marketplace import Marketplace
@@ -284,6 +285,8 @@ class FacebookSearchResultPage(WebPage):
         if price.count("$") > 1:
             match = re.search(r"\$\d+(?:\.\d{2})?", price)
             price = match.group(0) if match else price
+        if "\xa0" in price:
+            price = price.split("\xa0")[0]
         title = details[1].contents[-1].text
         location = details[2].contents[-1].text
 
@@ -330,6 +333,8 @@ class FacebookItemPage(WebPage):
             return ""
 
     def get_title_and_price(self: "FacebookItemPage") -> List[str]:
+        title = ""
+        price = ""
         try:
             title_element = self.soup.find("h1")
             title = title_element.get_text(strip=True)
@@ -339,11 +344,12 @@ class FacebookItemPage(WebPage):
                 price = match.group(0) if match else price
         except Exception as e:
             self.logger.debug(e)
-            title = ""
-            price = ""
+
         return [title, price]
 
     def get_description_and_location(self: "FacebookItemPage") -> List[str]:
+        description = ""
+        location = ""
         try:
             cond = self.soup.find("span", string="Condition")
             if cond is None:
@@ -358,17 +364,16 @@ class FacebookItemPage(WebPage):
             location = location_element.find("span").get_text()
         except Exception as e:
             self.logger.debug(e)
-            description = ""
-            location = ""
+
         return [description, location]
 
     def get_seller(self: "FacebookItemPage") -> str:
+        seller = ""
         try:
             profiles = self.soup.find_all("a", href=re.compile(r"/marketplace/profile"))
             seller = profiles[-1].get_text()
         except Exception as e:
             self.logger.debug(e)
-            seller = ""
         return seller
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
@@ -376,8 +381,17 @@ class FacebookItemPage(WebPage):
         title, price = self.get_title_and_price()
         description, location = self.get_description_and_location()
 
+        if not title:
+            self.logger.warning(
+                f"No title was found for item {post_url}. Please notify the developer of this issue."
+            )
+        if not price:
+            self.logger.warning(
+                f"No price was found for item {post_url}. Please notify the developer of this issue."
+            )
+
         self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
-        return {
+        res = {
             "marketplace": "facebook",
             "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
             "title": title,
@@ -388,3 +402,5 @@ class FacebookItemPage(WebPage):
             "description": description,
             "seller": self.get_seller(),
         }
+        self.logger.debug(pretty_repr(res))
+        return res
