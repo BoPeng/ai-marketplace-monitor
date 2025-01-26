@@ -138,7 +138,7 @@ class MarketplaceMonitor:
                                     )
                                     continue
                                 # for x in self.find_new_items(found_items)
-                                if self.confirmed_by_ai(
+                                if not self.confirmed_by_ai(
                                     item, item_name=item_name, item_config=item_config
                                 ):
                                     continue
