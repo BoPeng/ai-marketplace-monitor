@@ -9,7 +9,7 @@ from .items import SearchedItem
 class Marketplace:
     allowed_config_keys: ClassVar = {}
 
-    def __init__(self: "Marketplace", name: str, browser: Browser, logger: Logger) -> None:
+    def __init__(self: "Marketplace", name: str, browser: Browser | None, logger: Logger) -> None:
         self.name = name
         self.browser = browser
         self.logger = logger

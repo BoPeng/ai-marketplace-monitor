@@ -52,6 +52,14 @@ def main(
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
     ] = False,
+    items: Annotated[
+        List[str] | None,
+        typer.Option(
+            "--check",
+            help="""Check one or more cached items by their id or URL,
+                and list why the item was accepted or denied.""",
+        ),
+    ] = None,
     version: Annotated[
         Optional[bool], typer.Option("--version", callback=version_callback, is_eager=True)
     ] = None,
@@ -65,6 +73,14 @@ def main(
     )
 
     logger = logging.getLogger("monitor")
+
+    if items is not None:
+        try:
+            MarketplaceMonitor(config_files, True, False, logger).check_items(items)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            raise
+        sys.exit(0)
 
     while True:
         try:

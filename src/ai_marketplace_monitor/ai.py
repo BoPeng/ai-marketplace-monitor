@@ -74,6 +74,7 @@ class AIBackend:
 
 
 class OpenAIBackend(AIBackend):
+    name = "OpenAI"
     allowed_config_keys: ClassVar = ["api_key", "model"]
     required_config_keys: ClassVar = ["api_key"]
     default_model = "gpt-4o"
@@ -107,10 +108,15 @@ class OpenAIBackend(AIBackend):
         # check if the response is yes
         self.logger.debug(f"Response: {response}")
         answer = response.choices[0].message.content
-        return True if answer is None else (not answer.lower().strip().startswith("no"))
+        res = True if answer is None else (not answer.lower().strip().startswith("no"))
+        self.logger.info(
+            f"""{"[green]Including item[/green]" if res else "[red]Excluding item[/red]"} by {self.name} with answer: {answer}."""
+        )
+        return res
 
 
 class DeepSeekBackend(OpenAIBackend):
+    name = "DeepSeek"
     allowed_config_keys: ClassVar = ["api_key", "model"]
     required_config_keys: ClassVar = ["api_key"]
     default_model = "deepseek-chat"

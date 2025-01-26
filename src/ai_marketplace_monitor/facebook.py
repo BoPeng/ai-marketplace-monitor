@@ -31,7 +31,9 @@ class FacebookMarketplace(Marketplace):
         "max_price",
     }
 
-    def __init__(self: "FacebookMarketplace", name: str, browser: Browser, logger: Logger) -> None:
+    def __init__(
+        self: "FacebookMarketplace", name: str, browser: Browser | None, logger: Logger
+    ) -> None:
         assert name == self.name
         super().__init__(name, browser, logger)
         # cache the output of website, but ignore the change of "self" and browser
@@ -87,6 +89,7 @@ class FacebookMarketplace(Marketplace):
                     raise ValueError(f"Marketplace {cls.name} search_interval must be an integer.")
 
     def login(self: "FacebookMarketplace") -> None:
+        assert self.browser is not None
         context = self.browser.new_context()  # create a new incognite window
         self.page = context.new_page()
         assert self.page is not None
@@ -140,14 +143,14 @@ class FacebookMarketplace(Marketplace):
 
             html = self.page.content()
 
-            found_items.extend(
-                [x for x in self.get_item_list(html) if self.filter_item(x, item_config)]
-            )
+            found_items.extend(self.get_item_list(html))
             time.sleep(5)
         # go to each item and get the description
         # if we have not done that before
         for item in found_items:
-            details = self.get_item_details(item["title"], item["post_url"])
+            details = self.get_item_details(item["post_url"])
+            # currently we trust the other items from summary page a bit better
+            # so we do not copy title, description etc from the detailed result
             for key in ("description", "seller"):
                 item[key] = details[key]
             self.logger.debug(
@@ -155,7 +158,7 @@ class FacebookMarketplace(Marketplace):
             )
             time.sleep(5)
         #
-        found_items = [x for x in found_items if self.filter_item_by_details(x, item_config)]
+        found_items = [x for x in found_items if self.filter_item(x, item_config)]
         # check if any of the items have been returned before
         return found_items
 
@@ -246,31 +249,66 @@ class FacebookMarketplace(Marketplace):
         return parsed
 
     # get_item_details is wrapped around this function to cache results for urls
-    def _get_item_details(
-        self: "FacebookMarketplace", item_title: str, post_url: str
-    ) -> Dict[str, str]:
-        self.logger.info(f"Getting details for [magenta]{item_title}[/magenta]")
+    def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
         html = self.page.content()
 
         soup = BeautifulSoup(html, "html.parser")
+        # title
+        try:
+            title_element = soup.find("h1")
+            title = title_element.get_text(strip=True)
+            price = title_element.next_sibling.get_text()
+            if price.count("$") > 1:
+                match = re.search(r"\$\d+(?:\.\d{2})?", price)
+                price = match.group(0) if match else price
+        except Exception as e:
+            self.logger.debug(e)
+            title = ""
+            price = ""
+        #
+        image = ""
+        try:
+            image = soup.find("img")["src"]
+        except Exception as e:
+            self.logger.debug(e)
+        # description and location
         try:
             cond = soup.find("span", string="Condition")
+            if cond is None:
+                raise ValueError("No span for condition is fond")
             ul = cond.find_parent("ul")
+            if ul is None:
+                raise ValueError("No ul as parent for condition is fond")
             description_div = ul.find_next_sibling()
             description = description_div.get_text(strip=True)
+            #
+            location_element = description_div.find_next_siblings()[-1]
+            location = location_element.find("span").get_text()
         except Exception as e:
             self.logger.debug(e)
             description = ""
-        #
+            location = ""
+        # seller
         try:
             profiles = soup.find_all("a", href=re.compile(r"/marketplace/profile"))
             seller = profiles[-1].get_text()
         except Exception as e:
             self.logger.debug(e)
             seller = ""
-        return {"description": description, "seller": seller}
+        #
+        return {
+            "marketplace": "facebook",
+            "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
+            "title": title,
+            "image": image,
+            "price": price,
+            "post_url": post_url,
+            "location": location,
+            "description": description,
+            "seller": seller,
+        }
 
     def filter_item(
         self: "FacebookMarketplace", item: SearchedItem, item_config: Dict[str, Any]
@@ -281,15 +319,17 @@ class FacebookMarketplace(Marketplace):
         )
 
         if exclude_keywords and is_substring(exclude_keywords, item["title"]):
-            self.logger.debug(
-                f"Excluding item due to keywords: [magenta]{item['title']}[/magenta]"
+            self.logger.info(
+                f"[red]Excluding item[/red] due to exclude_keywords: [magenta]{item['title']}[/magenta]"
             )
             return False
 
         # if the return description does not contain any of the search keywords
         search_words = [word for keywords in item_config["keywords"] for word in keywords.split()]
         if not is_substring(search_words, item["title"]):
-            self.logger.debug(f"Excluding item without search word: [red]{item['title']}[/red]")
+            self.logger.info(
+                f"[red]Excluding item[/red] without search word in title: [red]{item['title']}[/red]"
+            )
             return False
 
         # get locations from either marketplace config or item config
@@ -297,22 +337,17 @@ class FacebookMarketplace(Marketplace):
             "acceptable_locations", self.config.get("acceptable_locations", [])
         )
         if allowed_locations and not is_substring(allowed_locations, item["location"]):
-            self.logger.debug(
-                f"Excluding out of area item [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
+            self.logger.info(
+                f"[red]Excluding[/red] out of area item [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
             )
             return False
 
-        return True
-
-    def filter_item_by_details(
-        self: "FacebookMarketplace", item: SearchedItem, item_config: Dict[str, Any]
-    ) -> bool:
         # get exclude_keywords from both item_config or config
         exclude_by_description = item_config.get("exclude_by_description", [])
 
         if exclude_by_description and is_substring(exclude_by_description, item["description"]):
-            self.logger.debug(
-                f"""Excluding item by description: [red]{exclude_by_description}[/red]:\n[magenta]{item["description"][:100]}...[/magenta] """
+            self.logger.info(
+                f"""[red]Excluding item[/red] by exclude_by_description: [red]{exclude_by_description}[/red]:\n[magenta]{item["description"][:100]}...[/magenta] """
             )
             return False
 
@@ -322,7 +357,7 @@ class FacebookMarketplace(Marketplace):
         )
 
         if exclude_sellers and is_substring(exclude_sellers, item["seller"]):
-            self.logger.debug(f"Excluding item by seller: [red]{item['seller']}[/red]")
+            self.logger.info(f"[red]Excluding item[/red] by seller: [red]{item['seller']}[/red]")
             return False
 
         return True
