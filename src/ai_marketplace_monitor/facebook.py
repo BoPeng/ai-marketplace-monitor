@@ -96,6 +96,7 @@ class FacebookMarketplace(Marketplace):
         assert self.page is not None
         # Navigate to the URL, no timeout
         self.page.goto(self.initial_url, timeout=0)
+        self.page.waitForLoadState("domcontentloaded")
         try:
             if "username" in self.config:
                 selector = self.page.wait_for_selector('input[name="email"]')
@@ -141,6 +142,7 @@ class FacebookMarketplace(Marketplace):
         found_items = []
         for keyword in item_config.get("keywords", []):
             self.page.goto(marketplace_url + f"query={quote(keyword)}", timeout=0)
+            self.page.waitForLoadState("domcontentloaded")
 
             found_items.extend(
                 FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
@@ -171,6 +173,8 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
+        # wait for the page to fully load
+        self.page.waitForLoadState("domcontentloaded")
         return FacebookItemPage(self.page.content(), self.logger).parse(post_url)
 
     def filter_item(
