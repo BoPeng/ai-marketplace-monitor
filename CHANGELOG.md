@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.4] - 2025-01-27
+## [0.4.5] - 2025-01-27
 
 - Add option `--check` and `--for` to check particular listings
 
