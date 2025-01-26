@@ -147,6 +147,7 @@ class FacebookMarketplace(Marketplace):
             time.sleep(5)
         # go to each item and get the description
         # if we have not done that before
+        filtered_items = []
         for item in found_items:
             details = self.get_item_details(item["post_url"])
             # currently we trust the other items from summary page a bit better
@@ -156,11 +157,11 @@ class FacebookMarketplace(Marketplace):
             self.logger.debug(
                 f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
             )
+            if self.filter_item(item, item_config):
+                filtered_items.append(item)
             time.sleep(5)
         #
-        found_items = [x for x in found_items if self.filter_item(x, item_config)]
-        # check if any of the items have been returned before
-        return found_items
+        return filtered_items
 
     # get_item_details is wrapped around this function to cache results for urls
     def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
@@ -375,6 +376,7 @@ class FacebookItemPage(WebPage):
         title, price = self.get_title_and_price()
         description, location = self.get_description_and_location()
 
+        self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
         return {
             "marketplace": "facebook",
             "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
