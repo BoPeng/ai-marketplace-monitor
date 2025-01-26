@@ -198,6 +198,20 @@ Once the most troublesome step, namely logging into facebook is completed, the p
 
 - A file `~/.ai-marketplace-monitor/config.yml`, if it exists, will be read and merged with the specified configuration file. This allows you to save sensitive information like Facebook username, password, and PushBullet token in a separate file.
 - Multiple configuration files can be specified to `--config`, which allows you to spread items into different files.
+- If you would like to know how the program works, especially how it intereacts with the AI, use option `--verbose` (or `-v`).
+- If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run
+
+```sh
+ai-marketplace-monitor --check your-url
+```
+
+If you have multiple items specified in your config file, _ai-marketplace-monitor_ will check the product against the configuration of all of them. If you know the _name_ of the item in your config file, you can let the program only check the configuration of this particular item.
+
+```sh
+ai-marketplace-monitor --check your-url --for item_name
+```
+
+Option `--check` will load the details of the item from the cache if it was previously examined. Otherwise a browser will be started to retrieve the page.
 
 ## TODO List:
 

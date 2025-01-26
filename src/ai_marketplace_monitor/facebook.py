@@ -250,6 +250,9 @@ class FacebookMarketplace(Marketplace):
 
     # get_item_details is wrapped around this function to cache results for urls
     def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
+        if not self.page:
+            self.login()
+
         assert self.page is not None
         self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
         html = self.page.content()

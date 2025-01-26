@@ -18,6 +18,10 @@ class Marketplace:
     def configure(self: "Marketplace", config: Dict[str, Any]) -> None:
         self.config = config
 
+    def set_browser(self: "Marketplace", browser: Browser) -> None:
+        self.browser = browser
+        self.page = None
+
     @classmethod
     def validate(cls: Type["Marketplace"], config: Dict[str, Any]) -> None:
         # if there are other keys in config, raise an error

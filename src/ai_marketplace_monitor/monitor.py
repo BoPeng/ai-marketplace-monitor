@@ -6,6 +6,7 @@ from logging import Logger
 from typing import Any, ClassVar, Dict, List
 
 from playwright.sync_api import Browser, sync_playwright
+from rich.pretty import pretty_repr
 
 from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
 from .config import Config
@@ -161,13 +162,24 @@ class MarketplaceMonitor:
                         self.config_files,
                     )
 
-    def check_items(self: "MarketplaceMonitor", items: List[str] | None = None) -> None:
+    def check_items(
+        self: "MarketplaceMonitor", items: List[str] | None = None, for_item: str | None = None
+    ) -> None:
         """Main function to monitor the marketplace."""
         # we reload the config file each time when a scan action is completed
         # this allows users to add/remove products dynamically.
         self.load_config_file()
+
+        if for_item is not None:
+            assert self.config is not None
+            if for_item not in self.config["item"]:
+                raise ValueError(
+                    f"Item {for_item} not found in config, available items are {', '.join(self.config['item'].keys())}."
+                )
+
         self.load_ai_agent()
 
+        post_urls = []
         for post_url in items or []:
             if "?" in post_url:
                 post_url = post_url.split("?")[0]
@@ -175,35 +187,59 @@ class MarketplaceMonitor:
                 post_url = post_url[len("https://www.facebook.com") :]
             if post_url.isnumeric():
                 post_url = f"/marketplace/item/{post_url}/"
+            post_urls.append(post_url)
 
-            # check if item in config
-            assert self.config is not None
+        if not post_urls:
+            raise ValueError("No URLs to check.")
 
-            # which marketplace to check it?
-            for marketplace_name, marketplace_config in self.config["marketplace"].items():
-                marketplace_class = supported_marketplaces[marketplace_name]
-                if marketplace_name in self.active_marketplaces:
-                    marketplace = self.active_marketplaces[marketplace_name]
-                else:
-                    marketplace = marketplace_class(marketplace_name, None, self.logger)
-                    self.active_marketplaces[marketplace_name] = marketplace
+        # we may or may not need a browser
+        with sync_playwright() as p:
+            # Open a new browser page.
+            browser = None
+            for post_url in post_urls or []:
+                if "?" in post_url:
+                    post_url = post_url.split("?")[0]
+                if post_url.startswith("https://www.facebook.com"):
+                    post_url = post_url[len("https://www.facebook.com") :]
+                if post_url.isnumeric():
+                    post_url = f"/marketplace/item/{post_url}/"
 
-                # Configure might have been changed
-                marketplace.configure(marketplace_config)
-                # ignore enabled
-                # do not search, get the item details directly
-                try:
+                # check if item in config
+                assert self.config is not None
+
+                # which marketplace to check it?
+                for marketplace_name, marketplace_config in self.config["marketplace"].items():
+                    marketplace_class = supported_marketplaces[marketplace_name]
+                    if marketplace_name in self.active_marketplaces:
+                        marketplace = self.active_marketplaces[marketplace_name]
+                    else:
+                        marketplace = marketplace_class(marketplace_name, None, self.logger)
+                        self.active_marketplaces[marketplace_name] = marketplace
+
+                    # Configure might have been changed
+                    marketplace.configure(marketplace_config)
+
+                    # do we need a browser?
+                    if not marketplace.get_item_details.check_call_in_cache(post_url):
+                        if browser is None:
+                            self.logger.info(
+                                "Starting a browser because the item was not checked before."
+                            )
+                            browser = p.chromium.launch(headless=self.headless)
+                            marketplace.set_browser(browser)
+
+                    # ignore enabled
+                    # do not search, get the item details directly
                     listing = marketplace.get_item_details(post_url)
-                    self.logger.info(f"{post_url} was cached")
-                except Exception:
-                    self.logger.error("Item was not previous searched.")
-                    continue
-                for k, v in listing.items():
-                    self.logger.info(f"{k}:\t{v}")
 
-                for item_name, item_config in self.config["item"].items():
-                    marketplace.filter_item(listing, item_config)
-                    self.confirmed_by_ai(listing, item_name=item_name, item_config=item_config)
+                    self.logger.info(f"Details of the item is found: {pretty_repr(listing)}")
+
+                    for item_name, item_config in self.config["item"].items():
+                        if for_item is not None and item_name != for_item:
+                            continue
+                        self.logger.info(f"Checking {post_url} for item {item_name}")
+                        marketplace.filter_item(listing, item_config)
+                        self.confirmed_by_ai(listing, item_name=item_name, item_config=item_config)
 
     def load_searched_items(self: "MarketplaceMonitor") -> List[SearchedItem]:
         if os.path.isfile(self.search_history_cache):

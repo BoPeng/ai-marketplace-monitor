@@ -60,6 +60,13 @@ def main(
                 and list why the item was accepted or denied.""",
         ),
     ] = None,
+    for_item: Annotated[
+        Optional[str],
+        typer.Option(
+            "--for",
+            help="Item to check for URLs specified --check. If unspecified, the URLs will be checked against all configured items.",
+        ),
+    ] = None,
     version: Annotated[
         Optional[bool], typer.Option("--version", callback=version_callback, is_eager=True)
     ] = None,
@@ -69,14 +76,18 @@ def main(
         level="DEBUG" if verbose else "INFO",
         format="%(message)s",
         datefmt="[%x %H:%m]",
-        handlers=[RichHandler(markup=True, show_path=False if verbose is None else verbose)],
+        handlers=[
+            RichHandler(
+                markup=True, rich_tracebacks=True, show_path=False if verbose is None else verbose
+            )
+        ],
     )
 
     logger = logging.getLogger("monitor")
 
     if items is not None:
         try:
-            MarketplaceMonitor(config_files, True, False, logger).check_items(items)
+            MarketplaceMonitor(config_files, False, False, logger).check_items(items, for_item)
         except Exception as e:
             logger.error(f"Error: {e}")
             raise
