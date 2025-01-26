@@ -134,7 +134,7 @@ class MarketplaceMonitor:
                             for item in marketplace.search(item_config):
                                 if self.already_notified(item):
                                     self.logger.info(
-                                        f"Already sent notification for item {item['post_url']}, skipping."
+                                        f"Already sent notification for item [magenta]{item['title']}[/magenta], skipping."
                                     )
                                     continue
                                 # for x in self.find_new_items(found_items)
