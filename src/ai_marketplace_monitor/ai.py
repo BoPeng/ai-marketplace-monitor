@@ -2,6 +2,7 @@ from logging import Logger
 from typing import Any, ClassVar, Dict, Type
 
 from openai import OpenAI
+from rich.pretty import pretty_repr
 
 from .items import SearchedItem
 
@@ -106,11 +107,11 @@ class OpenAIBackend(AIBackend):
             stream=False,
         )
         # check if the response is yes
-        self.logger.debug(f"Response: {response}")
+        self.logger.debug(f"Response: {pretty_repr(response)}")
         answer = response.choices[0].message.content
         res = True if answer is None else (not answer.lower().strip().startswith("no"))
         self.logger.info(
-            f"""{"[green]Including item[/green]" if res else "[red]Excluding item[/red]"} by {self.name} with answer: {answer}."""
+            f"""{self.name} {"[green]agreed with item[/green]" if res else "[red]excluded item[/red]"} with answer: {answer}."""
         )
         return res
 

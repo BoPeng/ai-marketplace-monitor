@@ -237,7 +237,9 @@ class MarketplaceMonitor:
                     for item_name, item_config in self.config["item"].items():
                         if for_item is not None and item_name != for_item:
                             continue
-                        self.logger.info(f"Checking {post_url} for item {item_name}")
+                        self.logger.info(
+                            f"Checking {post_url} for item {item_name} with configuration {pretty_repr(item_config)}"
+                        )
                         marketplace.filter_item(listing, item_config)
                         self.confirmed_by_ai(listing, item_name=item_name, item_config=item_config)
 
