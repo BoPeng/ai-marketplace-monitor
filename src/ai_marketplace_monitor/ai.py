@@ -78,7 +78,7 @@ class OpenAIBackend(AIBackend):
     required_config_keys: ClassVar = ["api_key"]
     default_model = "gpt-4o"
     # the default is f"https://api.openai.com/v1"
-    base_url = None
+    base_url: str | None = None
 
     def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
