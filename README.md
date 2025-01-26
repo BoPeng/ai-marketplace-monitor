@@ -29,6 +29,22 @@ This program is a command line tool that
    irrelevant or uninteresting listings and listings from spammers
 4. Notify you of new products with phone notification
 
+Table of content:
+
+- [Features](#features)
+- [Quickstart](#quickstart)
+  - [Install `ai-marketplace-monitor`](#install-ai-marketplace-monitor)
+  - [Set up PushBullet](#set-up-pushbullet)
+  - [Sign up with OpenAI (optional)](#sign-up-with-openai-optional)
+  - [Sign up with DeepSeek (optional)](#sign-up-with-deepseek-optional)
+  - [Write a configuration file](#write-a-configuration-file)
+  - [Run the program](#run-the-program)
+  - [Updating search](#updating-search)
+- [Configuration Guide](#configuration-guide)
+- [Advanced features](#advanced-features)
+- [TODO List:](#todo-list)
+- [Credits](#credits)
+
 ## Features
 
 - Search for one or more products using specified keywords.
@@ -124,6 +140,32 @@ max_price = 200
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
+### Run the program
+
+Start monitoring with the command
+
+```sh
+ai-marketplace-monitor
+```
+
+if you have the configuration stored as `$HOME/.ai-marketplace-monitor/config.toml`, or
+
+```
+ai-marketplace-monitor --config /path/to/config.toml
+```
+
+**NOTE**
+
+1. You need to keep the terminal running to allow the program to run indefinitely.
+2. You will see a browser firing up. **You may need to manually enter username and/or password (if unspecified in config file), and answer any prompt (e.g. CAPTCHA) to login**. You may want to click "OK" to save the password, etc.
+3. If you continue to experience login problem, it can be helpful to remove `username` and `password` from `marketplace.facebook` to authenticate manually. You may want to set `login_wait_time` to be larger than 60 if you need more time to solve the CAPTCHA.
+
+### Updating search
+
+Once the most troublesome step, namely logging into facebook is completed, the program will run indefinitely to search for the items, and notify you with the most relevant listings. If you need to change keywords, block sellers, add/remove locations, or add new items to search, you can modify the configuration file. The program will automatically detect changes in configuration files and act accordingly.
+
+## Configuration Guide
+
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
 an example with many of the options.
 
@@ -169,30 +211,6 @@ Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-
-### Run the program
-
-Start monitoring with the command
-
-```sh
-ai-marketplace-monitor
-```
-
-if you have the configuration stored as `$HOME/.ai-marketplace-monitor/config.toml`, or
-
-```
-ai-marketplace-monitor --config /path/to/config.toml
-```
-
-**NOTE**
-
-1. You need to keep the terminal running to allow the program to run indefinitely.
-2. You will see a browser firing up. **You may need to manually enter username and/or password (if unspecified in config file), and answer any prompt (e.g. CAPTCHA) to login**. You may want to click "OK" to save the password, etc.
-3. If you continue to experience login problem, it can be helpful to remove `username` and `password` from `marketplace.facebook` to authenticate manually. You may want to set `login_wait_time` to be larger than 60 if you need more time to solve the CAPTCHA.
-
-### Updating search
-
-Once the most troublesome step, namely logging into facebook is completed, the program will run indefinitely to search for the items, and notify you with the most relevant listings. If you need to change keywords, block sellers, add/remove locations, or add new items to search, you can modify the configuration file. The program will automatically detect changes in configuration files and act accordingly.
 
 ## Advanced features
 
