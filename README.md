@@ -25,7 +25,7 @@ This program is a command line tool that
 
 1. Starts a browser
 2. Search one or more products from facebook marketplace indefinitely
-3. Use the conditions you specified, and openAI if a token is specified, to exclude
+3. Use the conditions you specified, and optionally an AI agent (openAI or DeepSeek), to exclude
    irrelevant or uninteresting listings and listings from spammers
 4. Notify you of new products with phone notification
 
@@ -41,13 +41,6 @@ This program is a command line tool that
 - Send notifications via PushBullet.
 - Search repeatedly with specified intervals in between.
 - Add/remove items dynamically by changing the configuration file.
-
-**TODO**:
-
-- Support more AI engines
-- Develop better ways to identify spammers
-- Support more notification methods.
-- Support more marketplaces.
 
 ## Quickstart
 
@@ -209,6 +202,13 @@ Once the most troublesome step, namely logging into facebook is completed, the p
 
 - A file `~/.ai-marketplace-monitor/config.yml`, if it exists, will be read and merged with the specified configuration file. This allows you to save sensitive information like Facebook username, password, and PushBullet token in a separate file.
 - Multiple configuration files can be specified to `--config`, which allows you to spread items into different files.
+
+## TODO List:
+
+- Support more AI engines
+- Develop better ways to identify spammers
+- Support more notification methods.
+- Support more marketplaces.
 
 ## Credits
 
