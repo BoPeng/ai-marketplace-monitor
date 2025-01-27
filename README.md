@@ -15,25 +15,15 @@
 
 </div>
 
-An AI-based tool for monitoring facebook marketplace
+## Overview
+An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, this tool automates the process of searching for specific products, filtering out irrelevant listings, and notifying you of new matches via PushBullet.
 
-- GitHub repo: <https://github.com/BoPeng/ai-marketplace-monitor.git>
-- Documentation: <https://ai-marketplace-monitor.readthedocs.io>
-- Free software: MIT
-
-This program is a command line tool that
-
-1. Starts a browser
-2. Search one or more products from facebook marketplace indefinitely
-3. Use the conditions you specified, and optionally an AI agent (openAI or DeepSeek), to exclude
-   irrelevant or uninteresting listings and listings from spammers
-4. Notify you of new products with phone notification
-
-Table of content:
+## Table of content:
 
 - [Features](#features)
 - [Quickstart](#quickstart)
-  - [Install `ai-marketplace-monitor`](#install-ai-marketplace-monitor)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
   - [Set up PushBullet](#set-up-pushbullet)
   - [Sign up with OpenAI (optional)](#sign-up-with-openai-optional)
   - [Sign up with DeepSeek (optional)](#sign-up-with-deepseek-optional)
@@ -48,19 +38,18 @@ Table of content:
 ## Features
 
 - Search for one or more products using specified keywords.
-- Limit search by minimum and maximum price, and location.
-- Exclude irrelevant results.
-- Exclude explicitly listed spammers.
-- Exclude by description.
-- Exclude previously searched items and only notify about new items.
-- Use an AI agent like OpenAI or DeepSeek to confirm if the listing matches your description.
+- Limit search by price, and location.
+- Exclude irrelevant results and spammers.
+- Use an AI agent (OpenAI or DeepSeek) to confirm listing matches.
 - Send notifications via PushBullet.
-- Search repeatedly with specified intervals in between.
-- Add/remove items dynamically by changing the configuration file.
+- Search repeatedly with specified intervals.
 
 ## Quickstart
 
-### Install `ai-marketplace-monitor`
+### Prerequisites
+- Python 3.x installed.
+
+### Installation
 
 Install the program by
 
@@ -142,17 +131,11 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 ### Run the program
 
-Start monitoring with the command
-
 ```sh
-ai-marketplace-monitor
-```
-
-if you have the configuration stored as `$HOME/.ai-marketplace-monitor/config.toml`, or
-
-```
 ai-marketplace-monitor --config /path/to/config.toml
 ```
+
+or without `--config` if you have the configuration stored as `$HOME/.ai-marketplace-monitor/config.toml`
 
 **NOTE**
 
@@ -162,15 +145,15 @@ ai-marketplace-monitor --config /path/to/config.toml
 
 ### Updating search
 
-Once the most troublesome step, namely logging into facebook is completed, the program will run indefinitely to search for the items, and notify you with the most relevant listings. If you need to change keywords, block sellers, add/remove locations, or add new items to search, you can modify the configuration file. The program will automatically detect changes in configuration files and act accordingly.
+Modify the configuration file to update search criteria. The program will detect changes automatically.
 
 ## Configuration Guide
 
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
 an example with many of the options.
 
-- Section `ai.openai` and/or `ai.deepseek`, optional sections listing the api-key for [openai](https://openai.com/) or
-  [DeepSeek](ttps://platform.deepseek.com). Specification of these sections will enable AI-assistance. If both `ai.openai` and `ai.deepseek` are specified, the program try in the order for which they are specified.
+- Section `ai.openai` and/or `ai.deepseek`, optional sections listing the api-key for [Open AI](https://openai.com/) or
+  [DeepSeek](https://www.deepseek.com/). Specification of these sections will enable AI-assistance. If both `ai.openai` and `ai.deepseek` are specified, the program try in the order for which they are specified.
 
   - `api-key`: (required), a program token to access openAI REST API.
   - `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `openami` or `deepseek` respectively.
