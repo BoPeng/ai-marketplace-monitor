@@ -93,20 +93,17 @@ def main(
             raise
         sys.exit(0)
 
-    while True:
-        try:
-            monitor = MarketplaceMonitor(config_files, headless, clear_cache, logger)
-            monitor.start_monitor()
-        except KeyboardInterrupt:
-            rich.print("Exiting...")
-            sys.exit(0)
-        except Exception as e:
-            # if the monitoring tool fails for whatever reason, wait for 60 seconds and starts again
-            # However, manual user input might be needed, so this would not work well.
-            logger.error(f"Error: {e}")
-            time.sleep(60)  # Wait for 60 seconds before checking again
-        finally:
-            monitor.stop_monitor()
+    try:
+        monitor = MarketplaceMonitor(config_files, headless, clear_cache, logger)
+        monitor.start_monitor()
+    except KeyboardInterrupt:
+        rich.print("Exiting...")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        sys.exit(1)
+    finally:
+        monitor.stop_monitor()
 
 
 if __name__ == "__main__":

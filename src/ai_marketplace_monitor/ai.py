@@ -108,12 +108,16 @@ class OpenAIBackend(AIBackend):
         )
         # check if the response is yes
         self.logger.debug(f"Response: {pretty_repr(response)}")
-        answer = response.choices[0].message.content
-        res = True if answer is None else (not answer.lower().strip().startswith("no"))
-        self.logger.info(
-            f"""{self.name} {"[green]agreed with item[/green]" if res else "[red]excluded item[/red]"} with answer: {answer}."""
-        )
-        return res
+        try:
+            answer = response.choices[0].message.content
+            res = True if answer is None else (not answer.lower().strip().startswith("no"))
+            self.logger.info(
+                f"""{self.name} {"[green]agreed with item[/green]" if res else "[red]excluded item[/red]"} with answer: {answer}."""
+            )
+            return res
+        except Exception as e:
+            self.logger.warning(f"Unrecognized response from ai. Assuming ok.")
+            return True
 
 
 class DeepSeekBackend(OpenAIBackend):
