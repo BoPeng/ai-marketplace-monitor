@@ -1,4 +1,5 @@
 from logging import Logger
+import time
 from typing import Any, ClassVar, Dict, Generator, Type
 
 from playwright.sync_api import Browser, Page
@@ -27,6 +28,18 @@ class Marketplace:
             self.browser.close()
             self.browser = None
             self.page = None
+
+    def goto_url(self: "Marketplace", url: str, attempt=0) -> None:
+        try:
+            self.page.goto(url, timeout=0)
+            self.page.wait_for_load_state("domcontentloaded")
+        except Exception as e:
+            if attempt == 10:
+                raise RuntimeError(f"Failed to navigate to {url} after 10 attempts. {e}")
+            time.sleep(5)
+            self.goto_url(url, attempt + 1)
+        except KeyboardInterrupt:
+            raise
 
     @classmethod
     def validate(cls: Type["Marketplace"], config: Dict[str, Any]) -> None:

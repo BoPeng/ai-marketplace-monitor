@@ -143,8 +143,7 @@ class FacebookMarketplace(Marketplace):
         # search multiple keywords
         found_items = []
         for keyword in item_config.get("keywords", []):
-            self.page.goto(marketplace_url + f"query={quote(keyword)}", timeout=0)
-            self.page.wait_for_load_state("domcontentloaded")
+            self.goto_url(marketplace_url + f"query={quote(keyword)}")
 
             found_items.extend(
                 FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
@@ -175,9 +174,7 @@ class FacebookMarketplace(Marketplace):
             self.login()
 
         assert self.page is not None
-        self.page.goto(f"https://www.facebook.com{post_url}", timeout=0)
-        # wait for the page to fully load
-        self.page.wait_for_load_state("domcontentloaded")
+        self.goto_url(f"https://www.facebook.com{post_url}")
         return FacebookItemPage(self.page.content(), self.logger).parse(post_url)
 
     def filter_item(
@@ -190,7 +187,7 @@ class FacebookMarketplace(Marketplace):
 
         if exclude_keywords and is_substring(exclude_keywords, item["title"]):
             self.logger.info(
-                f"[red]Excluding item[/red] due to exclude_keywords: [magenta]{item['title']}[/magenta]"
+                f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] due to exclude_keywords: {', '.join(exclude_keywords)}"
             )
             return False
 
@@ -198,7 +195,7 @@ class FacebookMarketplace(Marketplace):
         search_words = [word for keywords in item_config["keywords"] for word in keywords.split()]
         if not is_substring(search_words, item["title"]):
             self.logger.info(
-                f"[red]Excluding item[/red] without search word in title: [red]{item['title']}[/red]"
+                f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] without search word in title."
             )
             return False
 
@@ -217,7 +214,7 @@ class FacebookMarketplace(Marketplace):
 
         if exclude_by_description and is_substring(exclude_by_description, item["description"]):
             self.logger.info(
-                f"""[red]Excluding item[/red] by exclude_by_description: [red]{exclude_by_description}[/red]:\n[magenta]{item["description"][:100]}...[/magenta] """
+                f"""[red]Excluding[/red] [magenta]{item['title']}[/magenta] by exclude_by_description: [red]{", ".join(exclude_by_description)}[/red]:\n[magenta]{item["description"][:100]}...[/magenta] """
             )
             return False
 
@@ -227,7 +224,9 @@ class FacebookMarketplace(Marketplace):
         )
 
         if exclude_sellers and is_substring(exclude_sellers, item["seller"]):
-            self.logger.info(f"[red]Excluding item[/red] by seller: [red]{item['seller']}[/red]")
+            self.logger.info(
+                f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] sold by banned [red]{item['seller']}[/red]"
+            )
             return False
 
         return True
