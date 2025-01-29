@@ -265,6 +265,9 @@ class FacebookMarketplace(Marketplace):
         # go to each item and get the description
         # if we have not done that before
         for item in found_items:
+            # filter by title and location since we do not have description and seller yet.
+            if not self.filter_item(item, item_config):
+                continue
             try:
                 details = self.get_item_details(item["post_url"])
             except Exception as e:
@@ -325,7 +328,11 @@ class FacebookMarketplace(Marketplace):
         # get exclude_keywords from both item_config or config
         exclude_by_description = item_config.get("exclude_by_description", [])
 
-        if exclude_by_description and is_substring(exclude_by_description, item["description"]):
+        if (
+            item["description"]
+            and exclude_by_description
+            and is_substring(exclude_by_description, item["description"])
+        ):
             self.logger.info(
                 f"""[red]Excluding[/red] [magenta]{item['title']}[/magenta] by exclude_by_description: [red]{", ".join(exclude_by_description)}[/red]:\n[magenta]{item["description"][:100]}...[/magenta] """
             )
@@ -336,7 +343,7 @@ class FacebookMarketplace(Marketplace):
             "exclude_sellers", []
         )
 
-        if exclude_sellers and is_substring(exclude_sellers, item["seller"]):
+        if item["seller"] and exclude_sellers and is_substring(exclude_sellers, item["seller"]):
             self.logger.info(
                 f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] sold by banned [red]{item['seller']}[/red]"
             )
