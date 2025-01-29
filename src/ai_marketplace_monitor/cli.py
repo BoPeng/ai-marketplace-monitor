@@ -2,7 +2,6 @@
 
 import logging
 import sys
-import time
 from typing import Annotated, List, Optional
 
 import rich
