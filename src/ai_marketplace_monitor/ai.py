@@ -8,6 +8,7 @@ from .items import SearchedItem
 
 
 class AIBackend:
+    name = "unspecified"
     allowed_config_keys: ClassVar = []
     required_config_keys: ClassVar = []
 

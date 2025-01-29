@@ -158,8 +158,8 @@ an example with many of the options.
   [DeepSeek](https://www.deepseek.com/). Specification of these sections will enable AI-assistance. If both `ai.openai` and `ai.deepseek` are specified, the program try in the order for which they are specified.
 
   - `api-key`: (required), a program token to access openAI REST API.
-  - `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `openami` or `deepseek` respectively.
   - `base_url`: (optional), in case you use another server
+  - `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `openami` or `deepseek` respectively.
 
 - Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
 
@@ -168,37 +168,64 @@ an example with many of the options.
   - `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
   - `search_interval`: (optional) minimal interval in minutes between searches
   - `max_search_interval`: (optional) maximum interval in minutes between searches
-  - `search_city`: (optional if defined for item) search city, which can be obtained from the URL of your search query
-  - `acceptable_locations`: (optional) only allow searched items from these locations
-  - `exclude_sellers`: (optional) exclude certain sellers by their names (not username)
-  - `min_price`: (optional) minimum price.
-  - `max_price`: (optional) maximum price.
-  - `radius`: (optional) radius of search for all items.
-  - `notify`: (optional) users who should be notified for all items
+  - **Common options** listed below. These options, if specified in the marketplace section, will by default be applied to all items.
 
 - One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. PushBullet is currently the only method of notification.
 
   - `pushbullet_token`: (rquired) token for user
 
 - One or more `item.item_name` where `item_name` is the name of the item.
+
   - `keywords`: (required) one of more keywords for searching the item
   - `description`: (optional) A longer description of the item that better describes your requirements, such as manufacture, condition, location, seller reputation,
     if you accept shipping etc. It is currently **only used if AI assistance is enabled**.
-  - `marketplace`: (optional), can only be `facebook` if specified.
-  - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
-  - `exclude_sellers`: (optional) exclude certain sellers
   - `enabled`: (optional), stop searching this item if set to `false`
+  - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
+  - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
+  - `marketplace`: (optional), can only be `facebook` if specified.
+  - **Common options** listed below. These options, if specified in the item section, will override options in the markerplace` section.
+
+- **Common options** shared by marketplace and items. These options
+
+  - `acceptable_locations`: (optional) only allow searched items from these locations
+  - `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
+  - `date_listed`: (optional) one of `All`, `Last 24 hours`, `Last 7 days`, `Last 30 days`.
+  - `delivery_method`: (optional) one of `all`, `local_pick_up`, and `shipping`.
+  - `exclude_sellers`: (optional) exclude certain sellers by their names (not username)
   - `min_price`: (optional) minimum price.
   - `max_price`: (optional) maximum price.
-  - `radius`: (optional) radius of search for this specific item.
-  - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
-  - `notify`: (optional) users who should be notified for this item
-  - `acceptable_locations`: (optional) item specific acceptable location, will override marketplace `acceptable_locations` if both specified.
+  - `notify`: (optional) users who should be notified
+  - `radius`: (optional) radius of search.
+  - `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
+  - `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
+
+- One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
+
+  - `search_city`: (required), one or more cities with naned used by facebook
+  - `name`: (optional) a display name for the region.
+  - `radius`: (optional), recommend 805 for regions using miles, and 500 using kms, default to `805`
+  - `city_name`: (optional), corresponding city names for bookkeeping purpose only.
+
+  Under the hood, _ai-marketplace-monitor_ will simply set `radius` and expand regions into `search_city` of marketplace of item. Options `name` and `city_name` are not used.
 
 Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
+3. _ai-marketplace-monitor_ ships with the following regions:
+
+   - `usa` for USA (without AK or HI)
+   - `usa_full` for USA
+   - `can` for Canada
+   - `mex` for Mexico
+   - `bra` for Brazil
+   - `arg` for Argentina
+   - `aus` for Australia
+   - `nzl` for New Zealand
+   - `ind` for India
+   - `gbr` for United Kingdom
+   - `fra` for France
+   - `spa` for Spain
 
 ## Advanced features
 
@@ -229,4 +256,5 @@ Note that
 ## Credits
 
 - Some of the code was copied from [facebook-marketplace-scraper](https://github.com/passivebot/facebook-marketplace-scraper).
+- Region definitions were copied from [facebook-marketplace-nationwide](https://github.com/gmoz22/facebook-marketplace-nationwide/), which is released under an MIT license as of Jan 2025.
 - This package was created with [Cookiecutter](https://github.com/cookiecutter/cookiecutter) and the [cookiecutter-modern-pypackage](https://github.com/fedejaure/cookiecutter-modern-pypackage) project template.

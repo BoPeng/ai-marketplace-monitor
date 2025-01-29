@@ -18,19 +18,26 @@ class FacebookMarketplace(Marketplace):
 
     name = "facebook"
 
-    allowed_config_keys: ClassVar = {
-        "username",
-        "password",
+    marketplace_specific_config_keys: ClassVar = {
         "login_wait_time",
-        "search_interval",
         "max_search_interval",
-        "search_city",
+        "password",
+        "search_interval",
+        "username",
+    }
+    marketplace_item_config_keys: ClassVar = {
         "acceptable_locations",
+        "availability",
+        "condition",
+        "date_listed",
+        "delivery_method",
         "exclude_sellers",
-        "notify",
-        "min_price",
         "max_price",
+        "min_price",
+        "notify",
         "radius",
+        "search_city",
+        "search_region",
     }
 
     def __init__(
@@ -45,33 +52,16 @@ class FacebookMarketplace(Marketplace):
         self.page: Page | None = None
 
     @classmethod
-    def validate(cls: Type["FacebookMarketplace"], config: Dict[str, Any]) -> None:
-        #
-        super().validate(config)
-        #
-        # username, if specified, must be a string
-        if "username" in config:
-            if not isinstance(config["username"], str):
-                raise ValueError(f"Marketplace {cls.name} username must be a string.")
-        # password, if specified, must be a string
-        if "password" in config:
-            if not isinstance(config["password"], str):
-                raise ValueError(f"Marketplace {cls.name} password must be a string.")
-        # locations, if specified, must be a list (or be converted to a list)
-        if "locations" in config:
-            if isinstance(config["locations"], str):
-                config["locations"] = [config["locations"]]
-            if not isinstance(config["locations"], list) or not all(
-                isinstance(x, str) for x in config["locations"]
+    def validate_shared_options(cls: Type["FacebookMarketplace"], config: Dict[str, Any]) -> None:
+        # acceptable_locations, if specified, must be a list (or be converted to a list)
+        if "acceptable_locations" in config:
+            if isinstance(config["acceptable_locations"], str):
+                config["acceptable_locations"] = [config["acceptable_locations"]]
+            if not isinstance(config["acceptable_locations"], list) or not all(
+                isinstance(x, str) for x in config["acceptable_locations"]
             ):
                 raise ValueError(
-                    f"Marketplace {cls.name} locations must be string or a list of string."
-                )
-        # login_wait_time should be an integer
-        if "login_wait_time" in config:
-            if not isinstance(config["login_wait_time"], int) or config["login_wait_time"] < 1:
-                raise ValueError(
-                    f"Marketplace {cls.name} login_wait_time must be a positive integer."
+                    f"Marketplace {cls.name} acceptable_locations must be string or a list of string."
                 )
         # if exclude_sellers is specified, it must be a list
         if "exclude_sellers" in config:
@@ -84,15 +74,107 @@ class FacebookMarketplace(Marketplace):
                 raise ValueError(
                     f"Marketplace {cls.name} exclude_sellers must be a list of string."
                 )
+        # if min_price is specified, it should be a number
+        if "min_price" in config:
+            if not isinstance(config["min_price"], int):
+                raise ValueError(f"Marketplace {cls.name} min_price must be a number.")
+
+        # if max_price is specified, it should be a number
+        if "max_price" in config:
+            if not isinstance(config["max_price"], int):
+                raise ValueError(f"Marketplace {cls.name} max_price must be a number.")
+
         # if radius is specified, it should be a number
         if "radius" in config:
             if not isinstance(config["radius"], int):
                 raise ValueError(f"Marketplace {cls.name} radius must be a number.")
+        # "condition", if specified, it should be one or more strings
+        # that can be one of "new", "used", "open box", "unknown"
+        if "condition" in config:
+            if isinstance(config["condition"], str):
+                config["condition"] = [config["condition"]]
+            if not isinstance(config["condition"], list) or not all(
+                isinstance(x, str) and x in ["new", "used_like_new", "used_good", "used_fair"]
+                for x in config["condition"]
+            ):
+                raise ValueError(
+                    f"Marketplace {cls.name} condition must be a list of string that can be one of 'new', 'used_like_new', 'used_good', 'used_fair'."
+                )
+        # "date_listed", if specified, should be one of 1, 7, and 30
+        if "date_listed" in config:
+            if not isinstance(config["date_listed"], int) or config["date_listed"] not in [
+                1,
+                7,
+                30,
+            ]:
+                raise ValueError(
+                    f"Marketplace {cls.name} date_listed must be one of 1, 7, and 30."
+                )
+        # "availability", if specified, should be one of "in" and "out"
+        if "availability" in config:
+            if not isinstance(config["availability"], str) or config["availability"] not in [
+                "in",
+                "out",
+            ]:
+                raise ValueError(
+                    f"Marketplace {cls.name} availability must be one of 'in' and 'out'."
+                )
+        # "delivery_method", if specified, should be one of "local_pick_up" or "shipping"
+        if "delivery_method" in config:
+            if not isinstance(config["delivery_method"], str) or config["delivery_method"] not in [
+                "local_pick_up",
+                "shipping",
+                "all",
+            ]:
+                raise ValueError(
+                    f"Marketplace {cls.name} delivery_method must be one of 'local_pick_up' and 'shipping'."
+                )
+        # if search_city is specified, it should be one or more strings
+        if "search_city" in config:
+            if isinstance(config["search_city"], str):
+                config["search_city"] = [config["search_city"]]
+            if not isinstance(config["search_city"], list) or not all(
+                isinstance(x, str) for x in config["search_city"]
+            ):
+                raise ValueError(f"Marketplace {cls.name} search_city must be a list of string.")
+
+        # if search region is specified, it should be one or more strings
+        if "search_region" in config:
+            if isinstance(config["search_region"], str):
+                config["search_region"] = [config["search_region"]]
+            if not isinstance(config["search_region"], list) or not all(
+                isinstance(x, str) for x in config["search_region"]
+            ):
+                raise ValueError(f"Marketplace {cls.name} search_region must be a list of string.")
+
+    @classmethod
+    def validate(cls: Type["FacebookMarketplace"], config: Dict[str, Any]) -> None:
+        #
+        super().validate(config)
+        #
+        # username, if specified, must be a string
+        if "username" in config:
+            if not isinstance(config["username"], str):
+                raise ValueError(f"Marketplace {cls.name} username must be a string.")
+        # password, if specified, must be a string
+        if "password" in config:
+            if not isinstance(config["password"], str):
+                raise ValueError(f"Marketplace {cls.name} password must be a string.")
+
+        # login_wait_time should be an integer
+        if "login_wait_time" in config:
+            if not isinstance(config["login_wait_time"], int) or config["login_wait_time"] < 1:
+                raise ValueError(
+                    f"Marketplace {cls.name} login_wait_time must be a positive integer."
+                )
 
         for interval_field in ("search_interval", "max_search_interval"):
             if interval_field in config:
                 if not isinstance(config[interval_field], int):
                     raise ValueError(f"Marketplace {cls.name} search_interval must be an integer.")
+
+        # options shared with items
+        cls.validate_shared_options(config)
 
     def login(self: "FacebookMarketplace") -> None:
         assert self.browser is not None
@@ -132,32 +214,54 @@ class FacebookMarketplace(Marketplace):
             self.login()
             assert self.page is not None
 
-        # get city from either marketplace config or item config
-        search_city = item_config.get("search_city", self.config.get("search_city", ""))
-        # get max price from either marketplace config or item config
-        max_price = item_config.get("max_price", self.config.get("max_price", None))
-        # get min price from either marketplace config or item config
-        min_price = item_config.get("min_price", self.config.get("min_price", None))
-        # get radius from either marketplace config or item config
-        radius = item_config.get("radius", self.config.get("radius", None))
+        options = []
 
-        marketplace_url = f"https://www.facebook.com/marketplace/{search_city}/search?"
+        max_price = item_config.get("max_price", self.config.get("max_price", None))
         if max_price:
-            marketplace_url += f"maxPrice={max_price}&"
+            options.append(f"maxPrice={max_price}")
+
+        min_price = item_config.get("min_price", self.config.get("min_price", None))
         if min_price:
-            marketplace_url += f"minPrice={min_price}&"
+            options.append(f"minPrice={min_price}")
+
+        radius = item_config.get("radius", self.config.get("radius", None))
         if radius:
-            marketplace_url += f"radius={radius}&"
+            options.append(f"radius={radius}")
+
+        condition = item_config.get("condition", self.config.get("condition", None))
+        if condition:
+            options.append(f"itemCondition={'%2C'.join(condition)}")
+
+        date_listed = item_config.get("date_listed", self.config.get("date_listed", None))
+        if date_listed:
+            options.append(f"daysSinceListed={date_listed}")
+
+        delivery_method = item_config.get(
+            "delivery_method", self.config.get("delivery_method", None)
+        )
+        if delivery_method and delivery_method != "all":
+            options.append(f"deliveryMethod={delivery_method}")
+
+        availability = item_config.get("availability", self.config.get("availability", None))
+        if availability:
+            options.append(f"availability={availability}")
 
         # search multiple keywords
         found_items = []
-        for keyword in item_config.get("keywords", []):
-            self.goto_url(marketplace_url + f"query={quote(keyword)}")
-
-            found_items.extend(
-                FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
+        # get city from either marketplace config or item config
+        search_city = item_config.get("search_city", self.config.get("search_city", []))
+        for city in search_city:
+            marketplace_url = (
+                f"https://www.facebook.com/marketplace/{city}/search?{'&'.join(options)}"
             )
-            time.sleep(5)
+
+            for keyword in item_config.get("keywords", []):
+                self.goto_url(marketplace_url + f"query={quote(keyword)}")
+
+                found_items.extend(
+                    FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
+                )
+                time.sleep(5)
         # go to each item and get the description
         # if we have not done that before
         for item in found_items:

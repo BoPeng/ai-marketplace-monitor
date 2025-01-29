@@ -49,19 +49,24 @@ search_city = 'houston'
 
 full_marketplace_cfg = """
 [marketplace.facebook]
-search_city = 'houston'
-username = "username"
-password = "password"
 login_wait_time = 50
-search_interval = 10
 max_search_interval = 40
+password = "password"
+search_city = ['houston']
+search_interval = 10
+username = "username"
+# the following are common options
 acceptable_locations = "city"
+condition = ['new', 'used_good']
+date_listed = 7
+delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
-min_price = 200
 max_price = 300
+min_price = 200
 notify = 'user1'
+radius = 100
+search_region = 'usa'
 """
-
 base_item_cfg = """
 [item.name]
 keywords = 'search word one'
@@ -69,17 +74,24 @@ keywords = 'search word one'
 
 full_item_cfg = """
 [item.name]
-keywords = 'search word one'
-search_city = 'houston'
 description = 'long description'
-marketplace = 'facebook'
-exclude_keywords = ['exclude1', 'exclude2']
-exclude_sellers = ['name1', 'name2']
 enabled = true
-min_price = 200
-max_price = 300
-notify = 'user1'
 exclude_by_description = ['some exclude1', 'some exclude2']
+exclude_keywords = ['exclude1', 'exclude2']
+keywords = 'search word one'
+marketplace = 'facebook'
+search_city = 'houston'
+# the following are common options
+acceptable_locations = "city"
+condition = ['new', 'used_good']
+date_listed = 7
+delivery_method = 'local_pick_up'
+exclude_sellers = "seller"
+max_price = 300
+min_price = 200
+notify = 'user1'
+radius = 100
+search_region = 'usa'
 """
 
 base_user_cfg = """
@@ -132,9 +144,42 @@ model = 'gpt'
 def test_config(config_file: Callable, config_content: str, acceptable: bool) -> None:
     """Test the config command."""
     cfg = config_file(config_content)
+    key_types = {
+        "acceptable_locations": list,
+        "api_key": str,
+        "condition": list,
+        "date_listed": int,
+        "delivery_method": str,
+        "description": str,
+        "enabled": bool,
+        "exclude_by_description": list,
+        "exclude_keywords": list,
+        "exclude_sellers": list,
+        "keywords": list,
+        "login_wait_time": int,
+        "marketplace": str,
+        "max_price": int,
+        "max_search_interval": int,
+        "min_price": int,
+        "model": str,
+        "notify": list,
+        "password": str,
+        "pushbullet_token": str,
+        "radius": int,
+        "search_city": list,
+        "search_interval": int,
+        "search_region": list,
+        "username": str,
+    }
     if acceptable:
-        print(config_content)
-        Config([cfg])
+        # print(config_content)
+        config = Config([cfg]).config
+        # assert the types
+        for key, value in config["marketplace"]["facebook"].items():
+            assert isinstance(value, key_types[key]), f"{key} must be of type {key_types[key]}"
+        for item_cfg in config["item"].values():
+            for key, value in item_cfg.items():
+                assert isinstance(value, key_types[key]), f"{key} must be of type {key_types[key]}"
     else:
         with pytest.raises(Exception):
             Config([cfg])
