@@ -11,6 +11,7 @@ from .utils import merge_dicts
 
 
 class Config:
+
     def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
         configs = []
         for config_file in config_files:
@@ -146,6 +147,7 @@ class Config:
                     "max_price",
                     "search_city",
                     "exclude_by_description",
+                    "acceptable_locations",
                 ]:
                     raise ValueError(
                         f"Item [magenta]{item_name}[/magenta] contains an invalid key {key}."

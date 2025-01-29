@@ -44,7 +44,7 @@ class MarketplaceMonitor:
         self.config: Dict[str, Any] | None = None
         self.config_hash: str | None = None
         self.headless = headless
-        self.ai_backend: AIBackend | None = None
+        self.ai_agents: List[AIBackend] = []
         self.logger = logger
         self.notified_items: List[SearchedItem] = self.load_notified_items()
         if clear_cache:
@@ -79,7 +79,7 @@ class MarketplaceMonitor:
                 sleep_with_watchdog(60, self.config_files)
                 continue
 
-    def load_ai_agent(self: "MarketplaceMonitor") -> None:
+    def load_ai_agents(self: "MarketplaceMonitor") -> None:
         """Load the AI agent."""
         assert self.config is not None
         for ai_name, ai_config in self.config.get("ai", {}).items():
@@ -87,8 +87,8 @@ class MarketplaceMonitor:
             ai_class.validate(ai_config)
             try:
                 self.logger.info(f"Connecting to {ai_name}")
-                self.ai_backend = ai_class(config=ai_config, logger=self.logger)
-                self.ai_backend.connect()
+                self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
+                self.ai_agents[-1].connect()
                 # if one works, do not try to load another one
                 break
             except Exception as e:
@@ -105,7 +105,7 @@ class MarketplaceMonitor:
                 # we reload the config file each time when a scan action is completed
                 # this allows users to add/remove products dynamically.
                 self.load_config_file()
-                self.load_ai_agent()
+                self.load_ai_agents()
 
                 assert self.config is not None
                 for marketplace_name, marketplace_config in self.config["marketplace"].items():
@@ -155,9 +155,16 @@ class MarketplaceMonitor:
                                 )
                             time.sleep(5)
 
+                    # if configuration file has been changed, do not sleep
+                    new_file_hash = calculate_file_hash(self.config_files)
+                    assert self.config_hash is not None
+                    if new_file_hash != self.config_hash:
+                        self.logger.info("Config file changed, restarting monitor.")
+                        continue
+
                     # wait for some time before next search
-                    # interval (in minutes) can be defined both for the
-                    # marketplace and the product
+                    # interval (in minutes) can be defined both for the marketplace
+                    # if there is any configuration file change, stop sleeping and search again
                     search_interval = max(marketplace_config.get("search_interval", 30), 1)
                     max_search_interval = max(
                         marketplace_config.get("max_search_interval", 1),
@@ -189,7 +196,7 @@ class MarketplaceMonitor:
                     f"Item {for_item} not found in config, available items are {', '.join(self.config['item'].keys())}."
                 )
 
-        self.load_ai_agent()
+        self.load_ai_agents()
 
         post_urls = []
         for post_url in items or []:
@@ -274,10 +281,14 @@ class MarketplaceMonitor:
     def confirmed_by_ai(
         self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: Dict[str, Any]
     ) -> bool:
-        if self.ai_backend is None:
-            self.logger.debug("No AI backend configured, skipping AI-based confirmation.")
-            return True
-        return self.ai_backend.confirm(item, item_name, item_config)
+        for agent in self.ai_agents:
+            try:
+                return agent.confirm(item, item_name, item_config)
+            except Exception as e:
+                self.logger(f"Failed to get an answer from {agent.name}: {e}")
+                continue
+        self.logger(f"Failed to get an answer from any of the AI agents. Assuming OK.")
+        return True
 
     def notify_users(
         self: "MarketplaceMonitor", users: List[str], items: List[SearchedItem]

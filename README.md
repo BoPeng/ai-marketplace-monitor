@@ -16,6 +16,7 @@
 </div>
 
 ## Overview
+
 An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, this tool automates the process of searching for specific products, filtering out irrelevant listings, and notifying you of new matches via PushBullet.
 
 ## Table of content:
@@ -47,6 +48,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 ## Quickstart
 
 ### Prerequisites
+
 - Python 3.x installed.
 
 ### Installation
@@ -189,6 +191,7 @@ an example with many of the options.
   - `max_price`: (optional) maximum price.
   - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
   - `notify`: (optional) users who should be notified for this item
+  - `acceptable_locations`: (optional) item specific acceptable location, will override marketplace `acceptable_locations` if both specified.
 
 Note that
 
