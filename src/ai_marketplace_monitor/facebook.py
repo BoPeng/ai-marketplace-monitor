@@ -251,12 +251,10 @@ class FacebookMarketplace(Marketplace):
         # get city from either marketplace config or item config
         search_city = item_config.get("search_city", self.config.get("search_city", []))
         for city in search_city:
-            marketplace_url = (
-                f"https://www.facebook.com/marketplace/{city}/search?{'&'.join(options)}"
-            )
+            marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
             for keyword in item_config.get("keywords", []):
-                self.goto_url(marketplace_url + f"query={quote(keyword)}")
+                self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
 
                 found_items.extend(
                     FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
