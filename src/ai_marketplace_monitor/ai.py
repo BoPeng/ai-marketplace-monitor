@@ -95,32 +95,30 @@ class OpenAIBackend(AIBackend):
         prompt = self.get_prompt(listing, item_name, item_config)
 
         assert self.client is not None
-        try:
-            response = self.client.chat.completions.create(
-                model=self.config.get("model", self.default_model),
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                stream=False,
-            )
-            # check if the response is yes
-            self.logger.debug(f"Response: {pretty_repr(response)}")
 
-            answer = response.choices[0].message.content
-            res = True if answer is None else (not answer.lower().strip().startswith("no"))
-            self.logger.info(
-                f"""{self.name} concludes that listing [magenta]{listing["title"]}[/magenta] [green]matches[/green] your search criteria."""
-                if res
-                else f"""{self.name} concludes that listing [magenta]{listing["title"]}[/magenta] [red]does not match[/red] your search criteria."""
-            )
-            return res
-        except Exception as e:
-            self.logger.warning(f"Unrecognized response from ai. Assuming ok: {e}")
-            return True
+        response = self.client.chat.completions.create(
+            model=self.config.get("model", self.default_model),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            stream=False,
+        )
+        # check if the response is yes
+        self.logger.debug(f"Response: {pretty_repr(response)}")
+
+        answer = response.choices[0].message.content
+        res = True if answer is None else (not answer.lower().strip().startswith("no"))
+        self.logger.info(
+            f"""{self.name} concludes that listing [magenta]{listing["title"]}[/magenta] [green]matches[/green] your search criteria."""
+            if res
+            else f"""{self.name} concludes that listing [magenta]{listing["title"]}[/magenta] [red]does not match[/red] your search criteria."""
+        )
+        return res
+
 
 
 class DeepSeekBackend(OpenAIBackend):
