@@ -247,6 +247,8 @@ class FacebookMarketplace(Marketplace):
             options.append(f"availability={availability}")
 
         # search multiple keywords and cities
+        # there is a small chance that search by different keywords and city will return the same items.
+        found = {}
         search_city = item_config.get("search_city", self.config.get("search_city", []))
         for city in search_city:
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
@@ -261,6 +263,9 @@ class FacebookMarketplace(Marketplace):
                 # go to each item and get the description
                 # if we have not done that before
                 for item in found_items:
+                    if item["post_url"] in found:
+                        continue
+                    found[item["post_url"]] = True
                     # filter by title and location since we do not have description and seller yet.
                     if not self.filter_item(item, item_config):
                         continue
