@@ -120,7 +120,6 @@ class OpenAIBackend(AIBackend):
         return res
 
 
-
 class DeepSeekBackend(OpenAIBackend):
     name = "DeepSeek"
     allowed_config_keys: ClassVar = ["api_key", "model"]
