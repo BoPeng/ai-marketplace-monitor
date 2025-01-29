@@ -10,7 +10,8 @@ from .items import SearchedItem
 class Marketplace:
     allowed_config_keys: ClassVar = {}
 
-    def __init__(self: "Marketplace", name: str, browser: Browser | None, logger: Logger) -> None:
+    def __init__(self: "Marketplace", name: str, browser: Browser | None,
+                 logger: Logger) -> None:
         self.name = name
         self.browser = browser
         self.logger = logger
@@ -29,13 +30,15 @@ class Marketplace:
             self.browser = None
             self.page = None
 
-    def goto_url(self: "Marketplace", url: str, attempt=0) -> None:
+    def goto_url(self: "Marketplace", url: str, attempt: int = 0) -> None:
         try:
             self.page.goto(url, timeout=0)
             self.page.wait_for_load_state("domcontentloaded")
         except Exception as e:
             if attempt == 10:
-                raise RuntimeError(f"Failed to navigate to {url} after 10 attempts. {e}")
+                raise RuntimeError(
+                    f"Failed to navigate to {url} after 10 attempts. {e}"
+                ) from e
             time.sleep(5)
             self.goto_url(url, attempt + 1)
         except KeyboardInterrupt:
@@ -48,5 +51,7 @@ class Marketplace:
             if key not in cls.allowed_config_keys:
                 raise ValueError(f"Marketplace contains an invalid key {key}.")
 
-    def search(self: "Marketplace", item: Dict[str, Any]) -> Generator[SearchedItem, None, None]:
-        raise NotImplementedError("Search method must be implemented by subclasses.")
+    def search(self: "Marketplace",
+               item: Dict[str, Any]) -> Generator[SearchedItem, None, None]:
+        raise NotImplementedError(
+            "Search method must be implemented by subclasses.")
