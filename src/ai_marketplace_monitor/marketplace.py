@@ -31,6 +31,7 @@ class Marketplace:
 
     def goto_url(self: "Marketplace", url: str, attempt: int = 0) -> None:
         try:
+            assert self.page is not None
             self.page.goto(url, timeout=0)
             self.page.wait_for_load_state("domcontentloaded")
         except Exception as e:

@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Dict, Generator, List, Type, Union, cast
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup, element  # type: ignore
-from playwright.sync_api import Browser, Page
+from playwright.sync_api import Browser, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .items import SearchedItem
@@ -233,6 +233,7 @@ class FacebookMarketplace(Marketplace):
 
 
 class WebPage:
+
     def __init__(self: "WebPage", html: str, logger: Logger) -> None:
         self.html = html
         self.soup = BeautifulSoup(self.html, "html.parser")
@@ -326,6 +327,7 @@ class FacebookSearchResultPage(WebPage):
 
 
 class FacebookItemPage(WebPage):
+
     def get_image_url(self: "FacebookItemPage") -> str:
         try:
             return self.soup.find("img")["src"]
