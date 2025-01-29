@@ -246,9 +246,7 @@ class FacebookMarketplace(Marketplace):
         if availability:
             options.append(f"availability={availability}")
 
-        # search multiple keywords
-        found_items = []
-        # get city from either marketplace config or item config
+        # search multiple keywords and cities
         search_city = item_config.get("search_city", self.config.get("search_city", []))
         for city in search_city:
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
@@ -256,31 +254,31 @@ class FacebookMarketplace(Marketplace):
             for keyword in item_config.get("keywords", []):
                 self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
 
-                found_items.extend(
-                    FacebookSearchResultPage(self.page.content(), self.logger).get_listings()
-                )
+                found_items = FacebookSearchResultPage(
+                    self.page.content(), self.logger
+                ).get_listings()
                 time.sleep(5)
-        # go to each item and get the description
-        # if we have not done that before
-        for item in found_items:
-            # filter by title and location since we do not have description and seller yet.
-            if not self.filter_item(item, item_config):
-                continue
-            try:
-                details = self.get_item_details(item["post_url"])
-            except Exception as e:
-                self.logger.error(f"Error getting item details: {e}")
-                continue
-            # currently we trust the other items from summary page a bit better
-            # so we do not copy title, description etc from the detailed result
-            for key in ("description", "seller"):
-                item[key] = details[key]
-            self.logger.debug(
-                f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
-            )
-            if self.filter_item(item, item_config):
-                yield item
-            time.sleep(5)
+                # go to each item and get the description
+                # if we have not done that before
+                for item in found_items:
+                    # filter by title and location since we do not have description and seller yet.
+                    if not self.filter_item(item, item_config):
+                        continue
+                    try:
+                        details = self.get_item_details(item["post_url"])
+                        time.sleep(5)
+                    except Exception as e:
+                        self.logger.error(f"Error getting item details: {e}")
+                        continue
+                    # currently we trust the other items from summary page a bit better
+                    # so we do not copy title, description etc from the detailed result
+                    for key in ("description", "seller"):
+                        item[key] = details[key]
+                    self.logger.debug(
+                        f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
+                    )
+                    if self.filter_item(item, item_config):
+                        yield item
 
     # get_item_details is wrapped around this function to cache results for urls
     def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
