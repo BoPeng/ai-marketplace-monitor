@@ -30,6 +30,7 @@ class FacebookMarketplace(Marketplace):
         "notify",
         "min_price",
         "max_price",
+        "radius",
     }
 
     def __init__(
@@ -83,6 +84,10 @@ class FacebookMarketplace(Marketplace):
                 raise ValueError(
                     f"Marketplace {cls.name} exclude_sellers must be a list of string."
                 )
+        # if radius is specified, it should be a number
+        if "radius" in config:
+            if not isinstance(config["radius"], int):
+                raise ValueError(f"Marketplace {cls.name} radius must be a number.")
 
         for interval_field in ("search_interval", "max_search_interval"):
             if interval_field in config:
@@ -133,12 +138,16 @@ class FacebookMarketplace(Marketplace):
         max_price = item_config.get("max_price", self.config.get("max_price", None))
         # get min price from either marketplace config or item config
         min_price = item_config.get("min_price", self.config.get("min_price", None))
+        # get radius from either marketplace config or item config
+        radius = item_config.get("radius", self.config.get("radius", None))
 
         marketplace_url = f"https://www.facebook.com/marketplace/{search_city}/search?"
         if max_price:
             marketplace_url += f"maxPrice={max_price}&"
         if min_price:
             marketplace_url += f"minPrice={min_price}&"
+        if radius:
+            marketplace_url += f"radius={radius}&"
 
         # search multiple keywords
         found_items = []

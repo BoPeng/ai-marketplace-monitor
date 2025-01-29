@@ -132,6 +132,10 @@ class Config:
                     raise ValueError(
                         f"Item [magenta]{item_name}[/magenta] enabled must be a boolean."
                     )
+            # if radius is specified, it should be a number
+            if "radius" in item_config:
+                if not isinstance(item_config["radius"], int):
+                    raise ValueError(f"Item {item_name} radius must be a number.")
 
             # if there are other keys in item_config, raise an error
             for key in item_config:
@@ -145,6 +149,7 @@ class Config:
                     "exclude_sellers",
                     "min_price",
                     "max_price",
+                    "radius",
                     "search_city",
                     "exclude_by_description",
                     "acceptable_locations",

@@ -173,6 +173,7 @@ an example with many of the options.
   - `exclude_sellers`: (optional) exclude certain sellers by their names (not username)
   - `min_price`: (optional) minimum price.
   - `max_price`: (optional) maximum price.
+  - `radius`: (optional) radius of search for all items.
   - `notify`: (optional) users who should be notified for all items
 
 - One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. PushBullet is currently the only method of notification.
@@ -189,6 +190,7 @@ an example with many of the options.
   - `enabled`: (optional), stop searching this item if set to `false`
   - `min_price`: (optional) minimum price.
   - `max_price`: (optional) maximum price.
+  - `radius`: (optional) radius of search for this specific item.
   - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
   - `notify`: (optional) users who should be notified for this item
   - `acceptable_locations`: (optional) item specific acceptable location, will override marketplace `acceptable_locations` if both specified.
