@@ -213,7 +213,8 @@ Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-3. _ai-marketplace-monitor_ ships with the following regions:
+3. If you are searching a large region by specifying `search_region`, make sure that you set `acceptable_locations=[]` or leave it unspecified in both `item` and `marketplace.facebook`.
+4. _ai-marketplace-monitor_ ships with the following regions:
 
    - `usa` for USA (without AK or HI)
    - `usa_full` for USA
