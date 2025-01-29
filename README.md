@@ -44,6 +44,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - Use an AI agent (OpenAI or DeepSeek) to confirm listing matches.
 - Send notifications via PushBullet.
 - Search repeatedly with specified intervals.
+- Search multiple cities, even pre-defined regions (e.g. USA)
 
 ## Quickstart
 
