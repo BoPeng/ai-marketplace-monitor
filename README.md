@@ -223,11 +223,16 @@ Note that
    - `bra` for Brazil
    - `arg` for Argentina
    - `aus` for Australia
+   - `aus_miles` for Australia using 500 miles radius
    - `nzl` for New Zealand
    - `ind` for India
    - `gbr` for United Kingdom
    - `fra` for France
    - `spa` for Spain
+
+   You can specify multiple regions in `search_region` but they
+   need to have the same `radius` for search. See the system
+   [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml) for how regions are defined.
 
 ## Advanced features
 

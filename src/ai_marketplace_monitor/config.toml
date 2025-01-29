@@ -213,6 +213,7 @@ search_city = [
 
 [region.aus_miles]
 name = "Australia"
+radius = 500
 city_name = [
     "Warburton, Western Australia",
     "Mount Magnet, Western Australia",

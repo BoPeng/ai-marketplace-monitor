@@ -209,17 +209,24 @@ class Config:
             if "search_region" in marketplace_config:
                 if "search_city" not in marketplace_config:
                     marketplace_config["search_city"] = []
-                for region in marketplace_config["search_region"]:
+                for region, region_config in marketplace_config["search_region"].items():
                     if "region" not in self.config or region not in self.config["region"]:
                         raise ValueError(
                             f"Region [magenta]{region}[/magenta] specified in [magenta]{marketplace_name}[/magenta] does not exist."
                         )
                     # if region is specified, expand it into search_city
-                    marketplace_config["search_city"].extend(
-                        self.config["region"][region]["search_city"]
-                    )
-                    # set radius
-                    marketplace_config["radius"] = self.config["region"][region]["radius"]
+                    marketplace_config["search_city"].extend(region_config["search_city"])
+                    # set radius, if market_config already has radius, they should be the same
+                    if (
+                        "radius" in marketplace_config
+                        and marketplace_config["radius"] != region_config["radius"]
+                    ):
+                        raise ValueError(
+                            f"Region [magenta]{region}[/magenta] specified in [magenta]{marketplace_name}[/magenta]"
+                            " has different radius than the one specified in the marketplace or another region. If "
+                            " you are using multiple regions, please place them into region-specific items."
+                        )
+                    marketplace_config["radius"] = region_config["radius"]
                     # remove duplicates
                     marketplace_config["search_city"] = list(
                         set(marketplace_config["search_city"])
@@ -231,14 +238,24 @@ class Config:
             if "search_region" in item_config:
                 if "search_city" not in item_config:
                     item_config["search_city"] = []
-                for region in item_config["search_region"]:
+                for region, region_config in item_config["search_region"].items():
                     if "region" not in self.config or region not in self.config["region"]:
                         raise ValueError(
                             f"Region [magenta]{region}[/magenta] specified in [magenta]{item_name}[/magenta] does not exist."
                         )
                     # if region is specified, expand it into search_city
-                    item_config["search_city"].extend(self.config["region"][region]["search_city"])
+                    item_config["search_city"].extend(region_config["search_city"])
                     # set radius
-                    item_config["radius"] = self.config["region"][region]["radius"]
+                    if (
+                        "radius" in item_config
+                        and item_config["radius"] != region_config["radius"]
+                    ):
+                        raise ValueError(
+                            f"Region [magenta]{region}[/magenta] specified in [magenta]{item_name}[/magenta]"
+                            " has different radius than the one specified in the region or from another region. "
+                            " If you are using multiple regions, please group them into regions with the same "
+                            " radius and create separate searches."
+                        )
+                    item_config["radius"] = region_config["radius"]
                     # remove duplicates
                     item_config["search_city"] = list(set(item_config["search_city"]))
