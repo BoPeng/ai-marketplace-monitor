@@ -324,7 +324,7 @@ class MarketplaceMonitor:
             msgs = []
             unnotified_items = []
             for item in items:
-                if ("notify_user", item["id"]) not in cache or user not in cache.get(
+                if ("notify_user", item["id"]) in cache and user in cache.get(
                     ("notify_user", item["id"]), ()
                 ):
                     continue
@@ -335,6 +335,9 @@ class MarketplaceMonitor:
                     f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
                 )
                 unnotified_items.append(item)
+
+            if not unnotified_items:
+                continue
 
             title = f"Found {len(msgs)} new item from {item['marketplace']}: "
             message = "\n\n".join(msgs)
