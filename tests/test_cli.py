@@ -50,10 +50,8 @@ search_city = 'houston'
 full_marketplace_cfg = """
 [marketplace.facebook]
 login_wait_time = 50
-max_search_interval = 40
 password = "password"
 search_city = ['houston']
-search_interval = 10
 username = "username"
 # the following are common options
 acceptable_locations = "city"
@@ -63,10 +61,13 @@ delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
 max_price = 300
 min_price = 200
+max_search_interval = 40
 notify = 'user1'
 radius = 100
+search_interval = 10
 search_region = 'usa'
 """
+
 base_item_cfg = """
 [item.name]
 keywords = 'search word one'
@@ -88,6 +89,8 @@ date_listed = 7
 delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
 max_price = 300
+max_search_interval = '1d'
+search_interval = '12h'
 min_price = 200
 notify = 'user1'
 radius = 100
@@ -165,7 +168,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "notify": list,
         "password": str,
         "pushbullet_token": str,
-        "radius": int,
+        "radius": list,
         "search_city": list,
         "search_interval": int,
         "search_region": list,

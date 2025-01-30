@@ -86,7 +86,9 @@ class OpenAIBackend(AIBackend):
     def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
             self.client = OpenAI(
-                api_key=self.config["api_key"], base_url=self.config.get("base_url", self.base_url)
+                api_key=self.config["api_key"],
+                base_url=self.config.get("base_url", self.base_url),
+                timeout=10,
             )
 
     def confirm(

@@ -128,6 +128,14 @@ description = '''A new or used Go Pro version 11, 12 or 13 in
 min_price = 100
 max_price = 200
 
+[item.name2]
+keywords = 'something rare'
+description = '''A rare item that has to be searched nationwide and be shipped.
+    listings from any location are acceptable.'''
+search_region = 'usa'
+delivery_method = 'shipping'
+acceptable_locations = []
+
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
@@ -167,8 +175,6 @@ an example with many of the options.
   - `username`: (optional), you can enter manually or keep in config file
   - `password`: (optional), you can enter manually or keep in config file
   - `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
-  - `search_interval`: (optional) minimal interval in minutes between searches
-  - `max_search_interval`: (optional) maximum interval in minutes between searches
   - **Common options** listed below. These options, if specified in the marketplace section, will by default be applied to all items.
 
 - One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. PushBullet is currently the only method of notification.
@@ -196,9 +202,11 @@ an example with many of the options.
   - `min_price`: (optional) minimum price.
   - `max_price`: (optional) maximum price.
   - `notify`: (optional) users who should be notified
-  - `radius`: (optional) radius of search.
+  - `radius`: (optional) radius of search, can be a list if multiple `search_city` are specified.
   - `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
   - `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
+  - `search_interval`: (optional) minimal interval in minutes between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.
+  - `max_search_interval`: (optional) maximum interval in minutes between searches
 
 - One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
 

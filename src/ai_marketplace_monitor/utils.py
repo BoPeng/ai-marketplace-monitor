@@ -4,7 +4,8 @@ import re
 import time
 from typing import Any, Dict, List
 
-from joblib import Memory  # type: ignore
+import parsedatetime  # type: ignore
+from diskcache import Cache  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -12,7 +13,7 @@ from watchdog.observers import Observer
 amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
 os.makedirs(amm_home, exist_ok=True)
 
-memory = Memory(location=amm_home, verbose=0)
+cache = Cache(amm_home)
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:
@@ -113,3 +114,9 @@ def extract_price(price: str) -> str:
     if "\xa0" in price:
         price = price.split("\xa0")[0]
     return price
+
+
+def convert_to_minutes(time_str: str) -> int:
+    cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
+    time_struct, _ = cal.parse(time_str)
+    return int(time.mktime(time_struct) - time.mktime(time.localtime())) // 60
