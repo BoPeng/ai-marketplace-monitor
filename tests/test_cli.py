@@ -165,7 +165,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "notify": list,
         "password": str,
         "pushbullet_token": str,
-        "radius": int,
+        "radius": list,
         "search_city": list,
         "search_interval": int,
         "search_region": list,
