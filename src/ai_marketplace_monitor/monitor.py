@@ -177,7 +177,7 @@ class MarketplaceMonitor:
                         search_interval,
                     )
                     self.logger.info(
-                        f"Scheduling to search for {item_name} every {search_interval} {"" if search_interval == max_search_interval else f'to {max_search_interval}'} minutes"
+                        f"Scheduling to search for {item_name} every {search_interval} {'' if search_interval == max_search_interval else f'to {max_search_interval}'} minutes"
                     )
                     schedule.every(search_interval).to(max_search_interval).minutes.do(
                         self.search_item,
