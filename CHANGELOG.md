@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-01-29
+
+- Allow each time to add its own `search_interval`
+- Add options such as `delivery_method`, `radius`, and `condition`
+- Add options to define and use regions for searching large regions
+
 ## [0.4.5] - 2025-01-27
 
 - Add option `--check` and `--for` to check particular listings
