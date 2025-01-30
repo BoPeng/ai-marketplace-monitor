@@ -128,6 +128,14 @@ description = '''A new or used Go Pro version 11, 12 or 13 in
 min_price = 100
 max_price = 200
 
+[item.name2]
+keywords = 'something rare'
+description = '''A rare item that has to be searched nationwide and be shipped.
+    listings from any location are acceptable.'''
+search_region = 'usa'
+delivery_method = 'shipping'
+acceptable_locations = []
+
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```

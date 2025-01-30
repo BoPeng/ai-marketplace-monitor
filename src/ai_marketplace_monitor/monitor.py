@@ -1,11 +1,10 @@
 import os
-import random
 import time
 from logging import Logger
 from typing import Any, ClassVar, Dict, List
 
 import schedule
-from playwright.sync_api import Browser, sync_playwright
+from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 
 from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
@@ -44,6 +43,7 @@ class MarketplaceMonitor:
         self.config_hash: str | None = None
         self.headless = headless
         self.ai_agents: List[AIBackend] = []
+        self.playwright: Playwright | None = None
         self.logger = logger
         if clear_cache:
             cache.clear()
@@ -81,9 +81,9 @@ class MarketplaceMonitor:
             ai_class = supported_ai_backends[ai_name]
             ai_class.validate(ai_config)
             try:
-                self.logger.info(f"Connecting to {ai_name}")
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
                 self.ai_agents[-1].connect()
+                self.logger.info(f"Connected to {ai_name}")
                 # if one works, do not try to load another one
                 break
             except Exception as e:
@@ -130,62 +130,71 @@ class MarketplaceMonitor:
 
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
         """Schedule jobs to run periodically."""
-        # start a browser with playwright
-        with sync_playwright() as p:
-            # Open a new browser page.
-            browser: Browser = p.chromium.launch(headless=self.headless)
-            # we reload the config file each time when a scan action is completed
-            # this allows users to add/remove products dynamically.
-            self.load_config_file()
-            self.load_ai_agents()
+        # start a browser with playwright, cannot use with statement since the jobs will be
+        # executed outside of the scope by schedule job runner
+        self.playwright = sync_playwright().start()
+        # Open a new browser page.
+        assert self.playwright is not None
+        browser: Browser = self.playwright.chromium.launch(headless=self.headless)
+        # we reload the config file each time when a scan action is completed
+        # this allows users to add/remove products dynamically.
+        self.load_config_file()
+        self.load_ai_agents()
 
-            assert self.config is not None
-            for marketplace_name, marketplace_config in self.config["marketplace"].items():
-                marketplace_class = supported_marketplaces[marketplace_name]
-                if marketplace_name in self.active_marketplaces:
-                    marketplace = self.active_marketplaces[marketplace_name]
-                else:
-                    marketplace = marketplace_class(marketplace_name, browser, self.logger)
-                    self.active_marketplaces[marketplace_name] = marketplace
+        assert self.config is not None
+        for marketplace_name, marketplace_config in self.config["marketplace"].items():
+            marketplace_class = supported_marketplaces[marketplace_name]
+            if marketplace_name in self.active_marketplaces:
+                marketplace = self.active_marketplaces[marketplace_name]
+            else:
+                marketplace = marketplace_class(marketplace_name, browser, self.logger)
+                self.active_marketplaces[marketplace_name] = marketplace
 
-                # Configure might have been changed
-                marketplace.configure(marketplace_config)
+            # Configure might have been changed
+            marketplace.configure(marketplace_config)
 
-                for item_name, item_config in self.config["item"].items():
-                    if (
-                        "marketplace" not in item_config
-                        or item_config["marketplace"] == marketplace_name
-                    ):
-                        if not item_config.get("enabled", True):
-                            continue
-                        # wait for some time before next search
-                        # interval (in minutes) can be defined both for the marketplace
-                        # if there is any configuration file change, stop sleeping and search again
-                        search_interval = max(
-                            item_config.get(
-                                "search_interval", marketplace_config.get("search_interval", 30)
-                            ),
-                            1,
-                        )
-                        max_search_interval = max(
-                            item_config.get(marketplace_config.get("max_search_interval", 1)),
-                            search_interval,
-                        )
-                        schedule.every(
-                            random.randint(search_interval, max_search_interval)
-                        ).minutes.do(
-                            self.search_item,
-                            marketplace_name,
-                            marketplace_config,
-                            marketplace,
-                            item_name,
-                            item_config,
-                        )
+            for item_name, item_config in self.config["item"].items():
+                if (
+                    "marketplace" not in item_config
+                    or item_config["marketplace"] == marketplace_name
+                ):
+                    if not item_config.get("enabled", True):
+                        continue
+                    # wait for some time before next search
+                    # interval (in minutes) can be defined both for the marketplace
+                    # if there is any configuration file change, stop sleeping and search again
+                    search_interval = max(
+                        item_config.get(
+                            "search_interval", marketplace_config.get("search_interval", 30)
+                        ),
+                        1,
+                    )
+                    max_search_interval = max(
+                        item_config.get(
+                            "max_search_interval",
+                            marketplace_config.get("max_search_interval", 1),
+                        ),
+                        search_interval,
+                    )
+                    self.logger.info(
+                        f"Scheduling to search for {item_name} every {search_interval} {"" if search_interval == max_search_interval else f'to {max_search_interval}'} minutes"
+                    )
+                    schedule.every(search_interval).to(max_search_interval).minutes.do(
+                        self.search_item,
+                        marketplace_name,
+                        marketplace_config,
+                        marketplace,
+                        item_name,
+                        item_config,
+                    )
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
         while True:
             self.schedule_jobs()
+            # run all jobs at the first time, then on their own
+            # schedule
+            schedule.run_all()
             while True:
                 schedule.run_pending()
                 sleep_with_watchdog(
@@ -204,6 +213,8 @@ class MarketplaceMonitor:
         """Stop the monitor."""
         for marketplace in self.active_marketplaces.values():
             marketplace.stop()
+        if self.playwright is not None:
+            self.playwright.stop()
         cache.close()
 
     def check_items(

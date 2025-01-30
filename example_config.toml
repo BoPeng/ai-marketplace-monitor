@@ -38,18 +38,21 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 
-# OPTIONAL a product
+# search an item across the usa, acceptable listing from any location
+# and perform one search each day
 [item.name1]
 keywords = 'search word one'
+search_region = 'usa'
+search_interval = '1d'
+delivery_method = 'shipping'
+acceptable_locations = []
 
-# Complete item
+# search for a local item with longer description
 [item.name2]
 # REUIRED string or list of strings
 keywords = ['search word one', 'search word two']
 # OPTIONAL, recommended for AI
 description = "it should be from manufacture, the seller should not offer shipping."
-# OPTIONAL string or list of strings, default to all marketplaces
-marketplace = 'facebook'
 # OPTIONAL words that should not be in the title
 exclude_keywords = ['exclude word one', 'exclude word two']
 # OPTIONAL product specific user to notify
