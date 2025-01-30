@@ -37,6 +37,7 @@ diskcache = "^5.6.3"
 watchdog = "^6.0.0"
 openai = "^1.60.1"
 parsedatetime = "^2.6"
+schedule = "^1.2.2"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
 
 [tool.poetry.group.dev.dependencies]

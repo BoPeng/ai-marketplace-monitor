@@ -4,6 +4,7 @@ import time
 from logging import Logger
 from typing import Any, ClassVar, Dict, List
 
+import schedule
 from playwright.sync_api import Browser, sync_playwright
 from rich.pretty import pretty_repr
 
@@ -11,6 +12,7 @@ from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
 from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
+from .marketplace import Marketplace
 from .users import User
 from .utils import cache, calculate_file_hash, sleep_with_watchdog
 
@@ -88,90 +90,115 @@ class MarketplaceMonitor:
                 self.logger.error(f"Error connecting to {ai_name}: {e}")
                 continue
 
-    def start_monitor(self: "MarketplaceMonitor") -> None:
-        """Main function to monitor the marketplace."""
+    def search_item(
+        self: "MarketplaceMonitor",
+        marketplace_name: str,
+        marketplace_config: Dict[str, Any],
+        marketplace: Marketplace,
+        item_name: str,
+        item_config: Dict[str, Any],
+    ) -> None:
+        """Search for an item on the marketplace."""
+        self.logger.info(f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]")
+        new_items = []
+        # users to notify is determined from item, then marketplace, then all users
+        assert self.config is not None
+        users_to_notify = item_config.get(
+            "notify",
+            marketplace_config.get("notify", list(self.config["user"].keys())),
+        )
+        for item in marketplace.search(item_config):
+            # if everyone has been notified
+            if ("notify_user", item["id"]) in cache and all(
+                user in cache.get(("notify_user", item["id"]), ()) for user in users_to_notify
+            ):
+                self.logger.info(
+                    f"Already sent notification for item [magenta]{item['title']}[/magenta], skipping."
+                )
+                continue
+            # for x in self.find_new_items(found_items)
+            if not self.confirmed_by_ai(item, item_name=item_name, item_config=item_config):
+                continue
+            new_items.append(item)
+
+        self.logger.info(
+            f"""[magenta]{len(new_items)}[/magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
+        )
+        if new_items:
+            self.notify_users(users_to_notify, new_items)
+        time.sleep(5)
+
+    def schedule_jobs(self: "MarketplaceMonitor") -> None:
+        """Schedule jobs to run periodically."""
         # start a browser with playwright
         with sync_playwright() as p:
             # Open a new browser page.
             browser: Browser = p.chromium.launch(headless=self.headless)
+            # we reload the config file each time when a scan action is completed
+            # this allows users to add/remove products dynamically.
+            self.load_config_file()
+            self.load_ai_agents()
+
+            assert self.config is not None
+            for marketplace_name, marketplace_config in self.config["marketplace"].items():
+                marketplace_class = supported_marketplaces[marketplace_name]
+                if marketplace_name in self.active_marketplaces:
+                    marketplace = self.active_marketplaces[marketplace_name]
+                else:
+                    marketplace = marketplace_class(marketplace_name, browser, self.logger)
+                    self.active_marketplaces[marketplace_name] = marketplace
+
+                # Configure might have been changed
+                marketplace.configure(marketplace_config)
+
+                for item_name, item_config in self.config["item"].items():
+                    if (
+                        "marketplace" not in item_config
+                        or item_config["marketplace"] == marketplace_name
+                    ):
+                        if not item_config.get("enabled", True):
+                            continue
+                        # wait for some time before next search
+                        # interval (in minutes) can be defined both for the marketplace
+                        # if there is any configuration file change, stop sleeping and search again
+                        search_interval = max(
+                            item_config.get(
+                                "search_interval", marketplace_config.get("search_interval", 30)
+                            ),
+                            1,
+                        )
+                        max_search_interval = max(
+                            item_config.get(marketplace_config.get("max_search_interval", 1)),
+                            search_interval,
+                        )
+                        schedule.every(
+                            random.randint(search_interval, max_search_interval)
+                        ).minutes.do(
+                            self.search_item,
+                            marketplace_name,
+                            marketplace_config,
+                            marketplace,
+                            item_name,
+                            item_config,
+                        )
+
+    def start_monitor(self: "MarketplaceMonitor") -> None:
+        """Main function to monitor the marketplace."""
+        while True:
+            self.schedule_jobs()
             while True:
-                # we reload the config file each time when a scan action is completed
-                # this allows users to add/remove products dynamically.
-                self.load_config_file()
-                self.load_ai_agents()
-
-                assert self.config is not None
-                for marketplace_name, marketplace_config in self.config["marketplace"].items():
-                    marketplace_class = supported_marketplaces[marketplace_name]
-                    if marketplace_name in self.active_marketplaces:
-                        marketplace = self.active_marketplaces[marketplace_name]
-                    else:
-                        marketplace = marketplace_class(marketplace_name, browser, self.logger)
-                        self.active_marketplaces[marketplace_name] = marketplace
-
-                    # Configure might have been changed
-                    marketplace.configure(marketplace_config)
-
-                    for item_name, item_config in self.config["item"].items():
-                        if (
-                            "marketplace" not in item_config
-                            or item_config["marketplace"] == marketplace_name
-                        ):
-                            if not item_config.get("enabled", True):
-                                continue
-
-                            self.logger.info(
-                                f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]"
-                            )
-                            new_items = []
-                            # users to notify is determined from item, then marketplace, then all users
-                            users_to_notify = item_config.get(
-                                "notify",
-                                marketplace_config.get("notify", list(self.config["user"].keys())),
-                            )
-                            for item in marketplace.search(item_config):
-                                # if everyone has been notified
-                                if ("notify_user", item["id"]) in cache and all(
-                                    user in cache.get(("notify_user", item["id"]), ())
-                                    for user in users_to_notify
-                                ):
-                                    self.logger.info(
-                                        f"Already sent notification for item [magenta]{item['title']}[/magenta], skipping."
-                                    )
-                                    continue
-                                # for x in self.find_new_items(found_items)
-                                if not self.confirmed_by_ai(
-                                    item, item_name=item_name, item_config=item_config
-                                ):
-                                    continue
-                                new_items.append(item)
-
-                            self.logger.info(
-                                f"""[magenta]{len(new_items)}[/magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
-                            )
-                            if new_items:
-                                self.notify_users(users_to_notify, new_items)
-                            time.sleep(5)
-
-                    # if configuration file has been changed, do not sleep
-                    new_file_hash = calculate_file_hash(self.config_files)
-                    assert self.config_hash is not None
-                    if new_file_hash != self.config_hash:
-                        self.logger.info("Config file changed, restarting monitor.")
-                        continue
-
-                    # wait for some time before next search
-                    # interval (in minutes) can be defined both for the marketplace
-                    # if there is any configuration file change, stop sleeping and search again
-                    search_interval = max(marketplace_config.get("search_interval", 30), 1)
-                    max_search_interval = max(
-                        marketplace_config.get("max_search_interval", 1),
-                        search_interval,
-                    )
-                    sleep_with_watchdog(
-                        random.randint(search_interval * 60, max_search_interval * 60),
-                        self.config_files,
-                    )
+                schedule.run_pending()
+                sleep_with_watchdog(
+                    60,
+                    self.config_files,
+                )
+                # if configuration file has been changed, clear all scheduled jobs and restart
+                new_file_hash = calculate_file_hash(self.config_files)
+                assert self.config_hash is not None
+                if new_file_hash != self.config_hash:
+                    self.logger.info("Config file changed, restarting monitor.")
+                    schedule.clear()
+                    break
 
     def stop_monitor(self: "MarketplaceMonitor") -> None:
         """Stop the monitor."""

@@ -4,7 +4,7 @@ import re
 import time
 from typing import Any, Dict, List
 
-import parsedatetime
+import parsedatetime  # type: ignore
 from diskcache import Cache  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -117,6 +117,6 @@ def extract_price(price: str) -> str:
 
 
 def convert_to_minutes(time_str: str) -> int:
-    cal = parsedatetime.Calendar()
+    cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
     time_struct, _ = cal.parse(time_str)
     return int(time.mktime(time_struct) - time.mktime(time.localtime())) // 60
