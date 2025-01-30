@@ -1,4 +1,3 @@
-import json
 import os
 import random
 import time
@@ -13,15 +12,13 @@ from .config import Config
 from .facebook import FacebookMarketplace
 from .items import SearchedItem
 from .users import User
-from .utils import amm_home, calculate_file_hash, memory, sleep_with_watchdog
+from .utils import cache, calculate_file_hash, sleep_with_watchdog
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
 
 
 class MarketplaceMonitor:
-    search_history_cache = os.path.join(amm_home, "searched_items.json")
-
     active_marketplaces: ClassVar = {}
 
     def __init__(
@@ -46,12 +43,8 @@ class MarketplaceMonitor:
         self.headless = headless
         self.ai_agents: List[AIBackend] = []
         self.logger = logger
-        self.notified_items: List[SearchedItem] = self.load_notified_items()
         if clear_cache:
-            if os.path.exists(self.search_history_cache):
-                os.remove(self.search_history_cache)
-            #
-            memory.clear()
+            cache.clear()
 
     def load_config_file(self: "MarketplaceMonitor") -> Dict[str, Any]:
         """Load the configuration file."""
@@ -131,8 +124,17 @@ class MarketplaceMonitor:
                                 f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]"
                             )
                             new_items = []
+                            # users to notify is determined from item, then marketplace, then all users
+                            users_to_notify = item_config.get(
+                                "notify",
+                                marketplace_config.get("notify", list(self.config["user"].keys())),
+                            )
                             for item in marketplace.search(item_config):
-                                if self.already_notified(item):
+                                # if everyone has been notified
+                                if ("notify_user", item["id"]) in cache and all(
+                                    user in cache.get(("notify_user", item["id"]), ())
+                                    for user in users_to_notify
+                                ):
                                     self.logger.info(
                                         f"Already sent notification for item [magenta]{item['title']}[/magenta], skipping."
                                     )
@@ -148,11 +150,7 @@ class MarketplaceMonitor:
                                 f"""[magenta]{len(new_items)}[/magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
                             )
                             if new_items:
-                                self.notify_users(
-                                    marketplace_config.get("notify", [])
-                                    + item_config.get("notify", []),
-                                    new_items,
-                                )
+                                self.notify_users(users_to_notify, new_items)
                             time.sleep(5)
 
                     # if configuration file has been changed, do not sleep
@@ -179,7 +177,7 @@ class MarketplaceMonitor:
         """Stop the monitor."""
         for marketplace in self.active_marketplaces.values():
             marketplace.stop()
-        self.save_notified_items()
+        cache.close()
 
     def check_items(
         self: "MarketplaceMonitor", items: List[str] | None = None, for_item: str | None = None
@@ -261,22 +259,8 @@ class MarketplaceMonitor:
                         )
                         marketplace.filter_item(listing, item_config)
                         self.confirmed_by_ai(listing, item_name=item_name, item_config=item_config)
-                        if self.already_notified(listing):
+                        if ("notify_user", listing["id"]) in cache:
                             self.logger.info(f"Already sent notification for item {item_name}.")
-
-    def load_notified_items(self: "MarketplaceMonitor") -> List[SearchedItem]:
-
-        if os.path.isfile(self.search_history_cache):
-            with open(self.search_history_cache, "r") as f:
-                return json.load(f)
-        return []
-
-    def save_notified_items(self: "MarketplaceMonitor") -> None:
-        with open(self.search_history_cache, "w") as f:
-            json.dump(self.notified_items, f)
-
-    def already_notified(self: "MarketplaceMonitor", item: SearchedItem) -> bool:
-        return any(x["id"] == item["id"] for x in self.notified_items)
 
     def confirmed_by_ai(
         self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: Dict[str, Any]
@@ -293,30 +277,42 @@ class MarketplaceMonitor:
     def notify_users(
         self: "MarketplaceMonitor", users: List[str], items: List[SearchedItem]
     ) -> None:
-        users = list(set(users))
-        if not users:
-            self.logger.warning("Will notify all users since no user is listed for notify.")
-            assert self.config is not None
-            users = list(self.config["user"].keys())
-
+        # we cache notified user in the format of
+        #
+        # ("notify_user", item_id) = (user1, user2, user3)
+        #
         # get notification msg for this item
-        msgs = []
-        for item in items:
-            self.logger.info(
-                f"""New item found: {item["title"]} with URL https://www.facebook.com{item["post_url"]}"""
-            )
-            msgs.append(
-                f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
-            )
-            # add to notified items
-            self.notified_items.append(item)
-        # found the user from the user configuration
         for user in users:
-            title = f"Found {len(items)} new item from {item['marketplace']}: "
+            msgs = []
+            unnotified_items = []
+            for item in items:
+                if ("notify_user", item["id"]) not in cache or user not in cache.get(
+                    ("notify_user", item["id"]), ()
+                ):
+                    continue
+                self.logger.info(
+                    f"""New item found: {item["title"]} with URL https://www.facebook.com{item["post_url"]} for user {user}"""
+                )
+                msgs.append(
+                    f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
+                )
+                unnotified_items.append(item)
+
+            title = f"Found {len(msgs)} new item from {item['marketplace']}: "
             message = "\n\n".join(msgs)
             self.logger.info(
                 f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"
             )
             assert self.config is not None
             assert self.config["user"] is not None
-            User(user, self.config["user"][user], logger=self.logger).notify(title, message)
+            try:
+                User(user, self.config["user"][user], logger=self.logger).notify(title, message)
+                for item in unnotified_items:
+                    cache.set(
+                        ("notify_user", item["id"]),
+                        (user, *cache.get(("notify_user", item["id"]), ())),
+                        tag="notify_user",
+                    )
+            except Exception as e:
+                self.logger.error(f"Failed to notify {user}: {e}")
+                continue

@@ -10,7 +10,7 @@ from rich.pretty import pretty_repr
 
 from .items import SearchedItem
 from .marketplace import Marketplace
-from .utils import extract_price, is_substring, memory
+from .utils import cache, extract_price, is_substring
 
 
 class FacebookMarketplace(Marketplace):
@@ -45,10 +45,6 @@ class FacebookMarketplace(Marketplace):
     ) -> None:
         assert name == self.name
         super().__init__(name, browser, logger)
-        # cache the output of website, but ignore the change of "self" and browser
-        # see https://joblib.readthedocs.io/en/latest/memory.html#gotchas for details
-        self.get_item_details = memory.cache(self._get_item_details, ignore=["self"])
-        #
         self.page: Page | None = None
 
     @classmethod
@@ -285,14 +281,19 @@ class FacebookMarketplace(Marketplace):
                     if self.filter_item(item, item_config):
                         yield item
 
-    # get_item_details is wrapped around this function to cache results for urls
-    def _get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
+    def get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
+        details = cache.get(("get_item_details", post_url))
+        if details is not None:
+            return details
+
         if not self.page:
             self.login()
 
         assert self.page is not None
         self.goto_url(f"https://www.facebook.com{post_url}")
-        return FacebookItemPage(self.page.content(), self.logger).parse(post_url)
+        details = FacebookItemPage(self.page.content(), self.logger).parse(post_url)
+        cache.set(("get_item_details", post_url), details, tag="item_details")
+        return details
 
     def filter_item(
         self: "FacebookMarketplace", item: SearchedItem, item_config: Dict[str, Any]

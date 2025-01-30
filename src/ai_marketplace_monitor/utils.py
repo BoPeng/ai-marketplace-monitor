@@ -4,7 +4,7 @@ import re
 import time
 from typing import Any, Dict, List
 
-from joblib import Memory  # type: ignore
+from diskcache import Cache  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -12,7 +12,7 @@ from watchdog.observers import Observer
 amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
 os.makedirs(amm_home, exist_ok=True)
 
-memory = Memory(location=amm_home, verbose=0)
+cache = Cache(amm_home)
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:
