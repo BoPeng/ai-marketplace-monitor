@@ -4,7 +4,7 @@ from typing import Any, ClassVar, Dict, Type
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
-from .items import SearchedItem
+from .item import SearchedItem
 
 
 class AIBackend:

@@ -4,7 +4,7 @@ from typing import Any, ClassVar, Dict, Generator, Type
 
 from playwright.sync_api import Browser, Page
 
-from .items import SearchedItem
+from .item import SearchedItem
 
 
 class Marketplace:

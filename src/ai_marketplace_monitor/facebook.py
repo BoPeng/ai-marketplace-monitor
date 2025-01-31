@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup, element  # type: ignore
 from playwright.sync_api import Browser, Page  # type: ignore
 from rich.pretty import pretty_repr
 
-from .items import SearchedItem
+from .item import SearchedItem
 from .marketplace import Marketplace
 from .utils import cache, convert_to_minutes, extract_price, is_substring
 

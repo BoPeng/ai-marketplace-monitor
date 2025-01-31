@@ -10,9 +10,9 @@ from rich.pretty import pretty_repr
 from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
 from .config import Config
 from .facebook import FacebookMarketplace
-from .items import SearchedItem
+from .item import SearchedItem
 from .marketplace import Marketplace
-from .users import User
+from .user import User
 from .utils import cache, calculate_file_hash, sleep_with_watchdog
 
 supported_marketplaces = {"facebook": FacebookMarketplace}

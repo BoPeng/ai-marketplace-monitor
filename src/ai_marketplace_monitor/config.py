@@ -105,7 +105,7 @@ class Config:
 
             # description, if provided, should be a single string
             if "description" in item_config:
-                if not isinstance(item_config.description, str):
+                if not isinstance(item_config["description"], str):
                     raise ValueError(
                         f"Item [magenta]{item_name}[/magenta] description must be a string."
                     )
@@ -155,7 +155,7 @@ class Config:
 
     def validate_users(self: "Config") -> None:
         # check for required fields in each user
-        from .users import User
+        from .user import User
 
         for user_name, user_config in self.config["user"].items():
             User.validate(user_name, user_config)
