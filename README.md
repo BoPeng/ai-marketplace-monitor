@@ -211,7 +211,7 @@ an example with many of the options.
 - One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
 
   - `search_city`: (required), one or more cities with naned used by facebook
-  - `name`: (optional) a display name for the region.
+  - `full_name`: (optional) a display name for the region.
   - `radius`: (optional), recommend 805 for regions using miles, and 500 using kms, default to `805`
   - `city_name`: (optional), corresponding city names for bookkeeping purpose only.
 

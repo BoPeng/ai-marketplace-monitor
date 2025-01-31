@@ -60,7 +60,7 @@ class MarketplaceMonitor:
             try:
                 # if the config file is ok, break
                 assert self.logger is not None
-                self.config = Config(self.config_files, self.logger).config
+                self.config = Config(self.config_files, self.logger)
                 self.config_hash = new_file_hash
                 # self.logger.debug(self.config)
                 assert self.config is not None
@@ -77,7 +77,7 @@ class MarketplaceMonitor:
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
         """Load the AI agent."""
         assert self.config is not None
-        for ai_name, ai_config in self.config.get("ai", {}).items():
+        for ai_name, ai_config in (self.config.ai or {}).items():
             ai_class = supported_ai_backends[ai_name]
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
@@ -102,9 +102,8 @@ class MarketplaceMonitor:
         new_items = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
-        users_to_notify = item_config.get(
-            "notify",
-            marketplace_config.get("notify", list(self.config["user"].keys())),
+        users_to_notify = (
+            item_config.notify or marketplace_config.notify or list(self.config["user"].keys())
         )
         for item in marketplace.search(item_config):
             # if everyone has been notified
@@ -141,7 +140,7 @@ class MarketplaceMonitor:
         self.load_ai_agents()
 
         assert self.config is not None
-        for marketplace_name, marketplace_config in self.config["marketplace"].items():
+        for marketplace_name, marketplace_config in self.config.marketplace.items():
             marketplace_class = supported_marketplaces[marketplace_name]
             if marketplace_name in self.active_marketplaces:
                 marketplace = self.active_marketplaces[marketplace_name]
@@ -152,27 +151,21 @@ class MarketplaceMonitor:
             # Configure might have been changed
             marketplace.configure(marketplace_config)
 
-            for item_name, item_config in self.config["item"].items():
-                if (
-                    "marketplace" not in item_config
-                    or item_config["marketplace"] == marketplace_name
-                ):
-                    if not item_config.get("enabled", True):
+            for item_name, item_config in self.config.item.items():
+                if item_config.marketplace is None or item_config.marketplace == marketplace_name:
+                    if not (item_config.enabled or True):
                         continue
                     # wait for some time before next search
                     # interval (in minutes) can be defined both for the marketplace
                     # if there is any configuration file change, stop sleeping and search again
                     search_interval = max(
-                        item_config.get(
-                            "search_interval", marketplace_config.get("search_interval", 30)
-                        ),
+                        item_config.search_interval or marketplace_config.search_interval or 30,
                         1,
                     )
                     max_search_interval = max(
-                        item_config.get(
-                            "max_search_interval",
-                            marketplace_config.get("max_search_interval", 1),
-                        ),
+                        item_config.max_search_interval
+                        or marketplace_config.max_search_interval
+                        or 1,
                         search_interval,
                     )
                     self.logger.info(

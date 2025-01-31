@@ -48,8 +48,8 @@ class AIBackend:
         if "description" in item_config:
             prompt += f""" He also added description "{item_config["description"]}" to describe the item he is interested in."""
         #
-        max_price = item_config.get("max_price", 0)
-        min_price = item_config.get("min_price", 0)
+        max_price = item_config.max_price or 0
+        min_price = item_config.min_price or 0
         if max_price and min_price:
             prompt += f""" He also set a price range from {min_price} to {max_price}."""
         elif max_price:

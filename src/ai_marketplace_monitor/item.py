@@ -1,4 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
+
+from .utils import DataClassWithHandleFunc
 
 
 @dataclass
@@ -13,3 +16,12 @@ class SearchedItem:
     location: str
     seller: str
     description: str
+
+
+@dataclass
+class ItemConfig(DataClassWithHandleFunc):
+    """Generic item config"""
+
+    notify: List[str] = field(default_factory=list)
+    search_interval: int = 30
+    max_search_interval: int = 60

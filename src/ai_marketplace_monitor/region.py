@@ -7,7 +7,7 @@ from .utils import DataClassWithHandleFunc
 @dataclass
 class RegionConfig(DataClassWithHandleFunc):
     search_city: List[str]
-    name: str = ""
+    full_name: str = ""
     radius: List[int] = field(default_factory=list)
     city_name: List[str] = field(default_factory=list)
 
@@ -27,7 +27,7 @@ class RegionConfig(DataClassWithHandleFunc):
             self.radius = [500] * len(self.search_city)
         elif len(self.radius) != len(self.search_city):
             raise ValueError(
-                f"Region {self.name} radius must be an integer or a list of integers with the same length as search_city."
+                f"Region {self.name} radius {self.radius} must be an integer or a list of integers with the same length as search_city {self.search_city}."
             )
         else:
             for radius in self.radius:
