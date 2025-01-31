@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import Any, Dict, Generator, List, Type, Union, cast
+from typing import Any, Generator, List, Type, Union, cast
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup, element  # type: ignore
@@ -192,16 +192,12 @@ class FacebookMarketplace(Marketplace):
         self.page: Page | None = None
 
     @classmethod
-    def get_config(
-        cls: Type["FacebookMarketplace"], **kwargs: Dict[str, Any]
-    ) -> FacebookMarketplaceConfig:
-        return FacebookMarketplaceConfig.from_dict(kwargs)
+    def get_config(cls: Type["FacebookMarketplace"], **kwargs: Any) -> FacebookMarketplaceConfig:
+        return FacebookMarketplaceConfig(**kwargs)
 
     @classmethod
-    def get_item_config(
-        cls: Type["FacebookMarketplace"], **kwargs: Dict[str, Any]
-    ) -> FacebookItemConfig:
-        return FacebookItemConfig.from_dict(kwargs)
+    def get_item_config(cls: Type["FacebookMarketplace"], **kwargs: Any) -> FacebookItemConfig:
+        return FacebookItemConfig(**kwargs)
 
     def login(self: "FacebookMarketplace") -> None:
         assert self.browser is not None

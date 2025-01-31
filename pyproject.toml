@@ -100,7 +100,8 @@ extend-exclude = ["docs/*"]
 
 [tool.ruff.lint]
 ignore = [
-  "ANN202",
+  "ANN202", # **kwargs: Any
+  "ANN401",
   "E722",
   "G004",
   "S311",

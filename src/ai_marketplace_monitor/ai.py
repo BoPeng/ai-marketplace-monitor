@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import Logger
-from typing import Any, ClassVar, Dict, Type
+from typing import Any, ClassVar, Type
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
@@ -34,9 +34,8 @@ class AIBackend:
         self.client: OpenAI | None = None
 
     @classmethod
-    def get_config(cls: Type["AIBackend"], **kwargs: Dict[str, Any]) -> AIConfig:
-        config = AIConfig.from_dict(kwargs)
-        return config
+    def get_config(cls: Type["AIBackend"], **kwargs: Any) -> AIConfig:
+        return AIConfig(**kwargs)
 
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")

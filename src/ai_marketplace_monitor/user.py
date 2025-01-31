@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 from logging import Logger
-from typing import Any, ClassVar, Dict, Type
+from typing import Any, ClassVar, Type
 
 from pushbullet import Pushbullet  # type: ignore
 
@@ -29,8 +29,8 @@ class User:
         self.logger = logger
 
     @classmethod
-    def get_config(cls: Type["User"], **kwargs: Dict[str, Any]) -> UserConfig:
-        return UserConfig.from_dict(kwargs)
+    def get_config(cls: Type["User"], **kwargs: Any) -> UserConfig:
+        return UserConfig(**kwargs)
 
     def notify(
         self: "User", title: str, message: str, max_retries: int = 6, delay: int = 10

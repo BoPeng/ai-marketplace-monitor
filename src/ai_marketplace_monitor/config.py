@@ -92,9 +92,7 @@ class Config(Generic[TItemConfig, TMarketplaceConfig]):
         # check for required fields in each user
         self.region: Dict[str, RegionConfig] = {}
         for region_name, region_config in config.get("region", {}).items():
-            self.region[region_name] = RegionConfig.from_dict(
-                {"name": region_name, **region_config}
-            )
+            self.region[region_name] = RegionConfig(name=region_name, **region_config)
 
     def get_item_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user

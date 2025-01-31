@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from logging import Logger
-from typing import Any, Dict, Generator, Generic, List, Type, TypeVar
+from typing import Any, Generator, Generic, List, Type, TypeVar
 
 from playwright.sync_api import Browser, Page
 
@@ -195,11 +195,11 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         self.page: Page | None = None
 
     @classmethod
-    def get_config(cls: Type["Marketplace"], **kwargs: Dict[str, Any]) -> TMarketplaceConfig:
+    def get_config(cls: Type["Marketplace"], **kwargs: Any) -> TMarketplaceConfig:
         raise NotImplementedError("get_config method must be implemented by subclasses.")
 
     @classmethod
-    def get_item_config(cls: Type["Marketplace"], **kwargs: Dict[str, Any]) -> TItemConfig:
+    def get_item_config(cls: Type["Marketplace"], **kwargs: Any) -> TItemConfig:
         raise NotImplementedError("get_config method must be implemented by subclasses.")
 
     def configure(self: "Marketplace", config: MarketplaceConfig) -> None:
