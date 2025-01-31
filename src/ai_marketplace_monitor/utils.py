@@ -152,5 +152,5 @@ def time_until_next_run() -> int:
 
 def hilight(text: str, style: str = "title") -> str:
     """Highlight the keywords in the text with the specified color."""
-    color = {"name": "blue", "fail": "red", "succ": "green"}.get(style, "blue")
+    color = {"name": "bright_cyan", "fail": "red", "succ": "green"}.get(style, "blue")
     return f"[{color}]{text}[/{color}]"

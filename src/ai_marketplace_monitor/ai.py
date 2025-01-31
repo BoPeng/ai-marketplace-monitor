@@ -124,10 +124,9 @@ class OpenAIBackend(AIBackend):
 
         answer = response.choices[0].message.content
         res = True if answer is None else (not answer.lower().strip().startswith("no"))
+
         self.logger.info(
-            f"""{self.config.name} concludes that listing {hilight(listing.title, "name")} {hilight("matches", "succ")} your search criteria."""
-            if res
-            else f"""{self.config.name} concludes that listing {hilight(listing.title, "name")} {hilight("does not match", "fail")} your search criteria."""
+            f"""{self.config.name} concludes that listing {hilight(listing.title, "name")} {hilight("matches", "succ") if res else hilight("does not match", "fail")} your search criteria."""
         )
         return res
 

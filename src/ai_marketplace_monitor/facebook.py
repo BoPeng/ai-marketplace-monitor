@@ -321,7 +321,7 @@ class FacebookMarketplace(Marketplace):
         exclude_keywords = item_config.exclude_keywords
         if exclude_keywords and is_substring(exclude_keywords, item.title):
             self.logger.info(
-                f"{hilight("Excluding", "fail")} {hilight(item.title, "name")} due to exclude_keywords: {', '.join(exclude_keywords)}"
+                f"""Exclude {hilight(item.title, "name")} due to {hilight("excluded keywords", "fail")}: {', '.join(exclude_keywords)}"""
             )
             return False
 
@@ -329,7 +329,7 @@ class FacebookMarketplace(Marketplace):
         search_words = [word for keywords in item_config.keywords for word in keywords.split()]
         if not is_substring(search_words, item.title):
             self.logger.info(
-                f"{hilight("Excluding", "fail")} {hilight(item.title, "name")} without search word in title."
+                f"""Exclude {hilight(item.title, "name")} {hilight("without search word", "fail")} in title."""
             )
             return False
 
@@ -339,7 +339,7 @@ class FacebookMarketplace(Marketplace):
         )
         if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
-                f"{hilight("Excluding", "fail")} out of area item {hilight(item.title, "fail")} from location {hilight(item.location, "fail")}"
+                f"""Exclude {hilight("out of area", "fail")} item {hilight(item.title, "name")} from location {hilight(item.location, "name")}"""
             )
             return False
 
@@ -352,7 +352,7 @@ class FacebookMarketplace(Marketplace):
             and is_substring(exclude_by_description, item.description)
         ):
             self.logger.info(
-                f"""{hilight("Excluding", "fail")} {hilight(item.title, "name")} by exclude_by_description: {hilight(", ".join(exclude_by_description), "fail")}:\n{hilight(item.description[:100], "name")}..."""
+                f"""Exclude {hilight(item.title, "name")} by {hilight("description", "fail")}.\n{hilight(item.description[:100], "name")}..."""
             )
             return False
 
@@ -360,7 +360,7 @@ class FacebookMarketplace(Marketplace):
         exclude_sellers = item_config.exclude_sellers or self.config.exclude_sellers or []
         if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
-                f"{hilight("Excluding", "fail")} {hilight(item.title, "name")} sold by banned {hilight(item.seller, "fail")}"
+                f"Exclude {hilight(item.title, "name")} sold by {hilight("banned seller", "failed")} {hilight(item.seller, "name")}"
             )
             return False
 
