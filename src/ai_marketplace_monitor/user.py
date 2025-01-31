@@ -1,35 +1,41 @@
 import time
+from dataclasses import dataclass
 from logging import Logger
-from typing import Any, ClassVar, Dict, Type
+from typing import Any, ClassVar, Type
 
 from pushbullet import Pushbullet  # type: ignore
+
+from .utils import DataClassWithHandleFunc
+
+
+@dataclass
+class UserConfig(DataClassWithHandleFunc):
+    # this argument is required
+    pushbullet_token: str
+
+    def handle_pushbullet_token(self: "UserConfig") -> None:
+        if not isinstance(self.pushbullet_token, str) or not self.pushbullet_token:
+            raise ValueError("user requires an non-empty pushbullet_token.")
+        self.pushbullet_token = self.pushbullet_token.strip()
 
 
 class User:
     allowed_config_keys: ClassVar = {"pushbullet_token"}
 
-    def __init__(self: "User", name: str, config: Dict[str, Any], logger: Logger) -> None:
+    def __init__(self: "User", name: str, config: UserConfig, logger: Logger) -> None:
         self.name = name
         self.config = config
         self.push_bullet_token = None
         self.logger = logger
-        self.validate(name, config)
 
     @classmethod
-    def validate(cls: Type["User"], username: str, config: Dict[str, Any]) -> None:
-        if "pushbullet_token" not in config:
-            raise ValueError("User {username} must have a pushbullet_token")
-        if not isinstance(config["pushbullet_token"], str):
-            raise ValueError("User {username} pushbullet_token must be a string")
-
-        for key in config:
-            if key not in cls.allowed_config_keys:
-                raise ValueError(f"User {username} contains an invalid key {key}")
+    def get_config(cls: Type["User"], **kwargs: Any) -> UserConfig:
+        return UserConfig(**kwargs)
 
     def notify(
         self: "User", title: str, message: str, max_retries: int = 6, delay: int = 10
     ) -> bool:
-        pb = Pushbullet(self.config["pushbullet_token"])
+        pb = Pushbullet(self.config.pushbullet_token)
 
         for attempt in range(max_retries):
             try:

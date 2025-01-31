@@ -1,6 +1,7 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
-from typing import Callable, List
+from dataclasses import asdict
+from typing import Callable, List, Tuple, Type, Union
 
 import pytest
 from pytest import TempPathFactory
@@ -147,41 +148,44 @@ model = 'gpt'
 def test_config(config_file: Callable, config_content: str, acceptable: bool) -> None:
     """Test the config command."""
     cfg = config_file(config_content)
-    key_types = {
-        "acceptable_locations": list,
+    key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
+        "acceptable_locations": (list, type(None)),
+        "availability": (str, type(None)),
         "api_key": str,
-        "condition": list,
-        "date_listed": int,
-        "delivery_method": str,
-        "description": str,
-        "enabled": bool,
-        "exclude_by_description": list,
-        "exclude_keywords": list,
-        "exclude_sellers": list,
-        "keywords": list,
-        "login_wait_time": int,
-        "marketplace": str,
-        "max_price": int,
-        "max_search_interval": int,
-        "min_price": int,
-        "model": str,
-        "notify": list,
-        "password": str,
+        "condition": (list, type(None)),
+        "date_listed": (int, type(None)),
+        "delivery_method": (str, type(None)),
+        "description": (str, type(None)),
+        "enabled": (bool, type(None)),
+        "exclude_by_description": (list, type(None)),
+        "exclude_keywords": (list, type(None)),
+        "exclude_sellers": (list, type(None)),
+        "keywords": (list, type(None)),
+        "login_wait_time": (int, type(None)),
+        "marketplace": (str, type(None)),
+        "max_price": (int, type(None)),
+        "max_search_interval": (int, type(None)),
+        "min_price": (int, type(None)),
+        "model": (str, type(None)),
+        "name": (str, type(None)),
+        "notify": (list, type(None)),
+        "password": (str, type(None)),
         "pushbullet_token": str,
-        "radius": list,
-        "search_city": list,
-        "search_interval": int,
-        "search_region": list,
-        "username": str,
+        "radius": (list, type(None)),
+        "search_city": (list, type(None)),
+        "search_interval": (int, type(None)),
+        "search_region": (list, type(None)),
+        "username": (str, type(None)),
     }
     if acceptable:
         # print(config_content)
-        config = Config([cfg]).config
+        config = Config([cfg])
         # assert the types
-        for key, value in config["marketplace"]["facebook"].items():
+        for key, value in asdict(config.marketplace["facebook"]).items():
             assert isinstance(value, key_types[key]), f"{key} must be of type {key_types[key]}"
-        for item_cfg in config["item"].values():
-            for key, value in item_cfg.items():
+
+        for item_cfg in config.item.values():
+            for key, value in asdict(item_cfg).items():
                 assert isinstance(value, key_types[key]), f"{key} must be of type {key_types[key]}"
     else:
         with pytest.raises(Exception):

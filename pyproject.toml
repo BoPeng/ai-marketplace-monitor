@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ai-marketplace-monitor"
-version = "0.4.5"
+version = "0.5.0"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = ["Bo Peng <ben.bob@gmail.com>"]
 readme = "README.md"
@@ -37,6 +37,7 @@ diskcache = "^5.6.3"
 watchdog = "^6.0.0"
 openai = "^1.60.1"
 parsedatetime = "^2.6"
+humanize = "^4.11.0"
 schedule = "^1.2.2"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
 
@@ -100,7 +101,8 @@ extend-exclude = ["docs/*"]
 
 [tool.ruff.lint]
 ignore = [
-  "ANN202",
+  "ANN202", # **kwargs: Any
+  "ANN401",
   "E722",
   "G004",
   "S311",

@@ -1,5 +1,16 @@
+#
+# Region definitions.
+# - full_name and city_name are for readability/booktracking purpose only
+# - different radius can be used for different search_city. In this case
+#   radius should an array with the same length as search_city
+#
+# Usage：
+# - ·search_city` will be ignored if `search_region` is specified.
+# - under the hood search_city is replaced by `search_city` of the regions
+#
+
 [region.usa]
-name = "USA (without AK or HI)"
+full_name = "USA (without AK or HI)"
 radius = 500
 city_name = [
     "Portland, OR",
@@ -24,7 +35,7 @@ search_city = [
 
 
 [region.usa_full]
-name = "USA"
+full_name = "USA"
 radius = 500
 city_name = [
     "Portland, OR",
@@ -59,7 +70,7 @@ search_city = [
 
 
 [region.can]
-name = "Canada"
+full_name = "Canada"
 radius = 805
 city_name = [
     "Saint Quentin, NB",
@@ -86,7 +97,7 @@ search_city = [
 
 
 [region.mex]
-name = "Mexico"
+full_name = "Mexico"
 radius = 805
 city_name = [
     "Irapuato,Guanajuato ",
@@ -109,7 +120,7 @@ search_city = [
 
 
 [region.bra]
-name = "Brazil"
+full_name = "Brazil"
 radius = 805
 city_name = [
     "Betim, Minas Gerais",
@@ -154,7 +165,7 @@ search_city = [
 
 
 [region.arg]
-name = "Argentina"
+full_name = "Argentina"
 radius = 805
 city_name = [
     "Pehuajó, Buenos Aires",
@@ -177,7 +188,7 @@ search_city = [
 
 
 [region.aus]
-name = "Australia"
+full_name = "Australia"
 radius = 805
 city_name = [
     "Tamworth, NSW",
@@ -212,7 +223,7 @@ search_city = [
 
 
 [region.aus_miles]
-name = "Australia"
+full_name = "Australia"
 radius = 500
 city_name = [
     "Warburton, Western Australia",
@@ -236,14 +247,14 @@ search_city = [
 ]
 
 [region.nzl]
-name = "New Zealand"
+full_name = "New Zealand"
 radius = 805
 city_name = ["Hamilton", "Lake Tekapo"]
 search_city = ["104080336295923", "106528236047934"]
 
 
 [region.ind]
-name = "India"
+full_name = "India"
 radius = 805
 city_name = [
     "Sanquelim, Goa",
@@ -266,21 +277,21 @@ search_city = [
 
 
 [region.gbr]
-name = "United Kingdom"
+full_name = "United Kingdom"
 radius = 805
 city_name = ["Manchester", "Kirkwall"]
 search_city = ["114629675219759", "107972512564724"]
 
 
 [region.fra]
-name = "France"
+full_name = "France"
 radius = 805
 city_name = ["Chartres", "Montpellier"]
 search_city = ["115700691777803", "115100621840245"]
 
 
 [region.spa]
-name = "Spain"
+full_name = "Spain"
 radius = 805
 city_name = ["Plasencia", "Valencia"]
 search_city = ["108336475863182", "2404588816444858"]

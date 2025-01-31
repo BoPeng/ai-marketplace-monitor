@@ -15,9 +15,9 @@ password = 'password'
 # OPTIONAL, time for you to login
 login_wait_time = 60
 # OPTIONAL, default to 30 minutes, time between repeated searches
-search_interval = 30
+search_interval = '30m'
 # OPTIONAL, if specified, a random time will be chosen between search_interval and max_search_interval
-max_search_interval = 60
+max_search_interval = '1h'
 #
 # OPTIONAL string or list of strings, can be specified for each search item
 acceptable_locations = ['city', 'surrounding city']

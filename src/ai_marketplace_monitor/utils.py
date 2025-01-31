@@ -2,9 +2,12 @@ import hashlib
 import os
 import re
 import time
-from typing import Any, Dict, List
+from dataclasses import dataclass, fields
+from enum import Enum
+from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
+import schedule
 from diskcache import Cache  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -14,6 +17,25 @@ amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
 os.makedirs(amm_home, exist_ok=True)
 
 cache = Cache(amm_home)
+
+TConfigType = TypeVar("TConfigType", bound="DataClassWithHandleFunc")
+
+
+@dataclass
+class DataClassWithHandleFunc:
+    name: str
+
+    def __post_init__(self: "DataClassWithHandleFunc") -> None:
+        """Handle all methods that start with 'handle_' in the dataclass."""
+        for f in fields(self):
+            handle_method = getattr(self, f"handle_{f.name}", None)
+            if handle_method:
+                handle_method()
+
+
+class CacheType(Enum):
+    ITEM_DETAILS = "get_item_details"
+    USER_NOTIFIED = "notify_user"
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:
@@ -116,7 +138,13 @@ def extract_price(price: str) -> str:
     return price
 
 
-def convert_to_minutes(time_str: str) -> int:
+def convert_to_seconds(time_str: str) -> int:
     cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
     time_struct, _ = cal.parse(time_str)
-    return int(time.mktime(time_struct) - time.mktime(time.localtime())) // 60
+    return int(time.mktime(time_struct) - time.mktime(time.localtime()))
+
+
+def time_until_next_run() -> int:
+    next_run = min(job.next_run for job in schedule.jobs if job.next_run is not None)
+    now = time.time()
+    return max(int(next_run.timestamp() - now), 0)

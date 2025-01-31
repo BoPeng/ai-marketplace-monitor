@@ -1,17 +1,33 @@
 import os
 import sys
+from dataclasses import dataclass, field
+from itertools import chain
 from logging import Logger
-from typing import List
+from typing import Any, Dict, Generic, List
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
 
+from .ai import DeepSeekBackend, OpenAIBackend, TAIConfig
+from .facebook import FacebookMarketplace
+from .marketplace import TItemConfig, TMarketplaceConfig
+from .region import RegionConfig
+from .user import User, UserConfig
 from .utils import merge_dicts
 
+supported_marketplaces = {"facebook": FacebookMarketplace}
+supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
 
-class Config:
+
+@dataclass
+class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
+    ai: Dict[str, TAIConfig] = field(init=False)
+    user: Dict[str, UserConfig] = field(init=False)
+    marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
+    item: Dict[str, TItemConfig] = field(init=False)
+    region: Dict[str, RegionConfig] = field(init=False)
 
     def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
         configs = []
@@ -27,231 +43,123 @@ class Config:
                 raise ValueError(f"Error parsing config file {config_file}: {e}") from e
         #
         # merge the list of configs into a single dictionary, including dictionaries in the values
-        self.config = merge_dicts(configs)
-        self.validate()
+        config = merge_dicts(configs)
 
-    def validate(self: "Config") -> None:
-        self.validate_sections()
-        self.validate_marketplaces()
-        self.validate_search_items()
+        self.validate_sections(config)
+        self.get_ai_config(config)
+        self.get_marketplace_config(config)
+        self.get_user_config(config)
+        self.get_region_config(config)
+        self.get_item_config(config)
         self.validate_users()
         self.expand_regions()
 
-    def validate_sections(self: "Config") -> None:
-        # check for required sections
-        for required_section in ["marketplace", "user", "item"]:
-            if required_section not in self.config:
-                raise ValueError(f"Config file does not contain a {required_section} section.")
+    def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
+        # convert ai config to AIConfig objects
+        if not isinstance(config.get("ai", {}), dict):
+            raise ValueError("ai section must be a dictionary.")
 
-        if "ai" in self.config:
-            # this section only accept a key called api-key
-            if not isinstance(self.config["ai"], dict):
-                raise ValueError("ai section must be a dictionary.")
+        self.ai = {}
+        for key, value in config.get("ai", {}).items():
+            if key not in supported_ai_backends:
+                raise ValueError(
+                    f"Config file contains an unsupported AI backend {key} in the ai section."
+                )
+            backend_class = supported_ai_backends[key]
+            self.ai[key] = backend_class.get_config(name=key, **value)
 
-            from .monitor import supported_ai_backends
-
-            for key in self.config["ai"]:
-                if key not in supported_ai_backends:
-                    raise ValueError(
-                        f"Config file contains an unsupported AI backend {key} in the ai section."
-                    )
-                else:
-                    backend_class = supported_ai_backends[key]
-                    backend_class.validate(self.config["ai"][key])
-        else:
-            self.config["ai"] = {}
-
-        # check allowed keys in config
-        for key in self.config:
-            if key not in ("marketplace", "user", "item", "ai", "region"):
-                raise ValueError(f"Config file contains an invalid section {key}.")
-
-    def validate_marketplaces(self: "Config") -> None:
+    def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each marketplace
-        from .monitor import supported_marketplaces
-
-        for marketplace_name, marketplace_config in self.config["marketplace"].items():
+        self.marketplace = {}
+        for marketplace_name, marketplace_config in config["marketplace"].items():
             if marketplace_name not in supported_marketplaces:
                 raise ValueError(
                     f"Marketplace [magenta]{marketplace_name}[/magenta] is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
                 )
             marketplace_class = supported_marketplaces[marketplace_name]
-            marketplace_class.validate(marketplace_config)
+            self.marketplace[marketplace_name] = marketplace_class.get_config(
+                name=marketplace_name, **marketplace_config
+            )
 
-    def validate_search_items(self: "Config") -> None:
-        # check for keywords in each "item" to be searched
-        for item_name, item_config in self.config["item"].items():
+    def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
+        # check for required fields in each user
+        self.user: Dict[str, UserConfig] = {}
+        for user_name, user_config in config["user"].items():
+            self.user[user_name] = User.get_config(name=user_name, **user_config)
+
+    def get_region_config(self: "Config", config: Dict[str, Any]) -> None:
+        # check for required fields in each user
+        self.region: Dict[str, RegionConfig] = {}
+        for region_name, region_config in config.get("region", {}).items():
+            self.region[region_name] = RegionConfig(name=region_name, **region_config)
+
+    def get_item_config(self: "Config", config: Dict[str, Any]) -> None:
+        # check for required fields in each user
+
+        self.item = {}
+        for item_name, item_config in config["item"].items():
             # if marketplace is specified, it must exist
             if "marketplace" in item_config:
-                if item_config["marketplace"] not in self.config["marketplace"]:
+                if item_config["marketplace"] not in config["marketplace"]:
                     raise ValueError(
                         f"Item [magenta]{item_name}[/magenta] specifies a marketplace that does not exist."
                     )
 
-            if "keywords" not in item_config:
-                raise ValueError(
-                    f"Item [magenta]{item_name}[/magenta] does not contain a keywords to search."
-                )
-            #
-            if isinstance(item_config["keywords"], str):
-                item_config["keywords"] = [item_config["keywords"]]
-            #
-            if not isinstance(item_config["keywords"], list) or not all(
-                isinstance(x, str) for x in item_config["keywords"]
-            ):
-                raise ValueError(f"Item [magenta]{item_name}[/magenta] keywords must be a list.")
-            if len(item_config["keywords"]) == 0:
-                raise ValueError(f"Item [magenta]{item_name}[/magenta] keywords list is empty.")
-
-            # description, if provided, should be a single string
-            if "description" in item_config:
-                if not isinstance(item_config["description"], str):
-                    raise ValueError(
-                        f"Item [magenta]{item_name}[/magenta] description must be a string."
-                    )
-
-            # exclude_by_description should be a list of strings
-            if "exclude_by_description" in item_config:
-                if isinstance(item_config["exclude_by_description"], str):
-                    item_config["exclude_by_description"] = [item_config["exclude_by_description"]]
-                if not isinstance(item_config["exclude_by_description"], list) or not all(
-                    isinstance(x, str) for x in item_config["exclude_by_description"]
-                ):
-                    raise ValueError(
-                        f"Item [magenta]{item_name}[/magenta] exclude_by_description must be a list."
-                    )
-            # if enable is set, if must be true or false (boolean)
-            if "enabled" in item_config:
-                if not isinstance(item_config["enabled"], bool):
-                    raise ValueError(
-                        f"Item [magenta]{item_name}[/magenta] enabled must be a boolean."
-                    )
-
-            item_specific_config_key = {
-                "description",
-                "enabled",
-                "exclude_by_description",
-                "exclude_keywords",
-                "keywords",
-                "marketplace",
-            }
-            from .monitor import supported_marketplaces
-
-            for marketplace_name in self.config["marketplace"]:
+            for marketplace_name in config["marketplace"]:
                 marketplace_class = supported_marketplaces[marketplace_name]
                 if (
                     "marketplace" not in item_config
                     or item_config["marketplace"] == marketplace_name
                 ):
-                    marketplace_class.validate_shared_options(item_config)
-                    #
-                    for key in item_config:
-                        if (
-                            key
-                            not in marketplace_class.marketplace_item_config_keys
-                            | item_specific_config_key
-                        ):
-                            raise ValueError(f"Item {item_name} has unknown config key: {key}")
-
-    def validate_users(self: "Config") -> None:
-        # check for required fields in each user
-        from .users import User
-
-        for user_name, user_config in self.config["user"].items():
-            User.validate(user_name, user_config)
-
-        # if user is specified in other section, they must exist
-        for marketplace_name, marketplace_config in self.config["marketplace"].items():
-            if "notify" in marketplace_config:
-                if isinstance(marketplace_config["notify"], str):
-                    marketplace_config["notify"] = [marketplace_config["notify"]]
-                for user in marketplace_config["notify"]:
-                    if user not in self.config["user"]:
-                        raise ValueError(
-                            f"User [magenta]{user}[/magenta] specified in [magenta]{marketplace_name}[/magenta] does not exist."
-                        )
-
-        # if user is specified for any search item, they must exist
-        for item_name, item_config in self.config["item"].items():
-            if "notify" in item_config:
-                if isinstance(item_config["notify"], str):
-                    item_config["notify"] = [item_config["notify"]]
-                for user in item_config["notify"]:
-                    if user not in self.config["user"]:
-                        raise ValueError(
-                            f"User [magenta]{user}[/magenta] specified in [magenta]{item_name}[/magenta] does not exist."
-                        )
-
-    def expand_regions(self: "Config") -> None:
-        # check for required fields in each user
-        for region_name, region_config in self.config.get("region", {}).items():
-            for key in region_config:
-                if key not in ("name", "radius", "city_name", "search_city"):
-                    raise ValueError(f"Region {region_name} has unknown config key: {key}")
-            # search_city should exist, and should be a string or list of string
-            if "search_city" not in region_config:
-                raise ValueError(f"Region {region_name} does not have search_city.")
-            if isinstance(region_config["search_city"], str):
-                region_config["search_city"] = [region_config["search_city"]]
-            # check if search_city is a list of strings
-            if not isinstance(region_config["search_city"], list) or not all(
-                isinstance(x, str) for x in region_config["search_city"]
-            ):
-                raise ValueError(f"Region {region_name} search_city must be a list of strings.")
-            # check if radius is an integer
-            if "radius" not in region_config:
-                region_config["radius"] = [500] * len(region_config["search_city"])
-            elif isinstance(region_config["radius"], int):
-                region_config["radius"] = [region_config["radius"]] * len(
-                    region_config["search_city"]
-                )
-            elif len(region_config["radius"]) != len(region_config["search_city"]):
-                raise ValueError(
-                    f"Region {region_name} radius must be an integer or a list of integers with the same length as search_city."
-                )
-            else:
-                for radius in region_config["radius"]:
-                    if not isinstance(radius, int):
-                        raise ValueError(
-                            f"Region {region_name} radius must be an integer or a list of integers with the same length as search_city."
-                        )
-
-        # if region is specified in other section, they must exist
-        for marketplace_name, marketplace_config in self.config["marketplace"].items():
-            if "search_region" in marketplace_config:
-                marketplace_config["search_city"] = []
-                marketplace_config["radius"] = []
-
-                for region in marketplace_config["search_region"]:
-                    region_config = self.config["region"][region]
-                    if "region" not in self.config or region not in self.config["region"]:
-                        raise ValueError(
-                            f"Region [magenta]{region}[/magenta] specified in [magenta]{marketplace_name}[/magenta] does not exist."
-                        )
-                    # if region is specified, expand it into search_city
-                    marketplace_config["search_city"].extend(region_config["search_city"])
-                    # set radius, if market_config already has radius, they should be the same
-
-                    marketplace_config["radius"].extend(region_config["radius"])
-                    # remove duplicates
-                    marketplace_config["search_city"].extend(
-                        list(set(marketplace_config["search_city"]))
+                    self.item[item_name] = marketplace_class.get_item_config(
+                        name=item_name, **item_config
                     )
 
-        # if region is specified in any of the items, do the same
-        for item_name, item_config in self.config["item"].items():
-            # expand region into item_config's search_city
-            if "search_region" in item_config:
-                item_config["search_city"] = []
-                item_config["radius"] = []
-                for region in item_config["search_region"]:
-                    region_config = self.config["region"][region]
-                    if "region" not in self.config or region not in self.config["region"]:
-                        raise ValueError(
-                            f"Region [magenta]{region}[/magenta] specified in [magenta]{item_name}[/magenta] does not exist."
-                        )
-                    # if region is specified, expand it into search_city
-                    item_config["search_city"].extend(region_config["search_city"])
-                    #
-                    item_config["radius"].extend(region_config["radius"])
-                    item_config["search_city"].extend(list(set(item_config["search_city"])))
+    def validate_sections(self: "Config", config: Dict[str, Any]) -> None:
+        # check for required sections
+        for required_section in ["marketplace", "user", "item"]:
+            if required_section not in config:
+                raise ValueError(f"Config file does not contain a {required_section} section.")
+
+        # check allowed keys in config
+        for key in config:
+            if key not in ("marketplace", "user", "item", "ai", "region"):
+                raise ValueError(f"Config file contains an invalid section {key}.")
+
+    def validate_users(self: "Config") -> None:
+        """Check if notified users exists"""
+        # if user is specified in other section, they must exist
+        for marketplace_config in self.marketplace.values():
+            for user in marketplace_config.notify or []:
+                if user not in self.user:
+                    raise ValueError(
+                        f"User [magenta]{user}[/magenta] specified in [magenta]{marketplace_config.name}[/magenta] does not exist."
+                    )
+
+        # if user is specified for any search item, they must exist
+        for item_config in self.item.values():
+            for user in item_config.notify or []:
+                if user not in self.user:
+                    raise ValueError(
+                        f"User [magenta]{user}[/magenta] specified in [magenta]{item_config.name}[/magenta] does not exist."
+                    )
+
+    def expand_regions(self: "Config") -> None:
+        # if region is specified in other section, they must exist
+        for config in chain(self.marketplace.values(), self.item.values()):
+            if config.search_region is None:
+                continue
+            config.search_city = []
+            config.radius = []
+
+            for region in config.search_region:
+                region_config: RegionConfig = self.region[region]
+                if region not in self.region:
+                    raise ValueError(
+                        f"Region [magenta]{region}[/magenta] specified in [magenta]{config.name}[/magenta] does not exist."
+                    )
+                # avoid duplicated addition of search_city
+                for search_city, radius in zip(region_config.search_city, region_config.radius):
+                    if search_city not in config.search_city:
+                        config.search_city.append(search_city)
+                        config.radius.append(radius)

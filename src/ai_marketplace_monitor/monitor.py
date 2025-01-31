@@ -1,22 +1,19 @@
 import os
 import time
 from logging import Logger
-from typing import Any, ClassVar, Dict, List
+from typing import ClassVar, List
 
-import schedule
+import humanize
+import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 
-from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
-from .config import Config
-from .facebook import FacebookMarketplace
-from .items import SearchedItem
-from .marketplace import Marketplace
-from .users import User
-from .utils import cache, calculate_file_hash, sleep_with_watchdog
-
-supported_marketplaces = {"facebook": FacebookMarketplace}
-supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
+from .ai import AIBackend
+from .config import Config, supported_ai_backends, supported_marketplaces
+from .item import SearchedItem
+from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
+from .user import User
+from .utils import CacheType, cache, calculate_file_hash, sleep_with_watchdog, time_until_next_run
 
 
 class MarketplaceMonitor:
@@ -39,7 +36,7 @@ class MarketplaceMonitor:
             [os.path.abspath(os.path.expanduser(x)) for x in config_files or []]
         )
         #
-        self.config: Dict[str, Any] | None = None
+        self.config: Config | None = None
         self.config_hash: str | None = None
         self.headless = headless
         self.ai_agents: List[AIBackend] = []
@@ -48,7 +45,7 @@ class MarketplaceMonitor:
         if clear_cache:
             cache.clear()
 
-    def load_config_file(self: "MarketplaceMonitor") -> Dict[str, Any]:
+    def load_config_file(self: "MarketplaceMonitor") -> Config:
         """Load the configuration file."""
         last_invalid_hash = None
         while True:
@@ -60,12 +57,12 @@ class MarketplaceMonitor:
             try:
                 # if the config file is ok, break
                 assert self.logger is not None
-                self.config = Config(self.config_files, self.logger).config
+                self.config = Config(self.config_files, self.logger)
                 self.config_hash = new_file_hash
                 # self.logger.debug(self.config)
                 assert self.config is not None
                 return self.config
-            except ValueError as e:
+            except Exception as e:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
                     self.logger.error(
@@ -77,55 +74,51 @@ class MarketplaceMonitor:
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
         """Load the AI agent."""
         assert self.config is not None
-        for ai_name, ai_config in self.config.get("ai", {}).items():
-            ai_class = supported_ai_backends[ai_name]
-            ai_class.validate(ai_config)
+        for ai_config in (self.config.ai or {}).values():
+            ai_class = supported_ai_backends[ai_config.name]
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
                 self.ai_agents[-1].connect()
-                self.logger.info(f"Connected to {ai_name}")
-                # if one works, do not try to load another one
-                break
+                self.logger.info(f"Connected to {ai_config.name}")
             except Exception as e:
-                self.logger.error(f"Error connecting to {ai_name}: {e}")
+                self.logger.error(f"Error connecting to {ai_config.name}: {e}")
                 continue
 
     def search_item(
         self: "MarketplaceMonitor",
-        marketplace_name: str,
-        marketplace_config: Dict[str, Any],
+        marketplace_config: TMarketplaceConfig,
         marketplace: Marketplace,
-        item_name: str,
-        item_config: Dict[str, Any],
+        item_config: TItemConfig,
     ) -> None:
         """Search for an item on the marketplace."""
-        self.logger.info(f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]")
-        new_items = []
+        self.logger.info(
+            f"Searching {marketplace_config.name} for [magenta]{item_config.name}[/magenta]"
+        )
+        new_listings = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
-        users_to_notify = item_config.get(
-            "notify",
-            marketplace_config.get("notify", list(self.config["user"].keys())),
+        users_to_notify = (
+            item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
-        for item in marketplace.search(item_config):
+        for listing in marketplace.search(item_config):
             # if everyone has been notified
-            if ("notify_user", item["id"]) in cache and all(
-                user in cache.get(("notify_user", item["id"]), ()) for user in users_to_notify
+            if listing.user_notified_key in cache and all(
+                user in cache.get(listing.user_notified_key, ()) for user in users_to_notify
             ):
                 self.logger.info(
-                    f"Already sent notification for item [magenta]{item['title']}[/magenta], skipping."
+                    f"Already sent notification for item [magenta]{listing.title}[/magenta], skipping."
                 )
                 continue
             # for x in self.find_new_items(found_items)
-            if not self.confirmed_by_ai(item, item_name=item_name, item_config=item_config):
+            if not self.confirmed_by_ai(listing, item_config=item_config):
                 continue
-            new_items.append(item)
+            new_listings.append(listing)
 
         self.logger.info(
-            f"""[magenta]{len(new_items)}[/magenta] new listing{"" if len(new_items) == 1 else "s"} for {item_name} {"is" if len(new_items) == 1 else "are"} found."""
+            f"""[magenta]{len(new_listings)}[/magenta] new listing{"" if len(new_listings) == 1 else "s"} for {item_config.name} {"is" if len(new_listings) == 1 else "are"} found."""
         )
-        if new_items:
-            self.notify_users(users_to_notify, new_items)
+        if new_listings:
+            self.notify_users(users_to_notify, new_listings)
         time.sleep(5)
 
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
@@ -142,49 +135,46 @@ class MarketplaceMonitor:
         self.load_ai_agents()
 
         assert self.config is not None
-        for marketplace_name, marketplace_config in self.config["marketplace"].items():
-            marketplace_class = supported_marketplaces[marketplace_name]
-            if marketplace_name in self.active_marketplaces:
-                marketplace = self.active_marketplaces[marketplace_name]
+        for marketplace_config in self.config.marketplace.values():
+            marketplace_class = supported_marketplaces[marketplace_config.name]
+            if marketplace_config.name in self.active_marketplaces:
+                marketplace = self.active_marketplaces[marketplace_config.name]
             else:
-                marketplace = marketplace_class(marketplace_name, browser, self.logger)
-                self.active_marketplaces[marketplace_name] = marketplace
+                marketplace = marketplace_class(marketplace_config.name, browser, self.logger)
+                self.active_marketplaces[marketplace_config.name] = marketplace
 
             # Configure might have been changed
             marketplace.configure(marketplace_config)
 
-            for item_name, item_config in self.config["item"].items():
+            for item_config in self.config.item.values():
                 if (
-                    "marketplace" not in item_config
-                    or item_config["marketplace"] == marketplace_name
+                    item_config.marketplace is None
+                    or item_config.marketplace == marketplace_config.name
                 ):
-                    if not item_config.get("enabled", True):
+                    if not (item_config.enabled or True):
                         continue
                     # wait for some time before next search
                     # interval (in minutes) can be defined both for the marketplace
                     # if there is any configuration file change, stop sleeping and search again
                     search_interval = max(
-                        item_config.get(
-                            "search_interval", marketplace_config.get("search_interval", 30)
-                        ),
+                        item_config.search_interval
+                        or marketplace_config.search_interval
+                        or 30 * 60,
                         1,
                     )
                     max_search_interval = max(
-                        item_config.get(
-                            "max_search_interval",
-                            marketplace_config.get("max_search_interval", 1),
-                        ),
+                        item_config.max_search_interval
+                        or marketplace_config.max_search_interval
+                        or 60 * 60,
                         search_interval,
                     )
                     self.logger.info(
-                        f"Scheduling to search for {item_name} every {search_interval} {'' if search_interval == max_search_interval else f'to {max_search_interval}'} minutes"
+                        f"Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"
                     )
-                    schedule.every(search_interval).to(max_search_interval).minutes.do(
+                    schedule.every(search_interval).to(max_search_interval).seconds.do(
                         self.search_item,
-                        marketplace_name,
                         marketplace_config,
                         marketplace,
-                        item_name,
                         item_config,
                     )
 
@@ -192,13 +182,12 @@ class MarketplaceMonitor:
         """Main function to monitor the marketplace."""
         while True:
             self.schedule_jobs()
-            # run all jobs at the first time, then on their own
-            # schedule
+            # run all jobs at the first time, then on their own schedule
             schedule.run_all()
             while True:
                 schedule.run_pending()
                 sleep_with_watchdog(
-                    60,
+                    time_until_next_run(),
                     self.config_files,
                 )
                 # if configuration file has been changed, clear all scheduled jobs and restart
@@ -227,9 +216,9 @@ class MarketplaceMonitor:
 
         if for_item is not None:
             assert self.config is not None
-            if for_item not in self.config["item"]:
+            if for_item not in self.config.item:
                 raise ValueError(
-                    f"Item {for_item} not found in config, available items are {', '.join(self.config['item'].keys())}."
+                    f"Item {for_item} not found in config, available items are {', '.join(self.config.item.keys())}."
                 )
 
         self.load_ai_agents()
@@ -254,28 +243,28 @@ class MarketplaceMonitor:
             for post_url in post_urls or []:
                 if "?" in post_url:
                     post_url = post_url.split("?")[0]
-                if post_url.startswith("https://www.facebook.com"):
-                    post_url = post_url[len("https://www.facebook.com") :]
                 if post_url.isnumeric():
-                    post_url = f"/marketplace/item/{post_url}/"
+                    post_url = f"https://www.facebook.com/marketplace/item/{post_url}/"
 
+                if not post_url.startswith("https://www.facebook.com/marketplace/item"):
+                    raise ValueError(f"URL {post_url} is not a valid Facebook Marketplace URL.")
                 # check if item in config
                 assert self.config is not None
 
                 # which marketplace to check it?
-                for marketplace_name, marketplace_config in self.config["marketplace"].items():
-                    marketplace_class = supported_marketplaces[marketplace_name]
-                    if marketplace_name in self.active_marketplaces:
-                        marketplace = self.active_marketplaces[marketplace_name]
+                for marketplace_config in self.config.marketplace.values():
+                    marketplace_class = supported_marketplaces[marketplace_config.name]
+                    if marketplace_config.name in self.active_marketplaces:
+                        marketplace = self.active_marketplaces[marketplace_config.name]
                     else:
-                        marketplace = marketplace_class(marketplace_name, None, self.logger)
-                        self.active_marketplaces[marketplace_name] = marketplace
+                        marketplace = marketplace_class(marketplace_config.name, None, self.logger)
+                        self.active_marketplaces[marketplace_config.name] = marketplace
 
                     # Configure might have been changed
                     marketplace.configure(marketplace_config)
 
                     # do we need a browser?
-                    if not marketplace.get_item_details.check_call_in_cache(post_url):
+                    if (CacheType.ITEM_DETAILS.value, post_url) not in cache:
                         if browser is None:
                             self.logger.info(
                                 "Starting a browser because the item was not checked before."
@@ -285,74 +274,75 @@ class MarketplaceMonitor:
 
                     # ignore enabled
                     # do not search, get the item details directly
-                    listing = marketplace.get_item_details(post_url)
+                    listing: SearchedItem = marketplace.get_item_details(post_url)
 
                     self.logger.info(f"Details of the item is found: {pretty_repr(listing)}")
 
-                    for item_name, item_config in self.config["item"].items():
-                        if for_item is not None and item_name != for_item:
+                    for item_config in self.config.item.values():
+                        if for_item is not None and item_config.name != for_item:
                             continue
                         self.logger.info(
-                            f"Checking {post_url} for item {item_name} with configuration {pretty_repr(item_config)}"
+                            f"Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"
                         )
                         marketplace.filter_item(listing, item_config)
-                        self.confirmed_by_ai(listing, item_name=item_name, item_config=item_config)
-                        if ("notify_user", listing["id"]) in cache:
-                            self.logger.info(f"Already sent notification for item {item_name}.")
+                        self.confirmed_by_ai(listing, item_config=item_config)
+                        if listing.user_notified_key in cache:
+                            self.logger.info(
+                                f"Already sent notification for item {item_config.name}."
+                            )
 
     def confirmed_by_ai(
-        self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "MarketplaceMonitor", item: SearchedItem, item_config: TItemConfig
     ) -> bool:
         for agent in self.ai_agents:
             try:
-                return agent.confirm(item, item_name, item_config)
+                return agent.confirm(item, item_config)
             except Exception as e:
-                self.logger.error(f"Failed to get an answer from {agent.name}: {e}")
+                self.logger.error(f"Failed to get an answer from {agent.config.name}: {e}")
                 continue
         self.logger.error("Failed to get an answer from any of the AI agents. Assuming OK.")
         return True
 
     def notify_users(
-        self: "MarketplaceMonitor", users: List[str], items: List[SearchedItem]
+        self: "MarketplaceMonitor", users: List[str], listings: List[SearchedItem]
     ) -> None:
-        # we cache notified user in the format of
-        #
-        # ("notify_user", item_id) = (user1, user2, user3)
-        #
         # get notification msg for this item
         for user in users:
             msgs = []
-            unnotified_items = []
-            for item in items:
-                if ("notify_user", item["id"]) in cache and user in cache.get(
-                    ("notify_user", item["id"]), ()
+            unnotified_listings = []
+            for listing in listings:
+                if listing.user_notified_key in cache and user in cache.get(
+                    listing.user_notified_key, ()
                 ):
                     continue
                 self.logger.info(
-                    f"""New item found: {item["title"]} with URL https://www.facebook.com{item["post_url"]} for user {user}"""
+                    f"""New item found: {listing.title} with URL https://www.facebook.com{listing.post_url} for user {user}"""
                 )
                 msgs.append(
-                    f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
+                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url}"""
                 )
-                unnotified_items.append(item)
+                unnotified_listings.append(listing)
 
-            if not unnotified_items:
+            if not unnotified_listings:
                 continue
 
-            title = f"Found {len(msgs)} new item from {item['marketplace']}: "
+            title = f"Found {len(msgs)} new {listing.name} from {listing.marketplace}: "
             message = "\n\n".join(msgs)
             self.logger.info(
                 f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"
             )
             assert self.config is not None
-            assert self.config["user"] is not None
+            assert self.config.user is not None
             try:
-                User(user, self.config["user"][user], logger=self.logger).notify(title, message)
-                for item in unnotified_items:
+                User(user, self.config.user[user], logger=self.logger).notify(title, message)
+                for listing in unnotified_listings:
                     cache.set(
-                        ("notify_user", item["id"]),
-                        (user, *cache.get(("notify_user", item["id"]), ())),
-                        tag="notify_user",
+                        listing.user_notified_key,
+                        (
+                            user,
+                            *cache.get(listing.user_notified_key, ()),
+                        ),
+                        tag=CacheType.USER_NOTIFIED.value,
                     )
             except Exception as e:
                 self.logger.error(f"Failed to notify {user}: {e}")
