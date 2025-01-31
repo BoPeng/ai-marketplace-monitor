@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from logging import Logger
 from typing import Any, ClassVar, Dict, Type
 
@@ -5,6 +6,20 @@ from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
 from .item import SearchedItem
+from .utils import DataClassWithHandleFunc
+
+
+@dataclass
+class AIConfig(DataClassWithHandleFunc):
+    # this argument is required
+    api_key: str
+    model: str | None = None
+    base_url: str | None = None
+
+    def handle_api_key(self: "AIConfig") -> None:
+        if not self.api_key:
+            raise ValueError("AIConfig requires an non-empty api_key.")
+        self.api_key = self.api_key.strip()
 
 
 class AIBackend:
@@ -12,28 +27,18 @@ class AIBackend:
     allowed_config_keys: ClassVar = []
     required_config_keys: ClassVar = []
 
-    def __init__(self: "AIBackend", config: Dict[str, Any], logger: Logger) -> None:
+    def __init__(self: "AIBackend", config: AIConfig, logger: Logger) -> None:
         self.config = config
         self.logger = logger
         self.client: OpenAI | None = None
 
+    @classmethod
+    def get_config(cls: Type["AIBackend"], **kwargs: Dict[str, Any]) -> AIConfig:
+        config = AIConfig(**kwargs)
+        return config
+
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
-
-    @classmethod
-    def validate(cls: Type["AIBackend"], config: Dict[str, Any]) -> None:
-        # if there are other keys in config, raise an error
-        for key in config:
-            if key not in cls.allowed_config_keys:
-                raise ValueError(f"AI contains an invalid key {key}.")
-        # make sure required key is present
-        for key in cls.required_config_keys:
-            if key not in config:
-                raise ValueError(f"AI is missing required key {key}.")
-        # make sure all required keys are not empty
-        for key in cls.required_config_keys:
-            if not config[key]:
-                raise ValueError(f"AI key {key} is empty.")
 
     def get_prompt(
         self: "AIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
@@ -77,8 +82,6 @@ class AIBackend:
 
 class OpenAIBackend(AIBackend):
     name = "OpenAI"
-    allowed_config_keys: ClassVar = ["api_key", "model"]
-    required_config_keys: ClassVar = ["api_key"]
     default_model = "gpt-4o"
     # the default is f"https://api.openai.com/v1"
     base_url: str | None = None
@@ -86,8 +89,8 @@ class OpenAIBackend(AIBackend):
     def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
             self.client = OpenAI(
-                api_key=self.config["api_key"],
-                base_url=self.config.get("base_url", self.base_url),
+                api_key=self.config.api_key,
+                base_url=self.config.base_url or self.base_url,
                 timeout=10,
             )
 
@@ -100,7 +103,7 @@ class OpenAIBackend(AIBackend):
         assert self.client is not None
 
         response = self.client.chat.completions.create(
-            model=self.config.get("model", self.default_model),
+            model=self.config.model or self.default_model,
             messages=[
                 {
                     "role": "system",
@@ -125,7 +128,5 @@ class OpenAIBackend(AIBackend):
 
 class DeepSeekBackend(OpenAIBackend):
     name = "DeepSeek"
-    allowed_config_keys: ClassVar = ["api_key", "model"]
-    required_config_keys: ClassVar = ["api_key"]
     default_model = "deepseek-chat"
     base_url = "https://api.deepseek.com"

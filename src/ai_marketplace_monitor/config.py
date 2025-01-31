@@ -50,16 +50,13 @@ class Config:
 
             from .monitor import supported_ai_backends
 
-            for key in self.config["ai"]:
+            for key, value in self.config["ai"].items():
                 if key not in supported_ai_backends:
                     raise ValueError(
                         f"Config file contains an unsupported AI backend {key} in the ai section."
                     )
-                else:
-                    backend_class = supported_ai_backends[key]
-                    backend_class.validate(self.config["ai"][key])
-        else:
-            self.config["ai"] = {}
+                backend_class = supported_ai_backends[key]
+                self.config["ai"][key] = backend_class.get_config(**value)
 
         # check allowed keys in config
         for key in self.config:

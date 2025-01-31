@@ -65,7 +65,7 @@ class MarketplaceMonitor:
                 # self.logger.debug(self.config)
                 assert self.config is not None
                 return self.config
-            except ValueError as e:
+            except Exception as e:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
                     self.logger.error(
@@ -79,7 +79,6 @@ class MarketplaceMonitor:
         assert self.config is not None
         for ai_name, ai_config in self.config.get("ai", {}).items():
             ai_class = supported_ai_backends[ai_name]
-            ai_class.validate(ai_config)
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
                 self.ai_agents[-1].connect()
@@ -275,7 +274,7 @@ class MarketplaceMonitor:
                     marketplace.configure(marketplace_config)
 
                     # do we need a browser?
-                    if not marketplace.get_item_details.check_call_in_cache(post_url):
+                    if ("get_item_details", post_url) not in cache:
                         if browser is None:
                             self.logger.info(
                                 "Starting a browser because the item was not checked before."

@@ -2,6 +2,7 @@ import hashlib
 import os
 import re
 import time
+from dataclasses import dataclass, fields
 from typing import Any, Dict, List
 
 import parsedatetime  # type: ignore
@@ -14,6 +15,16 @@ amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
 os.makedirs(amm_home, exist_ok=True)
 
 cache = Cache(amm_home)
+
+
+@dataclass
+class DataClassWithHandleFunc:
+    def __post_init__(self: "DataClassWithHandleFunc") -> None:
+        """Handle all methods that start with 'handle_' in the dataclass."""
+        for f in fields(self):
+            handle_method = getattr(self, f"handle_{f.name}", None)
+            if handle_method:
+                handle_method()
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:
