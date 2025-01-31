@@ -3,7 +3,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, fields
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, TypeVar
 
 import parsedatetime  # type: ignore
 from diskcache import Cache  # type: ignore
@@ -16,6 +16,8 @@ os.makedirs(amm_home, exist_ok=True)
 
 cache = Cache(amm_home)
 
+ConfigType = TypeVar("ConfigType", bound="DataClassWithHandleFunc")
+
 
 @dataclass
 class DataClassWithHandleFunc:
@@ -27,9 +29,7 @@ class DataClassWithHandleFunc:
                 handle_method()
 
     @classmethod
-    def from_dict(
-        cls: Type["DataClassWithHandleFunc"], data: Dict[str, Any]
-    ) -> "DataClassWithHandleFunc":
+    def from_dict(cls: Type[ConfigType], data: Dict[str, Any]) -> ConfigType:
         return cls(**data)
 
 
