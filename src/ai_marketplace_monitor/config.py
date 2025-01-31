@@ -133,24 +133,24 @@ class Config(Generic[TItemConfig, TMarketplaceConfig]):
         # check for required fields in each user
 
         # if user is specified in other section, they must exist
-        for marketplace_name, marketplace_config in self.marketplace.items():
+        for marketplace_config in self.marketplace.values():
             for user in marketplace_config.notify or []:
                 if user not in self.user:
                     raise ValueError(
-                        f"User [magenta]{user}[/magenta] specified in [magenta]{marketplace_name}[/magenta] does not exist."
+                        f"User [magenta]{user}[/magenta] specified in [magenta]{marketplace_config.name}[/magenta] does not exist."
                     )
 
         # if user is specified for any search item, they must exist
-        for item_name, item_config in self.item.items():
+        for item_config in self.item.values():
             for user in item_config.notify or []:
                 if user not in self.user:
                     raise ValueError(
-                        f"User [magenta]{user}[/magenta] specified in [magenta]{item_name}[/magenta] does not exist."
+                        f"User [magenta]{user}[/magenta] specified in [magenta]{item_config.name}[/magenta] does not exist."
                     )
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist
-        for marketplace_name, marketplace_config in self.marketplace.items():
+        for marketplace_config in self.marketplace.values():
             if marketplace_config.search_region is None:
                 continue
 
@@ -161,7 +161,7 @@ class Config(Generic[TItemConfig, TMarketplaceConfig]):
                 region_config: RegionConfig = self.region[region]
                 if region not in self.region:
                     raise ValueError(
-                        f"Region [magenta]{region}[/magenta] specified in [magenta]{marketplace_name}[/magenta] does not exist."
+                        f"Region [magenta]{region}[/magenta] specified in [magenta]{marketplace_config.name}[/magenta] does not exist."
                     )
                 # if region is specified, expand it into search_city
                 marketplace_config.search_city.extend(region_config.search_city)
@@ -172,7 +172,7 @@ class Config(Generic[TItemConfig, TMarketplaceConfig]):
                 marketplace_config.search_city.extend(list(set(marketplace_config.search_city)))
 
         # if region is specified in any of the items, do the same
-        for item_name, item_config in self.item.items():
+        for item_config in self.item.values():
             # expand region into item_config's search_city
             if item_config.search_region is None:
                 continue
@@ -182,7 +182,7 @@ class Config(Generic[TItemConfig, TMarketplaceConfig]):
                 region_config = self.region[region]
                 if region not in self.region:
                     raise ValueError(
-                        f"Region [magenta]{region}[/magenta] specified in [magenta]{item_name}[/magenta] does not exist."
+                        f"Region [magenta]{region}[/magenta] specified in [magenta]{item_config.name}[/magenta] does not exist."
                     )
                 # if region is specified, expand it into search_city
                 item_config.search_city.extend(region_config.search_city)
