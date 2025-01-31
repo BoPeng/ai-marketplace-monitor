@@ -34,7 +34,7 @@ class AIBackend:
 
     @classmethod
     def get_config(cls: Type["AIBackend"], **kwargs: Dict[str, Any]) -> AIConfig:
-        config = AIConfig(**kwargs)
+        config = AIConfig.from_dict(kwargs)
         return config
 
     def connect(self: "AIBackend") -> None:

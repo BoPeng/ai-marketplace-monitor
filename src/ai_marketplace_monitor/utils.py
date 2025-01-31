@@ -3,7 +3,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, fields
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type
 
 import parsedatetime  # type: ignore
 from diskcache import Cache  # type: ignore
@@ -25,6 +25,12 @@ class DataClassWithHandleFunc:
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
                 handle_method()
+
+    @classmethod
+    def from_dict(
+        cls: Type["DataClassWithHandleFunc"], data: Dict[str, Any]
+    ) -> "DataClassWithHandleFunc":
+        return cls(**data)
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:

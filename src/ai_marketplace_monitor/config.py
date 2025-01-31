@@ -155,7 +155,7 @@ class Config:
         from .user import User
 
         for user_name, user_config in self.config["user"].items():
-            User.validate(user_name, user_config)
+            self.config["user"][user_name] = User.get_config(**user_config)
 
         # if user is specified in other section, they must exist
         for marketplace_name, marketplace_config in self.config["marketplace"].items():
