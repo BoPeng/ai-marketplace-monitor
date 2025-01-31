@@ -9,7 +9,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .ai import AIConfig
+from .ai import TAIConfig
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
 from .user import UserConfig
@@ -17,8 +17,8 @@ from .utils import merge_dicts
 
 
 @dataclass
-class Config(Generic[TItemConfig, TMarketplaceConfig]):
-    ai: Dict[str, AIConfig] = field(init=False)
+class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
+    ai: Dict[str, TAIConfig] = field(init=False)
     user: Dict[str, UserConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
     item: Dict[str, TItemConfig] = field(init=False)
@@ -56,7 +56,7 @@ class Config(Generic[TItemConfig, TMarketplaceConfig]):
 
         from .monitor import supported_ai_backends
 
-        self.ai: Dict[str, AIConfig] = {}
+        self.ai = {}
         for key, value in config.get("ai", {}).items():
             if key not in supported_ai_backends:
                 raise ValueError(

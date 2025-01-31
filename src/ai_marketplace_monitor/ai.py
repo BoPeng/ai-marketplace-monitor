@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import Logger
-from typing import Any, ClassVar, Type
+from typing import Any, Generic, Type, TypeVar
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
@@ -23,19 +23,28 @@ class AIConfig(DataClassWithHandleFunc):
         self.api_key = self.api_key.strip()
 
 
-class AIBackend:
-    name = "unspecified"
-    allowed_config_keys: ClassVar = []
-    required_config_keys: ClassVar = []
+@dataclass
+class OpenAIConfig(AIConfig):
+    pass
 
+
+@dataclass
+class DeekSeekConfig(OpenAIConfig):
+    pass
+
+
+TAIConfig = TypeVar("TAIConfig", bound=AIConfig)
+
+
+class AIBackend(Generic[TAIConfig]):
     def __init__(self: "AIBackend", config: AIConfig, logger: Logger) -> None:
         self.config = config
         self.logger = logger
         self.client: OpenAI | None = None
 
     @classmethod
-    def get_config(cls: Type["AIBackend"], **kwargs: Any) -> AIConfig:
-        return AIConfig(**kwargs)
+    def get_config(cls: Type["AIBackend"], **kwargs: Any) -> TAIConfig:
+        raise NotImplementedError("get_config method must be implemented by subclasses.")
 
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
@@ -81,10 +90,13 @@ class AIBackend:
 
 
 class OpenAIBackend(AIBackend):
-    name = "OpenAI"
     default_model = "gpt-4o"
     # the default is f"https://api.openai.com/v1"
     base_url: str | None = None
+
+    @classmethod
+    def get_config(cls: Type["OpenAIBackend"], **kwargs: Any) -> OpenAIConfig:
+        return OpenAIConfig(**kwargs)
 
     def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
@@ -119,14 +131,17 @@ class OpenAIBackend(AIBackend):
         answer = response.choices[0].message.content
         res = True if answer is None else (not answer.lower().strip().startswith("no"))
         self.logger.info(
-            f"""{self.name} concludes that listing [magenta]{listing.title}[/magenta] [green]matches[/green] your search criteria."""
+            f"""{self.config.name} concludes that listing [magenta]{listing.title}[/magenta] [green]matches[/green] your search criteria."""
             if res
-            else f"""{self.name} concludes that listing [magenta]{listing.title}[/magenta] [red]does not match[/red] your search criteria."""
+            else f"""{self.config.name} concludes that listing [magenta]{listing.title}[/magenta] [red]does not match[/red] your search criteria."""
         )
         return res
 
 
 class DeepSeekBackend(OpenAIBackend):
-    name = "DeepSeek"
     default_model = "deepseek-chat"
     base_url = "https://api.deepseek.com"
+
+    @classmethod
+    def get_config(cls: Type["DeepSeekBackend"], **kwargs: Any) -> DeekSeekConfig:
+        return DeekSeekConfig(**kwargs)

@@ -304,7 +304,7 @@ class MarketplaceMonitor:
             try:
                 return agent.confirm(item, item_name, item_config)
             except Exception as e:
-                self.logger.error(f"Failed to get an answer from {agent.name}: {e}")
+                self.logger.error(f"Failed to get an answer from {agent.config.name}: {e}")
                 continue
         self.logger.error("Failed to get an answer from any of the AI agents. Assuming OK.")
         return True
