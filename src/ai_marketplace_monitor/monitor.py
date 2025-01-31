@@ -162,19 +162,21 @@ class MarketplaceMonitor:
                     # interval (in minutes) can be defined both for the marketplace
                     # if there is any configuration file change, stop sleeping and search again
                     search_interval = max(
-                        item_config.search_interval or marketplace_config.search_interval or 30,
+                        item_config.search_interval
+                        or marketplace_config.search_interval
+                        or 30 * 60,
                         1,
                     )
                     max_search_interval = max(
                         item_config.max_search_interval
                         or marketplace_config.max_search_interval
-                        or 1,
+                        or 60 * 60,
                         search_interval,
                     )
                     self.logger.info(
                         f"Scheduling to search for {item_config.name} every {search_interval} {'' if search_interval == max_search_interval else f'to {max_search_interval}'} minutes"
                     )
-                    schedule.every(search_interval).to(max_search_interval).minutes.do(
+                    schedule.every(search_interval).to(max_search_interval).seconds.do(
                         self.search_item,
                         marketplace_config,
                         marketplace,

@@ -131,12 +131,6 @@ def extract_price(price: str) -> str:
     return price
 
 
-def convert_to_minutes(time_str: str) -> int:
-    cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
-    time_struct, _ = cal.parse(time_str)
-    return int(time.mktime(time_struct) - time.mktime(time.localtime())) // 60
-
-
 def convert_to_seconds(time_str: str) -> int:
     cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
     time_struct, _ = cal.parse(time_str)

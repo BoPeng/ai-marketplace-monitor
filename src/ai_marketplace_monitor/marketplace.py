@@ -6,7 +6,7 @@ from typing import Any, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, Page
 
 from .item import SearchedItem
-from .utils import DataClassWithHandleFunc, convert_to_minutes
+from .utils import DataClassWithHandleFunc, convert_to_seconds
 
 
 @dataclass
@@ -28,14 +28,14 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
 
         if isinstance(self.max_search_interval, str):
             try:
-                self.max_search_interval = convert_to_minutes(self.max_search_interval)
+                self.max_search_interval = convert_to_seconds(self.max_search_interval)
             except Exception as e:
                 raise ValueError(
                     f"Marketplace {self.name} max_search_interval {self.max_search_interval} is not recognized."
                 ) from e
         if not isinstance(self.max_search_interval, int) or self.max_search_interval < 1:
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] max_search_interval must be at least 1 minutes."
+                f"Item [magenta]{self.name}[/magenta] max_search_interval must be at least 1 second."
             )
 
     def handle_notify(self: "MarketItemCommonConfig") -> None:
@@ -90,14 +90,14 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
 
         if isinstance(self.search_interval, str):
             try:
-                self.search_interval = convert_to_minutes(self.search_interval)
+                self.search_interval = convert_to_seconds(self.search_interval)
             except Exception as e:
                 raise ValueError(
                     f"Marketplace {self.name} search_interval {self.search_interval} is not recognized."
                 ) from e
         if not isinstance(self.search_interval, int) or self.search_interval < 1:
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] search_interval must be at least 1 minutes."
+                f"Item [magenta]{self.name}[/magenta] search_interval must be at least 1 second."
             )
 
     def handle_search_region(self: "MarketItemCommonConfig") -> None:

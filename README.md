@@ -205,8 +205,8 @@ an example with many of the options.
   - `radius`: (optional) radius of search, can be a list if multiple `search_city` are specified.
   - `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
   - `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
-  - `search_interval`: (optional) minimal interval in minutes between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.
-  - `max_search_interval`: (optional) maximum interval in minutes between searches
+  - `search_interval`: (optional) minimal interval in seconds between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.
+  - `max_search_interval`: (optional) maximum interval in seconds between searches
 
 - One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
 
