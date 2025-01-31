@@ -280,7 +280,7 @@ class FacebookMarketplace(Marketplace):
                     if not self.filter_item(item, item_config):
                         continue
                     try:
-                        details = self.get_item_details(item.post_url)
+                        details = self.get_item_details(f"https://www.facebook.com{item.post_url}")
                         time.sleep(5)
                     except Exception as e:
                         self.logger.error(f"Error getting item details: {e}")
@@ -305,7 +305,7 @@ class FacebookMarketplace(Marketplace):
             self.login()
 
         assert self.page is not None
-        self.goto_url(f"https://www.facebook.com{post_url}")
+        self.goto_url(post_url)
         details = FacebookItemPage(self.page.content(), self.logger).parse(post_url)
         cache.set((CacheType.ITEM_DETAILS.value, post_url), details, tag="item_details")
         return details

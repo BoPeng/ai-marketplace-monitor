@@ -243,11 +243,11 @@ class MarketplaceMonitor:
             for post_url in post_urls or []:
                 if "?" in post_url:
                     post_url = post_url.split("?")[0]
-                if post_url.startswith("https://www.facebook.com"):
-                    post_url = post_url[len("https://www.facebook.com") :]
                 if post_url.isnumeric():
-                    post_url = f"/marketplace/item/{post_url}/"
+                    post_url = f"https://www.facebook.com/marketplace/item/{post_url}/"
 
+                if not post_url.startswith("https://www.facebook.com/marketplace/item"):
+                    raise ValueError(f"URL {post_url} is not a valid Facebook Marketplace URL.")
                 # check if item in config
                 assert self.config is not None
 
