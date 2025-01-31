@@ -4,6 +4,7 @@ from logging import Logger
 from typing import ClassVar, List
 
 import humanize
+import inflect
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
@@ -114,8 +115,9 @@ class MarketplaceMonitor:
                 continue
             new_listings.append(listing)
 
+        p = inflect.engine()
         self.logger.info(
-            f"""[magenta]{len(new_listings)}[/magenta] new listing{"" if len(new_listings) == 1 else "s"} for {item_config.name} {"is" if len(new_listings) == 1 else "are"} found."""
+            f"""[magenta]{len(new_listings)}[/magenta] new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
         )
         if new_listings:
             self.notify_users(users_to_notify, new_listings)
@@ -307,6 +309,7 @@ class MarketplaceMonitor:
         self: "MarketplaceMonitor", users: List[str], listings: List[SearchedItem]
     ) -> None:
         # get notification msg for this item
+        p = inflect.engine()
         for user in users:
             msgs = []
             unnotified_listings = []
@@ -326,7 +329,7 @@ class MarketplaceMonitor:
             if not unnotified_listings:
                 continue
 
-            title = f"Found {len(msgs)} new {listing.name} from {listing.marketplace}: "
+            title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
             message = "\n\n".join(msgs)
             self.logger.info(
                 f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"

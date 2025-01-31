@@ -7,6 +7,7 @@ from logging import Logger
 from typing import Any, Generator, List, Type, Union, cast
 from urllib.parse import quote
 
+import humanize
 from bs4 import BeautifulSoup, element  # type: ignore
 from playwright.sync_api import Browser, Page  # type: ignore
 from rich.pretty import pretty_repr
@@ -213,7 +214,9 @@ class FacebookMarketplace(Marketplace):
 
         # in case there is a need to enter additional information
         login_wait_time = self.config.login_wait_time or 60
-        self.logger.info(f"Logged into facebook, waiting {login_wait_time}s to get ready.")
+        self.logger.info(
+            f"Logged into facebook, waiting {humanize.naturaldelta(login_wait_time)} to get ready."
+        )
         time.sleep(login_wait_time)
 
     def search(
