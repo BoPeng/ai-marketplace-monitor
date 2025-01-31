@@ -49,10 +49,8 @@ class AIBackend(Generic[TAIConfig]):
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
-    def get_prompt(
-        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: TItemConfig
-    ) -> str:
-        prompt = f"""A user would like to buy a {item_name} from facebook marketplace.
+    def get_prompt(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> str:
+        prompt = f"""A user would like to buy a {item_config.name} from facebook marketplace.
             He used keywords "{'" and "'.join(item_config.keywords)}" to perform the search."""
         if item_config.description:
             prompt += f""" He also added description "{item_config.description}" to describe the item he is interested in."""
@@ -83,9 +81,7 @@ class AIBackend(Generic[TAIConfig]):
         self.logger.debug(f"Prompt: {prompt}")
         return prompt
 
-    def confirm(
-        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: TItemConfig
-    ) -> bool:
+    def confirm(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> bool:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
 
@@ -106,11 +102,9 @@ class OpenAIBackend(AIBackend):
                 timeout=10,
             )
 
-    def confirm(
-        self: "OpenAIBackend", listing: SearchedItem, item_name: str, item_config: TItemConfig
-    ) -> bool:
+    def confirm(self: "OpenAIBackend", listing: SearchedItem, item_config: TItemConfig) -> bool:
         # ask openai to confirm the item is correct
-        prompt = self.get_prompt(listing, item_name, item_config)
+        prompt = self.get_prompt(listing, item_config)
 
         assert self.client is not None
 

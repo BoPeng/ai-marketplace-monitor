@@ -1,3 +1,14 @@
+#
+# Region definitions.
+# - full_name and city_name are for readability/booktracking purpose only
+# - different radius can be used for different search_city. In this case
+#   radius should an array with the same length as search_city
+#
+# Usage：
+# - ·search_city` will be ignored if `search_region` is specified.
+# - under the hood search_city is replaced by `search_city` of the regions
+#
+
 [region.usa]
 full_name = "USA (without AK or HI)"
 radius = 500

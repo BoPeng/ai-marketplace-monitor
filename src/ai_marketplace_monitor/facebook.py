@@ -14,6 +14,7 @@ from rich.pretty import pretty_repr
 from .item import SearchedItem
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig
 from .utils import (
+    CacheType,
     DataClassWithHandleFunc,
     cache,
     convert_to_seconds,
@@ -49,14 +50,17 @@ class Availability(Enum):
 
 @dataclass
 class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
+    """Item options that can be defined in marketplace
+
+    This class defines and processes options that can be specified
+    in both marketplace and item sections, specific to facebook marketplace
+    """
+
     acceptable_locations: List[str] | None = None
     availability: str | None = None
     condition: List[str] | None = None
     date_listed: str | None = None
     delivery_method: str | None = None
-    exclude_sellers: List[str] | None = None
-    max_price: int | None = None
-    min_price: int | None = None
 
     def handle_acceptable_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.acceptable_locations is None:
@@ -113,35 +117,15 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
                 f"Item [magenta]{self.name}[/magenta] delivery_method must be one of 'local_pick_up' and 'shipping'."
             )
 
-    def handle_exclude_sellers(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.exclude_sellers is None:
-            return
-
-        if isinstance(self.exclude_sellers, str):
-            self.exclude_sellers = [self.exclude_sellers]
-        if not isinstance(self.exclude_sellers, list) or not all(
-            isinstance(x, str) for x in self.exclude_sellers
-        ):
-            raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] exclude_sellers must be a list."
-            )
-
-    def handle_max_price(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.max_price is None:
-            return
-        if not isinstance(self.max_price, int):
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] max_price must be an integer.")
-
-    def handle_min_price(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.min_price is None:
-            return
-
-        if not isinstance(self.min_price, int):
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] min_price must be an integer.")
-
 
 @dataclass
 class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfig):
+    """Options specific to facebook marketplace
+
+    This class defines and processes options that can be specified
+    in the marketplace.facebook section only. None of the options are required.
+    """
+
     login_wait_time: int | None = None
     password: str | None = None
     username: str | None = None
@@ -305,6 +289,7 @@ class FacebookMarketplace(Marketplace):
                     # so we do not copy title, description etc from the detailed result
                     item.description = details.description
                     item.seller = details.seller
+                    item.name = item_config.name
                     self.logger.debug(
                         f"""New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
                     )
@@ -312,7 +297,7 @@ class FacebookMarketplace(Marketplace):
                         yield item
 
     def get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
-        details = cache.get(("get_item_details", post_url))
+        details = cache.get((CacheType.ITEM_DETAILS.value, post_url))
         if details is not None:
             return details
 
@@ -322,7 +307,7 @@ class FacebookMarketplace(Marketplace):
         assert self.page is not None
         self.goto_url(f"https://www.facebook.com{post_url}")
         details = FacebookItemPage(self.page.content(), self.logger).parse(post_url)
-        cache.set(("get_item_details", post_url), details, tag="item_details")
+        cache.set((CacheType.ITEM_DETAILS.value, post_url), details, tag="item_details")
         return details
 
     def filter_item(
@@ -441,6 +426,7 @@ class FacebookSearchResultPage(WebPage):
         # Append the parsed data to the list.
         return SearchedItem(
             marketplace="facebook",
+            name="",
             id=post_url.split("?")[0].rstrip("/").split("/")[-1],
             title=title,
             image=image,
@@ -546,6 +532,7 @@ class FacebookItemPage(WebPage):
         self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
         res = SearchedItem(
             marketplace="facebook",
+            name="",
             id=item_id,
             title=title,
             image=self.get_image_url(),

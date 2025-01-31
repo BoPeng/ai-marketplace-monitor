@@ -1,6 +1,7 @@
 import os
 import sys
 from dataclasses import dataclass, field
+from itertools import chain
 from logging import Logger
 from typing import Any, Dict, Generic, List
 
@@ -145,37 +146,20 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist
-        for marketplace_config in self.marketplace.values():
-            if marketplace_config.search_region is None:
+        for config in chain(self.marketplace.values(), self.item.values()):
+            if config.search_region is None:
                 continue
+            config.search_city = []
+            config.radius = []
 
-            marketplace_config.search_city = []
-            marketplace_config.radius = []
-
-            for region in marketplace_config.search_region:
+            for region in config.search_region:
                 region_config: RegionConfig = self.region[region]
                 if region not in self.region:
                     raise ValueError(
-                        f"Region [magenta]{region}[/magenta] specified in [magenta]{marketplace_config.name}[/magenta] does not exist."
+                        f"Region [magenta]{region}[/magenta] specified in [magenta]{config.name}[/magenta] does not exist."
                     )
-                # if region is specified, expand it into search_city
-                marketplace_config.search_city.extend(region_config.search_city)
-                # set radius, if market_config already has radius, they should be the same
-                marketplace_config.radius.extend(region_config.radius)
-
-        # if region is specified in any of the items, do the same
-        for item_config in self.item.values():
-            # expand region into item_config's search_city
-            if item_config.search_region is None:
-                continue
-            item_config.search_city = []
-            item_config.radius = []
-            for region in item_config.search_region:
-                region_config = self.region[region]
-                if region not in self.region:
-                    raise ValueError(
-                        f"Region [magenta]{region}[/magenta] specified in [magenta]{item_config.name}[/magenta] does not exist."
-                    )
-                # if region is specified, expand it into search_city
-                item_config.search_city.extend(region_config.search_city)
-                item_config.radius.extend(region_config.radius)
+                # avoid duplicated addition of search_city
+                for search_city, radius in zip(region_config.search_city, region_config.radius):
+                    if search_city not in config.search_city:
+                        config.search_city.append(search_city)
+                        config.radius.append(radius)

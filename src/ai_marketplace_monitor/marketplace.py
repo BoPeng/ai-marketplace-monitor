@@ -11,7 +11,13 @@ from .utils import DataClassWithHandleFunc, convert_to_seconds
 
 @dataclass
 class MarketItemCommonConfig(DataClassWithHandleFunc):
+    """Item options that can be specified in market (non-marketplace specifc)
 
+    This class defines and processes options that can be specified
+    in both marketplace and item sections, generic to all marketplaces
+    """
+
+    exclude_sellers: List[str] | None = None
     max_search_interval: int | None = None
     notify: List[str] | None = None
     search_city: List[str] | None = None
@@ -21,6 +27,19 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     search_region: List[str] | None = None
     max_price: int | None = None
     min_price: int | None = None
+
+    def handle_exclude_sellers(self: "MarketItemCommonConfig") -> None:
+        if self.exclude_sellers is None:
+            return
+
+        if isinstance(self.exclude_sellers, str):
+            self.exclude_sellers = [self.exclude_sellers]
+        if not isinstance(self.exclude_sellers, list) or not all(
+            isinstance(x, str) for x in self.exclude_sellers
+        ):
+            raise ValueError(
+                f"Item [magenta]{self.name}[/magenta] exclude_sellers must be a list."
+            )
 
     def handle_max_search_interval(self: "MarketItemCommonConfig") -> None:
         if self.max_search_interval is None:
@@ -137,14 +156,15 @@ class MarketplaceConfig(MarketItemCommonConfig):
 
 @dataclass
 class ItemConfig(MarketItemCommonConfig):
-    """Generic item config"""
+    """This class defined options that can only be specified for items."""
 
+    # keywords is required, all others are optional
     keywords: List[str] = field(default_factory=list)
     exclude_keywords: List[str] | None = None
     exclude_by_description: List[str] | None = None
     description: str | None = None
     enabled: bool | None = None
-    marketplace: str = "facebook"
+    marketplace: str | None = None
 
     def handle_keywords(self: "ItemConfig") -> None:
         if isinstance(self.keywords, str):
@@ -202,7 +222,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def get_item_config(cls: Type["Marketplace"], **kwargs: Any) -> TItemConfig:
         raise NotImplementedError("get_config method must be implemented by subclasses.")
 
-    def configure(self: "Marketplace", config: MarketplaceConfig) -> None:
+    def configure(self: "Marketplace", config: TMarketplaceConfig) -> None:
         self.config = config
 
     def set_browser(self: "Marketplace", browser: Browser) -> None:

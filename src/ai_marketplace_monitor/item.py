@@ -1,12 +1,13 @@
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
+from typing import Tuple
 
-from .utils import DataClassWithHandleFunc
+from .utils import CacheType
 
 
 @dataclass
 class SearchedItem:
     marketplace: str
+    name: str
     # unique identification
     id: str
     title: str
@@ -17,11 +18,6 @@ class SearchedItem:
     seller: str
     description: str
 
-
-@dataclass
-class ItemConfig(DataClassWithHandleFunc):
-    """Generic item config"""
-
-    notify: List[str] = field(default_factory=list)
-    search_interval: int = 30
-    max_search_interval: int = 60
+    @property
+    def user_notified_key(self: "SearchedItem") -> Tuple[str, str, str]:
+        return (CacheType.USER_NOTIFIED.value, self.marketplace, self.id)
