@@ -1,5 +1,6 @@
 import re
 import time
+from itertools import cycle
 from logging import Logger
 from typing import Any, ClassVar, Dict, Generator, List, Type, Union, cast
 from urllib.parse import quote
@@ -259,10 +260,7 @@ class FacebookMarketplace(Marketplace):
         found = {}
         search_city = item_config.get("search_city", self.config.get("search_city", []))
         radiuses = item_config.get("radius", self.config.get("radius", None))
-        if not radiuses:
-            radiuses = [None] * len(search_city)
-
-        for city, radius in zip(search_city, radiuses):
+        for city, radius in zip(search_city, cycle(None) if radiuses is None else radiuses):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
             if radius:
