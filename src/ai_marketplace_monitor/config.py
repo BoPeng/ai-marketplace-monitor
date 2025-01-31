@@ -126,8 +126,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 raise ValueError(f"Config file contains an invalid section {key}.")
 
     def validate_users(self: "Config") -> None:
-        # check for required fields in each user
-
+        """Check if notified users exists"""
         # if user is specified in other section, they must exist
         for marketplace_config in self.marketplace.values():
             for user in marketplace_config.notify or []:
@@ -162,10 +161,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 # if region is specified, expand it into search_city
                 marketplace_config.search_city.extend(region_config.search_city)
                 # set radius, if market_config already has radius, they should be the same
-
                 marketplace_config.radius.extend(region_config.radius)
-                # remove duplicates
-                marketplace_config.search_city.extend(list(set(marketplace_config.search_city)))
 
         # if region is specified in any of the items, do the same
         for item_config in self.item.values():
@@ -182,6 +178,4 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     )
                 # if region is specified, expand it into search_city
                 item_config.search_city.extend(region_config.search_city)
-                #
                 item_config.radius.extend(region_config.radius)
-                item_config.search_city.extend(list(set(item_config.search_city)))

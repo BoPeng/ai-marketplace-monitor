@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Change the unit of `search-interval` to seconds to allow for more frequent search, although that is not recommended.
+
 ## [0.5.0] - 2025-01-29
 
 - Allow each time to add its own `search_interval`
