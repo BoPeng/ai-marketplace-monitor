@@ -7,16 +7,12 @@ import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 
-from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
-from .config import Config
-from .facebook import FacebookMarketplace
+from .ai import AIBackend
+from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
 from .utils import cache, calculate_file_hash, sleep_with_watchdog
-
-supported_marketplaces = {"facebook": FacebookMarketplace}
-supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
 
 
 class MarketplaceMonitor:

@@ -9,11 +9,15 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .ai import TAIConfig
+from .ai import DeepSeekBackend, OpenAIBackend, TAIConfig
+from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
-from .user import UserConfig
+from .user import User, UserConfig
 from .utils import merge_dicts
+
+supported_marketplaces = {"facebook": FacebookMarketplace}
+supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
 
 
 @dataclass
@@ -54,8 +58,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         if not isinstance(config.get("ai", {}), dict):
             raise ValueError("ai section must be a dictionary.")
 
-        from .monitor import supported_ai_backends
-
         self.ai = {}
         for key, value in config.get("ai", {}).items():
             if key not in supported_ai_backends:
@@ -67,8 +69,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each marketplace
-        from .monitor import supported_marketplaces
-
         self.marketplace = {}
         for marketplace_name, marketplace_config in config["marketplace"].items():
             if marketplace_name not in supported_marketplaces:
@@ -82,8 +82,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user
-        from .user import User
-
         self.user: Dict[str, UserConfig] = {}
         for user_name, user_config in config["user"].items():
             self.user[user_name] = User.get_config(name=user_name, **user_config)
@@ -105,8 +103,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     raise ValueError(
                         f"Item [magenta]{item_name}[/magenta] specifies a marketplace that does not exist."
                     )
-
-            from .monitor import supported_marketplaces
 
             for marketplace_name in config["marketplace"]:
                 marketplace_class = supported_marketplaces[marketplace_name]

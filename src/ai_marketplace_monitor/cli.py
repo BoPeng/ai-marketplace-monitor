@@ -100,8 +100,7 @@ def main(
         sys.exit(0)
     except Exception as e:
         logger.error(f"Error: {e}")
-
-        raise
+        sys.exit(1)
     finally:
         monitor.stop_monitor()
 
