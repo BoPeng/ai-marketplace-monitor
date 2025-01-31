@@ -16,7 +16,7 @@ os.makedirs(amm_home, exist_ok=True)
 
 cache = Cache(amm_home)
 
-ConfigType = TypeVar("ConfigType", bound="DataClassWithHandleFunc")
+TConfigType = TypeVar("TConfigType", bound="DataClassWithHandleFunc")
 
 
 @dataclass
@@ -31,7 +31,7 @@ class DataClassWithHandleFunc:
                 handle_method()
 
     @classmethod
-    def from_dict(cls: Type[ConfigType], data: Dict[str, Any]) -> ConfigType:
+    def from_dict(cls: Type[TConfigType], data: Dict[str, Any]) -> TConfigType:
         return cls(**data)
 
 

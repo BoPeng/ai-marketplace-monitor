@@ -1,6 +1,6 @@
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
@@ -51,7 +51,7 @@ class Availability(Enum):
 class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     acceptable_locations: List[str] | None = None
     availability: str | None = None
-    condition: str | None = None
+    condition: List[str] | None = None
     date_listed: str | None = None
     delivery_method: str | None = None
     exclude_sellers: List[str] | None = None
@@ -176,51 +176,7 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
 
 @dataclass
 class FacebookItemConfig(ItemConfig, FacebookMarketItemCommonConfig):
-    keywords: List[str] = field(default_factory=list)
-    description: str | None = None
-    enabled: bool | None = None
-    exclude_by_description: List[str] | None = None
-    exclude_keywords: List[str] | None = None
-    marketplace: str = "facebook"
-
-    def handle_keywords(self: "FacebookItemConfig") -> None:
-        if isinstance(self.keywords, str):
-            self.keywords = [self.keywords]
-
-        if not isinstance(self.keywords, list) or not all(
-            isinstance(x, str) for x in self.keywords
-        ):
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] keywords must be a list.")
-        if len(self.keywords) == 0:
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] keywords list is empty.")
-
-    def handle_description(self: "FacebookItemConfig") -> None:
-        if self.description is None:
-            return
-        if not isinstance(self.description, str):
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] description must be a string.")
-
-    def handle_enabled(self: "FacebookItemConfig") -> None:
-        if self.enabled is None:
-            return
-        if not isinstance(self.enabled, bool):
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] enabled must be a boolean.")
-
-    def handle_exclude_by_description(self: "FacebookItemConfig") -> None:
-        if self.exclude_by_description is None:
-            return
-        if isinstance(self.exclude_by_description, str):
-            self.exclude_by_description = [self.exclude_by_description]
-        if not isinstance(self.exclude_by_description, list) or not all(
-            isinstance(x, str) for x in self.exclude_by_description
-        ):
-            raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] exclude_by_description must be a list."
-            )
-
-    def handle_marketplace(self: "FacebookItemConfig") -> None:
-        if not isinstance(self.marketplace, str):
-            raise ValueError(f"Item [magenta]{self.name}[/magenta] marketplace must be a string.")
+    pass
 
 
 class FacebookMarketplace(Marketplace):
@@ -377,7 +333,7 @@ class FacebookMarketplace(Marketplace):
         self: "FacebookMarketplace", item: SearchedItem, item_config: FacebookItemConfig
     ) -> bool:
         # get exclude_keywords from both item_config or config
-        exclude_keywords = item_config.exclude_keywords or self.config.exclude_keywords
+        exclude_keywords = item_config.exclude_keywords
         if exclude_keywords and is_substring(exclude_keywords, item.title):
             self.logger.info(
                 f"[red]Excluding[/red] [magenta]{item.title}[/magenta] due to exclude_keywords: {', '.join(exclude_keywords)}"

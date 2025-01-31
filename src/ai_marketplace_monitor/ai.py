@@ -6,6 +6,7 @@ from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
 from .item import SearchedItem
+from .marketplace import TItemConfig
 from .utils import DataClassWithHandleFunc
 
 
@@ -41,12 +42,12 @@ class AIBackend:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
     def get_prompt(
-        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: TItemConfig
     ) -> str:
         prompt = f"""A user would like to buy a {item_name} from facebook marketplace.
-            He used keywords "{'" and "'.join(item_config["keywords"])}" to perform the search."""
-        if "description" in item_config:
-            prompt += f""" He also added description "{item_config["description"]}" to describe the item he is interested in."""
+            He used keywords "{'" and "'.join(item_config.keywords)}" to perform the search."""
+        if item_config.description:
+            prompt += f""" He also added description "{item_config.description}" to describe the item he is interested in."""
         #
         max_price = item_config.max_price or 0
         min_price = item_config.min_price or 0
@@ -57,10 +58,10 @@ class AIBackend:
         elif min_price:
             prompt += f""" He also set a minimum price of {min_price}."""
         #
-        if "exclude_keywords" in item_config:
-            prompt += f""" He also excluded items with keywords "{'" and "'.join(item_config["exclude_keywords"])}"."""
-        if "exclude_by_description" in item_config:
-            prompt += f""" He also would like to exclude any items with description matching words "{'" and "'.join(item_config["exclude_by_description"])}"."""
+        if item_config.exclude_keywords:
+            prompt += f""" He also excluded items with keywords "{'" and "'.join(item_config.exclude_keywords)}"."""
+        if item_config.exclude_by_description:
+            prompt += f""" He also would like to exclude any items with description matching words "{'" and "'.join(item_config.exclude_by_description)}"."""
         #
         prompt += """Now the user has found an item that roughly matches the search criteria. """
         prompt += f"""The item is listed under title "{listing.title}", has a price of {listing.price},
@@ -75,7 +76,7 @@ class AIBackend:
         return prompt
 
     def confirm(
-        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "AIBackend", listing: SearchedItem, item_name: str, item_config: TItemConfig
     ) -> bool:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
@@ -95,7 +96,7 @@ class OpenAIBackend(AIBackend):
             )
 
     def confirm(
-        self: "OpenAIBackend", listing: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "OpenAIBackend", listing: SearchedItem, item_name: str, item_config: TItemConfig
     ) -> bool:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(listing, item_name, item_config)

@@ -1,7 +1,7 @@
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import Logger
-from typing import Any, Dict, Generator, List, Type
+from typing import Any, Dict, Generator, Generic, List, Type, TypeVar
 
 from playwright.sync_api import Browser, Page
 
@@ -19,6 +19,8 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     radius: List[int] | None = None
     search_interval: int | None = None
     search_region: List[str] | None = None
+    max_price: int | None = None
+    min_price: int | None = None
 
     def handle_max_search_interval(self: "MarketItemCommonConfig") -> None:
         if self.max_search_interval is None:
@@ -112,6 +114,19 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
                 f"Item [magenta]{self.name}[/magenta] search_region must be one or a list of string."
             )
 
+    def handle_max_price(self: "MarketItemCommonConfig") -> None:
+        if self.max_price is None:
+            return
+        if not isinstance(self.max_price, int):
+            raise ValueError(f"Item [magenta]{self.name}[/magenta] max_price must be an integer.")
+
+    def handle_min_price(self: "MarketItemCommonConfig") -> None:
+        if self.min_price is None:
+            return
+
+        if not isinstance(self.min_price, int):
+            raise ValueError(f"Item [magenta]{self.name}[/magenta] min_price must be an integer.")
+
 
 @dataclass
 class MarketplaceConfig(MarketItemCommonConfig):
@@ -124,10 +139,54 @@ class MarketplaceConfig(MarketItemCommonConfig):
 class ItemConfig(MarketItemCommonConfig):
     """Generic item config"""
 
-    pass
+    keywords: List[str] = field(default_factory=list)
+    exclude_keywords: List[str] | None = None
+    exclude_by_description: List[str] | None = None
+    description: str | None = None
+    enabled: bool | None = None
+    marketplace: str = "facebook"
+
+    def handle_keywords(self: "ItemConfig") -> None:
+        if isinstance(self.keywords, str):
+            self.keywords = [self.keywords]
+
+        if not isinstance(self.keywords, list) or not all(
+            isinstance(x, str) for x in self.keywords
+        ):
+            raise ValueError(f"Item [magenta]{self.name}[/magenta] keywords must be a list.")
+        if len(self.keywords) == 0:
+            raise ValueError(f"Item [magenta]{self.name}[/magenta] keywords list is empty.")
+
+    def handle_description(self: "ItemConfig") -> None:
+        if self.description is None:
+            return
+        if not isinstance(self.description, str):
+            raise ValueError(f"Item [magenta]{self.name}[/magenta] description must be a string.")
+
+    def handle_enabled(self: "ItemConfig") -> None:
+        if self.enabled is None:
+            return
+        if not isinstance(self.enabled, bool):
+            raise ValueError(f"Item [magenta]{self.name}[/magenta] enabled must be a boolean.")
+
+    def handle_exclude_by_description(self: "ItemConfig") -> None:
+        if self.exclude_by_description is None:
+            return
+        if isinstance(self.exclude_by_description, str):
+            self.exclude_by_description = [self.exclude_by_description]
+        if not isinstance(self.exclude_by_description, list) or not all(
+            isinstance(x, str) for x in self.exclude_by_description
+        ):
+            raise ValueError(
+                f"Item [magenta]{self.name}[/magenta] exclude_by_description must be a list."
+            )
 
 
-class Marketplace:
+TMarketplaceConfig = TypeVar("TMarketplaceConfig", bound=MarketplaceConfig)
+TItemConfig = TypeVar("TItemConfig", bound=ItemConfig)
+
+
+class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
     def __init__(self: "Marketplace", name: str, browser: Browser | None, logger: Logger) -> None:
         self.name = name
@@ -136,12 +195,12 @@ class Marketplace:
         self.page: Page | None = None
 
     @classmethod
-    def get_config(cls: Type["Marketplace"], **kwargs: Dict[str, Any]) -> MarketplaceConfig:
-        return MarketplaceConfig.from_dict(kwargs)
+    def get_config(cls: Type["Marketplace"], **kwargs: Dict[str, Any]) -> TMarketplaceConfig:
+        raise NotImplementedError("get_config method must be implemented by subclasses.")
 
     @classmethod
-    def get_item_config(cls: Type["Marketplace"], **kwargs: Dict[str, Any]) -> ItemConfig:
-        return ItemConfig.from_dict(kwargs)
+    def get_item_config(cls: Type["Marketplace"], **kwargs: Dict[str, Any]) -> TItemConfig:
+        raise NotImplementedError("get_config method must be implemented by subclasses.")
 
     def configure(self: "Marketplace", config: MarketplaceConfig) -> None:
         self.config = config
@@ -169,5 +228,5 @@ class Marketplace:
         except KeyboardInterrupt:
             raise
 
-    def search(self: "Marketplace", item: ItemConfig) -> Generator[SearchedItem, None, None]:
+    def search(self: "Marketplace", item: TItemConfig) -> Generator[SearchedItem, None, None]:
         raise NotImplementedError("Search method must be implemented by subclasses.")

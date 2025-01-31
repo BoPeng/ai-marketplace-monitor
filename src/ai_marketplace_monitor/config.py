@@ -2,7 +2,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from logging import Logger
-from typing import Any, Dict, List
+from typing import Any, Dict, Generic, List
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -10,19 +10,19 @@ else:
     import tomli as tomllib
 
 from .ai import AIConfig
-from .marketplace import ItemConfig, MarketplaceConfig
+from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
 from .user import UserConfig
 from .utils import merge_dicts
 
 
 @dataclass
-class Config:
+class Config(Generic[TItemConfig, TMarketplaceConfig]):
     ai: Dict[str, AIConfig] = field(init=False)
     user: Dict[str, UserConfig] = field(init=False)
-    marketplace: Dict[str, MarketplaceConfig] = field(init=False)
-    item: Dict[str, ItemConfig] = field(init=False)
-    region: RegionConfig = field(init=False)
+    marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
+    item: Dict[str, TItemConfig] = field(init=False)
+    region: Dict[str, RegionConfig] = field(init=False)
 
     def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
         configs = []
@@ -56,7 +56,7 @@ class Config:
 
         from .monitor import supported_ai_backends
 
-        self.ai = {}
+        self.ai: Dict[str, AIConfig] = {}
         for key, value in config.get("ai", {}).items():
             if key not in supported_ai_backends:
                 raise ValueError(
@@ -84,20 +84,21 @@ class Config:
         # check for required fields in each user
         from .user import User
 
-        self.user = {}
+        self.user: Dict[str, UserConfig] = {}
         for user_name, user_config in config["user"].items():
             self.user[user_name] = User.get_config(name=user_name, **user_config)
 
     def get_region_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user
-        self.region = {}
-        for region_name, region_config_vals in config.get("region", {}).items():
+        self.region: Dict[str, RegionConfig] = {}
+        for region_name, region_config in config.get("region", {}).items():
             self.region[region_name] = RegionConfig.from_dict(
-                {"name": region_name, **region_config_vals}
+                {"name": region_name, **region_config}
             )
 
     def get_item_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user
+
         self.item = {}
         for item_name, item_config in config["item"].items():
             # if marketplace is specified, it must exist

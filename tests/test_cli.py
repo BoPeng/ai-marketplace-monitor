@@ -1,7 +1,7 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
 from dataclasses import asdict
-from typing import Callable, List
+from typing import Callable, List, Tuple, Type, Union
 
 import pytest
 from pytest import TempPathFactory
@@ -148,7 +148,7 @@ model = 'gpt'
 def test_config(config_file: Callable, config_content: str, acceptable: bool) -> None:
     """Test the config command."""
     cfg = config_file(config_content)
-    key_types = {
+    key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "acceptable_locations": (list, type(None)),
         "availability": (str, type(None)),
         "api_key": str,

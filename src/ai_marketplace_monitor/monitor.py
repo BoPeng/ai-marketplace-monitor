@@ -1,7 +1,7 @@
 import os
 import time
 from logging import Logger
-from typing import Any, ClassVar, Dict, List
+from typing import ClassVar, List
 
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
@@ -11,7 +11,7 @@ from .ai import AIBackend, DeepSeekBackend, OpenAIBackend
 from .config import Config
 from .facebook import FacebookMarketplace
 from .item import SearchedItem
-from .marketplace import Marketplace
+from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
 from .utils import cache, calculate_file_hash, sleep_with_watchdog
 
@@ -39,7 +39,7 @@ class MarketplaceMonitor:
             [os.path.abspath(os.path.expanduser(x)) for x in config_files or []]
         )
         #
-        self.config: Dict[str, Any] | None = None
+        self.config: Config | None = None
         self.config_hash: str | None = None
         self.headless = headless
         self.ai_agents: List[AIBackend] = []
@@ -48,7 +48,7 @@ class MarketplaceMonitor:
         if clear_cache:
             cache.clear()
 
-    def load_config_file(self: "MarketplaceMonitor") -> Dict[str, Any]:
+    def load_config_file(self: "MarketplaceMonitor") -> Config:
         """Load the configuration file."""
         last_invalid_hash = None
         while True:
@@ -92,10 +92,10 @@ class MarketplaceMonitor:
     def search_item(
         self: "MarketplaceMonitor",
         marketplace_name: str,
-        marketplace_config: Dict[str, Any],
+        marketplace_config: TMarketplaceConfig,
         marketplace: Marketplace,
         item_name: str,
-        item_config: Dict[str, Any],
+        item_config: TItemConfig,
     ) -> None:
         """Search for an item on the marketplace."""
         self.logger.info(f"Searching {marketplace_name} for [magenta]{item_name}[/magenta]")
@@ -103,7 +103,7 @@ class MarketplaceMonitor:
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
         users_to_notify = (
-            item_config.notify or marketplace_config.notify or list(self.config["user"].keys())
+            item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
         for item in marketplace.search(item_config):
             # if everyone has been notified
@@ -219,9 +219,9 @@ class MarketplaceMonitor:
 
         if for_item is not None:
             assert self.config is not None
-            if for_item not in self.config["item"]:
+            if for_item not in self.config.item:
                 raise ValueError(
-                    f"Item {for_item} not found in config, available items are {', '.join(self.config['item'].keys())}."
+                    f"Item {for_item} not found in config, available items are {', '.join(self.config.item.keys())}."
                 )
 
         self.load_ai_agents()
@@ -255,7 +255,7 @@ class MarketplaceMonitor:
                 assert self.config is not None
 
                 # which marketplace to check it?
-                for marketplace_name, marketplace_config in self.config["marketplace"].items():
+                for marketplace_name, marketplace_config in self.config.marketplace.items():
                     marketplace_class = supported_marketplaces[marketplace_name]
                     if marketplace_name in self.active_marketplaces:
                         marketplace = self.active_marketplaces[marketplace_name]
@@ -281,7 +281,7 @@ class MarketplaceMonitor:
 
                     self.logger.info(f"Details of the item is found: {pretty_repr(listing)}")
 
-                    for item_name, item_config in self.config["item"].items():
+                    for item_name, item_config in self.config.item.items():
                         if for_item is not None and item_name != for_item:
                             continue
                         self.logger.info(
@@ -293,7 +293,7 @@ class MarketplaceMonitor:
                             self.logger.info(f"Already sent notification for item {item_name}.")
 
     def confirmed_by_ai(
-        self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: Dict[str, Any]
+        self: "MarketplaceMonitor", item: SearchedItem, item_name: str, item_config: TItemConfig
     ) -> bool:
         for agent in self.ai_agents:
             try:
@@ -337,9 +337,9 @@ class MarketplaceMonitor:
                 f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"
             )
             assert self.config is not None
-            assert self.config["user"] is not None
+            assert self.config.user is not None
             try:
-                User(user, self.config["user"][user], logger=self.logger).notify(title, message)
+                User(user, self.config.user[user], logger=self.logger).notify(title, message)
                 for item in unnotified_items:
                     cache.set(
                         ("notify_user", item.id),
