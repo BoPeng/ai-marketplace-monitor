@@ -58,24 +58,22 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     in both marketplace and item sections, specific to facebook marketplace
     """
 
-    acceptable_locations: List[str] | None = None
+    seller_locations: List[str] | None = None
     availability: str | None = None
     condition: List[str] | None = None
     date_listed: str | None = None
     delivery_method: str | None = None
 
-    def handle_acceptable_locations(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.acceptable_locations is None:
+    def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
+        if self.seller_locations is None:
             return
 
-        if isinstance(self.acceptable_locations, str):
-            self.acceptable_locations = [self.acceptable_locations]
-        if not isinstance(self.acceptable_locations, list) or not all(
-            isinstance(x, str) for x in self.acceptable_locations
+        if isinstance(self.seller_locations, str):
+            self.seller_locations = [self.seller_locations]
+        if not isinstance(self.seller_locations, list) or not all(
+            isinstance(x, str) for x in self.seller_locations
         ):
-            raise ValueError(
-                f"Item {hilight(self.name, "name")} acceptable_locations must be a list."
-            )
+            raise ValueError(f"Item {hilight(self.name, "name")} seller_locations must be a list.")
 
     def handle_availability(self: "FacebookMarketItemCommonConfig") -> None:
         if self.availability is None:
@@ -334,9 +332,7 @@ class FacebookMarketplace(Marketplace):
             return False
 
         # get locations from either marketplace config or item config
-        allowed_locations = (
-            item_config.acceptable_locations or self.config.acceptable_locations or []
-        )
+        allowed_locations = item_config.seller_locations or self.config.seller_locations or []
         if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
                 f"""Exclude {hilight("out of area", "fail")} item {hilight(item.title, "name")} from location {hilight(item.location, "name")}"""

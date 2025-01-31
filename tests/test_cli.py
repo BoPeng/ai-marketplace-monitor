@@ -55,7 +55,7 @@ password = "password"
 search_city = ['houston']
 username = "username"
 # the following are common options
-acceptable_locations = "city"
+seller_locations = "city"
 condition = ['new', 'used_good']
 date_listed = 7
 delivery_method = 'local_pick_up'
@@ -84,7 +84,7 @@ keywords = 'search word one'
 marketplace = 'facebook'
 search_city = 'houston'
 # the following are common options
-acceptable_locations = "city"
+seller_locations = "city"
 condition = ['new', 'used_good']
 date_listed = 7
 delivery_method = 'local_pick_up'
@@ -149,7 +149,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     """Test the config command."""
     cfg = config_file(config_content)
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
-        "acceptable_locations": (list, type(None)),
+        "seller_locations": (list, type(None)),
         "availability": (str, type(None)),
         "api_key": str,
         "condition": (list, type(None)),

@@ -20,7 +20,7 @@ search_interval = '30m'
 max_search_interval = '1h'
 #
 # OPTIONAL string or list of strings, can be specified for each search item
-acceptable_locations = ['city', 'surrounding city']
+seller_locations = ['city', 'surrounding city']
 # OPTIONAL, string or list of strings, can be specified for each search item
 notify = 'user1'
 # OPTIONAL, string or list of strings, can be specified for each search item
@@ -45,7 +45,7 @@ keywords = 'search word one'
 search_region = 'usa'
 search_interval = '1d'
 delivery_method = 'shipping'
-acceptable_locations = []
+seller_locations = []
 
 # search for a local item with longer description
 [item.name2]
@@ -60,7 +60,7 @@ notify = 'user2'
 # REQUIRED, can be specified for each search item
 search_city = 'another city'
 # OPTIONAL
-acceptable_locations = ['another city', 'surrounding city']
+seller_locations = ['another city', 'surrounding city']
 # OPTONAL
 exclude_sellers = []
 # OPTIONAL

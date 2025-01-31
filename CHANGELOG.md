@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-01-30
+
 - Change the unit of `search-interval` to seconds to allow for more frequent search, although that is not recommended.
+- Rename option `acceptable_locations` to `seller_locations`
 
 ## [0.5.0] - 2025-01-29
 

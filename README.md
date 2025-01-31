@@ -112,7 +112,7 @@ api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 [marketplace.facebook]
 search_city = 'houston'
 username = 'your@email.com'
-acceptable_locations = [
+seller_locations = [
     "sugar land",
     "stafford",
     "missouri city",
@@ -134,7 +134,7 @@ description = '''A rare item that has to be searched nationwide and be shipped.
     listings from any location are acceptable.'''
 search_region = 'usa'
 delivery_method = 'shipping'
-acceptable_locations = []
+seller_locations = []
 
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -143,10 +143,10 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ### Run the program
 
 ```sh
-ai-marketplace-monitor --config /path/to/config.toml
+ai-marketplace-monitor
 ```
 
-or without `--config` if you have the configuration stored as `$HOME/.ai-marketplace-monitor/config.toml`
+or use option `--config` for a non-standard configuration file.
 
 **NOTE**
 
@@ -194,7 +194,7 @@ an example with many of the options.
 
 - **Common options** shared by marketplace and items. These options
 
-  - `acceptable_locations`: (optional) only allow searched items from these locations
+  - `seller_locations`: (optional) only allow searched items from these locations
   - `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
   - `date_listed`: (optional) one of `All`, `Last 24 hours`, `Last 7 days`, `Last 30 days`.
   - `delivery_method`: (optional) one of `all`, `local_pick_up`, and `shipping`.
@@ -210,18 +210,18 @@ an example with many of the options.
 
 - One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
 
-  - `search_city`: (required), one or more cities with naned used by facebook
+  - `search_city`: (required), one or more cities with names used by facebook
   - `full_name`: (optional) a display name for the region.
   - `radius`: (optional), recommend 805 for regions using miles, and 500 using kms, default to `805`
   - `city_name`: (optional), corresponding city names for bookkeeping purpose only.
 
-  Under the hood, _ai-marketplace-monitor_ will simply set `radius` and expand regions into `search_city` of marketplace of item. Options `name` and `city_name` are not used.
+  Under the hood, _ai-marketplace-monitor_ will simply set `radius` and expand regions into `search_city` of marketplace or items with `search_region`. Options `full_name` and `city_name` are not used.
 
 Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-3. If you are searching a large region by specifying `search_region`, make sure that you set `acceptable_locations=[]` or leave it unspecified in both `item` and `marketplace.facebook`.
+3. If you are searching one or more regions by specifying `search_region`, make sure that you set `seller_locations=[]` or leave it unspecified in both `item` and `marketplace.facebook`.
 4. _ai-marketplace-monitor_ ships with the following regions:
 
    - `usa` for USA (without AK or HI)
@@ -244,9 +244,8 @@ Note that
 
 ## Advanced features
 
-- A file `~/.ai-marketplace-monitor/config.yml`, if it exists, will be read and merged with the specified configuration file. This allows you to save sensitive information like Facebook username, password, and PushBullet token in a separate file.
-- Multiple configuration files can be specified to `--config`, which allows you to spread items into different files.
-- If you would like to know how the program works, especially how it intereacts with the AI, use option `--verbose` (or `-v`).
+- You can use multiple configuration files. For example, you can add all credentials to `~/.ai-marketplace-monitor/config.yml` and use separate configuration files for items for different users.
+- If you would like to know how the program works, especially how it interacts with the AI, use option `--verbose` (or `-v`).
 - If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run
 
   ```sh
@@ -266,7 +265,9 @@ Note that
 - Support more AI engines
 - Develop better ways to identify spammers
 - Support more notification methods.
-- Support more marketplaces.
+- Support more marketplaces such as NextDoor and Craigslist
+
+The structure of this project makes it relatively easy to support more notification methods, AI engines, and marketplaces, but I will mostly rely on PRs to add these features.
 
 ## Credits
 
