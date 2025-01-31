@@ -15,7 +15,7 @@ from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import merge_dicts
+from .utils import hilight, merge_dicts
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
@@ -36,7 +36,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for config_file in [system_config, *config_files]:
             try:
                 if logger:
-                    logger.info(f"Loading config file {config_file}")
+                    logger.info(f"Loading config file {hilight(config_file, "name")}")
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))
             except tomllib.TOMLDecodeError as e:
@@ -74,7 +74,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for marketplace_name, marketplace_config in config["marketplace"].items():
             if marketplace_name not in supported_marketplaces:
                 raise ValueError(
-                    f"Marketplace [magenta]{marketplace_name}[/magenta] is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
+                    f"Marketplace {hilight(marketplace_name, "name")} is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
                 )
             marketplace_class = supported_marketplaces[marketplace_name]
             self.marketplace[marketplace_name] = marketplace_class.get_config(
@@ -102,7 +102,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             if "marketplace" in item_config:
                 if item_config["marketplace"] not in config["marketplace"]:
                     raise ValueError(
-                        f"Item [magenta]{item_name}[/magenta] specifies a marketplace that does not exist."
+                        f"Item {hilight(item_name, "name")} specifies a marketplace that does not exist."
                     )
 
             for marketplace_name in config["marketplace"]:
@@ -133,7 +133,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             for user in marketplace_config.notify or []:
                 if user not in self.user:
                     raise ValueError(
-                        f"User [magenta]{user}[/magenta] specified in [magenta]{marketplace_config.name}[/magenta] does not exist."
+                        f"User {hilight(user, "name")} specified in {hilight(marketplace_config.name, "name")} does not exist."
                     )
 
         # if user is specified for any search item, they must exist
@@ -141,7 +141,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             for user in item_config.notify or []:
                 if user not in self.user:
                     raise ValueError(
-                        f"User [magenta]{user}[/magenta] specified in [magenta]{item_config.name}[/magenta] does not exist."
+                        f"User {hilight(user, "name")} specified in {hilight(item_config.name, "name")} does not exist."
                     )
 
     def expand_regions(self: "Config") -> None:
@@ -156,7 +156,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 region_config: RegionConfig = self.region[region]
                 if region not in self.region:
                     raise ValueError(
-                        f"Region [magenta]{region}[/magenta] specified in [magenta]{config.name}[/magenta] does not exist."
+                        f"Region {hilight(region, "name")} specified in {hilight(config.name, "name")} does not exist."
                     )
                 # avoid duplicated addition of search_city
                 for search_city, radius in zip(region_config.search_city, region_config.radius):

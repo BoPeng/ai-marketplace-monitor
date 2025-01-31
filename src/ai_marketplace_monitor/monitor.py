@@ -4,6 +4,7 @@ from logging import Logger
 from typing import ClassVar, List
 
 import humanize
+import inflect
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
@@ -13,7 +14,14 @@ from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
-from .utils import CacheType, cache, calculate_file_hash, sleep_with_watchdog, time_until_next_run
+from .utils import (
+    CacheType,
+    cache,
+    calculate_file_hash,
+    hilight,
+    sleep_with_watchdog,
+    time_until_next_run,
+)
 
 
 class MarketplaceMonitor:
@@ -66,7 +74,7 @@ class MarketplaceMonitor:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
                     self.logger.error(
-                        f"""Error parsing config file:\n\n[red]{e}[/red]\n\nPlease fix the configuration and I will try again as soon as you are done."""
+                        f"""Error parsing config file:\n\n{hilight(str(e), "fail")}\n\nPlease fix the configuration and I will try again as soon as you are done."""
                     )
                 sleep_with_watchdog(60, self.config_files)
                 continue
@@ -92,7 +100,7 @@ class MarketplaceMonitor:
     ) -> None:
         """Search for an item on the marketplace."""
         self.logger.info(
-            f"Searching {marketplace_config.name} for [magenta]{item_config.name}[/magenta]"
+            f"Searching {marketplace_config.name} for {hilight(item_config.name, "name")}"
         )
         new_listings = []
         # users to notify is determined from item, then marketplace, then all users
@@ -106,7 +114,7 @@ class MarketplaceMonitor:
                 user in cache.get(listing.user_notified_key, ()) for user in users_to_notify
             ):
                 self.logger.info(
-                    f"Already sent notification for item [magenta]{listing.title}[/magenta], skipping."
+                    f"Already sent notification for item {hilight(listing.title, "name")}, skipping."
                 )
                 continue
             # for x in self.find_new_items(found_items)
@@ -114,8 +122,9 @@ class MarketplaceMonitor:
                 continue
             new_listings.append(listing)
 
+        p = inflect.engine()
         self.logger.info(
-            f"""[magenta]{len(new_listings)}[/magenta] new listing{"" if len(new_listings) == 1 else "s"} for {item_config.name} {"is" if len(new_listings) == 1 else "are"} found."""
+            f"""{hilight(str(len(new_listings)), "name")} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
         )
         if new_listings:
             self.notify_users(users_to_notify, new_listings)
@@ -307,6 +316,7 @@ class MarketplaceMonitor:
         self: "MarketplaceMonitor", users: List[str], listings: List[SearchedItem]
     ) -> None:
         # get notification msg for this item
+        p = inflect.engine()
         for user in users:
             msgs = []
             unnotified_listings = []
@@ -326,10 +336,10 @@ class MarketplaceMonitor:
             if not unnotified_listings:
                 continue
 
-            title = f"Found {len(msgs)} new {listing.name} from {listing.marketplace}: "
+            title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
             message = "\n\n".join(msgs)
             self.logger.info(
-                f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"
+                f"Sending {user} a message with title {hilight(title, "name")} and message {hilight(message, "name")}"
             )
             assert self.config is not None
             assert self.config.user is not None

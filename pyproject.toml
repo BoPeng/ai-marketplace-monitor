@@ -39,6 +39,7 @@ openai = "^1.60.1"
 parsedatetime = "^2.6"
 humanize = "^4.11.0"
 schedule = "^1.2.2"
+inflect = "^7.5.0"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
 
 [tool.poetry.group.dev.dependencies]

@@ -148,3 +148,9 @@ def time_until_next_run() -> int:
     next_run = min(job.next_run for job in schedule.jobs if job.next_run is not None)
     now = time.time()
     return max(int(next_run.timestamp() - now), 0)
+
+
+def hilight(text: str, style: str = "title") -> str:
+    """Highlight the keywords in the text with the specified color."""
+    color = {"name": "blue", "fail": "red", "succ": "green"}.get(style, "blue")
+    return f"[{color}]{text}[/{color}]"
