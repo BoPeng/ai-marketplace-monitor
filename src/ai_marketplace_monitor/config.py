@@ -105,7 +105,7 @@ class Config:
 
             # description, if provided, should be a single string
             if "description" in item_config:
-                if not isinstance(item_config["description"], str):
+                if not isinstance(item_config.description, str):
                     raise ValueError(
                         f"Item [magenta]{item_name}[/magenta] description must be a string."
                     )

@@ -1,7 +1,8 @@
-from typing import TypedDict
+from dataclasses import dataclass
 
 
-class SearchedItem(TypedDict):
+@dataclass
+class SearchedItem:
     marketplace: str
     # unique identification
     id: str

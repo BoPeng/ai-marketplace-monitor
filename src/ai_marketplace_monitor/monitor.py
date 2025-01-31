@@ -3,7 +3,7 @@ import time
 from logging import Logger
 from typing import Any, ClassVar, Dict, List
 
-import schedule
+import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 
@@ -109,11 +109,11 @@ class MarketplaceMonitor:
         )
         for item in marketplace.search(item_config):
             # if everyone has been notified
-            if ("notify_user", item["id"]) in cache and all(
-                user in cache.get(("notify_user", item["id"]), ()) for user in users_to_notify
+            if ("notify_user", item.id) in cache and all(
+                user in cache.get(("notify_user", item.id), ()) for user in users_to_notify
             ):
                 self.logger.info(
-                    f"Already sent notification for item [magenta]{item['title']}[/magenta], skipping."
+                    f"Already sent notification for item [magenta]{item.title}[/magenta], skipping."
                 )
                 continue
             # for x in self.find_new_items(found_items)
@@ -324,22 +324,22 @@ class MarketplaceMonitor:
             msgs = []
             unnotified_items = []
             for item in items:
-                if ("notify_user", item["id"]) in cache and user in cache.get(
-                    ("notify_user", item["id"]), ()
+                if ("notify_user", item.id) in cache and user in cache.get(
+                    ("notify_user", item.id), ()
                 ):
                     continue
                 self.logger.info(
-                    f"""New item found: {item["title"]} with URL https://www.facebook.com{item["post_url"]} for user {user}"""
+                    f"""New item found: {item.title} with URL https://www.facebook.com{item.post_url} for user {user}"""
                 )
                 msgs.append(
-                    f"""{item['title']}\n{item['price']}, {item['location']}\nhttps://www.facebook.com{item['post_url']}"""
+                    f"""{item.title}\n{item.price}, {item.location}\nhttps://www.facebook.com{item.post_url}"""
                 )
                 unnotified_items.append(item)
 
             if not unnotified_items:
                 continue
 
-            title = f"Found {len(msgs)} new item from {item['marketplace']}: "
+            title = f"Found {len(msgs)} new item from {item.marketplace}: "
             message = "\n\n".join(msgs)
             self.logger.info(
                 f"Sending {user} a message with title [magenta]{title}[/magenta] and message [magenta]{message}[/magenta]"
@@ -350,8 +350,8 @@ class MarketplaceMonitor:
                 User(user, self.config["user"][user], logger=self.logger).notify(title, message)
                 for item in unnotified_items:
                     cache.set(
-                        ("notify_user", item["id"]),
-                        (user, *cache.get(("notify_user", item["id"]), ())),
+                        ("notify_user", item.id),
+                        (user, *cache.get(("notify_user", item.id), ())),
                         tag="notify_user",
                     )
             except Exception as e:

@@ -58,12 +58,12 @@ class AIBackend:
             prompt += f""" He also would like to exclude any items with description matching words "{'" and "'.join(item_config["exclude_by_description"])}"."""
         #
         prompt += """Now the user has found an item that roughly matches the search criteria. """
-        prompt += f"""The item is listed under title "{listing['title']}", has a price of {listing['price']},
-            It is listed as being sold at {listing['location']}, and has the following description
-            "{listing['description']}"\n."""
-        prompt += f"""The item is posted at {listing['post_url']}.\n"""
-        if "image" in listing:
-            prompt += f"""The item has an image url of {listing['image']}\n"""
+        prompt += f"""The item is listed under title "{listing.title}", has a price of {listing.price},
+            It is listed as being sold at {listing.location}, and has the following description
+            "{listing.description}"\n."""
+        prompt += f"""The item is posted at {listing.post_url}.\n"""
+        if listing.image:
+            prompt += f"""The item has an image url of {listing.image}\n"""
         prompt += """Please confirm if the item likely matches what the users would like to buy.
             Please answer only with yes or no."""
         self.logger.debug(f"Prompt: {prompt}")
@@ -116,9 +116,9 @@ class OpenAIBackend(AIBackend):
         answer = response.choices[0].message.content
         res = True if answer is None else (not answer.lower().strip().startswith("no"))
         self.logger.info(
-            f"""{self.name} concludes that listing [magenta]{listing["title"]}[/magenta] [green]matches[/green] your search criteria."""
+            f"""{self.name} concludes that listing [magenta]{listing.title}[/magenta] [green]matches[/green] your search criteria."""
             if res
-            else f"""{self.name} concludes that listing [magenta]{listing["title"]}[/magenta] [red]does not match[/red] your search criteria."""
+            else f"""{self.name} concludes that listing [magenta]{listing.title}[/magenta] [red]does not match[/red] your search criteria."""
         )
         return res
 

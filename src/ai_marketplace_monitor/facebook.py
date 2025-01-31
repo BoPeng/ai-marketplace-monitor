@@ -1,6 +1,7 @@
 import re
 import time
-from itertools import cycle
+from enum import Enum
+from itertools import repeat
 from logging import Logger
 from typing import Any, ClassVar, Dict, Generator, List, Type, Union, cast
 from urllib.parse import quote
@@ -12,6 +13,31 @@ from rich.pretty import pretty_repr
 from .items import SearchedItem
 from .marketplace import Marketplace
 from .utils import cache, convert_to_minutes, extract_price, is_substring
+
+
+class Condition(Enum):
+    NEW = "new"
+    USED_LIKE_NEW = "used_like_new"
+    USED_GOOD = "used_good"
+    USED_FAIR = "used_fair"
+
+
+class DateListed(Enum):
+    ANYTIME = 0
+    PAST_24_HOURS = 1
+    PAST_WEEK = 7
+    PAST_MONTH = 30
+
+
+class DeliveryMethod(Enum):
+    LOCAL_PICK_UP = "local_pick_up"
+    SHIPPING = "shipping"
+    ALL = "all"
+
+
+class Availability(Enum):
+    INSTOCK = "in"
+    OUTSTOCK = "out"
 
 
 class FacebookMarketplace(Marketplace):
@@ -106,7 +132,7 @@ class FacebookMarketplace(Marketplace):
             if isinstance(config["condition"], str):
                 config["condition"] = [config["condition"]]
             if not isinstance(config["condition"], list) or not all(
-                isinstance(x, str) and x in ["new", "used_like_new", "used_good", "used_fair"]
+                isinstance(x, str) and x in [cond.value for cond in Condition]
                 for x in config["condition"]
             ):
                 raise ValueError(
@@ -115,9 +141,7 @@ class FacebookMarketplace(Marketplace):
         # "date_listed", if specified, should be one of 1, 7, and 30
         if "date_listed" in config:
             if not isinstance(config["date_listed"], int) or config["date_listed"] not in [
-                1,
-                7,
-                30,
+                x.value for x in DateListed
             ]:
                 raise ValueError(
                     f"Marketplace {cls.name} date_listed must be one of 1, 7, and 30."
@@ -125,8 +149,7 @@ class FacebookMarketplace(Marketplace):
         # "availability", if specified, should be one of "in" and "out"
         if "availability" in config:
             if not isinstance(config["availability"], str) or config["availability"] not in [
-                "in",
-                "out",
+                x.value for x in Availability
             ]:
                 raise ValueError(
                     f"Marketplace {cls.name} availability must be one of 'in' and 'out'."
@@ -134,9 +157,7 @@ class FacebookMarketplace(Marketplace):
         # "delivery_method", if specified, should be one of "local_pick_up" or "shipping"
         if "delivery_method" in config:
             if not isinstance(config["delivery_method"], str) or config["delivery_method"] not in [
-                "local_pick_up",
-                "shipping",
-                "all",
+                x.value for x in DeliveryMethod
             ]:
                 raise ValueError(
                     f"Marketplace {cls.name} delivery_method must be one of 'local_pick_up' and 'shipping'."
@@ -242,13 +263,13 @@ class FacebookMarketplace(Marketplace):
             options.append(f"itemCondition={'%2C'.join(condition)}")
 
         date_listed = item_config.get("date_listed", self.config.get("date_listed", None))
-        if date_listed:
+        if date_listed and date_listed != DateListed.ANYTIME:
             options.append(f"daysSinceListed={date_listed}")
 
         delivery_method = item_config.get(
             "delivery_method", self.config.get("delivery_method", None)
         )
-        if delivery_method and delivery_method != "all":
+        if delivery_method and delivery_method != DeliveryMethod.ALL:
             options.append(f"deliveryMethod={delivery_method}")
 
         availability = item_config.get("availability", self.config.get("availability", None))
@@ -260,7 +281,7 @@ class FacebookMarketplace(Marketplace):
         found = {}
         search_city = item_config.get("search_city", self.config.get("search_city", []))
         radiuses = item_config.get("radius", self.config.get("radius", None))
-        for city, radius in zip(search_city, cycle(None) if radiuses is None else radiuses):
+        for city, radius in zip(search_city, repeat(None) if radiuses is None else radiuses):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
             if radius:
@@ -279,24 +300,24 @@ class FacebookMarketplace(Marketplace):
                 # go to each item and get the description
                 # if we have not done that before
                 for item in found_items:
-                    if item["post_url"] in found:
+                    if item.post_url in found:
                         continue
-                    found[item["post_url"]] = True
+                    found[item.post_url] = True
                     # filter by title and location since we do not have description and seller yet.
                     if not self.filter_item(item, item_config):
                         continue
                     try:
-                        details = self.get_item_details(item["post_url"])
+                        details = self.get_item_details(item.post_url)
                         time.sleep(5)
                     except Exception as e:
                         self.logger.error(f"Error getting item details: {e}")
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
-                    for key in ("description", "seller"):
-                        item[key] = details[key]
+                    item.description = details.description
+                    item.seller = details.seller
                     self.logger.debug(
-                        f"""New item "{item["title"]}" from https://www.facebook.com{item["post_url"]} is sold by "{item["seller"]}" and with description "{item["description"][:100]}..." """
+                        f"""New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
                     )
                     if self.filter_item(item, item_config):
                         yield item
@@ -323,17 +344,17 @@ class FacebookMarketplace(Marketplace):
             "exclude_keywords", self.config.get("exclude_keywords", [])
         )
 
-        if exclude_keywords and is_substring(exclude_keywords, item["title"]):
+        if exclude_keywords and is_substring(exclude_keywords, item.title):
             self.logger.info(
-                f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] due to exclude_keywords: {', '.join(exclude_keywords)}"
+                f"[red]Excluding[/red] [magenta]{item.title}[/magenta] due to exclude_keywords: {', '.join(exclude_keywords)}"
             )
             return False
 
         # if the return description does not contain any of the search keywords
         search_words = [word for keywords in item_config["keywords"] for word in keywords.split()]
-        if not is_substring(search_words, item["title"]):
+        if not is_substring(search_words, item.title):
             self.logger.info(
-                f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] without search word in title."
+                f"[red]Excluding[/red] [magenta]{item.title}[/magenta] without search word in title."
             )
             return False
 
@@ -341,9 +362,9 @@ class FacebookMarketplace(Marketplace):
         allowed_locations = item_config.get(
             "acceptable_locations", self.config.get("acceptable_locations", [])
         )
-        if allowed_locations and not is_substring(allowed_locations, item["location"]):
+        if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
-                f"[red]Excluding[/red] out of area item [red]{item['title']}[/red] from location [red]{item['location']}[/red]"
+                f"[red]Excluding[/red] out of area item [red]{item.title}[/red] from location [red]{item.location}[/red]"
             )
             return False
 
@@ -351,12 +372,12 @@ class FacebookMarketplace(Marketplace):
         exclude_by_description = item_config.get("exclude_by_description", [])
 
         if (
-            item["description"]
+            item.description
             and exclude_by_description
-            and is_substring(exclude_by_description, item["description"])
+            and is_substring(exclude_by_description, item.description)
         ):
             self.logger.info(
-                f"""[red]Excluding[/red] [magenta]{item['title']}[/magenta] by exclude_by_description: [red]{", ".join(exclude_by_description)}[/red]:\n[magenta]{item["description"][:100]}...[/magenta] """
+                f"""[red]Excluding[/red] [magenta]{item.title}[/magenta] by exclude_by_description: [red]{", ".join(exclude_by_description)}[/red]:\n[magenta]{item.description[:100]}...[/magenta] """
             )
             return False
 
@@ -365,9 +386,9 @@ class FacebookMarketplace(Marketplace):
             "exclude_sellers", []
         )
 
-        if item["seller"] and exclude_sellers and is_substring(exclude_sellers, item["seller"]):
+        if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
-                f"[red]Excluding[/red] [magenta]{item['title']}[/magenta] sold by banned [red]{item['seller']}[/red]"
+                f"[red]Excluding[/red] [magenta]{item.title}[/magenta] sold by banned [red]{item.seller}[/red]"
             )
             return False
 
@@ -435,18 +456,18 @@ class FacebookSearchResultPage(WebPage):
         location = details[2].contents[-1].text
 
         # Append the parsed data to the list.
-        return {
-            "marketplace": "facebook",
-            "id": post_url.split("?")[0].rstrip("/").split("/")[-1],
-            "title": title,
-            "image": image,
-            "price": price,
+        return SearchedItem(
+            marketplace="facebook",
+            id=post_url.split("?")[0].rstrip("/").split("/")[-1],
+            title=title,
+            image=image,
+            price=price,
             # we do not need all the ?referral_code&referral_sotry_type etc
-            "post_url": post_url.split("?")[0],
-            "location": location,
-            "seller": "",
-            "description": "",
-        }
+            post_url=post_url.split("?")[0],
+            location=location,
+            seller="",
+            description="",
+        )
 
     def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
         try:
@@ -540,16 +561,16 @@ class FacebookItemPage(WebPage):
             )
 
         self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
-        res = {
-            "marketplace": "facebook",
-            "id": item_id,
-            "title": title,
-            "image": self.get_image_url(),
-            "price": price,
-            "post_url": post_url,
-            "location": location,
-            "description": description,
-            "seller": self.get_seller(),
-        }
+        res = SearchedItem(
+            marketplace="facebook",
+            id=item_id,
+            title=title,
+            image=self.get_image_url(),
+            price=price,
+            post_url=post_url,
+            location=location,
+            description=description,
+            seller=self.get_seller(),
+        )
         self.logger.debug(pretty_repr(res))
         return cast(SearchedItem, res)
