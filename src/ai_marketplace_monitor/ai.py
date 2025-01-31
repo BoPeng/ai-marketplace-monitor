@@ -7,7 +7,7 @@ from rich.pretty import pretty_repr
 
 from .item import SearchedItem
 from .marketplace import TItemConfig
-from .utils import DataClassWithHandleFunc
+from .utils import DataClassWithHandleFunc, hilight
 
 
 @dataclass
@@ -125,9 +125,9 @@ class OpenAIBackend(AIBackend):
         answer = response.choices[0].message.content
         res = True if answer is None else (not answer.lower().strip().startswith("no"))
         self.logger.info(
-            f"""{self.config.name} concludes that listing [magenta]{listing.title}[/magenta] [green]matches[/green] your search criteria."""
+            f"""{self.config.name} concludes that listing {hilight(listing.title, "name")} {hilight("matches", "succ")} your search criteria."""
             if res
-            else f"""{self.config.name} concludes that listing [magenta]{listing.title}[/magenta] [red]does not match[/red] your search criteria."""
+            else f"""{self.config.name} concludes that listing {hilight(listing.title, "name")} {hilight("does not match", "fail")} your search criteria."""
         )
         return res
 

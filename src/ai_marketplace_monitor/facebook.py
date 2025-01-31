@@ -20,6 +20,7 @@ from .utils import (
     cache,
     convert_to_seconds,
     extract_price,
+    hilight,
     is_substring,
 )
 
@@ -73,7 +74,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
             isinstance(x, str) for x in self.acceptable_locations
         ):
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] acceptable_locations must be a list."
+                f"Item {hilight(self.name, "name")} acceptable_locations must be a list."
             )
 
     def handle_availability(self: "FacebookMarketItemCommonConfig") -> None:
@@ -83,7 +84,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
             x.value for x in Availability
         ]:
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] availability must be one of 'in' and 'out'."
+                f"Item {hilight(self.name, "name")} availability must be one of 'in' and 'out'."
             )
 
     def handle_condition(self: "FacebookMarketItemCommonConfig") -> None:
@@ -95,7 +96,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
             isinstance(x, str) and x in [cond.value for cond in Condition] for x in self.condition
         ):
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] condition must be one or more of that can be one of 'new', 'used_like_new', 'used_good', 'used_fair'."
+                f"Item {hilight(self.name, "name")} condition must be one or more of that can be one of 'new', 'used_like_new', 'used_good', 'used_fair'."
             )
 
     def handle_date_listed(self: "FacebookMarketItemCommonConfig") -> None:
@@ -105,7 +106,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
             x.value for x in DateListed
         ]:
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] date_listed must be one of 1, 7, and 30."
+                f"Item {hilight(self.name, "name")} date_listed must be one of 1, 7, and 30."
             )
 
     def handle_delivery_method(self: "FacebookMarketItemCommonConfig") -> None:
@@ -115,7 +116,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
             x.value for x in DeliveryMethod
         ]:
             raise ValueError(
-                f"Item [magenta]{self.name}[/magenta] delivery_method must be one of 'local_pick_up' and 'shipping'."
+                f"Item {hilight(self.name, "name")} delivery_method must be one of 'local_pick_up' and 'shipping'."
             )
 
 
@@ -320,7 +321,7 @@ class FacebookMarketplace(Marketplace):
         exclude_keywords = item_config.exclude_keywords
         if exclude_keywords and is_substring(exclude_keywords, item.title):
             self.logger.info(
-                f"[red]Excluding[/red] [magenta]{item.title}[/magenta] due to exclude_keywords: {', '.join(exclude_keywords)}"
+                f"{hilight("Excluding", "fail")} {hilight(item.title, "name")} due to exclude_keywords: {', '.join(exclude_keywords)}"
             )
             return False
 
@@ -328,7 +329,7 @@ class FacebookMarketplace(Marketplace):
         search_words = [word for keywords in item_config.keywords for word in keywords.split()]
         if not is_substring(search_words, item.title):
             self.logger.info(
-                f"[red]Excluding[/red] [magenta]{item.title}[/magenta] without search word in title."
+                f"{hilight("Excluding", "fail")} {hilight(item.title, "name")} without search word in title."
             )
             return False
 
@@ -338,7 +339,7 @@ class FacebookMarketplace(Marketplace):
         )
         if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
-                f"[red]Excluding[/red] out of area item [red]{item.title}[/red] from location [red]{item.location}[/red]"
+                f"{hilight("Excluding", "fail")} out of area item {hilight(item.title, "fail")} from location {hilight(item.location, "fail")}"
             )
             return False
 
@@ -351,7 +352,7 @@ class FacebookMarketplace(Marketplace):
             and is_substring(exclude_by_description, item.description)
         ):
             self.logger.info(
-                f"""[red]Excluding[/red] [magenta]{item.title}[/magenta] by exclude_by_description: [red]{", ".join(exclude_by_description)}[/red]:\n[magenta]{item.description[:100]}...[/magenta] """
+                f"""{hilight("Excluding", "fail")} {hilight(item.title, "name")} by exclude_by_description: {hilight(", ".join(exclude_by_description), "fail")}:\n{hilight(item.description[:100], "name")}..."""
             )
             return False
 
@@ -359,7 +360,7 @@ class FacebookMarketplace(Marketplace):
         exclude_sellers = item_config.exclude_sellers or self.config.exclude_sellers or []
         if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
-                f"[red]Excluding[/red] [magenta]{item.title}[/magenta] sold by banned [red]{item.seller}[/red]"
+                f"{hilight("Excluding", "fail")} {hilight(item.title, "name")} sold by banned {hilight(item.seller, "fail")}"
             )
             return False
 
@@ -532,7 +533,7 @@ class FacebookItemPage(WebPage):
                 Please report the issue to the developer if the problem persists."""
             )
 
-        self.logger.info(f"Parsing item [magenta]{title}[/magenta]")
+        self.logger.info(f"Parsing item {hilight(title, "name")}")
         res = SearchedItem(
             marketplace="facebook",
             name="",
