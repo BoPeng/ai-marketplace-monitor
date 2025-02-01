@@ -179,6 +179,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "search_city": (list, type(None)),
         "search_interval": (int, type(None)),
         "search_region": (list, type(None)),
+        "start_at": (str, type(None)),
         "username": (str, type(None)),
     }
     if acceptable:
