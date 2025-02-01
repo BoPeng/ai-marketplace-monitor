@@ -47,6 +47,7 @@ class DeliveryMethod(Enum):
 
 
 class Availability(Enum):
+    ALL = "all"
     INSTOCK = "in"
     OUTSTOCK = "out"
 
@@ -270,15 +271,15 @@ class FacebookMarketplace(Marketplace):
             options.append(f"itemCondition={'%2C'.join(condition)}")
 
         date_listed = item_config.date_listed or self.config.date_listed
-        if date_listed and date_listed != DateListed.ANYTIME:
+        if date_listed and date_listed != DateListed.ANYTIME.value:
             options.append(f"daysSinceListed={date_listed}")
 
         delivery_method = item_config.delivery_method or self.config.delivery_method
-        if delivery_method and delivery_method != DeliveryMethod.ALL:
+        if delivery_method and delivery_method != DeliveryMethod.ALL.value:
             options.append(f"deliveryMethod={delivery_method}")
 
         availability = item_config.availability or self.config.availability
-        if availability:
+        if availability and availability != Availability.ALL.value:
             options.append(f"availability={availability}")
 
         # search multiple keywords and cities
