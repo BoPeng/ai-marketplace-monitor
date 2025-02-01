@@ -289,8 +289,6 @@ class MarketplaceMonitor:
 
         post_urls = []
         for post_url in items or []:
-            if "?" in post_url:
-                post_url = post_url.split("?")[0]
             if post_url.isnumeric():
                 post_url = f"https://www.facebook.com/marketplace/item/{post_url}/"
 
@@ -322,7 +320,7 @@ class MarketplaceMonitor:
                     marketplace.configure(marketplace_config)
 
                     # do we need a browser?
-                    if (CacheType.ITEM_DETAILS.value, post_url) not in cache:
+                    if (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]) not in cache:
                         if browser is None:
                             self.logger.info(
                                 "Starting a browser because the item was not checked before."
@@ -375,10 +373,10 @@ class MarketplaceMonitor:
                 ):
                     continue
                 self.logger.info(
-                    f"""New item found: {listing.title} with URL https://www.facebook.com{listing.post_url} for user {user}"""
+                    f"""New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
                 )
                 msgs.append(
-                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url}"""
+                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url.split("?")[0]}"""
                 )
                 unnotified_listings.append(listing)
 

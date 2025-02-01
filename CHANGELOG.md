@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.2] - 2025-01-31
+## [0.5.3] - 2025-01-31
 
+- Add command line option `--diable-javascript` which can be helpful in some cases.
 - Add option `include_keywords` to fine-tune the behavior of `keywords`.
 - Add option `provider` to allow the specfication of more AI service providers.
 - Allow `market_type` to marketplaces and allow multiple marketplaces.

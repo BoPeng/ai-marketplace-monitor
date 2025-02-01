@@ -329,7 +329,7 @@ class FacebookMarketplace(Marketplace):
                         yield item
 
     def get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
-        details = cache.get((CacheType.ITEM_DETAILS.value, post_url))
+        details = cache.get((CacheType.ITEM_DETAILS.value, post_url.split("?")[0]))
         if details is not None:
             return details
 
@@ -339,7 +339,9 @@ class FacebookMarketplace(Marketplace):
         assert self.page is not None
         self.goto_url(post_url)
         details = FacebookItemPage(self.page.content(), self.logger).parse(post_url)
-        cache.set((CacheType.ITEM_DETAILS.value, post_url), details, tag="item_details")
+        cache.set(
+            (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]), details, tag="item_details"
+        )
         return details
 
     def filter_item(
@@ -466,8 +468,10 @@ class FacebookSearchResultPage(WebPage):
             title=title,
             image=image,
             price=price,
-            # we do not need all the ?referral_code&referral_sotry_type etc
-            post_url=post_url.split("?")[0],
+            # all the ?referral_code&referral_sotry_type etc
+            # could be helpful for live navigation, but will be stripped
+            # for caching item details.
+            post_url=post_url,
             location=location,
             seller="",
             description="",
