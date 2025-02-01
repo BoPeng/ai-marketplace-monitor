@@ -146,7 +146,9 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ai-marketplace-monitor
 ```
 
-or use option `--config` for a non-standard configuration file.
+or use option `--config` for a non-standard configuration file. The terminal output will look similar to
+
+![Search In Action](docs/search_in_action.png)
 
 **NOTE**
 
