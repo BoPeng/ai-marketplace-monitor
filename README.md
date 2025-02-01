@@ -235,7 +235,7 @@ return related items under different names. To fix this problem, you can
 
 The following options that can specified for both `marketplace` sections and `item` sections. Options defined in marketplaces provide default options for all items searched in that marketplace. Options defined for individual items will override options provided in marketplaces.
 
-- `availablility`: (optional) shows output with `in` (in stock), `out` (out of stock) or `all` (both).
+- `availability`: (optional) shows output with `in` (in stock), `out` (out of stock) or `all` (both).
 - `seller_locations`: (optional) only allow searched items from these locations
 - `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
 - `date_listed`: (optional) one of `All`, `Last 24 hours`, `Last 7 days`, `Last 30 days`, or `0`, `1`, `7`, and `30`.
@@ -261,7 +261,6 @@ Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-3. A list of two values can be specified for options `availability`, `date_listed`, and `delivery_method`, with the first one used for the first search, and second one used for the rest of searches. This allows the use of different search strategies for first and repeated searches. (c.f. [issue 27](https://github.com/BoPeng/ai-marketplace-monitor/issues/27))
 
 ### Regions
 
@@ -344,6 +343,10 @@ keywords = 'rare item1'
 marketplace = 'nationwide'
 keywords = 'rare item2'
 ```
+
+### First and subsequent searches
+
+A list of two values can be specified for options `availability`, `date_listed`, and `delivery_method`, with the first one used for the first search, and second one used for the rest of searches. This allows the use of different search strategies for first and subsequent searches. (c.f. [issue 27](https://github.com/BoPeng/ai-marketplace-monitor/issues/27))
 
 ### Network issues
 

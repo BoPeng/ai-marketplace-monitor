@@ -62,10 +62,10 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
 
     seller_locations: List[str] | None = None
     acceptable_locations: List[str] | None = None
-    availability: str | None = None
+    availability: List[str] | None = None
     condition: List[str] | None = None
-    date_listed: int | None = None
-    delivery_method: str | None = None
+    date_listed: List[int] | None = None
+    delivery_method: List[str] | None = None
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.seller_locations is None:
@@ -97,11 +97,16 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     def handle_availability(self: "FacebookMarketItemCommonConfig") -> None:
         if self.availability is None:
             return
-        if not isinstance(self.availability, str) or self.availability not in [
-            x.value for x in Availability
-        ]:
+
+        if isinstance(self.availability, str):
+            self.availability = [self.availability]
+        if not all(val in [x.value for x in Availability] for val in self.availability):
             raise ValueError(
-                f"Item {hilight(self.name)} availability must be one of 'in' and 'out'."
+                f"Item {hilight(self.name)} availability must be one or two values of 'all', 'in', and 'out'."
+            )
+        if len(self.availability) > 2:
+            raise ValueError(
+                f"Item {hilight(self.name)} availability must be one or two values of 'all', 'in', and 'out'."
             )
 
     def handle_condition(self: "FacebookMarketItemCommonConfig") -> None:
@@ -119,29 +124,52 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     def handle_date_listed(self: "FacebookMarketItemCommonConfig") -> None:
         if self.date_listed is None:
             return
-
-        if self.date_listed == "All":
-            self.date_listed = DateListed.ANYTIME.value
-        elif self.date_listed == "Last 24 hours":
-            self.date_listed = DateListed.PAST_24_HOURS.value
-        elif self.date_listed == "Last 7 days":
-            self.date_listed = DateListed.PAST_WEEK.value
-        elif self.date_listed == "Last 30 days":
-            self.date_listed = DateListed.PAST_MONTH.value
-
-        if not isinstance(self.date_listed, int) or self.date_listed not in [
-            x.value for x in DateListed
-        ]:
+        if not isinstance(self.date_listed, list):
+            self.date_listed = [self.date_listed]
+        #
+        new_values = []
+        for val in self.date_listed:
+            if isinstance(val, str):
+                if val.isdigit():
+                    new_values.append(int(val))
+                elif val == "All":
+                    new_values.append(DateListed.ANYTIME.value)
+                elif val == "Last 24 hours":
+                    new_values.append(DateListed.PAST_24_HOURS.value)
+                elif val == "Last 7 days":
+                    new_values.append(DateListed.PAST_WEEK.value)
+                elif val == "Last 30 days":
+                    new_values.append(DateListed.PAST_MONTH.value)
+                else:
+                    raise ValueError(
+                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                    )
+            elif not isinstance(val, int) or val not in [x.value for x in DateListed]:
+                raise ValueError(
+                    f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                )
+        # new_values should have length 1 or 2
+        if len(new_values) > 2:
             raise ValueError(
-                f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                f"""Item {hilight(self.name)} date_listed must have one or two values."""
             )
+        self.date_listed = new_values
 
     def handle_delivery_method(self: "FacebookMarketItemCommonConfig") -> None:
         if self.delivery_method is None:
             return
-        if not isinstance(self.delivery_method, str) or self.delivery_method not in [
-            x.value for x in DeliveryMethod
-        ]:
+
+        if isinstance(self.delivery_method, str):
+            self.delivery_method = [self.delivery_method]
+
+        if len(self.delivery_method) > 2:
+            raise ValueError(
+                f"Item {hilight(self.name)} delivery_method must be one or two values of 'local_pick_up' and 'shipping'."
+            )
+
+        if not isinstance(self.delivery_method, list) or not all(
+            val in [x.value for x in DeliveryMethod] for val in self.delivery_method
+        ):
             raise ValueError(
                 f"Item {hilight(self.name)} delivery_method must be one of 'local_pick_up' and 'shipping'."
             )

@@ -88,6 +88,7 @@ search_city = 'houston'
 seller_locations = "city"
 condition = ['new', 'used_good']
 date_listed = 7
+availability = ['out', 'all']
 delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
 max_price = 300
@@ -152,11 +153,11 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "seller_locations": (list, type(None)),
         "acceptable_locations": (list, type(None)),
-        "availability": (str, type(None)),
+        "availability": (list, type(None)),
         "api_key": str,
         "condition": (list, type(None)),
-        "date_listed": (int, type(None)),
-        "delivery_method": (str, type(None)),
+        "date_listed": (list, type(None)),
+        "delivery_method": (list, type(None)),
         "description": (str, type(None)),
         "enabled": (bool, type(None)),
         "exclude_by_description": (list, type(None)),
