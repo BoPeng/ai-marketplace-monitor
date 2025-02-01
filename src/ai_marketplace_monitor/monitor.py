@@ -247,12 +247,16 @@ class MarketplaceMonitor:
                 # assert next_job is not None
                 assert next_job.next_run is not None
                 idle_seconds = schedule.idle_seconds() or 0
-                self.logger.info(
-                    f"""Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
-                )
+                if idle_seconds > 60:
+                    # the sleep time might not be enough, causing this message
+                    # to be sent repeatedly. Having a idle_seconds > 60 helps
+                    # to reduce the frequency of this message.
+                    self.logger.info(
+                        f"""Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
+                    )
 
                 sleep_with_watchdog(
-                    int(idle_seconds),
+                    max(5, int(idle_seconds)),
                     self.config_files,
                 )
                 # if configuration file has been changed, clear all scheduled jobs and restart

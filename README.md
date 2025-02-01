@@ -260,6 +260,7 @@ Note that
 
 1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
+3. A list of two values can be specified for options `condition`, `date_listed`, and `delivery_method`, with the first one used for the first search, and second one used for the rest of searches. This allows the use of different search strategies for first and repeated searches. (c.f. [issue 27](https://github.com/BoPeng/ai-marketplace-monitor/issues/27))
 
 ### Regions
 
