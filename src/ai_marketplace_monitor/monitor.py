@@ -97,7 +97,9 @@ class MarketplaceMonitor:
                 self.ai_agents[-1].connect()
                 self.logger.info(f"Connected to {hilight(ai_config.name)}")
             except Exception as e:
-                self.logger.error(f"Failed to connect to {hilight(ai_config.name, "fail")}: {e}")
+                self.logger.error(
+                    f"""Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
+                )
                 continue
 
     def search_item(
