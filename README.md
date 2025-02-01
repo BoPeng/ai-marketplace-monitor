@@ -213,14 +213,22 @@ One or more `user.username` sections are allowed. The `username` need to match w
 
 One or more `item.item_name` where `item_name` is the name of the item.
 
-- `keywords`: (required) one of more keywords for searching the item
+- `keywords`: (required) one of more keywords for searching the item.
 - `description`: (optional) A longer description of the item that better describes your requirements, such as manufacture, condition, location, seller reputation,
   if you accept shipping etc. It is currently **only used if AI assistance is enabled**.
 - `enabled`: (optional), stop searching this item if set to `false`
-- `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
+- `include_keywords`: (optional), exclude listings that does not contain any of the keywords.
+- `exclude_keywords`: (optional), exclude listings whose titles contain any of the specified words
 - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
 - `marketplace`: (optional), can only be `facebook` if specified.
 - **Common options** listed below. These options, if specified in the item section, will override options in the markerplace section.
+
+Facebook may return listings that are completely unrelated to search keywords, but can also
+return related items under different names. To fix this problem, you can
+
+1. Use `include_keywords` to keep only items with certain words in the title. For example, you can set `include_keywords = ['gopro', 'go pro']` when you search for `keywords = 'gopro'`.
+2. Use `exclude_keywords` to narrow down the search. For example, setting `exclude_keywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title.
+3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a camera.
 
 ### Options that can be specified for both marketplaces and items
 

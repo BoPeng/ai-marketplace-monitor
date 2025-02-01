@@ -334,15 +334,18 @@ class FacebookMarketplace(Marketplace):
             return False
 
         # if the return description does not contain any of the search keywords
-        search_words = [word for keywords in item_config.keywords for word in keywords.split()]
-        if not is_substring(search_words, item.title):
+        include_keywords = item_config.include_keywords
+        if include_keywords and not is_substring(include_keywords, item.title):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} {hilight("without search word", "fail")} in title."""
+                f"""Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
             )
             return False
 
         # get locations from either marketplace config or item config
-        allowed_locations = item_config.seller_locations or self.config.seller_locations or []
+        if item_config.seller_locations is not None:
+            allowed_locations = item_config.seller_locations
+        else:
+            allowed_locations = self.config.seller_locations or []
         if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
                 f"""Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
@@ -351,7 +354,6 @@ class FacebookMarketplace(Marketplace):
 
         # get exclude_keywords from both item_config or config
         exclude_by_description = item_config.exclude_by_description or []
-
         if (
             item.description
             and exclude_by_description
@@ -363,7 +365,10 @@ class FacebookMarketplace(Marketplace):
             return False
 
         # get exclude_sellers from both item_config or config
-        exclude_sellers = item_config.exclude_sellers or self.config.exclude_sellers or []
+        if item_config.exclude_sellers is not None:
+            exclude_sellers = item_config.exclude_sellers
+        else:
+            exclude_sellers = self.config.exclude_sellers or []
         if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
                 f"""Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""

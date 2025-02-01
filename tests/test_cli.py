@@ -80,6 +80,7 @@ description = 'long description'
 enabled = true
 exclude_by_description = ['some exclude1', 'some exclude2']
 exclude_keywords = ['exclude1', 'exclude2']
+include_keywords = ['exclude1', 'exclude2']
 keywords = 'search word one'
 marketplace = 'facebook'
 search_city = 'houston'
@@ -161,6 +162,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "exclude_keywords": (list, type(None)),
         "exclude_sellers": (list, type(None)),
         "keywords": (list, type(None)),
+        "include_keywords": (list, type(None)),
         "login_wait_time": (int, type(None)),
         "marketplace": (str, type(None)),
         "max_price": (int, type(None)),

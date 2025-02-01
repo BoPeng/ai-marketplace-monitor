@@ -174,6 +174,7 @@ class ItemConfig(MarketItemCommonConfig):
 
     # keywords is required, all others are optional
     keywords: List[str] = field(default_factory=list)
+    include_keywords: List[str] | None = None
     exclude_keywords: List[str] | None = None
     exclude_by_description: List[str] | None = None
     description: str | None = None
@@ -190,6 +191,32 @@ class ItemConfig(MarketItemCommonConfig):
             raise ValueError(f"Item {hilight(self.name)} keywords must be a list.")
         if len(self.keywords) == 0:
             raise ValueError(f"Item {hilight(self.name)} keywords list is empty.")
+
+    def handle_exclude_keywords(self: "ItemConfig") -> None:
+        if self.exclude_keywords is None:
+            return
+
+        if isinstance(self.exclude_keywords, str):
+            self.exclude_keywords = [self.exclude_keywords]
+
+        if not isinstance(self.exclude_keywords, list) or not all(
+            isinstance(x, str) for x in self.exclude_keywords
+        ):
+            raise ValueError(
+                f"Item {hilight(self.name)} exclude_keywords must be a list of strings."
+            )
+
+    def handle_include_keywords(self: "ItemConfig") -> None:
+        if self.include_keywords is None:
+            return
+
+        if isinstance(self.include_keywords, str):
+            self.include_keywords = [self.include_keywords]
+
+        if not isinstance(self.include_keywords, list) or not all(
+            isinstance(x, str) for x in self.include_keywords
+        ):
+            raise ValueError(f"Item {hilight(self.name)} include_keywords must be a list.")
 
     def handle_description(self: "ItemConfig") -> None:
         if self.description is None:

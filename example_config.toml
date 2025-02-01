@@ -53,6 +53,8 @@ seller_locations = []
 keywords = ['search word one', 'search word two']
 # OPTIONAL, recommended for AI
 description = "it should be from manufacture, the seller should not offer shipping."
+# OPTIONAL words that should appear in the title
+include_keywords = ['search word']
 # OPTIONAL words that should not be in the title
 exclude_keywords = ['exclude word one', 'exclude word two']
 # OPTIONAL product specific user to notify
