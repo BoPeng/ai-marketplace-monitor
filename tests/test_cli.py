@@ -124,18 +124,6 @@ model = 'gpt'
 """
 
 
-alt_marketplace_cfg = """
-[marketplace.houston]
-search_city = 'houston'
-"""
-
-alt_item_cfg = """
-[item.whatever]
-marketplace = "houston"
-keywords = "search word two"
-"""
-
-
 @pytest.mark.parametrize(
     "config_content,acceptable",
     [
@@ -205,6 +193,18 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
             Config([cfg])
 
 
+alt_marketplace_cfg = """
+[marketplace.houston]
+search_city = 'houston'
+"""
+
+alt_item_cfg = """
+[item.whatever]
+marketplace = "houston"
+keywords = "search word two"
+"""
+
+
 def test_support_multiple_marketplaces(config_file: Callable) -> None:
     """Test the config command."""
     cfg = config_file(
@@ -220,3 +220,26 @@ def test_support_multiple_marketplaces(config_file: Callable) -> None:
     assert config.item["whatever"].marketplace == "houston"
     assert config.marketplace["facebook"].search_city == ["dallas"]
     assert config.marketplace["houston"].search_city == ["houston"]
+
+
+alt_ai_cfg = """
+[ai.some_ai]
+provider = 'OpenAI'
+api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+model = 'gpt_none'
+base_url = 'http://someother.com'
+"""
+
+
+def test_multiplace_ai_agent(config_file: Callable) -> None:
+    """Test the config command."""
+    cfg = config_file(
+        base_marketplace_cfg + base_ai_cfg + base_item_cfg + alt_ai_cfg + base_user_cfg
+    )
+    config = Config([cfg])
+
+    assert len(config.marketplace) == 1
+    assert len(config.ai) == 2
+
+    assert config.ai["openai"].api_key == "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    assert config.ai["some_ai"].model == "gpt_none"

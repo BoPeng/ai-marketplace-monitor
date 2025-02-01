@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from logging import Logger
 from typing import Any, Generic, Type, TypeVar
 
@@ -10,7 +11,7 @@ from .marketplace import TItemConfig
 from .utils import DataClassWithHandleFunc, hilight
 
 
-class AIServiceProvider(str):
+class AIServiceProvider(Enum):
     OPENAI = "OpenAI"
     DEEPSEEK = "DeepSeek"
 
@@ -27,7 +28,7 @@ class AIConfig(DataClassWithHandleFunc):
     def handle_provider(self: "AIConfig") -> None:
         if self.provider is None:
             return
-        if self.provider not in [x.value for x in AIServiceProvider]:
+        if self.provider.lower() not in [x.value.lower() for x in AIServiceProvider]:
             raise ValueError(
                 f"""AIConfig requires a valid service provider. Valid providers are {hilight(", ".join([x.value for x in AIServiceProvider]))}"""
             )

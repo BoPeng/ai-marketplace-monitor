@@ -61,11 +61,12 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
         self.ai = {}
         for key, value in config.get("ai", {}).items():
-            if key not in supported_ai_backends:
+            try:
+                backend_class = supported_ai_backends[value.get("provider", key).lower()]
+            except Exception as e:
                 raise ValueError(
                     f"Config file contains an unsupported AI backend {key} in the ai section."
-                )
-            backend_class = supported_ai_backends[key]
+                ) from e
             self.ai[key] = backend_class.get_config(name=key, **value)
 
     def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
