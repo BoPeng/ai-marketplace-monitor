@@ -1,5 +1,6 @@
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from logging import Logger
 from typing import Any, Generator, Generic, List, Type, TypeVar
 
@@ -7,6 +8,10 @@ from playwright.sync_api import Browser, Page
 
 from .item import SearchedItem
 from .utils import DataClassWithHandleFunc, convert_to_seconds, hilight
+
+
+class MarketPlace(Enum):
+    FACEBOOK = "facebook"
 
 
 @dataclass
@@ -149,7 +154,18 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
 class MarketplaceConfig(MarketItemCommonConfig):
     """Generic marketplace config"""
 
-    pass
+    # name of market, right now facebook is the only supported one
+    market: str | None = MarketPlace.FACEBOOK.value
+
+    def handle_market(self: "MarketplaceConfig") -> None:
+        if self.market is None:
+            return
+        if not isinstance(self.market, str):
+            raise ValueError(f"Marketplace {hilight(self.name, "name")} market must be a string.")
+        if self.market.lower() != MarketPlace.FACEBOOK.value:
+            raise ValueError(
+                f"Marketplace {hilight(self.name, "name")} market must be {MarketPlace.FACEBOOK.value}."
+            )
 
 
 @dataclass
