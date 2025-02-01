@@ -169,7 +169,7 @@ or use option `--config` for a non-standard configuration file. The terminal out
 
 ### Updating search
 
-Modify the configuration file to update search criteria. The program will detect changes automatically.
+It is recommended that you **check the log messages and make sure that it includes and excluded listings as expected**. Modify the configuration file to update search criteria if needed. The program will detect changes and restart the search automatically.
 
 ## Configuration Guide
 
