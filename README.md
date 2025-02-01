@@ -246,7 +246,14 @@ The following options that can specified for both `marketplace` sections and `it
 - `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
 - `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
 - `search_interval`: (optional) minimal interval in seconds between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.
-- `max_search_interval`: (optional) maximum interval in seconds between searches
+- `max_search_interval`: (optional) maximum interval in seconds between searches, if specified, a random time will be chosen between `search_interval` and `max_search_interval`.
+- `start_at`: (optional) time to start the search. It currently support
+
+  - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00`
+  - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00`,
+  - `*:*:SS` for every minute at `SS`.
+
+  If specified, this option will override `search_interval`.
 
 Note that
 

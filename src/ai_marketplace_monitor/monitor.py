@@ -170,22 +170,51 @@ class MarketplaceMonitor:
                     # wait for some time before next search
                     # interval (in minutes) can be defined both for the marketplace
                     # if there is any configuration file change, stop sleeping and search again
-                    search_interval = max(
-                        item_config.search_interval
-                        or marketplace_config.search_interval
-                        or 30 * 60,
-                        1,
-                    )
-                    max_search_interval = max(
-                        item_config.max_search_interval
-                        or marketplace_config.max_search_interval
-                        or 60 * 60,
-                        search_interval,
-                    )
-                    self.logger.info(
-                        f"Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"
-                    )
-                    schedule.every(search_interval).to(max_search_interval).seconds.do(
+                    scheduled = None
+                    start_at = item_config.start_at or marketplace_config.start_at
+                    if start_at is not None and start_at:
+                        if start_at.startswith("*:*:"):
+                            # '*:*:12' to ':12'
+                            self.logger.info(
+                                f"Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"
+                            )
+                            scheduled = schedule.every().minute.at(start_at[3:])
+                        elif start_at.startswith("*:"):
+                            # '*:12:12' or  '*:12'
+                            self.logger.info(
+                                f"Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"
+                            )
+                            scheduled = schedule.every().hour.at(
+                                start_at[1:] if start_at.count(":") == 1 else start_at[2:]
+                            )
+                        else:
+                            # '12:12:12' or '12:12'
+                            self.logger.info(
+                                f"Scheduling to search for {item_config.name} every day at {start_at}"
+                            )
+                            scheduled = schedule.every().day.at(start_at)
+                    else:
+                        search_interval = max(
+                            item_config.search_interval
+                            or marketplace_config.search_interval
+                            or 30 * 60,
+                            1,
+                        )
+                        max_search_interval = max(
+                            item_config.max_search_interval
+                            or marketplace_config.max_search_interval
+                            or 60 * 60,
+                            search_interval,
+                        )
+                        self.logger.info(
+                            f"Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"
+                        )
+                        scheduled = schedule.every(search_interval).to(max_search_interval).seconds
+                    if scheduled is None:
+                        raise ValueError(
+                            f"Cannot determine a schedule for {item_config.name} from configuration file."
+                        )
+                    scheduled.do(
                         self.search_item,
                         marketplace_config,
                         marketplace,

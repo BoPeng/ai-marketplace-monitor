@@ -553,13 +553,11 @@ class FacebookItemPage(WebPage):
 
         if not title:
             raise ValueError(
-                f"""No title was found for item {post_url}, which is most likely caused by a network issue.
-                Please report the issue to the developer if the problem persists."""
+                f"""No title was found for item {post_url}, which is most likely caused by a network issue. Please report the issue to the developer if the problem persists."""
             )
         if not price:
             raise ValueError(
-                f"""No price was found for item {post_url}, which is most likely caused by a network issue.
-                Please report the issue to the developer if the problem persists."""
+                f"""No price was found for item {post_url}, which is most likely caused by a network issue."""
             )
 
         self.logger.info(f"Parsing item {hilight(title)}")
