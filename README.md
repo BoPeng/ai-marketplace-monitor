@@ -44,6 +44,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Multiple configuration files](#multiple-configuration-files)
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
+  - [Network issues](#network-issues)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
