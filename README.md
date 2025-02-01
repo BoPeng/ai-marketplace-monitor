@@ -320,11 +320,11 @@ keywords = 'local item for default market "facebook"'
 
 [item.rare_item1]
 marketplace = 'nationwide'
-keywrods = 'rare item1'
+keywords = 'rare item1'
 
 [item.rare_item2]
 marketplace = 'nationwide'
-keywrods = 'rare item2'
+keywords = 'rare item2'
 ```
 
 ## TODO List:
