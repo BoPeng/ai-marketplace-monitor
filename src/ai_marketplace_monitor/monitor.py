@@ -117,6 +117,8 @@ class MarketplaceMonitor:
             item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
         for listing in marketplace.search(item_config):
+            # increase the searched_count
+            item_config.searched_count += 1
             # if everyone has been notified
             if listing.user_notified_key in cache and all(
                 user in cache.get(listing.user_notified_key, ()) for user in users_to_notify

@@ -127,7 +127,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
         if not isinstance(self.date_listed, list):
             self.date_listed = [self.date_listed]
         #
-        new_values = []
+        new_values: List[int] = []
         for val in self.date_listed:
             if isinstance(val, str):
                 if val.isdigit():
@@ -298,16 +298,67 @@ class FacebookMarketplace(Marketplace):
         if condition:
             options.append(f"itemCondition={'%2C'.join(condition)}")
 
-        date_listed = item_config.date_listed or self.config.date_listed
-        if date_listed and date_listed != DateListed.ANYTIME.value:
+            # availability can take values from item_config, or marketplace config and will
+        # use the first or second value depending on how many times the item has been searched.
+        if item_config.date_listed is not None:
+            if len(item_config.date_listed) == 0:
+                date_listed = DateListed.ANYTIME.value
+            elif item_config.searched_count == 0:
+                date_listed = item_config.date_listed[0]
+            else:
+                date_listed = item_config.date_listed[-1]
+        elif self.config.date_listed is not None:
+            if len(self.config.date_listed) == 0:
+                date_listed = DateListed.ANYTIME.value
+            elif item_config.searched_count == 0:
+                date_listed = self.config.date_listed[0]
+            else:
+                date_listed = self.config.date_listed[-1]
+        else:
+            date_listed = DateListed.ANYTIME.value
+        if date_listed is not None and date_listed != DateListed.ANYTIME.value:
             options.append(f"daysSinceListed={date_listed}")
 
-        delivery_method = item_config.delivery_method or self.config.delivery_method
-        if delivery_method and delivery_method != DeliveryMethod.ALL.value:
+        # delivery_method can take values from item_config, or marketplace config and will
+        # use the first or second value depending on how many times the item has been searched.
+        if item_config.delivery_method is not None:
+            if len(item_config.delivery_method) == 0:
+                delivery_method = DeliveryMethod.ALL.value
+            elif item_config.searched_count == 0:
+                delivery_method = item_config.delivery_method[0]
+            else:
+                delivery_method = item_config.delivery_method[-1]
+        elif self.config.delivery_method is not None:
+            if len(self.config.delivery_method) == 0:
+                delivery_method = DeliveryMethod.ALL.value
+            elif item_config.searched_count == 0:
+                delivery_method = self.config.delivery_method[0]
+            else:
+                delivery_method = self.config.delivery_method[-1]
+        else:
+            delivery_method = DeliveryMethod.ALL.value
+        if delivery_method is not None and delivery_method != DeliveryMethod.ALL.value:
             options.append(f"deliveryMethod={delivery_method}")
 
-        availability = item_config.availability or self.config.availability
-        if availability and availability != Availability.ALL.value:
+        # availability can take values from item_config, or marketplace config and will
+        # use the first or second value depending on how many times the item has been searched.
+        if item_config.availability is not None:
+            if len(item_config.availability) == 0:
+                availability = Availability.ALL.value
+            elif item_config.searched_count == 0:
+                availability = item_config.availability[0]
+            else:
+                availability = item_config.availability[-1]
+        elif self.config.availability is not None:
+            if len(self.config.availability) == 0:
+                availability = Availability.ALL.value
+            elif item_config.searched_count == 0:
+                availability = self.config.availability[0]
+            else:
+                availability = self.config.availability[-1]
+        else:
+            availability = Availability.ALL.value
+        if availability is not None and availability != Availability.ALL.value:
             options.append(f"availability={availability}")
 
         # search multiple keywords and cities

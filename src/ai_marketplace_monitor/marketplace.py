@@ -202,6 +202,9 @@ class MarketplaceConfig(MarketItemCommonConfig):
 class ItemConfig(MarketItemCommonConfig):
     """This class defined options that can only be specified for items."""
 
+    # the number of times that this item has been searched
+    searched_count: int = 0
+
     # keywords is required, all others are optional
     keywords: List[str] = field(default_factory=list)
     include_keywords: List[str] | None = None
