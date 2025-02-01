@@ -151,6 +151,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     cfg = config_file(config_content)
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "seller_locations": (list, type(None)),
+        "acceptable_locations": (list, type(None)),
         "availability": (str, type(None)),
         "api_key": str,
         "condition": (list, type(None)),

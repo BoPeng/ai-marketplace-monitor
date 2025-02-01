@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from logging import Logger
 from typing import ClassVar, List
@@ -14,14 +15,7 @@ from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
-from .utils import (
-    CacheType,
-    cache,
-    calculate_file_hash,
-    hilight,
-    sleep_with_watchdog,
-    time_until_next_run,
-)
+from .utils import CacheType, cache, calculate_file_hash, hilight, sleep_with_watchdog
 
 
 class MarketplaceMonitor:
@@ -196,7 +190,7 @@ class MarketplaceMonitor:
                         marketplace_config,
                         marketplace,
                         item_config,
-                    )
+                    ).tag(item_config.name)
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
@@ -205,9 +199,25 @@ class MarketplaceMonitor:
             # run all jobs at the first time, then on their own schedule
             schedule.run_all()
             while True:
-                schedule.run_pending()
+                next_job = None
+                for job in schedule.jobs:
+                    if job.next_run is None:
+                        continue
+                    if next_job is None or next_job.next_run > job.next_run:
+                        next_job = job
+                if next_job is None:
+                    # no more job
+                    self.logger.warning("No more active search job.")
+                    sys.exit(0)
+                # assert next_job is not None
+                assert next_job.next_run is not None
+                idle_seconds = schedule.idle_seconds() or 0
+                self.logger.info(
+                    f"""Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
+                )
+
                 sleep_with_watchdog(
-                    time_until_next_run(),
+                    int(idle_seconds),
                     self.config_files,
                 )
                 # if configuration file has been changed, clear all scheduled jobs and restart
@@ -217,6 +227,7 @@ class MarketplaceMonitor:
                     self.logger.info("Config file changed, restarting monitor.")
                     schedule.clear()
                     break
+                schedule.run_pending()
 
     def stop_monitor(self: "MarketplaceMonitor") -> None:
         """Stop the monitor."""
@@ -247,10 +258,11 @@ class MarketplaceMonitor:
         for post_url in items or []:
             if "?" in post_url:
                 post_url = post_url.split("?")[0]
-            if post_url.startswith("https://www.facebook.com"):
-                post_url = post_url[len("https://www.facebook.com") :]
             if post_url.isnumeric():
-                post_url = f"/marketplace/item/{post_url}/"
+                post_url = f"https://www.facebook.com/marketplace/item/{post_url}/"
+
+            if not post_url.startswith("https://www.facebook.com/marketplace/item"):
+                raise ValueError(f"URL {post_url} is not a valid Facebook Marketplace URL.")
             post_urls.append(post_url)
 
         if not post_urls:
@@ -261,13 +273,6 @@ class MarketplaceMonitor:
             # Open a new browser page.
             browser = None
             for post_url in post_urls or []:
-                if "?" in post_url:
-                    post_url = post_url.split("?")[0]
-                if post_url.isnumeric():
-                    post_url = f"https://www.facebook.com/marketplace/item/{post_url}/"
-
-                if not post_url.startswith("https://www.facebook.com/marketplace/item"):
-                    raise ValueError(f"URL {post_url} is not a valid Facebook Marketplace URL.")
                 # check if item in config
                 assert self.config is not None
 

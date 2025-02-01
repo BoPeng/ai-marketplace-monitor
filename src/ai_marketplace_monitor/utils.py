@@ -7,7 +7,6 @@ from enum import Enum
 from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
-import schedule
 from diskcache import Cache  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -142,12 +141,6 @@ def convert_to_seconds(time_str: str) -> int:
     cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
     time_struct, _ = cal.parse(time_str)
     return int(time.mktime(time_struct) - time.mktime(time.localtime()))
-
-
-def time_until_next_run() -> int:
-    next_run = min(job.next_run for job in schedule.jobs if job.next_run is not None)
-    now = time.time()
-    return max(int(next_run.timestamp() - now), 0)
 
 
 def hilight(text: str, style: str = "name") -> str:
