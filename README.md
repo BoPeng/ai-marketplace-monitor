@@ -348,7 +348,7 @@ keywords = 'rare item2'
 Sometimes you may see error messages such as **No price was found for item...**. The exact reason is unknown, but you could try to use
 
 ```sh
-ai-marketplace-monitor --disable-java-script
+ai-marketplace-monitor --disable-javascript
 ```
 
 You will no longer see the pages but the script could work better.
