@@ -213,7 +213,9 @@ class FacebookMarketplace(Marketplace):
 
     def login(self: "FacebookMarketplace") -> None:
         assert self.browser is not None
-        context = self.browser.new_context()  # create a new incognite window
+        context = self.browser.new_context(
+            java_script_enabled=not self.disable_javascript
+        )  # create a new incognite window
         self.page = context.new_page()
         assert self.page is not None
         # Navigate to the URL, no timeout
@@ -556,8 +558,17 @@ class FacebookItemPage(WebPage):
                 f"""No title was found for item {post_url}, which is most likely caused by a network issue. Please report the issue to the developer if the problem persists."""
             )
         if not price:
+            # with open(f"{item_id}.html", "w") as f:
+            #     f.write(self.html)
             raise ValueError(
-                f"""No price was found for item {post_url}, which is most likely caused by a network issue."""
+                f"""No price was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
+            )
+
+        if not description:
+            # with open(f"{item_id}.html", "w") as f:
+            #     f.write(self.html)
+            raise ValueError(
+                f"""No description was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
             )
 
         self.logger.info(f"Parsing item {hilight(title)}")

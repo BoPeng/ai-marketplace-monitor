@@ -280,6 +280,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def __init__(self: "Marketplace", name: str, browser: Browser | None, logger: Logger) -> None:
         self.name = name
         self.browser = browser
+        self.disable_javascript: bool = False
         self.logger = logger
         self.page: Page | None = None
 
@@ -294,9 +295,16 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def configure(self: "Marketplace", config: TMarketplaceConfig) -> None:
         self.config = config
 
-    def set_browser(self: "Marketplace", browser: Browser) -> None:
-        self.browser = browser
-        self.page = None
+    def set_browser(
+        self: "Marketplace",
+        browser: Browser | None = None,
+        disable_javascript: bool | None = None,
+    ) -> None:
+        if browser is not None:
+            self.browser = browser
+            self.page = None
+        if disable_javascript is not None:
+            self.disable_javascript = disable_javascript
 
     def stop(self: "Marketplace") -> None:
         if self.browser is not None:

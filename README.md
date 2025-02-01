@@ -342,6 +342,16 @@ marketplace = 'nationwide'
 keywords = 'rare item2'
 ```
 
+### Network issues
+
+Sometimes you may see error messages such as **No price was found for item...**. The exact reason is unknown, but you could try to use
+
+```sh
+ai-marketplace-monitor --disable-java-script
+```
+
+You will no longer see the pages but the script could work better.
+
 ## TODO List:
 
 - Support more AI engines
