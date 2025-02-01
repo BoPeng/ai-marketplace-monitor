@@ -61,7 +61,7 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     seller_locations: List[str] | None = None
     availability: str | None = None
     condition: List[str] | None = None
-    date_listed: str | None = None
+    date_listed: int | None = None
     delivery_method: str | None = None
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
@@ -100,10 +100,22 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     def handle_date_listed(self: "FacebookMarketItemCommonConfig") -> None:
         if self.date_listed is None:
             return
+
+        if self.date_listed == "All":
+            self.date_listed = DateListed.ANYTIME.value
+        elif self.date_listed == "Last 24 hours":
+            self.date_listed = DateListed.PAST_24_HOURS.value
+        elif self.date_listed == "Last 7 days":
+            self.date_listed = DateListed.PAST_WEEK.value
+        elif self.date_listed == "Last 30 days":
+            self.date_listed = DateListed.PAST_MONTH.value
+
         if not isinstance(self.date_listed, int) or self.date_listed not in [
             x.value for x in DateListed
         ]:
-            raise ValueError(f"Item {hilight(self.name)} date_listed must be one of 1, 7, and 30.")
+            raise ValueError(
+                f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+            )
 
     def handle_delivery_method(self: "FacebookMarketItemCommonConfig") -> None:
         if self.delivery_method is None:
@@ -354,7 +366,7 @@ class FacebookMarketplace(Marketplace):
         exclude_sellers = item_config.exclude_sellers or self.config.exclude_sellers or []
         if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
-                f"Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"
+                f"""Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
             )
             return False
 

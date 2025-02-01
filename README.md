@@ -41,6 +41,9 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Options that can be specified either with marketplaces and items](#options-that-can-be-specified-either-with-marketplaces-and-items)
   - [Regions](#regions)
 - [Advanced features](#advanced-features)
+  - [Multiple configuration files](#multiple-configuration-files)
+  - [Check individual listing](#check-individual-listing)
+  - [Multiple marketplaces](#multiple-marketplaces)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
@@ -198,10 +201,7 @@ One or more sections `marketplace.name` show the options for interacting with th
 - `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
 - **Common options** listed in the section [Common options](#common-options) below. These options, if specified in the marketplace section, will by default be applied to all items.
 
-Note that
-
-1. Because the default `marketplace` for all items are `facebook`, you will most likely have a single section called `marketplace.facebook`.
-2. Although facebook is currently the only supported marketplace, you can create multiple marketplaces such as`marketplace.city1` and `marketplace.city2` with different options such as `search_city`, `search_region`, `seller_locations`, and `notify`. You will need to add options like `marketplace='city1'` in the items section to link these items to the right marketplace.
+Because the default `marketplace` for all items are `facebook`, you will most likely have a single section called `marketplace.facebook`.
 
 ### Users
 
@@ -228,7 +228,7 @@ The following options that can specified in either a `marketplace` section or an
 
 - `seller_locations`: (optional) only allow searched items from these locations
 - `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
-- `date_listed`: (optional) one of `All`, `Last 24 hours`, `Last 7 days`, `Last 30 days`.
+- `date_listed`: (optional) one of `All`, `Last 24 hours`, `Last 7 days`, `Last 30 days`, or `0`, `1`, `7`, and `30`.
 - `delivery_method`: (optional) one of `all`, `local_pick_up`, and `shipping`.
 - `exclude_sellers`: (optional) exclude certain sellers by their names (not username)
 - `min_price`: (optional) minimum price.
@@ -279,21 +279,53 @@ Note that
 
 ## Advanced features
 
-- You can use multiple configuration files. For example, you can add all credentials to `~/.ai-marketplace-monitor/config.yml` and use separate configuration files for items for different users.
-- If you would like to know how the program works, especially how it interacts with the AI, use option `--verbose` (or `-v`).
-- If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run
+### Multiple configuration files
 
-  ```sh
-  ai-marketplace-monitor --check your-url
-  ```
+You can use multiple configuration files. For example, you can add all credentials to `~/.ai-marketplace-monitor/config.yml` and use separate configuration files for items for different users.
 
-  If you have multiple items specified in your config file, _ai-marketplace-monitor_ will check the product against the configuration of all of them. If you know the _name_ of the item in your config file, you can let the program only check the configuration of this particular item.
+### Check individual listing
 
-  ```sh
-  ai-marketplace-monitor --check your-url --for item_name
-  ```
+If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run
 
-  Option `--check` will load the details of the item from the cache if it was previously examined. Otherwise a browser will be started to retrieve the page.
+```sh
+ai-marketplace-monitor --check your-url
+```
+
+If you have multiple items specified in your config file, _ai-marketplace-monitor_ will check the product against the configuration of all of them. If you know the _name_ of the item in your config file, you can let the program only check the configuration of this particular item.
+
+```sh
+ai-marketplace-monitor --check your-url --for item_name
+```
+
+Option `--check` will load the details of the item from the cache if it was previously examined. Otherwise a browser will be started to retrieve the page.
+
+### Multiple marketplaces
+
+Although facebook is currently the only supported marketplace, you can create multiple marketplaces such as`marketplace.city1` and `marketplace.city2` with different options such as `search_city`, `search_region`, `seller_locations`, and `notify`. You will need to add options like `marketplace='city1'` in the items section to link these items to the right marketplace.
+
+For example
+
+```toml
+[marketplace.facebook]
+search_city = 'houston'
+seller_locations = ['houston', 'sugarland']
+
+[marketplace.nationwide]
+search_region = 'usa'
+seller_location = []
+delivery_method = 'shipping'
+
+[item.default_item]
+keywords = 'local item for default market "facebook"'
+
+[item.rare_item1]
+marketplace = 'nationwide'
+keywrods = 'rare item1'
+
+[item.rare_item2]
+marketplace = 'nationwide'
+keywrods = 'rare item2'
+```
 
 ## TODO List:
 
