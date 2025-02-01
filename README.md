@@ -88,7 +88,7 @@ If you would like to use the DeepSeek AI assistant,
 
 ### Write a configuration file
 
-One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you want to get notified to run _ai-marketplace-monitor_.
+One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you get notified with matching listings.
 
 ```toml
 [marketplace.facebook]
@@ -166,19 +166,22 @@ Here is a complete list of options that are acceptable by the program. [`example
 an example with many of the options.
 
 - Section `ai.openai` and/or `ai.deepseek`, optional sections listing the api-key for [Open AI](https://openai.com/) or
-  [DeepSeek](https://www.deepseek.com/). Specification of these sections will enable AI-assistance. If both `ai.openai` and `ai.deepseek` are specified, the program try in the order for which they are specified.
+  [DeepSeek](https://www.deepseek.com/). Specification of these sections will enable AI-assistance. If both `ai.openai` and `ai.deepseek` are specified, the program will try in the order for which they are specified.
 
   - `api-key`: (required), a program token to access openAI REST API.
   - `base_url`: (optional), in case you use another server
   - `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `openami` or `deepseek` respectively.
 
-- Section `marketplace.facebook` shows the options for interacting with the facebook marketplace. `facebook` is currently the only marketplace that is supported.
+- One or more section `marketplace.name` show the options for interacting with the facebook marketplace.
 
+  - `market`: (optional), `facebook` is currently the only supported marketplace.
   - `username`: (optional), you can enter manually or keep in config file
   - `password`: (optional), you can enter manually or keep in config file
   - `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
   - **Common options** listed below. These options, if specified in the marketplace section, will by default be applied to all items.
 
+  Although facebook is currently the only supported marketplace, you can create multiple marketplaces such as `marketplace.city1` and `marketplace.city2` with different options (e.g. `search_city`, `search_region`, `seller_locations`). You will need to add options like `marketplace='city1'` in the items section to search with these options.
+  
 - One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. PushBullet is currently the only method of notification.
 
   - `pushbullet_token`: (rquired) token for user
@@ -192,7 +195,7 @@ an example with many of the options.
   - `exclude_keywords`: (optional), exclude item if the title contain any of the specified words
   - `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
   - `marketplace`: (optional), can only be `facebook` if specified.
-  - **Common options** listed below. These options, if specified in the item section, will override options in the markerplace` section.
+  - **Common options** listed below. These options, if specified in the item section, will override options in the markerplace section.
 
 - **Common options** shared by marketplace and items. These options
 
