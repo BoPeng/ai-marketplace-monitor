@@ -10,12 +10,27 @@ from .marketplace import TItemConfig
 from .utils import DataClassWithHandleFunc, hilight
 
 
+class AIServiceProvider(str):
+    OPENAI = "OpenAI"
+    DEEPSEEK = "DeepSeek"
+
+
 @dataclass
 class AIConfig(DataClassWithHandleFunc):
     # this argument is required
+
     api_key: str
+    provider: str | None = None
     model: str | None = None
     base_url: str | None = None
+
+    def handle_provider(self: "AIConfig") -> None:
+        if self.provider is None:
+            return
+        if self.provider not in [x.value for x in AIServiceProvider]:
+            raise ValueError(
+                f"""AIConfig requires a valid service provider. Valid providers are {hilight(", ".join([x.value for x in AIServiceProvider]))}"""
+            )
 
     def handle_api_key(self: "AIConfig") -> None:
         if not self.api_key:
@@ -126,7 +141,7 @@ class OpenAIBackend(AIBackend):
         res = True if answer is None else (not answer.lower().strip().startswith("no"))
 
         self.logger.info(
-            f"""{self.config.name} concludes that listing {hilight(listing.title, "name")} {hilight("matches", "succ") if res else hilight("does not match", "fail")} your search criteria."""
+            f"""{self.config.name} concludes that listing {hilight(listing.title)} {hilight("matches", "succ") if res else hilight("does not match", "fail")} your search criteria."""
         )
         return res
 

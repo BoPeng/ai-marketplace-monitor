@@ -45,7 +45,7 @@ def config_file(tmp_path_factory: TempPathFactory) -> Callable:
 
 base_marketplace_cfg = """
 [marketplace.facebook]
-search_city = 'houston'
+search_city = 'dallas'
 """
 
 full_marketplace_cfg = """
@@ -124,6 +124,18 @@ model = 'gpt'
 """
 
 
+alt_marketplace_cfg = """
+[marketplace.houston]
+search_city = 'houston'
+"""
+
+alt_item_cfg = """
+[item.whatever]
+marketplace = "houston"
+keywords = "search word two"
+"""
+
+
 @pytest.mark.parametrize(
     "config_content,acceptable",
     [
@@ -165,6 +177,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "marketplace": (str, type(None)),
         "max_price": (int, type(None)),
         "max_search_interval": (int, type(None)),
+        "market_type": (str, type(None)),
         "min_price": (int, type(None)),
         "model": (str, type(None)),
         "name": (str, type(None)),
@@ -190,3 +203,20 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     else:
         with pytest.raises(Exception):
             Config([cfg])
+
+
+def test_support_multiple_marketplaces(config_file: Callable) -> None:
+    """Test the config command."""
+    cfg = config_file(
+        base_marketplace_cfg + alt_marketplace_cfg + alt_item_cfg + base_item_cfg + base_user_cfg
+    )
+    config = Config([cfg])
+
+    assert len(config.marketplace) == 2
+    assert len(config.item) == 2
+    assert len(config.user) == 1
+
+    assert config.item["name"].marketplace is None
+    assert config.item["whatever"].marketplace == "houston"
+    assert config.marketplace["facebook"].search_city == ["dallas"]
+    assert config.marketplace["houston"].search_city == ["houston"]

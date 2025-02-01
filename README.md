@@ -177,7 +177,7 @@ an example with many of the options.
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
 
-- `provider`: (optional), default to `OpenAI`.
+- `provider`: (optional), the section name will be used if this is unspecified, so `ai.deepseek` will assume a provider of `deepseek`.
 - `api-key`: (required), a program token to access openAI REST API.
 - `base_url`: (optional), in case you use another server
 - `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `Openami` or `DeepSeek` respectively.

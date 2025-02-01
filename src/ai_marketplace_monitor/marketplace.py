@@ -42,7 +42,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
         if not isinstance(self.exclude_sellers, list) or not all(
             isinstance(x, str) for x in self.exclude_sellers
         ):
-            raise ValueError(f"Item {hilight(self.name, "name")} exclude_sellers must be a list.")
+            raise ValueError(f"Item {hilight(self.name)} exclude_sellers must be a list.")
 
     def handle_max_search_interval(self: "MarketItemCommonConfig") -> None:
         if self.max_search_interval is None:
@@ -57,7 +57,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
                 ) from e
         if not isinstance(self.max_search_interval, int) or self.max_search_interval < 1:
             raise ValueError(
-                f"Item {hilight(self.name, "name")} max_search_interval must be at least 1 second."
+                f"Item {hilight(self.name)} max_search_interval must be at least 1 second."
             )
 
     def handle_notify(self: "MarketItemCommonConfig") -> None:
@@ -68,7 +68,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
             self.notify = [self.notify]
         if not all(isinstance(x, str) for x in self.notify):
             raise ValueError(
-                f"Item {hilight(self.name, "name")} notify must be a string or list of string."
+                f"Item {hilight(self.name)} notify must be a string or list of string."
             )
 
     def handle_radius(self: "MarketItemCommonConfig") -> None:
@@ -77,7 +77,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
 
         if self.search_city is None:
             raise ValueError(
-                f"Item {hilight(self.name, "name")} radius must be None if search_city is None."
+                f"Item {hilight(self.name)} radius must be None if search_city is None."
             )
 
         if isinstance(self.radius, int):
@@ -85,12 +85,12 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
 
         if not all(isinstance(x, int) for x in self.radius):
             raise ValueError(
-                f"Item {hilight(self.name, "name")} radius must be one or a list of integers."
+                f"Item {hilight(self.name)} radius must be one or a list of integers."
             )
 
         if len(self.radius) != len(self.search_city):
             raise ValueError(
-                f"Item {hilight(self.name, "name")} radius must be the same length as search_city."
+                f"Item {hilight(self.name)} radius must be the same length as search_city."
             )
 
     def handle_search_city(self: "MarketItemCommonConfig") -> None:
@@ -103,7 +103,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
             isinstance(x, str) for x in self.search_city
         ):
             raise ValueError(
-                f"Item {hilight(self.name, "name")} search_city must be a string or list of string."
+                f"Item {hilight(self.name)} search_city must be a string or list of string."
             )
 
     def handle_search_interval(self: "MarketItemCommonConfig") -> None:
@@ -119,7 +119,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
                 ) from e
         if not isinstance(self.search_interval, int) or self.search_interval < 1:
             raise ValueError(
-                f"Item {hilight(self.name, "name")} search_interval must be at least 1 second."
+                f"Item {hilight(self.name)} search_interval must be at least 1 second."
             )
 
     def handle_search_region(self: "MarketItemCommonConfig") -> None:
@@ -133,21 +133,21 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
             isinstance(x, str) for x in self.search_region
         ):
             raise ValueError(
-                f"Item {hilight(self.name, "name")} search_region must be one or a list of string."
+                f"Item {hilight(self.name)} search_region must be one or a list of string."
             )
 
     def handle_max_price(self: "MarketItemCommonConfig") -> None:
         if self.max_price is None:
             return
         if not isinstance(self.max_price, int):
-            raise ValueError(f"Item {hilight(self.name, "name")} max_price must be an integer.")
+            raise ValueError(f"Item {hilight(self.name)} max_price must be an integer.")
 
     def handle_min_price(self: "MarketItemCommonConfig") -> None:
         if self.min_price is None:
             return
 
         if not isinstance(self.min_price, int):
-            raise ValueError(f"Item {hilight(self.name, "name")} min_price must be an integer.")
+            raise ValueError(f"Item {hilight(self.name)} min_price must be an integer.")
 
 
 @dataclass
@@ -155,16 +155,16 @@ class MarketplaceConfig(MarketItemCommonConfig):
     """Generic marketplace config"""
 
     # name of market, right now facebook is the only supported one
-    market: str | None = MarketPlace.FACEBOOK.value
+    market_type: str | None = MarketPlace.FACEBOOK.value
 
-    def handle_market(self: "MarketplaceConfig") -> None:
-        if self.market is None:
+    def handle_market_type(self: "MarketplaceConfig") -> None:
+        if self.market_type is None:
             return
-        if not isinstance(self.market, str):
-            raise ValueError(f"Marketplace {hilight(self.name, "name")} market must be a string.")
-        if self.market.lower() != MarketPlace.FACEBOOK.value:
+        if not isinstance(self.market_type, str):
+            raise ValueError(f"Marketplace {hilight(self.market_type)} market must be a string.")
+        if self.market_type.lower() != MarketPlace.FACEBOOK.value:
             raise ValueError(
-                f"Marketplace {hilight(self.name, "name")} market must be {MarketPlace.FACEBOOK.value}."
+                f"Marketplace {hilight(self.market_type)} market must be {MarketPlace.FACEBOOK.value}."
             )
 
 
@@ -187,21 +187,21 @@ class ItemConfig(MarketItemCommonConfig):
         if not isinstance(self.keywords, list) or not all(
             isinstance(x, str) for x in self.keywords
         ):
-            raise ValueError(f"Item {hilight(self.name, "name")} keywords must be a list.")
+            raise ValueError(f"Item {hilight(self.name)} keywords must be a list.")
         if len(self.keywords) == 0:
-            raise ValueError(f"Item {hilight(self.name, "name")} keywords list is empty.")
+            raise ValueError(f"Item {hilight(self.name)} keywords list is empty.")
 
     def handle_description(self: "ItemConfig") -> None:
         if self.description is None:
             return
         if not isinstance(self.description, str):
-            raise ValueError(f"Item {hilight(self.name, "name")} description must be a string.")
+            raise ValueError(f"Item {hilight(self.name)} description must be a string.")
 
     def handle_enabled(self: "ItemConfig") -> None:
         if self.enabled is None:
             return
         if not isinstance(self.enabled, bool):
-            raise ValueError(f"Item {hilight(self.name, "name")} enabled must be a boolean.")
+            raise ValueError(f"Item {hilight(self.name)} enabled must be a boolean.")
 
     def handle_exclude_by_description(self: "ItemConfig") -> None:
         if self.exclude_by_description is None:
@@ -211,9 +211,7 @@ class ItemConfig(MarketItemCommonConfig):
         if not isinstance(self.exclude_by_description, list) or not all(
             isinstance(x, str) for x in self.exclude_by_description
         ):
-            raise ValueError(
-                f"Item {hilight(self.name, "name")} exclude_by_description must be a list."
-            )
+            raise ValueError(f"Item {hilight(self.name)} exclude_by_description must be a list.")
 
 
 TMarketplaceConfig = TypeVar("TMarketplaceConfig", bound=MarketplaceConfig)

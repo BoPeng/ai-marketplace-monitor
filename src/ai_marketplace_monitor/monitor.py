@@ -83,11 +83,23 @@ class MarketplaceMonitor:
         """Load the AI agent."""
         assert self.config is not None
         for ai_config in (self.config.ai or {}).values():
-            ai_class = supported_ai_backends[ai_config.name]
+            if (
+                ai_config.provider is not None
+                and ai_config.provider.lower() in supported_ai_backends
+            ):
+                ai_class = supported_ai_backends[ai_config.provider.lower()]
+            elif ai_config.name.lower() in supported_ai_backends:
+                ai_class = supported_ai_backends[ai_config.name.lower()]
+            else:
+                self.logger.error(
+                    "Cannot determine an AI service provider from service name or provider."
+                )
+                continue
+
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
                 self.ai_agents[-1].connect()
-                self.logger.info(f"Connected to {hilight(ai_config.name, "name")}")
+                self.logger.info(f"Connected to {hilight(ai_config.name)}")
             except Exception as e:
                 self.logger.error(f"Failed to connect to {hilight(ai_config.name, "fail")}: {e}")
                 continue
@@ -99,9 +111,7 @@ class MarketplaceMonitor:
         item_config: TItemConfig,
     ) -> None:
         """Search for an item on the marketplace."""
-        self.logger.info(
-            f"Searching {marketplace_config.name} for {hilight(item_config.name, "name")}"
-        )
+        self.logger.info(f"Searching {marketplace_config.name} for {hilight(item_config.name)}")
         new_listings = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
@@ -114,7 +124,7 @@ class MarketplaceMonitor:
                 user in cache.get(listing.user_notified_key, ()) for user in users_to_notify
             ):
                 self.logger.info(
-                    f"Already sent notification for item {hilight(listing.title, "name")}, skipping."
+                    f"Already sent notification for item {hilight(listing.title)}, skipping."
                 )
                 continue
             # for x in self.find_new_items(found_items)
@@ -124,7 +134,7 @@ class MarketplaceMonitor:
 
         p = inflect.engine()
         self.logger.info(
-            f"""{hilight(str(len(new_listings)), "name")} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
+            f"""{hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
         )
         if new_listings:
             self.notify_users(users_to_notify, new_listings)
@@ -156,12 +166,13 @@ class MarketplaceMonitor:
             marketplace.configure(marketplace_config)
 
             for item_config in self.config.item.values():
+                if not (item_config.enabled or True):
+                    continue
+
                 if (
                     item_config.marketplace is None
                     or item_config.marketplace == marketplace_config.name
                 ):
-                    if not (item_config.enabled or True):
-                        continue
                     # wait for some time before next search
                     # interval (in minutes) can be defined both for the marketplace
                     # if there is any configuration file change, stop sleeping and search again
@@ -339,7 +350,7 @@ class MarketplaceMonitor:
             title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
             message = "\n\n".join(msgs)
             self.logger.info(
-                f"Sending {user} a message with title {hilight(title, "name")} and message {hilight(message, "name")}"
+                f"Sending {user} a message with title {hilight(title)} and message {hilight(message)}"
             )
             assert self.config is not None
             assert self.config.user is not None

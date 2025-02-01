@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-01-30
+
+- Add option `provider` to allow the specfication of more AI service providers.
+- Allow `market_type` to marketplaces and allow multiple marketplaces.
+
 ## [0.5.1] - 2025-01-30
 
 - Change the unit of `search-interval` to seconds to allow for more frequent search, although that is not recommended.
