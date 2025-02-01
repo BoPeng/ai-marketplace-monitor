@@ -38,7 +38,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Marketplaces](#marketplaces)
   - [Users](#users)
   - [Items to search](#items-to-search)
-  - [Options that can be specified either with marketplaces and items](#options-that-can-be-specified-either-with-marketplaces-and-items)
+  - [Options that can be specified for both marketplaces and items](#options-that-can-be-specified-for-both-marketplaces-and-items)
   - [Regions](#regions)
 - [Advanced features](#advanced-features)
   - [Multiple configuration files](#multiple-configuration-files)
@@ -52,7 +52,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - Search for one or more products using specified keywords.
 - Limit search by price, and location.
 - Exclude irrelevant results and spammers.
-- Use an AI agent (OpenAI or DeepSeek) to confirm listing matches.
+- Use an AI service provider (OpenAI or DeepSeek) to confirm listing matches.
 - Send notifications via PushBullet.
 - Search repeatedly with specified intervals.
 - Search multiple cities, even pre-defined regions (e.g. USA)
@@ -188,8 +188,8 @@ One of more sections to list the AI agent that can be used to judge if listings 
 Note that:
 
 1. `provider` can be [Open AI](https://openai.com/) or
-   [DeepSeek](https://www.deepseek.com/). However, with the use of `base_url`, `model`, and `api-key`, you can use this program with any services that provides `OpenAI`-compatible API.
-2. If more than one `ai` sections are provided, the program will try in the order for which they are specified.
+   [DeepSeek](https://www.deepseek.com/). However, with the use of `base_url`, `model`, and `api-key`, you can use this program with any services that provides an `OpenAI`-compatible API.
+2. If more than one `ai` sections are provided, the program will try all of them in the order for which they are specified.
 
 ### Marketplaces
 
@@ -222,9 +222,9 @@ One or more `item.item_name` where `item_name` is the name of the item.
 - `marketplace`: (optional), can only be `facebook` if specified.
 - **Common options** listed below. These options, if specified in the item section, will override options in the markerplace section.
 
-### Options that can be specified either with marketplaces and items
+### Options that can be specified for both marketplaces and items
 
-The following options that can specified in either a `marketplace` section or an `item` section. Options defined in marketplaces provides default options for all items searched in that marketplace. Options defined for individual items will override options provided in marketplaces.
+The following options that can specified for both `marketplace` sections and `item` sections. Options defined in marketplaces provide default options for all items searched in that marketplace. Options defined for individual items will override options provided in marketplaces.
 
 - `seller_locations`: (optional) only allow searched items from these locations
 - `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
