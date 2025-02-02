@@ -62,6 +62,7 @@ delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
 max_price = 300
 min_price = 200
+rating = 4
 max_search_interval = 40
 notify = 'user1'
 radius = 100
@@ -92,6 +93,7 @@ availability = ['out', 'all']
 delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
 max_price = 300
+rating = 4
 max_search_interval = '1d'
 search_interval = '12h'
 min_price = 200
@@ -177,9 +179,11 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "password": (str, type(None)),
         "pushbullet_token": str,
         "radius": (list, type(None)),
+        "rating": (int, type(None)),
         "search_city": (list, type(None)),
         "search_interval": (int, type(None)),
         "search_region": (list, type(None)),
+        "searched_count": int,
         "start_at": (str, type(None)),
         "username": (str, type(None)),
     }
