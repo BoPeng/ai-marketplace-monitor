@@ -128,7 +128,7 @@ class AIBackend(Generic[TAIConfig]):
             "Rating 5, good deal: the item is a very good deal, with good condition and very competitive price. The user should try to grab it as soon as he can.\n"
             "Please return the answer in the format of the rating (a number), a colon separator, then a summary why you make this recommendation. The summary should be brief and no more than 30 words."
         )
-        self.logger.debug(f"{hilight("[AI-Prompt]", "info")} {prompt}")
+        self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
         return prompt
 
     def evaluate(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> AIResponse:
