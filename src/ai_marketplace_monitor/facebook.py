@@ -132,13 +132,13 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
             if isinstance(val, str):
                 if val.isdigit():
                     new_values.append(int(val))
-                elif val == "All":
+                elif val.lower() == "all":
                     new_values.append(DateListed.ANYTIME.value)
-                elif val == "Last 24 hours":
+                elif val.lower() == "last 24 hours":
                     new_values.append(DateListed.PAST_24_HOURS.value)
-                elif val == "Last 7 days":
+                elif val.lower() == "last 7 days":
                     new_values.append(DateListed.PAST_WEEK.value)
-                elif val == "Last 30 days":
+                elif val.lower() == "last 30 days":
                     new_values.append(DateListed.PAST_MONTH.value)
                 else:
                     raise ValueError(
@@ -300,20 +300,10 @@ class FacebookMarketplace(Marketplace):
 
             # availability can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
-        if item_config.date_listed is not None:
-            if len(item_config.date_listed) == 0:
-                date_listed = DateListed.ANYTIME.value
-            elif item_config.searched_count == 0:
-                date_listed = item_config.date_listed[0]
-            else:
-                date_listed = item_config.date_listed[-1]
-        elif self.config.date_listed is not None:
-            if len(self.config.date_listed) == 0:
-                date_listed = DateListed.ANYTIME.value
-            elif item_config.searched_count == 0:
-                date_listed = self.config.date_listed[0]
-            else:
-                date_listed = self.config.date_listed[-1]
+        if item_config.date_listed:
+            date_listed = item_config.date_listed[0 if item_config.searched_count == 0 else -1]
+        elif self.config.date_listed:
+            date_listed = self.config.date_listed[0 if item_config.searched_count == 0 else -1]
         else:
             date_listed = DateListed.ANYTIME.value
         if date_listed is not None and date_listed != DateListed.ANYTIME.value:
@@ -321,20 +311,14 @@ class FacebookMarketplace(Marketplace):
 
         # delivery_method can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
-        if item_config.delivery_method is not None:
-            if len(item_config.delivery_method) == 0:
-                delivery_method = DeliveryMethod.ALL.value
-            elif item_config.searched_count == 0:
-                delivery_method = item_config.delivery_method[0]
-            else:
-                delivery_method = item_config.delivery_method[-1]
-        elif self.config.delivery_method is not None:
-            if len(self.config.delivery_method) == 0:
-                delivery_method = DeliveryMethod.ALL.value
-            elif item_config.searched_count == 0:
-                delivery_method = self.config.delivery_method[0]
-            else:
-                delivery_method = self.config.delivery_method[-1]
+        if item_config.delivery_method:
+            delivery_method = item_config.delivery_method[
+                0 if item_config.searched_count == 0 else -1
+            ]
+        elif self.config.delivery_method:
+            delivery_method = self.config.delivery_method[
+                0 if item_config.searched_count == 0 else -1
+            ]
         else:
             delivery_method = DeliveryMethod.ALL.value
         if delivery_method is not None and delivery_method != DeliveryMethod.ALL.value:
@@ -342,20 +326,10 @@ class FacebookMarketplace(Marketplace):
 
         # availability can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
-        if item_config.availability is not None:
-            if len(item_config.availability) == 0:
-                availability = Availability.ALL.value
-            elif item_config.searched_count == 0:
-                availability = item_config.availability[0]
-            else:
-                availability = item_config.availability[-1]
-        elif self.config.availability is not None:
-            if len(self.config.availability) == 0:
-                availability = Availability.ALL.value
-            elif item_config.searched_count == 0:
-                availability = self.config.availability[0]
-            else:
-                availability = self.config.availability[-1]
+        if item_config.availability:
+            availability = item_config.availability[0 if item_config.searched_count == 0 else -1]
+        elif self.config.availability:
+            availability = self.config.availability[0 if item_config.searched_count == 0 else -1]
         else:
             availability = Availability.ALL.value
         if availability is not None and availability != Availability.ALL.value:

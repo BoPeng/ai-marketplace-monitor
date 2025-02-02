@@ -179,7 +179,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "password": (str, type(None)),
         "pushbullet_token": str,
         "radius": (list, type(None)),
-        "rating": (int, type(None)),
+        "rating": (list, type(None)),
         "search_city": (list, type(None)),
         "search_interval": (int, type(None)),
         "search_region": (list, type(None)),

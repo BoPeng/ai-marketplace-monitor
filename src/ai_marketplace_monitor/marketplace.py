@@ -33,7 +33,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     search_region: List[str] | None = None
     max_price: int | None = None
     min_price: int | None = None
-    rating: int | None = None
+    rating: List[int] | None = None
 
     def handle_exclude_sellers(self: "MarketItemCommonConfig") -> None:
         if self.exclude_sellers is None:
@@ -183,11 +183,12 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     def handle_rating(self: "MarketItemCommonConfig") -> None:
         if self.rating is None:
             return
-        if not isinstance(self.rating, int):
-            raise ValueError(f"Item {hilight(self.name)} rating must be an integer.")
-        if self.rating < 1 or self.rating > 5:
+        if isinstance(self.rating, int):
+            self.rating = [self.rating]
+
+        if not all(isinstance(x, int) and x >= 1 and x <= 5 for x in self.rating):
             raise ValueError(
-                f"Item {hilight(self.name)} rating must be between 1 and 5 inclusive."
+                f"Item {hilight(self.name)} rating must be one or a list of integers between 1 and 5 inclusive."
             )
 
 

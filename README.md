@@ -238,14 +238,14 @@ The following options that can specified for both `marketplace` sections and `it
 - `availability`: (optional) shows output with `in` (in stock), `out` (out of stock) or `all` (both).
 - `seller_locations`: (optional) only allow searched items from these locations
 - `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
-- `date_listed`: (optional) one of `All`, `Last 24 hours`, `Last 7 days`, `Last 30 days`, or `0`, `1`, `7`, and `30`.
+- `date_listed`: (optional) one of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.
 - `delivery_method`: (optional) one of `all`, `local_pick_up`, and `shipping`.
 - `exclude_sellers`: (optional) exclude certain sellers by their names (not username)
 - `min_price`: (optional) minimum price.
 - `max_price`: (optional) maximum price.
 - `notify`: (optional) users who should be notified
 - `radius`: (optional) radius of search, can be a list if multiple `search_city` are specified.
-- `rating`: (optional) AI will rate listings from 1 to 5, meaning unmatch (1), unknown (2), match (3), acceptable (4), and good deal (5). The program will by default notify you any listing that rates at match (3) or higher. You can change the rating to be more lenient or more stringent.
+- `rating`: (optional) AI will rate listings from 1 to 5, meaning unmatched (1), unknown (2), poor match (3), good match (4), and great deal (5). The program will by default notify you any listing that rates at match (3) or higher. You can change the rating to be more lenient or more stringent. You can also specify an array of two to use different rating criteria for the initial and subsequent searches.
 - `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
 - `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
 - `search_interval`: (optional) minimal interval in seconds between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.
@@ -301,6 +301,24 @@ Note that
 
 You can use multiple configuration files. For example, you can add all credentials to `~/.ai-marketplace-monitor/config.yml` and use separate configuration files for items for different users.
 
+### Adjust notification level
+
+We ask AI services to evaluate listings against the criteria that you specify and rate the listing as
+
+1: **Unmatched**: The item does not match at all, for example, is a product in a different category, a brand that the user specifically excluded.
+2: **Unknown**: There is not enough information to make a good judgement. Maybe the description is too terse, and there is no indication of the model and year of the product.
+3: **Poor match**: The item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.
+4: **Good match**: The item matches the selection criteria well and is a potential good deal.
+5: **Great deal**: The item is a very good deal, for example with good condition and very competitive price.
+
+When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example
+
+```toml
+rating = 2
+```
+
+to see more potential listings. Note that all listings after non-AI-based filtering will be returned if no AI service is specified.
+
 ### Check individual listing
 
 If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run
@@ -347,7 +365,13 @@ keywords = 'rare item2'
 
 ### First and subsequent searches
 
-A list of two values can be specified for options `availability`, `date_listed`, and `delivery_method`, with the first one used for the first search, and second one used for the rest of searches. This allows the use of different search strategies for first and subsequent searches. (c.f. [issue 27](https://github.com/BoPeng/ai-marketplace-monitor/issues/27))
+A list of two values can be specified for options `rating`, `availability`, `date_listed`, and `delivery_method`, with the first one used for the first search, and second one used for the rest of searches. This allows the use of different search strategies for first and subsequent searches. For example, an initial more lenient search for all listings followed by searches for only new listings can be specified as
+
+```
+rating = [2, 4]
+availability = ["all", "in"]
+date_listed = ["all", "last 24 hours"]
+```
 
 ### Network issues
 

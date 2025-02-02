@@ -130,10 +130,14 @@ class MarketplaceMonitor:
                 continue
             # for x in self.find_new_items(found_items)
             res = self.evaluate_by_ai(listing, item_config=item_config)
-            if item_config.rating is not None:
-                acceptable_rating = item_config.rating
-            elif marketplace_config.rating is not None:
-                acceptable_rating = marketplace_config.rating
+            if item_config.rating:
+                acceptable_rating = item_config.rating[
+                    0 if item_config.searched_count == 0 else -1
+                ]
+            elif marketplace_config.rating:
+                acceptable_rating = marketplace_config.rating[
+                    0 if item_config.searched_count == 0 else -1
+                ]
             else:
                 acceptable_rating = 3
 
@@ -377,8 +381,7 @@ class MarketplaceMonitor:
             except Exception as e:
                 self.logger.error(f"Failed to get an answer from {agent.config.name}: {e}")
                 continue
-        self.logger.error("Failed to get an answer from any of the AI agents. Assuming OK.")
-        return AIResponse(2, "Unknown")
+        return AIResponse(5, AIResponse.NOT_EVALUATED)
 
     def notify_users(
         self: "MarketplaceMonitor",
@@ -400,9 +403,10 @@ class MarketplaceMonitor:
                     f"""New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
                 )
                 msgs.append(
-                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url.split("?")[0]}\n"""
-                    f"""{rating.conclusion} ({rating.score}): {rating.comment}"""
+                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url.split("?")[0]}"""
                 )
+                if rating.comment != AIResponse.NOT_EVALUATED:
+                    msgs[-1] += f"""\n{rating.conclusion} ({rating.score}): {rating.comment}"""
                 unnotified_listings.append(listing)
 
             if not unnotified_listings:

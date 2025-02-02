@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from logging import Logger
-from typing import Any, Generic, Type, TypeVar
+from typing import Any, ClassVar, Generic, Type, TypeVar
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
@@ -20,6 +20,8 @@ class AIServiceProvider(Enum):
 class AIResponse:
     score: int
     comment: str
+
+    NOT_EVALUATED: ClassVar = "Not evaluated by AI"
 
     @property
     def conclusion(self: "AIResponse") -> str:
