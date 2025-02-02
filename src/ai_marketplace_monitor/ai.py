@@ -92,52 +92,42 @@ class AIBackend(Generic[TAIConfig]):
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
     def get_prompt(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> str:
-        prompt = f"""A user would like to buy a {item_config.name} from facebook marketplace.
-            He used keywords "{'" and "'.join(item_config.keywords)}" to perform the search."""
+        prompt = (
+            f"""A user would like to buy a {item_config.name} from facebook marketplace. """
+            f"""He used keywords "{'" and "'.join(item_config.keywords)}" to perform the search. """
+        )
         if item_config.description:
-            prompt += f""" He also added description "{item_config.description}" to describe the item he is interested in."""
+            prompt += f"""He also added description "{item_config.description}" to describe the item he is interested in. """
         #
         max_price = item_config.max_price or 0
         min_price = item_config.min_price or 0
         if max_price and min_price:
-            prompt += f""" He also set a price range from {min_price} to {max_price}."""
+            prompt += f"""He also set a price range from {min_price} to {max_price}. """
         elif max_price:
-            prompt += f""" He also set a maximum price of {max_price}."""
+            prompt += f"""He also set a maximum price of {max_price}. """
         elif min_price:
-            prompt += f""" He also set a minimum price of {min_price}."""
+            prompt += f"""He also set a minimum price of {min_price}. """
         #
         if item_config.exclude_keywords:
-            prompt += f""" He also excluded items with keywords "{'" and "'.join(item_config.exclude_keywords)}"."""
+            prompt += f"""He also excluded items with keywords "{'" and "'.join(item_config.exclude_keywords)}"."""
         if item_config.exclude_by_description:
-            prompt += f""" He also would like to exclude any items with description matching words "{'" and "'.join(item_config.exclude_by_description)}"."""
+            prompt += f"""He also would like to exclude any items with description matching words "{'" and "'.join(item_config.exclude_by_description)}"."""
         #
         prompt += (
-            """Now the user has found an listing that roughly matches the search criteria. """
+            """\n\nNow the user has found an listing that roughly matches the search criteria. """
+            f"""The listing is listed under title "{listing.title}", has a price of {listing.price} with seller from {listing.location},"""
+            f"""The listing is posted at {listing.post_url} with description "{listing.description}"\n."""
+            "Given all these information, please evaluate if this listing matches what the user "
+            "has in mind. Please consider the description, any extended knowledge you might have "
+            "(such as the MSRP and model year of the products), condition, the sincerity of the "
+            "seller, and give me a recommendation in the format of a rating. \n"
+            "Rating 1, unmatched: the item does not match at all, for example, is a product in a different category, and the user should not consider.\n"
+            "Rating 2, unknown: there is not enough information to make a good judgement. the user can choose to ignore or try to contact the seller for more clarification.\n"
+            "Rating 3, poor match: the item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.\n"
+            "Rating 4, good match: the item is a potential good deal and you recommend the user to contact the seller.\n"
+            "Rating 5, good deal: the item is a very good deal, with good condition and very competitive price. The user should try to grab it as soon as he can.\n"
+            "Please return the answer in the format of the rating (a number), a colon separator, then a summary why you make this recommendation. The summary should be brief and no more than 30 words."
         )
-        prompt += f"""The listing is listed under title "{listing.title}", has a price of {listing.price},
-            It is listed as being sold at {listing.location}, and has the following description
-            "{listing.description}"\n."""
-        prompt += f"""The listing is posted at {listing.post_url}.\n"""
-        if listing.image:
-            prompt += f"""The listing has an image url of {listing.image}\n"""
-        prompt += """
-            Given all these information, please evaluate if this listing matches what the user
-            has in mind. Please consider the description, any extended knowledge you might have
-            (such as the MSRP and model year of the products), condition, the sincerity of the
-            seller, and give me a recommendation in the format of a rating.
-
-            Rating 1, unmatched: the item does not match at all, for example, is a product in a different
-              category, and the user should not consider.
-            Rating 2, unknown: there is not enough information to make a good judgement. the user can choose
-              to ignore or try to contact the seller for more clarification.
-            Rating 3, poor match: the item is acceptable but not a good match, which can be due to higher
-              than average price, item condition, or poor description from the seller.
-            Rating 4, good match: the item is a potential good deal and you recommend the user to contact the seller.
-            Rating 5, good deal: the item is a very good deal, with good condition and very competitive price. The
-              user should try to grab it as soon as he can.
-
-            Please return the answer in the format of the rating (a number), a colon separator, then a
-            summary why you make this recommendation. The summary should be brief and no more than 30 words."""
         self.logger.debug(f"Prompt: {prompt}")
         return prompt
 

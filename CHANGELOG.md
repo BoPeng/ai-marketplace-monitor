@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-02-01
+
+- Allow some parameters to different from initial and subsequent searches.
+- Allow the AI to return a rating and some comments, and use the rating to determine if the user should be notified.
+
 ## [0.5.3] - 2025-01-31
 
 - Add command line option `--diable-javascript` which can be helpful in some cases.
