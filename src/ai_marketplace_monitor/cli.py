@@ -80,6 +80,7 @@ def main(
     """Console script for AI Marketplace Monitor."""
     logging.basicConfig(
         level="DEBUG" if verbose else "INFO",
+        # format="%(name)s %(message)s",
         format="%(message)s",
         datefmt="[%x %H:%m]",
         handlers=[
@@ -88,6 +89,16 @@ def main(
             )
         ],
     )
+
+    # remove logging from other packages.
+    for logger_name in (
+        "asyncio",
+        "openai._base_client",
+        "httpcore.connection",
+        "httpcore.http11",
+        "httpx",
+    ):
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
 
     logger = logging.getLogger("monitor")
 
