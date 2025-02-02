@@ -96,7 +96,7 @@ class MarketplaceMonitor:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
                 self.ai_agents[-1].connect()
                 self.logger.info(
-                    f"{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"
+                    f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
                 )
             except Exception as e:
                 self.logger.error(
@@ -129,7 +129,7 @@ class MarketplaceMonitor:
                 user in cache.get(listing.user_notified_key, ()) for user in users_to_notify
             ):
                 self.logger.info(
-                    f"{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."
+                    f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
                 )
                 continue
             # for x in self.find_new_items(found_items)
@@ -205,13 +205,13 @@ class MarketplaceMonitor:
                         if start_at.startswith("*:*:"):
                             # '*:*:12' to ':12'
                             self.logger.info(
-                                f"{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"
+                                f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
                             )
                             scheduled = schedule.every().minute.at(start_at[3:])
                         elif start_at.startswith("*:"):
                             # '*:12:12' or  '*:12'
                             self.logger.info(
-                                f"{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"
+                                f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
                             )
                             scheduled = schedule.every().hour.at(
                                 start_at[1:] if start_at.count(":") == 1 else start_at[2:]
@@ -219,7 +219,7 @@ class MarketplaceMonitor:
                         else:
                             # '12:12:12' or '12:12'
                             self.logger.info(
-                                f"{hilight("[Search]", "ss")} Cheduling to search for {item_config.name} every day at {start_at}"
+                                f"""{hilight("[Search]", "ss")} Cheduling to search for {item_config.name} every day at {start_at}"""
                             )
                             scheduled = schedule.every().day.at(start_at)
                     else:
@@ -236,7 +236,7 @@ class MarketplaceMonitor:
                             search_interval,
                         )
                         self.logger.info(
-                            f"{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"
+                            f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"""
                         )
                         scheduled = schedule.every(search_interval).to(max_search_interval).seconds
                     if scheduled is None:
@@ -266,7 +266,7 @@ class MarketplaceMonitor:
                 if next_job is None:
                     # no more job
                     self.logger.warning(
-                        f"{hilight("[Search]", "fail")} No more active search job."
+                        f"""{hilight("[Search]", "fail")} No more active search job."""
                     )
                     sys.exit(0)
                 # assert next_job is not None
@@ -366,20 +366,20 @@ class MarketplaceMonitor:
                     listing: SearchedItem = marketplace.get_item_details(post_url)
 
                     self.logger.info(
-                        f"{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"
+                        f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
                     )
 
                     for item_config in self.config.item.values():
                         if for_item is not None and item_config.name != for_item:
                             continue
                         self.logger.info(
-                            f"{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"
+                            f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
                         marketplace.filter_item(listing, item_config)
                         self.evaluate_by_ai(listing, item_config=item_config)
                         if listing.user_notified_key in cache:
                             self.logger.info(
-                                f"{hilight("[Skip]", "succ")} Already sent notification for item {item_config.name}."
+                                f"""{hilight("[Skip]", "succ")} Already sent notification for item {item_config.name}."""
                             )
 
     def evaluate_by_ai(

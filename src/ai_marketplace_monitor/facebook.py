@@ -268,12 +268,12 @@ class FacebookMarketplace(Marketplace):
                 if selector is not None:
                     selector.click()
         except Exception as e:
-            self.logger.error(f"{hilight("[Login]", "fail")} {e}")
+            self.logger.error(f"""{hilight("[Login]", "fail")} {e}""")
 
         # in case there is a need to enter additional information
         login_wait_time = self.config.login_wait_time or 60
         self.logger.info(
-            f"{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} to get ready."
+            f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} to get ready."""
         )
         time.sleep(login_wait_time)
 
@@ -370,7 +370,7 @@ class FacebookMarketplace(Marketplace):
                         time.sleep(5)
                     except Exception as e:
                         self.logger.error(
-                            f"{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"
+                            f"""{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"""
                         )
                         continue
                     # currently we trust the other items from summary page a bit better
@@ -541,7 +541,7 @@ class FacebookSearchResultPage(WebPage):
                 listings = self.get_listing_from_css()
             except Exception as e2:
                 self.logger.debug(
-                    f"{hilight("[Retrieve]", "fail")} No listings found from structure and css: {e1}, {e2}"
+                    f"""{hilight("[Retrieve]", "fail")} No listings found from structure and css: {e1}, {e2}"""
                 )
                 return []
 
