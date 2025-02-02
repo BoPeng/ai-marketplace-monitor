@@ -189,7 +189,7 @@ class OpenAIBackend(AIBackend):
         res = AIResponse(int(score), comment.strip())
 
         self.logger.info(
-            f"""{self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)}) for listing {hilight(listing.title)}."""
+            f"""{hilight("[AI]", "succ")} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
         )
         return res
 
