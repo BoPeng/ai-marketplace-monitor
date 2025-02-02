@@ -33,6 +33,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     search_region: List[str] | None = None
     max_price: int | None = None
     min_price: int | None = None
+    rating: List[int] | None = None
 
     def handle_exclude_sellers(self: "MarketItemCommonConfig") -> None:
         if self.exclude_sellers is None:
@@ -179,6 +180,17 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
                 pass
         raise ValueError(f"Item {hilight(self.name)} start_at {self.start_at} is not recognized.")
 
+    def handle_rating(self: "MarketItemCommonConfig") -> None:
+        if self.rating is None:
+            return
+        if isinstance(self.rating, int):
+            self.rating = [self.rating]
+
+        if not all(isinstance(x, int) and x >= 1 and x <= 5 for x in self.rating):
+            raise ValueError(
+                f"Item {hilight(self.name)} rating must be one or a list of integers between 1 and 5 inclusive."
+            )
+
 
 @dataclass
 class MarketplaceConfig(MarketItemCommonConfig):
@@ -201,6 +213,9 @@ class MarketplaceConfig(MarketItemCommonConfig):
 @dataclass
 class ItemConfig(MarketItemCommonConfig):
     """This class defined options that can only be specified for items."""
+
+    # the number of times that this item has been searched
+    searched_count: int = 0
 
     # keywords is required, all others are optional
     keywords: List[str] = field(default_factory=list)

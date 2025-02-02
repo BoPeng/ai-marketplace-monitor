@@ -10,6 +10,7 @@ from rich.logging import RichHandler
 
 from . import __version__
 from .monitor import MarketplaceMonitor
+from .utils import hilight
 
 app = typer.Typer()
 
@@ -80,6 +81,7 @@ def main(
     """Console script for AI Marketplace Monitor."""
     logging.basicConfig(
         level="DEBUG" if verbose else "INFO",
+        # format="%(name)s %(message)s",
         format="%(message)s",
         datefmt="[%x %H:%m]",
         handlers=[
@@ -89,6 +91,16 @@ def main(
         ],
     )
 
+    # remove logging from other packages.
+    for logger_name in (
+        "asyncio",
+        "openai._base_client",
+        "httpcore.connection",
+        "httpcore.http11",
+        "httpx",
+    ):
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
+
     logger = logging.getLogger("monitor")
 
     if items is not None:
@@ -97,7 +109,7 @@ def main(
                 config_files, headless, disable_javascript, False, logger
             ).check_items(items, for_item)
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"""{hilight("[Check]", "fail")} {e}""")
             raise
         sys.exit(0)
 
@@ -110,7 +122,7 @@ def main(
         rich.print("Exiting...")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"""{hilight("[Monitor]", "fail")} {e}""")
         sys.exit(1)
     finally:
         monitor.stop_monitor()

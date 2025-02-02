@@ -47,6 +47,7 @@ class DeliveryMethod(Enum):
 
 
 class Availability(Enum):
+    ALL = "all"
     INSTOCK = "in"
     OUTSTOCK = "out"
 
@@ -61,10 +62,10 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
 
     seller_locations: List[str] | None = None
     acceptable_locations: List[str] | None = None
-    availability: str | None = None
+    availability: List[str] | None = None
     condition: List[str] | None = None
-    date_listed: int | None = None
-    delivery_method: str | None = None
+    date_listed: List[int] | None = None
+    delivery_method: List[str] | None = None
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.seller_locations is None:
@@ -96,11 +97,16 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     def handle_availability(self: "FacebookMarketItemCommonConfig") -> None:
         if self.availability is None:
             return
-        if not isinstance(self.availability, str) or self.availability not in [
-            x.value for x in Availability
-        ]:
+
+        if isinstance(self.availability, str):
+            self.availability = [self.availability]
+        if not all(val in [x.value for x in Availability] for val in self.availability):
             raise ValueError(
-                f"Item {hilight(self.name)} availability must be one of 'in' and 'out'."
+                f"Item {hilight(self.name)} availability must be one or two values of 'all', 'in', and 'out'."
+            )
+        if len(self.availability) > 2:
+            raise ValueError(
+                f"Item {hilight(self.name)} availability must be one or two values of 'all', 'in', and 'out'."
             )
 
     def handle_condition(self: "FacebookMarketItemCommonConfig") -> None:
@@ -118,29 +124,52 @@ class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
     def handle_date_listed(self: "FacebookMarketItemCommonConfig") -> None:
         if self.date_listed is None:
             return
-
-        if self.date_listed == "All":
-            self.date_listed = DateListed.ANYTIME.value
-        elif self.date_listed == "Last 24 hours":
-            self.date_listed = DateListed.PAST_24_HOURS.value
-        elif self.date_listed == "Last 7 days":
-            self.date_listed = DateListed.PAST_WEEK.value
-        elif self.date_listed == "Last 30 days":
-            self.date_listed = DateListed.PAST_MONTH.value
-
-        if not isinstance(self.date_listed, int) or self.date_listed not in [
-            x.value for x in DateListed
-        ]:
+        if not isinstance(self.date_listed, list):
+            self.date_listed = [self.date_listed]
+        #
+        new_values: List[int] = []
+        for val in self.date_listed:
+            if isinstance(val, str):
+                if val.isdigit():
+                    new_values.append(int(val))
+                elif val.lower() == "all":
+                    new_values.append(DateListed.ANYTIME.value)
+                elif val.lower() == "last 24 hours":
+                    new_values.append(DateListed.PAST_24_HOURS.value)
+                elif val.lower() == "last 7 days":
+                    new_values.append(DateListed.PAST_WEEK.value)
+                elif val.lower() == "last 30 days":
+                    new_values.append(DateListed.PAST_MONTH.value)
+                else:
+                    raise ValueError(
+                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                    )
+            elif not isinstance(val, int) or val not in [x.value for x in DateListed]:
+                raise ValueError(
+                    f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                )
+        # new_values should have length 1 or 2
+        if len(new_values) > 2:
             raise ValueError(
-                f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                f"""Item {hilight(self.name)} date_listed must have one or two values."""
             )
+        self.date_listed = new_values
 
     def handle_delivery_method(self: "FacebookMarketItemCommonConfig") -> None:
         if self.delivery_method is None:
             return
-        if not isinstance(self.delivery_method, str) or self.delivery_method not in [
-            x.value for x in DeliveryMethod
-        ]:
+
+        if isinstance(self.delivery_method, str):
+            self.delivery_method = [self.delivery_method]
+
+        if len(self.delivery_method) > 2:
+            raise ValueError(
+                f"Item {hilight(self.name)} delivery_method must be one or two values of 'local_pick_up' and 'shipping'."
+            )
+
+        if not isinstance(self.delivery_method, list) or not all(
+            val in [x.value for x in DeliveryMethod] for val in self.delivery_method
+        ):
             raise ValueError(
                 f"Item {hilight(self.name)} delivery_method must be one of 'local_pick_up' and 'shipping'."
             )
@@ -239,12 +268,12 @@ class FacebookMarketplace(Marketplace):
                 if selector is not None:
                     selector.click()
         except Exception as e:
-            self.logger.error(f"An error occurred during logging: {e}")
+            self.logger.error(f"""{hilight("[Login]", "fail")} {e}""")
 
         # in case there is a need to enter additional information
         login_wait_time = self.config.login_wait_time or 60
         self.logger.info(
-            f"Logged into facebook, waiting {humanize.naturaldelta(login_wait_time)} to get ready."
+            f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} to get ready."""
         )
         time.sleep(login_wait_time)
 
@@ -269,16 +298,41 @@ class FacebookMarketplace(Marketplace):
         if condition:
             options.append(f"itemCondition={'%2C'.join(condition)}")
 
-        date_listed = item_config.date_listed or self.config.date_listed
-        if date_listed and date_listed != DateListed.ANYTIME:
+            # availability can take values from item_config, or marketplace config and will
+        # use the first or second value depending on how many times the item has been searched.
+        if item_config.date_listed:
+            date_listed = item_config.date_listed[0 if item_config.searched_count == 0 else -1]
+        elif self.config.date_listed:
+            date_listed = self.config.date_listed[0 if item_config.searched_count == 0 else -1]
+        else:
+            date_listed = DateListed.ANYTIME.value
+        if date_listed is not None and date_listed != DateListed.ANYTIME.value:
             options.append(f"daysSinceListed={date_listed}")
 
-        delivery_method = item_config.delivery_method or self.config.delivery_method
-        if delivery_method and delivery_method != DeliveryMethod.ALL:
+        # delivery_method can take values from item_config, or marketplace config and will
+        # use the first or second value depending on how many times the item has been searched.
+        if item_config.delivery_method:
+            delivery_method = item_config.delivery_method[
+                0 if item_config.searched_count == 0 else -1
+            ]
+        elif self.config.delivery_method:
+            delivery_method = self.config.delivery_method[
+                0 if item_config.searched_count == 0 else -1
+            ]
+        else:
+            delivery_method = DeliveryMethod.ALL.value
+        if delivery_method is not None and delivery_method != DeliveryMethod.ALL.value:
             options.append(f"deliveryMethod={delivery_method}")
 
-        availability = item_config.availability or self.config.availability
-        if availability:
+        # availability can take values from item_config, or marketplace config and will
+        # use the first or second value depending on how many times the item has been searched.
+        if item_config.availability:
+            availability = item_config.availability[0 if item_config.searched_count == 0 else -1]
+        elif self.config.availability:
+            availability = self.config.availability[0 if item_config.searched_count == 0 else -1]
+        else:
+            availability = Availability.ALL.value
+        if availability is not None and availability != Availability.ALL.value:
             options.append(f"availability={availability}")
 
         # search multiple keywords and cities
@@ -315,7 +369,9 @@ class FacebookMarketplace(Marketplace):
                         details = self.get_item_details(f"https://www.facebook.com{item.post_url}")
                         time.sleep(5)
                     except Exception as e:
-                        self.logger.error(f"Error getting item details: {e}")
+                        self.logger.error(
+                            f"""{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"""
+                        )
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
@@ -323,7 +379,7 @@ class FacebookMarketplace(Marketplace):
                     item.seller = details.seller
                     item.name = item_config.name
                     self.logger.debug(
-                        f"""New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
+                        f"""{hilight("[Retrieve]", "succ")} New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
                     )
                     if self.filter_item(item, item_config):
                         yield item
@@ -351,7 +407,7 @@ class FacebookMarketplace(Marketplace):
         exclude_keywords = item_config.exclude_keywords
         if exclude_keywords and is_substring(exclude_keywords, item.title):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(exclude_keywords)}"""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(exclude_keywords)}"""
             )
             return False
 
@@ -359,7 +415,7 @@ class FacebookMarketplace(Marketplace):
         include_keywords = item_config.include_keywords
         if include_keywords and not is_substring(include_keywords, item.title):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
             )
             return False
 
@@ -370,7 +426,7 @@ class FacebookMarketplace(Marketplace):
             allowed_locations = self.config.seller_locations or []
         if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
-                f"""Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
             )
             return False
 
@@ -382,7 +438,7 @@ class FacebookMarketplace(Marketplace):
             and is_substring(exclude_by_description, item.description)
         ):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} by {hilight("description", "fail")}.\n{hilight(item.description[:100])}..."""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} by {hilight("description", "fail")}.\n{hilight(item.description[:100])}..."""
             )
             return False
 
@@ -393,7 +449,7 @@ class FacebookMarketplace(Marketplace):
             exclude_sellers = self.config.exclude_sellers or []
         if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
             )
             return False
 
@@ -484,12 +540,9 @@ class FacebookSearchResultPage(WebPage):
             try:
                 listings = self.get_listing_from_css()
             except Exception as e2:
-                self.logger.debug(f"No listings found from structure and css: {e1}, {e2}")
-                self.logger.debug("Saving html to test.html")
-
-                with open("test.html", "w") as f:
-                    f.write(self.html)
-
+                self.logger.debug(
+                    f"""{hilight("[Retrieve]", "fail")} No listings found from structure and css: {e1}, {e2}"""
+                )
                 return []
 
         result = [self.parse_listing(listing) for listing in listings]
@@ -503,7 +556,7 @@ class FacebookItemPage(WebPage):
         try:
             return self.soup.find("img")["src"]
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
     def get_title_and_price(self: "FacebookItemPage") -> List[str]:
@@ -514,7 +567,7 @@ class FacebookItemPage(WebPage):
             title = title_element.get_text(strip=True)
             price = extract_price(title_element.next_sibling.get_text())
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Skip]", "fail")} {e}')
 
         return [title, price]
 
@@ -534,7 +587,7 @@ class FacebookItemPage(WebPage):
             location_element = description_div.find_next_siblings()[-1]
             location = location_element.find("span").get_text()
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
 
         return [description, location]
 
@@ -544,7 +597,7 @@ class FacebookItemPage(WebPage):
             profiles = self.soup.find_all("a", href=re.compile(r"/marketplace/profile"))
             seller = profiles[-1].get_text()
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
         return seller
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
@@ -575,7 +628,7 @@ class FacebookItemPage(WebPage):
                 f"""No description was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
             )
 
-        self.logger.info(f"Parsing item {hilight(title)}")
+        self.logger.info(f'{hilight("[Retrieve]", "succ")} Parsing {hilight(title)}')
         res = SearchedItem(
             marketplace="facebook",
             name="",
@@ -588,5 +641,5 @@ class FacebookItemPage(WebPage):
             description=description,
             seller=self.get_seller(),
         )
-        self.logger.debug(pretty_repr(res))
+        self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
         return cast(SearchedItem, res)
