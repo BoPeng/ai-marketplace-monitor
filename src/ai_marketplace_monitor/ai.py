@@ -172,7 +172,7 @@ class OpenAIBackend(AIBackend):
             stream=False,
         )
         # check if the response is yes
-        self.logger.debug(f"{hilight("[AI-Response]", "info")} {pretty_repr(response)}")
+        self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
 
         answer = response.choices[0].message.content
         if (
