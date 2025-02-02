@@ -29,7 +29,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     radius: List[int] | None = None
     search_interval: int | None = None
     max_search_interval: int | None = None
-    start_at: str | None = None
+    start_at: List[str] | None = None
     search_region: List[str] | None = None
     max_price: int | None = None
     min_price: int | None = None
@@ -155,30 +155,39 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
         if self.start_at is None:
             return
 
-        if not isinstance(self.start_at, str):
-            raise ValueError(f"Item {hilight(self.name)} start_at must be a string.")
+        if isinstance(self.start_at, str):
+            self.start_at = [self.start_at]
+
+        if not isinstance(self.start_at, list) or not all(
+            isinstance(x, str) for x in self.start_at
+        ):
+            raise ValueError(
+                f"Item {hilight(self.name)} start_at must be a string or list of string."
+            )
 
         # start_at should be in one of the format of
         # HH:MM:SS, HH:MM, *:MM:SS, or *:MM, or *:*:SS
         # where HH, MM, SS are hour, minutes and seconds
         # and * can be any number
         # if not, raise ValueError
-        if (
-            self.start_at.count(":") not in (1, 2)
-            or self.start_at.count("*") == 3
-            or not all(x == "*" or (x.isdigit() and len(x) == 2) for x in self.start_at.split(":"))
-        ):
-            raise ValueError(
-                f"Item {hilight(self.name)} start_at {self.start_at} is not recognized."
-            )
-        #
-        for pattern in ["%H:%M:%S", "%H:%M", "*:%M:%S", "*:%M", "*:*:%S"]:
-            try:
-                time.strptime(self.start_at, pattern)
-                return
-            except ValueError:
-                pass
-        raise ValueError(f"Item {hilight(self.name)} start_at {self.start_at} is not recognized.")
+        for val in self.start_at:
+            if (
+                val.count(":") not in (1, 2)
+                or val.count("*") == 3
+                or not all(x == "*" or (x.isdigit() and len(x) == 2) for x in val.split(":"))
+            ):
+                raise ValueError(f"Item {hilight(self.name)} start_at {val} is not recognized.")
+            #
+            acceptable = False
+            for pattern in ["%H:%M:%S", "%H:%M", "*:%M:%S", "*:%M", "*:*:%S"]:
+                try:
+                    time.strptime(val, pattern)
+                    acceptable = True
+                    break
+                except ValueError:
+                    pass
+            if not acceptable:
+                raise ValueError(f"Item {hilight(self.name)} start_at {val} is not recognized.")
 
     def handle_rating(self: "MarketItemCommonConfig") -> None:
         if self.rating is None:
