@@ -164,6 +164,10 @@ or use option `--config` for a non-standard configuration file. The terminal out
 
 ![Search In Action](docs/search_in_action.png)
 
+which shows how _ai-marketplace-monitor_ excludes listings for various reasons, and askes OpenAI to evaluate a potential matching one.
+
+Use `Ctrl-C` to terminate the program.
+
 **NOTE**
 
 1. You need to keep the terminal running to allow the program to run indefinitely.
