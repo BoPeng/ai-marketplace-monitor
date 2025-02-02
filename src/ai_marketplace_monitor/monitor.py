@@ -256,8 +256,30 @@ class MarketplaceMonitor:
         #
         while True:
             self.schedule_jobs(browser)
+            if not schedule.get_jobs():
+                # this actually should not happen because at least one item is required for the configuration file
+                self.logger.error(
+                    "No search job is defined. Please add search items to your config file."
+                )
+                sleep_with_watchdog(60, self.config_files)
+                continue
             # run all jobs at the first time, then on their own schedule
-            schedule.run_all()
+            # we could have used schedule.run_all() but we would like to check if
+            # configuration file has been changed, if so, clear all jobs and restart
+            for job in schedule.get_jobs():
+                job.run()
+                # if configuration file has been changed, clear all scheduled jobs and restart
+                new_file_hash = calculate_file_hash(self.config_files)
+                assert self.config_hash is not None
+                if new_file_hash != self.config_hash:
+                    self.logger.info(
+                        f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
+                    )
+                    schedule.clear()
+                    break
+            if not schedule.jobs():
+                break
+            # subsequent runs will be scheduled runs
             while True:
                 next_job = None
                 for job in schedule.jobs:
