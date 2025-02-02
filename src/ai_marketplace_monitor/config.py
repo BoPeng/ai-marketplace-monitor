@@ -37,7 +37,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             try:
                 if logger:
                     logger.debug(
-                        f"{hilight("[Monitor]", "succ")} config file {hilight(config_file)}"
+                        f"""{hilight("[Monitor]", "succ")} config file {hilight(config_file)}"""
                     )
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))
