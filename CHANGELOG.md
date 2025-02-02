@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Allow multiple `start_at`
+
 ## [0.6.0] - 2025-02-01
 
 - Allow some parameters to different from initial and subsequent searches.

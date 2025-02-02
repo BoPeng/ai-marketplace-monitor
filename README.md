@@ -42,8 +42,10 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Regions](#regions)
 - [Advanced features](#advanced-features)
   - [Multiple configuration files](#multiple-configuration-files)
+  - [Adjust notification level](#adjust-notification-level)
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
+  - [First and subsequent searches](#first-and-subsequent-searches)
   - [Network issues](#network-issues)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
@@ -181,119 +183,115 @@ an example with many of the options.
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
 
-- `provider`: (optional), the section name will be used if this is unspecified, so `ai.deepseek` will assume a provider of `deepseek`.
-- `api-key`: (required), a program token to access openAI REST API.
-- `base_url`: (optional), in case you use another server
-- `model`: (optional), by default `gpt-4o` or `deepseek-chat` will be used for `Openami` or `DeepSeek` respectively.
+| Option     | Requirement | DataType | Description                                |
+| ---------- | ----------- | -------- | ------------------------------------------ |
+| `provider` | Optional    | String   | Name of the AI service provider.           |
+| `api-key`  | Required    | String   | A program token to access the RESTful API. |
+| `base_url` | Optional    | String   | URL for the RESTful API                    |
+| `model`    | Optional    | String   | Language model to be used.                 |
 
 Note that:
 
 1. `provider` can be [Open AI](https://openai.com/) or
-   [DeepSeek](https://www.deepseek.com/). However, with the use of `base_url`, `model`, and `api-key`, you can use this program with any services that provides an `OpenAI`-compatible API.
+   [DeepSeek](https://www.deepseek.com/), which sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
 2. If more than one `ai` sections are provided, the program will try all of them in the order for which they are specified.
+3. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
+
+A typical section for OpenAI looks like
+
+```toml
+[ai.openai]
+api_key = 'sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+```
 
 ### Marketplaces
 
-One or more sections `marketplace.name` show the options for interacting with the facebook marketplace.
+One or more sections `marketplace.name` show the options for interacting with various marketplaces.
 
-- `market_type`: (optional), `facebook` is currently the only supported marketplace.
-- `username`: (optional), you can enter manually or keep in config file
-- `password`: (optional), you can enter manually or keep in config file
-- `login_wait_time`: (optional), time to wait before searching in seconds, to give you enough time to enter CAPTCHA, default to 60.
-- **Common options** listed in the section [Common options](#common-options) below. These options, if specified in the marketplace section, will by default be applied to all items.
+| Option             | Requirement | DataType | Description                                                                                                      |
+| ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `market_type`      | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                                              |
+| `username`         | Optional    | String   | Username can be entered manually or kept in the config file.                                                     |
+| `password`         | Optional    | String   | Password can be entered manually or kept in the config file.                                                     |
+| `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
+| **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
-Because the default `marketplace` for all items are `facebook`, you will most likely have a single section called `marketplace.facebook`.
+Because the default `marketplace` for all items are `facebook`, it is easiest to define a single section called `marketplace.facebook`.
 
 ### Users
 
-One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. PushBullet is currently the only method of notification.
+One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. [PushBullet](https://www.pushbullet.com/) is currently the only method of notification.
 
-- `pushbullet_token`: (rquired) token for user
+| Option             | Requirement | DataType | Description    |
+| ------------------ | ----------- | -------- | -------------- |
+| `pushbullet_token` | Required    | String   | Token for user |
 
 ### Items to search
 
 One or more `item.item_name` where `item_name` is the name of the item.
 
-- `keywords`: (required) one of more keywords for searching the item.
-- `description`: (optional) A longer description of the item that better describes your requirements, such as manufacture, condition, location, seller reputation,
-  if you accept shipping etc. It is currently **only used if AI assistance is enabled**.
-- `enabled`: (optional), stop searching this item if set to `false`
-- `include_keywords`: (optional), exclude listings that does not contain any of the keywords.
-- `exclude_keywords`: (optional), exclude listings whose titles contain any of the specified words
-- `exclude_by_description`: (optional) exclude items with descriptions containing any of the specified words.
-- `marketplace`: (optional), can only be `facebook` if specified.
-- **Common options** listed below. These options, if specified in the item section, will override options in the markerplace section.
+| Option                   | Requirement | DataType    | Description                                                                                                                                                                                    |
+| ------------------------ | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keywords`               | Required    | String/List | One or more strings for searching the item.                                                                                                                                                    |
+| `description`            | Optional    | String      | A longer description of the item that better describes your requirements (e.g., manufacture, condition, location, seller reputation, shipping options). Only used if AI assistance is enabled. |
+| `enabled`                | Optional    | Boolean     | Stops searching this item if set to `false`.                                                                                                                                                   |
+| `include_keywords`       | Optional    | String/List | Excludes listings that do not contain any of the keywords.                                                                                                                                     |
+| `exclude_keywords`       | Optional    | String/List | Excludes listings whose titles contain any of the specified strings.                                                                                                                           |
+| `exclude_by_description` | Optional    | String/List | Excludes items with descriptions containing any of the specified strings.                                                                                                                      |
+| `marketplace`            | Optional    | String      | Name of the marketplace, default to `facebook` that points to a `marketplace.facebook` sectiion.                                                                                               |
+| **Common options**       |             |             | Options listed below. These options, if specified in the item section, will override options in the marketplace section.                                                                       |
 
-Facebook may return listings that are completely unrelated to search keywords, but can also
-return related items under different names. To fix this problem, you can
+Marketplaces may return listings that are completely unrelated to search keywords, but can also
+return related items under different names. To select the right items, you can
 
 1. Use `include_keywords` to keep only items with certain words in the title. For example, you can set `include_keywords = ['gopro', 'go pro']` when you search for `keywords = 'gopro'`.
 2. Use `exclude_keywords` to narrow down the search. For example, setting `exclude_keywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title.
-3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a camera.
+3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera.
 
 ### Options that can be specified for both marketplaces and items
 
-The following options that can specified for both `marketplace` sections and `item` sections. Options defined in marketplaces provide default options for all items searched in that marketplace. Options defined for individual items will override options provided in marketplaces.
+The following options that can specified for both `marketplace` sections and `item` sections. Values in the `item` section will override value in corresponding marketplace if specified in both places.
 
-- `availability`: (optional) shows output with `in` (in stock), `out` (out of stock) or `all` (both).
-- `seller_locations`: (optional) only allow searched items from these locations
-- `condition`: (optional) one or more of `new`, `used_like_new`, `used_good`, and `used_fair`.
-- `date_listed`: (optional) one of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.
-- `delivery_method`: (optional) one of `all`, `local_pick_up`, and `shipping`.
-- `exclude_sellers`: (optional) exclude certain sellers by their names (not username)
-- `min_price`: (optional) minimum price.
-- `max_price`: (optional) maximum price.
-- `notify`: (optional) users who should be notified
-- `radius`: (optional) radius of search, can be a list if multiple `search_city` are specified.
-- `rating`: (optional) AI will rate listings from 1 to 5, meaning unmatched (1), unknown (2), poor match (3), good match (4), and great deal (5). The program will by default notify you any listing that rates at match (3) or higher. You can change the rating to be more lenient or more stringent. You can also specify an array of two to use different rating criteria for the initial and subsequent searches.
-- `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
-- `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
-- `search_interval`: (optional) minimal interval in seconds between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.
-- `max_search_interval`: (optional) maximum interval in seconds between searches, if specified, a random time will be chosen between `search_interval` and `max_search_interval`.
-- `start_at`: (optional) time to start the search. It currently support
-
-  - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00`
-  - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00`,
-  - `*:*:SS` for every minute at `SS`.
-
-  If specified, this option will override `search_interval`.
+| `Parameter`           | Required/Optional | Datatype            | Description                                                                                                                                                 |
+| --------------------- | ----------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `availability`        | Optional          | String/List         | Shows output with `in` (in stock), `out` (out of stock), or `all` (both).                                                                                   |
+| `condition`           | Optional          | String/List         | One or more of `new`, `used_like_new`, `used_good`, and `used_fair`.                                                                                        |
+| `date_listed`         | Optional          | String/Integer/List | One of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.                                                                   |
+| `delivery_method`     | Optional          | String/List         | One of `all`, `local_pick_up`, and `shipping`.                                                                                                              |
+| `exclude_sellers`     | Optional          | String/List         | Exclude certain sellers by their names (not username).                                                                                                      |
+| `max_price`           | Optional          | Integer             | Maximum price.                                                                                                                                              |
+| `max_search_interval` | Optional          | Integer/String      | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
+| `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
+| `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
+| `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
+| `rating`              | Optional          | Integer/List        | Notify users with listigns with rating at or higher than specified rating. See [Adjust notification level](#adjust-notification-level) for details          |
+| `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
+| `search_interval`     | Optional          | Integer/String      | Minimal interval in seconds between searches. Can use human-friendly strings like `1d`, `5h`, or `1h 30m`.                                                  |
+| `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
+| `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
+| `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                      |
 
 Note that
 
-1. `exclude_keywords` and `exclude_by_description` will lead to string-based exclusion of items. If AI assistant is available, it is recommended that you specify these exclusion items verbally in `description`, such as "exclude items that refer me to a website for purchasing, and exclude items that only offers shipping.".
-2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
+1. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
+2. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
+3. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](#first-and-subsequent-searches) for details.
 
 ### Regions
 
 One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
 
-- `search_city`: (required), one or more cities with names used by facebook
-- `full_name`: (optional) a display name for the region.
-- `radius`: (optional), recommend 805 for regions using miles, and 500 using kms, default to `805`
-- `city_name`: (optional), corresponding city names for bookkeeping purpose only.
+| Parameter     | Required/Optional | Data Type    | Description                                                                 |
+| ------------- | ----------------- | ------------ | --------------------------------------------------------------------------- |
+| `search_city` | Required          | String/List  | One or more cities with names used by Facebook.                             |
+| `full_name`   | Optional          | String       | A display name for the region.                                              |
+| `radius`      | Optional          | Integer/List | Recommended `805` for regions using miles, and `500` for regions using kms. |
+| `city_name`   | Optional          | String/List  | Corresponding city names for bookkeeping purposes only.                     |
 
 Note that
 
-1. Under the hood, _ai-marketplace-monitor_ will simply set `radius` and expand regions into `search_city` of marketplace or items with `search_region`. Options `full_name` and `city_name` are not used.
-2. If you are searching one or more regions by specifying `search_region`, make sure that you set `seller_locations=[]` or leave it unspecified in both `item` and `marketplace.facebook`.
-3. _ai-marketplace-monitor_ ships with the following regions:
-
-   - `usa` for USA (without AK or HI)
-   - `usa_full` for USA
-   - `can` for Canada
-   - `mex` for Mexico
-   - `bra` for Brazil
-   - `arg` for Argentina
-   - `aus` for Australia
-   - `aus_miles` for Australia using 500 miles radius
-   - `nzl` for New Zealand
-   - `ind` for India
-   - `gbr` for United Kingdom
-   - `fra` for France
-   - `spa` for Spain
-
-   These regions are defined in the system
-   [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml). You can define your own regions following the style there. Please feel free to submit PRs to add regions that can be of interest to others.
+1. `radius` has a default value of `500` (miles). You can specify different `radius` for different `search_city`.
+2. Options `full_name` and `city_name` are for documentation purposes only.
 
 ## Advanced features
 
@@ -318,6 +316,54 @@ rating = 2
 ```
 
 to see more potential listings. Note that all listings after non-AI-based filtering will be returned if no AI service is specified.
+
+### Searching multiple cities and regions
+
+You can search an item from multiple cities and pick up from sellers from multiple locations using a list of `search_city`
+
+```toml
+[item.name]
+search_city = ['city1', 'city2']
+seller_locations = ['city1', 'city2', 'city3', 'city4']
+```
+
+and you can also increase the radius of search using
+
+```toml
+[item.name]
+search_city = ['city1', 'city2']
+radius = 50
+```
+
+However, if you would like to search for a larger region (e.g. the USA), it is much easier to define `region`s with a list of `search_city` and large `radius`.
+
+_ai-marketplace-monitor_ defines the following regions in its system
+[config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml):
+
+- `usa` for USA (without AK or HI)
+- `usa_full` for USA
+- `can` for Canada
+- `mex` for Mexico
+- `bra` for Brazil
+- `arg` for Argentina
+- `aus` for Australia
+- `aus_miles` for Australia using 500 miles radius
+- `nzl` for New Zealand
+- `ind` for India
+- `gbr` for United Kingdom
+- `fra` for France
+- `spa` for Spain
+
+Now, if you would like to search an item across the US, you can
+
+```toml
+[item.name]
+search_region = 'usa'
+seller_locations = []
+delivery_method = 'shipping'
+```
+
+Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` with corresponding pre-defined `search_city` and `radius`. Note that `seller_locations` does not make sense and need to be set to empty for region-based search, and it makes sense to limit the search to listings that offer shipping.
 
 ### Check individual listing
 
