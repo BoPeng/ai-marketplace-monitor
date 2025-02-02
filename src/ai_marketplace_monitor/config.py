@@ -36,7 +36,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for config_file in [system_config, *config_files]:
             try:
                 if logger:
-                    logger.info(f"Loading config file {hilight(config_file)}")
+                    logger.debug(
+                        f"{hilight("[Monitor]", "succ")} config file {hilight(config_file)}"
+                    )
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))
             except tomllib.TOMLDecodeError as e:

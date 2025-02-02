@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Type
 
 from pushbullet import Pushbullet  # type: ignore
 
-from .utils import DataClassWithHandleFunc
+from .utils import DataClassWithHandleFunc, hilight
 
 
 @dataclass
@@ -42,11 +42,17 @@ class User:
                 pb.push_note(title, message)
                 return True
             except Exception as e:
-                self.logger.debug(f"Attempt {attempt + 1} failed: {e}")
+                self.logger.debug(
+                    f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
+                )
                 if attempt < max_retries - 1:
-                    self.logger.debug(f"Retrying in {delay} seconds...")
+                    self.logger.debug(
+                        f"""{hilight("[Notify]", "fail")} Retrying in {delay} seconds..."""
+                    )
                     time.sleep(delay)
                 else:
-                    self.logger.error(f"Max retries reached. Failed to push note to {self.name}.")
+                    self.logger.error(
+                        f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
+                    )
                     return False
         return True

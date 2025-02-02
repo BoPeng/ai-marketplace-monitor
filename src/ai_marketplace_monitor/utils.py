@@ -145,5 +145,10 @@ def convert_to_seconds(time_str: str) -> int:
 
 def hilight(text: str, style: str = "name") -> str:
     """Highlight the keywords in the text with the specified color."""
-    color = {"name": "bright_cyan", "fail": "red", "succ": "green"}.get(style, "blue")
+    color = {
+        "name": "bright_cyan",
+        "fail": "red",
+        "info": "blue",
+        "succ": "green",
+    }.get(style, "blue")
     return f"[{color}]{text}[/{color}]"

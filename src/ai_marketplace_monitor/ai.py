@@ -116,7 +116,7 @@ class AIBackend(Generic[TAIConfig]):
         prompt += (
             """\n\nNow the user has found an listing that roughly matches the search criteria. """
             f"""The listing is listed under title "{listing.title}", has a price of {listing.price} with seller from {listing.location},"""
-            f"""The listing is posted at {listing.post_url} with description "{listing.description}"\n."""
+            f"""The listing is posted at {listing.post_url} with description "{listing.description}"\n\n"""
             "Given all these information, please evaluate if this listing matches what the user "
             "has in mind. Please consider the description, any extended knowledge you might have "
             "(such as the MSRP and model year of the products), condition, the sincerity of the "
@@ -128,7 +128,7 @@ class AIBackend(Generic[TAIConfig]):
             "Rating 5, good deal: the item is a very good deal, with good condition and very competitive price. The user should try to grab it as soon as he can.\n"
             "Please return the answer in the format of the rating (a number), a colon separator, then a summary why you make this recommendation. The summary should be brief and no more than 30 words."
         )
-        self.logger.debug(f"Prompt: {prompt}")
+        self.logger.debug(f"{hilight("[AI-Prompt]", "info")} {prompt}")
         return prompt
 
     def evaluate(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> AIResponse:
@@ -172,7 +172,7 @@ class OpenAIBackend(AIBackend):
             stream=False,
         )
         # check if the response is yes
-        self.logger.debug(f"Response: {pretty_repr(response)}")
+        self.logger.debug(f"{hilight("[AI-Response]", "info")} {pretty_repr(response)}")
 
         answer = response.choices[0].message.content
         if (
@@ -189,7 +189,7 @@ class OpenAIBackend(AIBackend):
         res = AIResponse(int(score), comment.strip())
 
         self.logger.info(
-            f"""{hilight("[AI]", "succ")} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+            f"""{hilight("[AI]", res.style)} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
         )
         return res
 

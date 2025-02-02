@@ -268,12 +268,12 @@ class FacebookMarketplace(Marketplace):
                 if selector is not None:
                     selector.click()
         except Exception as e:
-            self.logger.error(f"An error occurred during logging: {e}")
+            self.logger.error(f"{hilight("[Login]", "fail")} {e}")
 
         # in case there is a need to enter additional information
         login_wait_time = self.config.login_wait_time or 60
         self.logger.info(
-            f"Logged into facebook, waiting {humanize.naturaldelta(login_wait_time)} to get ready."
+            f"{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} to get ready."
         )
         time.sleep(login_wait_time)
 
@@ -369,7 +369,9 @@ class FacebookMarketplace(Marketplace):
                         details = self.get_item_details(f"https://www.facebook.com{item.post_url}")
                         time.sleep(5)
                     except Exception as e:
-                        self.logger.error(f"Error getting item details: {e}")
+                        self.logger.error(
+                            f"{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"
+                        )
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
@@ -377,7 +379,7 @@ class FacebookMarketplace(Marketplace):
                     item.seller = details.seller
                     item.name = item_config.name
                     self.logger.debug(
-                        f"""New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
+                        f"""{hilight("[Retrieve]", "succ")} New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
                     )
                     if self.filter_item(item, item_config):
                         yield item
@@ -405,7 +407,7 @@ class FacebookMarketplace(Marketplace):
         exclude_keywords = item_config.exclude_keywords
         if exclude_keywords and is_substring(exclude_keywords, item.title):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(exclude_keywords)}"""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(exclude_keywords)}"""
             )
             return False
 
@@ -413,7 +415,7 @@ class FacebookMarketplace(Marketplace):
         include_keywords = item_config.include_keywords
         if include_keywords and not is_substring(include_keywords, item.title):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
             )
             return False
 
@@ -424,7 +426,7 @@ class FacebookMarketplace(Marketplace):
             allowed_locations = self.config.seller_locations or []
         if allowed_locations and not is_substring(allowed_locations, item.location):
             self.logger.info(
-                f"""Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
             )
             return False
 
@@ -436,7 +438,7 @@ class FacebookMarketplace(Marketplace):
             and is_substring(exclude_by_description, item.description)
         ):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} by {hilight("description", "fail")}.\n{hilight(item.description[:100])}..."""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} by {hilight("description", "fail")}.\n{hilight(item.description[:100])}..."""
             )
             return False
 
@@ -447,7 +449,7 @@ class FacebookMarketplace(Marketplace):
             exclude_sellers = self.config.exclude_sellers or []
         if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
             self.logger.info(
-                f"""Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
+                f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
             )
             return False
 
@@ -538,12 +540,9 @@ class FacebookSearchResultPage(WebPage):
             try:
                 listings = self.get_listing_from_css()
             except Exception as e2:
-                self.logger.debug(f"No listings found from structure and css: {e1}, {e2}")
-                self.logger.debug("Saving html to test.html")
-
-                with open("test.html", "w") as f:
-                    f.write(self.html)
-
+                self.logger.debug(
+                    f"{hilight("[Retrieve]", "fail")} No listings found from structure and css: {e1}, {e2}"
+                )
                 return []
 
         result = [self.parse_listing(listing) for listing in listings]
@@ -557,7 +556,7 @@ class FacebookItemPage(WebPage):
         try:
             return self.soup.find("img")["src"]
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
     def get_title_and_price(self: "FacebookItemPage") -> List[str]:
@@ -568,7 +567,7 @@ class FacebookItemPage(WebPage):
             title = title_element.get_text(strip=True)
             price = extract_price(title_element.next_sibling.get_text())
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Skip]", "fail")} {e}')
 
         return [title, price]
 
@@ -588,7 +587,7 @@ class FacebookItemPage(WebPage):
             location_element = description_div.find_next_siblings()[-1]
             location = location_element.find("span").get_text()
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
 
         return [description, location]
 
@@ -598,7 +597,7 @@ class FacebookItemPage(WebPage):
             profiles = self.soup.find_all("a", href=re.compile(r"/marketplace/profile"))
             seller = profiles[-1].get_text()
         except Exception as e:
-            self.logger.debug(e)
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
         return seller
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
@@ -629,7 +628,7 @@ class FacebookItemPage(WebPage):
                 f"""No description was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
             )
 
-        self.logger.info(f"Parsing item {hilight(title)}")
+        self.logger.info(f'{hilight("[Retrieve]", "succ")} Parsing {hilight(title)}')
         res = SearchedItem(
             marketplace="facebook",
             name="",
@@ -642,5 +641,5 @@ class FacebookItemPage(WebPage):
             description=description,
             seller=self.get_seller(),
         )
-        self.logger.debug(pretty_repr(res))
+        self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
         return cast(SearchedItem, res)

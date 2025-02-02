@@ -10,6 +10,7 @@ from rich.logging import RichHandler
 
 from . import __version__
 from .monitor import MarketplaceMonitor
+from .utils import hilight
 
 app = typer.Typer()
 
@@ -108,7 +109,7 @@ def main(
                 config_files, headless, disable_javascript, False, logger
             ).check_items(items, for_item)
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"{hilight("[Check]", "fail")} {e}")
             raise
         sys.exit(0)
 
@@ -121,7 +122,7 @@ def main(
         rich.print("Exiting...")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"{hilight("[Monitor]", "fail")} {e}")
         sys.exit(1)
     finally:
         monitor.stop_monitor()
