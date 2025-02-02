@@ -53,7 +53,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - Search for one or more products using specified keywords.
 - Limit search by price, and location.
 - Exclude irrelevant results and spammers.
-- Use an AI service provider (OpenAI or DeepSeek) to confirm listing matches.
+- Use an AI service provider (OpenAI or DeepSeek) to evaluate listing matches and give recommendations.
 - Send notifications via PushBullet.
 - Search repeatedly with specified intervals.
 - Search multiple cities, even pre-defined regions (e.g. USA)
@@ -245,6 +245,7 @@ The following options that can specified for both `marketplace` sections and `it
 - `max_price`: (optional) maximum price.
 - `notify`: (optional) users who should be notified
 - `radius`: (optional) radius of search, can be a list if multiple `search_city` are specified.
+- `rating`: (optional) AI will rate listings from 1 to 5, meaning unmatch (1), unknown (2), match (3), acceptable (4), and good deal (5). The program will by default notify you any listing that rates at match (3) or higher. You can change the rating to be more lenient or more stringent.
 - `search_city`: (required for marketplace or item if `search_region` is unspecified) one or more search city, which can be obtained from the URL of your search query.
 - `search_region`: (optional) search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions, or regions defined in the configuration file.
 - `search_interval`: (optional) minimal interval in seconds between searches, you can also write human friendly strings like `1d`, `5h`, or `1h 30m`.

@@ -33,6 +33,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     search_region: List[str] | None = None
     max_price: int | None = None
     min_price: int | None = None
+    rating: int | None = None
 
     def handle_exclude_sellers(self: "MarketItemCommonConfig") -> None:
         if self.exclude_sellers is None:
@@ -178,6 +179,16 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
             except ValueError:
                 pass
         raise ValueError(f"Item {hilight(self.name)} start_at {self.start_at} is not recognized.")
+
+    def handle_rating(self: "MarketItemCommonConfig") -> None:
+        if self.rating is None:
+            return
+        if not isinstance(self.rating, int):
+            raise ValueError(f"Item {hilight(self.name)} rating must be an integer.")
+        if self.rating < 1 or self.rating > 5:
+            raise ValueError(
+                f"Item {hilight(self.name)} rating must be between 1 and 5 inclusive."
+            )
 
 
 @dataclass

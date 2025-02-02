@@ -10,7 +10,7 @@ import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 
-from .ai import AIBackend
+from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
@@ -111,6 +111,7 @@ class MarketplaceMonitor:
         """Search for an item on the marketplace."""
         self.logger.info(f"Searching {marketplace_config.name} for {hilight(item_config.name)}")
         new_listings = []
+        listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
         users_to_notify = (
@@ -128,16 +129,28 @@ class MarketplaceMonitor:
                 )
                 continue
             # for x in self.find_new_items(found_items)
-            if not self.confirmed_by_ai(listing, item_config=item_config):
+            res = self.evaluate_by_ai(listing, item_config=item_config)
+            if item_config.rating is not None:
+                acceptable_rating = item_config.rating
+            elif marketplace_config.rating is not None:
+                acceptable_rating = marketplace_config.rating
+            else:
+                acceptable_rating = 3
+
+            if res.score < acceptable_rating:
+                self.logger.info(
+                    f"""Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}, skipping."""
+                )
                 continue
             new_listings.append(listing)
+            listing_ratings.append(res)
 
         p = inflect.engine()
         self.logger.info(
             f"""{hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
         )
         if new_listings:
-            self.notify_users(users_to_notify, new_listings)
+            self.notify_users(users_to_notify, new_listings, listing_ratings)
         time.sleep(5)
 
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
@@ -349,33 +362,36 @@ class MarketplaceMonitor:
                             f"Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"
                         )
                         marketplace.filter_item(listing, item_config)
-                        self.confirmed_by_ai(listing, item_config=item_config)
+                        self.evaluate_by_ai(listing, item_config=item_config)
                         if listing.user_notified_key in cache:
                             self.logger.info(
                                 f"Already sent notification for item {item_config.name}."
                             )
 
-    def confirmed_by_ai(
+    def evaluate_by_ai(
         self: "MarketplaceMonitor", item: SearchedItem, item_config: TItemConfig
-    ) -> bool:
+    ) -> AIResponse:
         for agent in self.ai_agents:
             try:
-                return agent.confirm(item, item_config)
+                return agent.evaluate(item, item_config)
             except Exception as e:
                 self.logger.error(f"Failed to get an answer from {agent.config.name}: {e}")
                 continue
         self.logger.error("Failed to get an answer from any of the AI agents. Assuming OK.")
-        return True
+        return AIResponse(2, "Unknown")
 
     def notify_users(
-        self: "MarketplaceMonitor", users: List[str], listings: List[SearchedItem]
+        self: "MarketplaceMonitor",
+        users: List[str],
+        listings: List[SearchedItem],
+        ratings: List[AIResponse],
     ) -> None:
         # get notification msg for this item
         p = inflect.engine()
         for user in users:
             msgs = []
             unnotified_listings = []
-            for listing in listings:
+            for listing, rating in zip(listings, ratings):
                 if listing.user_notified_key in cache and user in cache.get(
                     listing.user_notified_key, ()
                 ):
@@ -384,7 +400,8 @@ class MarketplaceMonitor:
                     f"""New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
                 )
                 msgs.append(
-                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url.split("?")[0]}"""
+                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url.split("?")[0]}\n"""
+                    f"""{rating.conclusion} ({rating.score}): {rating.comment}"""
                 )
                 unnotified_listings.append(listing)
 
