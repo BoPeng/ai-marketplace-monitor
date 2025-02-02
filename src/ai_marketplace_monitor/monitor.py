@@ -277,7 +277,7 @@ class MarketplaceMonitor:
                     )
                     schedule.clear()
                     break
-            if not schedule.jobs():
+            if not schedule.get_jobs():
                 break
             # subsequent runs will be scheduled runs
             while True:
