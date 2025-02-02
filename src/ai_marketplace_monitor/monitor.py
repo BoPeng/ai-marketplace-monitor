@@ -161,14 +161,8 @@ class MarketplaceMonitor:
             self.notify_users(users_to_notify, new_listings, listing_ratings)
         time.sleep(5)
 
-    def schedule_jobs(self: "MarketplaceMonitor") -> None:
+    def schedule_jobs(self: "MarketplaceMonitor", browser: Browser) -> None:
         """Schedule jobs to run periodically."""
-        # start a browser with playwright, cannot use with statement since the jobs will be
-        # executed outside of the scope by schedule job runner
-        self.playwright = sync_playwright().start()
-        # Open a new browser page.
-        assert self.playwright is not None
-        browser: Browser = self.playwright.chromium.launch(headless=self.headless)
         # we reload the config file each time when a scan action is completed
         # this allows users to add/remove products dynamically.
         self.load_config_file()
@@ -253,8 +247,15 @@ class MarketplaceMonitor:
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
+        # start a browser with playwright, cannot use with statement since the jobs will be
+        # executed outside of the scope by schedule job runner
+        self.playwright = sync_playwright().start()
+        # Open a new browser page.
+        assert self.playwright is not None
+        browser: Browser = self.playwright.chromium.launch(headless=self.headless)
+        #
         while True:
-            self.schedule_jobs()
+            self.schedule_jobs(browser)
             # run all jobs at the first time, then on their own schedule
             schedule.run_all()
             while True:
