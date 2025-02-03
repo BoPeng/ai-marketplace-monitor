@@ -458,10 +458,17 @@ class FacebookMarketplace(Marketplace):
 
 class WebPage:
 
-    def __init__(self: "WebPage", html: str, logger: Logger) -> None:
-        self.html = html
-        self.soup = BeautifulSoup(self.html, "html.parser")
+    def __init__(self: "WebPage", page: Page, logger: Logger) -> None:
+        self.page = page
         self.logger = logger
+        self._soup = None
+
+    @property
+    def soup(self: "WebPage") -> BeautifulSoup:
+        """We can parse directly from the Page object, or from BeautifulSoup"""
+        if self._soup is None:
+            self._soup = BeautifulSoup(self.page.content(), "html.parser")
+        return self._soup
 
 
 class FacebookSearchResultPage(WebPage):
@@ -563,9 +570,11 @@ class FacebookItemPage(WebPage):
         title = ""
         price = ""
         try:
-            title_element = self.soup.find("h1")
-            title = title_element.get_text(strip=True)
-            price = extract_price(title_element.next_sibling.get_text())
+            h1_element = self.page.query_selector_all("h1")[-1]
+            title = h1_element.text_content()
+            # this is a css selector
+            price_element = self.page.locator("h1 + *")
+            price = price_element.text_content()
         except Exception as e:
             self.logger.debug(f'{hilight("[Skip]", "fail")} {e}')
 
@@ -575,17 +584,16 @@ class FacebookItemPage(WebPage):
         description = ""
         location = ""
         try:
-            cond = self.soup.find("span", string="Condition")
-            if cond is None:
-                raise ValueError("No span for condition is fond")
-            ul = cond.find_parent("ul")
-            if ul is None:
-                raise ValueError("No ul as parent for condition is fond")
-            description_div = ul.find_next_sibling()
-            description = description_div.get_text(strip=True)
-            #
-            location_element = description_div.find_next_siblings()[-1]
-            location = location_element.find("span").get_text()
+            # description
+            # Find the span with text "condition", then parent, then next...
+            description_element = self.page.locator(
+                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
+            )
+            description = description_element.text_content()
+
+            location_element = description_element.locator("xpath=following-sibling::*[last()]")
+            location_element = location_element.locator("span:not(:has(*))").first
+            location = location_element.text_content()
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
 
@@ -594,8 +602,8 @@ class FacebookItemPage(WebPage):
     def get_seller(self: "FacebookItemPage") -> str:
         seller = ""
         try:
-            profiles = self.soup.find_all("a", href=re.compile(r"/marketplace/profile"))
-            seller = profiles[-1].get_text()
+            seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
+            return seller_link.text_content()
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
         return seller
@@ -606,24 +614,16 @@ class FacebookItemPage(WebPage):
         title, price = self.get_title_and_price()
         description, location = self.get_description_and_location()
 
-        # if not title or not price:
-        #     with open(f"{item_id}.html", "w") as f:
-        #         f.write(self.html)
-
         if not title:
             raise ValueError(
                 f"""No title was found for item {post_url}, which is most likely caused by a network issue. Please report the issue to the developer if the problem persists."""
             )
         if not price:
-            # with open(f"{item_id}.html", "w") as f:
-            #     f.write(self.html)
             raise ValueError(
                 f"""No price was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
             )
 
         if not description:
-            # with open(f"{item_id}.html", "w") as f:
-            #     f.write(self.html)
             raise ValueError(
                 f"""No description was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
             )
