@@ -472,7 +472,7 @@ class FacebookSearchResultPage(WebPage):
         # find each listing
         for listing in grid.locator("> div").all():
             if not listing.text_content():
-                return []
+                continue
             atag = listing.locator(
                 ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
             )
@@ -482,7 +482,6 @@ class FacebookSearchResultPage(WebPage):
             title = details.locator(":scope > div").nth(1).text_content() or ""
             location = details.locator(":scope > div").nth(2).text_content() or ""
             image = listing.locator("img").get_attribute("src") or ""
-
             price = extract_price(raw_price)
 
             listings.append(
@@ -502,7 +501,6 @@ class FacebookSearchResultPage(WebPage):
                     description="",
                 )
             )
-
         # Append the parsed data to the list.
         return listings
 
@@ -526,7 +524,7 @@ class FacebookItemPage(WebPage):
 
     def get_image_url(self: "FacebookItemPage") -> str:
         try:
-            image_url = self.page.locator("img").get_attribute("src") or ""
+            image_url = self.page.locator("img").first().get_attribute("src") or ""
             return image_url
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
