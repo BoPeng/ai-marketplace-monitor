@@ -103,7 +103,7 @@ def main(
 
     logger = logging.getLogger("monitor")
     logger.info(
-        f"{hilight("[VERSION]", "info")} AI Marketplace Monitor, version {hilight(__version__, "name")}"
+        f"""{hilight("[VERSION]", "info")} AI Marketplace Monitor, version {hilight(__version__, "name")}"""
     )
 
     if items is not None:
