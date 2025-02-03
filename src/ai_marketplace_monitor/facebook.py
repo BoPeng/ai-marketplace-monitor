@@ -390,7 +390,19 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.goto_url(post_url)
-        details = FacebookItemPage(self.page, self.logger).parse(post_url)
+        details = None
+        for page_model in (
+            FacebookItemPage,
+            FacebookRentalItemPage,
+        ):
+            try:
+                details = page_model(self.page, self.logger).parse(post_url)
+                break
+            except Exception:
+                # try next page layout
+                continue
+        if details is None:
+            raise ValueError(f"Failed to get item details from {post_url}")
         cache.set(
             (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]), details, tag="item_details"
         )
@@ -549,59 +561,31 @@ class FacebookItemPage(WebPage):
             if not any(
                 "Condition" in (x.text_content() or "") for x in self.page.query_selector_all("li")
             ):
-                raise ValueError("Let us try the 2nd method")
+                return ""
             # Find the span with text "condition", then parent, then next...
             description_element = self.page.locator(
                 'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
             )
             return description_element.text_content() or ""
-        except Exception:
-            # some pages do not have a condition box and appears to have a "Description" header
-            # See https://github.com/BoPeng/ai-marketplace-monitor/issues/29 for details.
-            try:
-                description_header = self.page.query_selector('h2:has(span:text("Description"))')
-                # find the parent until it has two children and the first child is the heading
-                parent = description_header
-                while parent:
-                    children = parent.query_selector_all(":scope > *")
-                    if len(children) > 1 and children[0].text_content() == "Description":
-                        return children[1].text_content() or ""
-                    parent = parent.query_selector("xpath=..")
-                raise ValueError("No description found.")
-            except Exception as e:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-                return ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
 
     def get_location(self: "FacebookItemPage") -> str:
         try:
             if not any(
                 "Condition" in (x.text_content() or "") for x in self.page.query_selector_all("li")
             ):
-                raise ValueError("Let us try the 2nd method")
+                return ""
             description_element = self.page.locator(
                 'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
             )
             description_parent = description_element.locator("xpath=following-sibling::*[last()]")
             location_element = description_parent.locator("span:not(:has(*))").first
             return location_element.text_content() or ""
-        except Exception:
-            # some pages do not have a condition box and have location before description
-            try:
-                description_header = self.page.query_selector('h2:has(span:text("Description"))')
-                # find the parent until it has two children and the first child is the heading
-                parent = description_header
-                while parent:
-                    children = parent.query_selector_all(":scope > *")
-                    if len(children) > 5:
-                        break
-                    parent = parent.query_selector("xpath=..")
-                # now parent is the box containing description, the location should be above it
-                location_box = children[6].query_selector_all(":scope > *")[-1]
-                all_divs = location_box.query_selector_all("div")
-                return all_divs[-2 if len(all_divs) > 2 else -1].text_content() or ""
-            except Exception as e:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-                return ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
         # title
@@ -629,3 +613,41 @@ class FacebookItemPage(WebPage):
         )
         self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
         return cast(SearchedItem, res)
+
+
+class FacebookRentalItemPage(FacebookItemPage):
+    def get_description(self: "FacebookRentalItemPage") -> str:
+        # some pages do not have a condition box and appears to have a "Description" header
+        # See https://github.com/BoPeng/ai-marketplace-monitor/issues/29 for details.
+        try:
+            description_header = self.page.query_selector('h2:has(span:text("Description"))')
+            # find the parent until it has two children and the first child is the heading
+            parent = description_header
+            while parent:
+                children = parent.query_selector_all(":scope > *")
+                if len(children) > 1 and children[0].text_content() == "Description":
+                    return children[1].text_content() or ""
+                parent = parent.query_selector("xpath=..")
+            raise ValueError("No description found.")
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_location(self: "FacebookRentalItemPage") -> str:
+        # some pages do not have a condition box and have location before description
+        try:
+            description_header = self.page.query_selector('h2:has(span:text("Description"))')
+            # find the parent until it has two children and the first child is the heading
+            parent = description_header
+            while parent:
+                children = parent.query_selector_all(":scope > *")
+                if len(children) > 5:
+                    break
+                parent = parent.query_selector("xpath=..")
+            # now parent is the box containing description, the location should be above it
+            location_box = children[6].query_selector_all(":scope > *")[-1]
+            all_divs = location_box.query_selector_all("div")
+            return all_divs[-2 if len(all_divs) > 2 else -1].text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
