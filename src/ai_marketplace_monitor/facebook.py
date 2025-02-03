@@ -585,7 +585,7 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_title(self: "FacebookRegularItemPage") -> str:
         try:
             h1_element = self.page.query_selector_all("h1")[-1]
-            return h1_element.text_content() or ""
+            return h1_element.text_content() or "**unspecified**"
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -593,7 +593,7 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_price(self: "FacebookRegularItemPage") -> str:
         try:
             price_element = self.page.locator("h1 + *")
-            return price_element.text_content() or ""
+            return price_element.text_content() or "**unspecified**"
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -609,7 +609,7 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
             seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
-            return seller_link.text_content() or ""
+            return seller_link.text_content() or "**unspecified**"
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -620,7 +620,7 @@ class FacebookRegularItemPage(FacebookItemPage):
             description_element = self.page.locator(
                 'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
             )
-            return description_element.text_content() or ""
+            return description_element.text_content() or "**unspecified**"
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -636,9 +636,9 @@ class FacebookRegularItemPage(FacebookItemPage):
                 if len(children) == 2 and "Location is approximate" in (
                     children[1].text_content() or ""
                 ):
-                    return children[0].text_content() or ""
+                    return children[0].text_content() or "**unspecified**"
                 parent = parent.query_selector("xpath=..")
-            return ""
+            raise ValueError("No location found.")
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -661,7 +661,7 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
             while parent:
                 children = parent.query_selector_all(":scope > *")
                 if len(children) > 1 and children[0].text_content() == "Description":
-                    return children[1].text_content() or ""
+                    return children[1].text_content() or "**unspecified**"
                 parent = parent.query_selector("xpath=..")
             raise ValueError("No description found.")
         except Exception as e:
@@ -689,7 +689,7 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
             while parent:
                 children = parent.query_selector_all(":scope > *")
                 if len(children) > 1 and "About this vehicle" in (
-                    children[0].text_content() or ""
+                    children[0].text_content() or "**unspecified**"
                 ):
                     break
                 parent = parent.query_selector("xpath=..")
@@ -713,7 +713,9 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
             while parent_element:
                 children = parent_element.query_selector_all(":scope > *")
                 if len(children) > 1:
-                    description.extend(["Seller's description", children[0].text_content() or ""])
+                    description.extend(
+                        ["Seller's description", children[0].text_content() or "**unspecified**"]
+                    )
                     break
                 parent_element = parent_element.query_selector("xpath=/*[1]")
             return "\n".join(description)
@@ -729,7 +731,7 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
         if match:
             return match.group(0)
         else:
-            return "unspecified"
+            return "**unspecified**"
 
 
 supported_facebook_item_layouts = [
