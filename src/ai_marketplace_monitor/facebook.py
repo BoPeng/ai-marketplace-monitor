@@ -462,7 +462,7 @@ class WebPage:
 class FacebookSearchResultPage(WebPage):
 
     def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
-        listings = []
+        listings: List[SearchedItem] = []
         heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
 
         # find the grid box
@@ -546,7 +546,7 @@ class FacebookItemPage(WebPage):
 
     def get_description(self: "FacebookItemPage") -> str:
         try:
-            if "condition" not in self.page.locator("body").text_content():
+            if "condition" not in (self.page.locator("body").text_content() or ""):
                 raise ValueError("Let us try the 2nd method")
             # Find the span with text "condition", then parent, then next...
             description_element = self.page.locator(
@@ -565,13 +565,14 @@ class FacebookItemPage(WebPage):
                     if len(children) > 1 and children[0].text_content() == "Description":
                         return children[1].text_content() or ""
                     parent = parent.query_selector("xpath=..")
+                raise ValueError("No description found.")
             except Exception as e:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
                 return ""
 
     def get_location(self: "FacebookItemPage") -> str:
         try:
-            if "condition" not in self.page.locator("body").text_content():
+            if "condition" not in (self.page.locator("body").text_content() or ""):
                 raise ValueError("Let us try the 2nd method")
             description_element = self.page.locator(
                 'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
@@ -591,9 +592,9 @@ class FacebookItemPage(WebPage):
                         break
                     parent = parent.query_selector("xpath=..")
                 # now parent is the box containing description, the location should be above it
-                location_element = children[6].query_selector_all(":scope > *")[-1]
-                all_divs = location_element.query_selector_all("div")
-                return all_divs[-2 if len(all_divs) > 2 else -1].text_content()
+                location_box = children[6].query_selector_all(":scope > *")[-1]
+                all_divs = location_box.query_selector_all("div")
+                return all_divs[-2 if len(all_divs) > 2 else -1].text_content() or ""
             except Exception as e:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
                 return ""
