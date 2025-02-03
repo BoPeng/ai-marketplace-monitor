@@ -43,10 +43,11 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - [Advanced features](#advanced-features)
   - [Multiple configuration files](#multiple-configuration-files)
   - [Adjust notification level](#adjust-notification-level)
+  - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
-  - [Network issues](#network-issues)
+  - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
@@ -423,15 +424,11 @@ availability = ["all", "in"]
 date_listed = ["all", "last 24 hours"]
 ```
 
-### Network issues
+### Support for different layouts of facebook listings
 
-Sometimes you may see error messages such as **No price was found for item...**. The exact reason is unknown, but you could try to use
+Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
 
-```sh
-ai-marketplace-monitor --disable-javascript
-```
-
-You will no longer see the pages but the script could work better.
+Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
 
 ## TODO List:
 
