@@ -1,3 +1,4 @@
+import re
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -8,7 +9,7 @@ from urllib.parse import quote
 
 import humanize
 import rich
-from playwright.sync_api import Browser, Page  # type: ignore
+from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .item import SearchedItem
@@ -390,7 +391,16 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.goto_url(post_url)
-        details = FacebookItemPage(self.page, self.logger).parse(post_url)
+        details = None
+        for page_model in supported_facebook_item_layouts:
+            try:
+                details = page_model(self.page, self.logger).parse(post_url)
+                break
+            except Exception:
+                # try next page layout
+                continue
+        if details is None:
+            raise ValueError(f"Failed to get item details from {post_url}")
         cache.set(
             (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]), details, tag="item_details"
         )
@@ -512,98 +522,32 @@ class FacebookSearchResultPage(WebPage):
 
 
 class FacebookItemPage(WebPage):
+
+    def verify_layout(self: "FacebookItemPage") -> bool:
+        return True
+
     def get_title(self: "FacebookItemPage") -> str:
-        try:
-            h1_element = self.page.query_selector_all("h1")[-1]
-            return h1_element.text_content() or ""
-        except Exception as e:
-            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-            return ""
+        raise NotImplementedError("get_title is not implemented for this page")
 
     def get_price(self: "FacebookItemPage") -> str:
-        try:
-            price_element = self.page.locator("h1 + *")
-            return price_element.text_content() or ""
-        except Exception as e:
-            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-            return ""
+        raise NotImplementedError("get_price is not implemented for this page")
 
     def get_image_url(self: "FacebookItemPage") -> str:
-        try:
-            image_url = self.page.locator("img").first.get_attribute("src") or ""
-            return image_url
-        except Exception as e:
-            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-            return ""
+        raise NotImplementedError("get_image_url is not implemented for this page")
 
     def get_seller(self: "FacebookItemPage") -> str:
-        try:
-            seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
-            return seller_link.text_content() or ""
-        except Exception as e:
-            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-            return ""
+        raise NotImplementedError("get_seller is not implemented for this page")
 
     def get_description(self: "FacebookItemPage") -> str:
-        try:
-            if not any(
-                "Condition" in x.text_content() for x in self.page.query_selector_all("li")
-            ):
-                raise ValueError("Let us try the 2nd method")
-            # Find the span with text "condition", then parent, then next...
-            description_element = self.page.locator(
-                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
-            )
-            return description_element.text_content() or ""
-        except Exception:
-            # some pages do not have a condition box and appears to have a "Description" header
-            # See https://github.com/BoPeng/ai-marketplace-monitor/issues/29 for details.
-            try:
-                description_header = self.page.query_selector('h2:has(span:text("Description"))')
-                # find the parent until it has two children and the first child is the heading
-                parent = description_header
-                while parent:
-                    children = parent.query_selector_all(":scope > *")
-                    if len(children) > 1 and children[0].text_content() == "Description":
-                        return children[1].text_content() or ""
-                    parent = parent.query_selector("xpath=..")
-                raise ValueError("No description found.")
-            except Exception as e:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-                return ""
+        raise NotImplementedError("get_description is not implemented for this page")
 
     def get_location(self: "FacebookItemPage") -> str:
-        try:
-            if not any(
-                "Condition" in x.text_content() for x in self.page.query_selector_all("li")
-            ):
-                raise ValueError("Let us try the 2nd method")
-            description_element = self.page.locator(
-                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
-            )
-            description_parent = description_element.locator("xpath=following-sibling::*[last()]")
-            location_element = description_parent.locator("span:not(:has(*))").first
-            return location_element.text_content() or ""
-        except Exception:
-            # some pages do not have a condition box and have location before description
-            try:
-                description_header = self.page.query_selector('h2:has(span:text("Description"))')
-                # find the parent until it has two children and the first child is the heading
-                parent = description_header
-                while parent:
-                    children = parent.query_selector_all(":scope > *")
-                    if len(children) > 5:
-                        break
-                    parent = parent.query_selector("xpath=..")
-                # now parent is the box containing description, the location should be above it
-                location_box = children[6].query_selector_all(":scope > *")[-1]
-                all_divs = location_box.query_selector_all("div")
-                return all_divs[-2 if len(all_divs) > 2 else -1].text_content() or ""
-            except Exception as e:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-                return ""
+        raise NotImplementedError("get_location is not implemented for this page")
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
+        if not self.verify_layout():
+            raise ValueError("Layout mismatch")
+
         # title
         item_id = post_url.split("?")[0].rstrip("/").split("/")[-1]
 
@@ -629,3 +573,166 @@ class FacebookItemPage(WebPage):
         )
         self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
         return cast(SearchedItem, res)
+
+
+class FacebookRegularItemPage(FacebookItemPage):
+    def verify_layout(self: "FacebookRegularItemPage") -> bool:
+        return any(
+            "Condition" in (x.text_content() or "") for x in self.page.query_selector_all("li")
+        )
+
+    def get_title(self: "FacebookRegularItemPage") -> str:
+        try:
+            h1_element = self.page.query_selector_all("h1")[-1]
+            return h1_element.text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_price(self: "FacebookRegularItemPage") -> str:
+        try:
+            price_element = self.page.locator("h1 + *")
+            return price_element.text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_image_url(self: "FacebookRegularItemPage") -> str:
+        try:
+            image_url = self.page.locator("img").first.get_attribute("src") or ""
+            return image_url
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_seller(self: "FacebookRegularItemPage") -> str:
+        try:
+            seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
+            return seller_link.text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_description(self: "FacebookRegularItemPage") -> str:
+        try:
+            # Find the span with text "condition", then parent, then next...
+            description_element = self.page.locator(
+                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
+            )
+            return description_element.text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_location(self: "FacebookRegularItemPage") -> str:
+        try:
+            # look for "Location is approximate", then find its neightbor
+            approximate_element = self.page.locator('span:text("Location is approximate")')
+            parent: ElementHandle | None = approximate_element.element_handle()
+            # look for parent of approximate_element until it has two children and the first child is the heading
+            while parent:
+                children = parent.query_selector_all(":scope > *")
+                if len(children) == 2 and "Location is approximate" in (
+                    children[1].text_content() or ""
+                ):
+                    return children[0].text_content() or ""
+                parent = parent.query_selector("xpath=..")
+            return ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+
+class FacebookRentalItemPage(FacebookRegularItemPage):
+    def verify_layout(self: "FacebookRentalItemPage") -> bool:
+        # there is a header h2 with text Description
+        return any(
+            "Description" in (x.text_content() or "") for x in self.page.query_selector_all("h2")
+        )
+
+    def get_description(self: "FacebookRentalItemPage") -> str:
+        # some pages do not have a condition box and appears to have a "Description" header
+        # See https://github.com/BoPeng/ai-marketplace-monitor/issues/29 for details.
+        try:
+            description_header = self.page.query_selector('h2:has(span:text("Description"))')
+            # find the parent until it has two children and the first child is the heading
+            parent = description_header
+            while parent:
+                children = parent.query_selector_all(":scope > *")
+                if len(children) > 1 and children[0].text_content() == "Description":
+                    return children[1].text_content() or ""
+                parent = parent.query_selector("xpath=..")
+            raise ValueError("No description found.")
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+
+class FacebookAutoItemPage(FacebookRegularItemPage):
+    def verify_layout(self: "FacebookAutoItemPage") -> bool:
+        # there is a header h2 with text "About this vehicle"
+        return any(
+            "About this vehicle" in (x.text_content() or "")
+            for x in self.page.query_selector_all("h2")
+        )
+
+    def get_description(self: "FacebookAutoItemPage") -> str:
+        #
+        # find a h2 with "Seller's description"
+        # then find the parent until it has two children and the first child is the heading
+        description = []
+        try:
+            # first get about this vehicle
+            element = self.page.locator('h2:has(span:text("About this vehicle"))')
+            parent: ElementHandle | None = element.element_handle()
+            while parent:
+                children = parent.query_selector_all(":scope > *")
+                if len(children) > 1 and "About this vehicle" in (
+                    children[0].text_content() or ""
+                ):
+                    break
+                parent = parent.query_selector("xpath=..")
+            #
+            description.extend([child.text_content() or "" for child in children])
+
+            #
+            description_header = self.page.query_selector(
+                'h2:has(span:text("Seller\'s description"))'
+            )
+            parent = description_header
+            while parent:
+                children = parent.query_selector_all(":scope > *")
+                if len(children) > 1 and (
+                    "Seller's description" in (children[0].text_content() or "")
+                ):
+                    break
+                parent = parent.query_selector("xpath=..")
+            # now, we need to drill down from the 2nd child
+            parent_element: ElementHandle | None = children[1]
+            while parent_element:
+                children = parent_element.query_selector_all(":scope > *")
+                if len(children) > 1:
+                    description.extend(["Seller's description", children[0].text_content() or ""])
+                    break
+                parent_element = parent_element.query_selector("xpath=/*[1]")
+            return "\n".join(description)
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_price(self: "FacebookAutoItemPage") -> str:
+        description = self.get_description()
+        # using regular expression to find text that looks like price in the description
+        price_pattern = r"\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:,\d{2})?"
+        match = re.search(price_pattern, description)
+        if match:
+            return match.group(0)
+        else:
+            return "unspecified"
+
+
+supported_facebook_item_layouts = [
+    FacebookRegularItemPage,
+    FacebookRentalItemPage,
+    FacebookAutoItemPage,
+]
