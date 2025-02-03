@@ -523,7 +523,7 @@ class FacebookItemPage(WebPage):
 
     def get_image_url(self: "FacebookItemPage") -> str:
         try:
-            image_url = self.page.locator("img").first().get_attribute("src") or ""
+            image_url = self.page.locator("img").first.get_attribute("src") or ""
             return image_url
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
