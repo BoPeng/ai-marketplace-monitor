@@ -547,7 +547,7 @@ class FacebookItemPage(WebPage):
     def get_description(self: "FacebookItemPage") -> str:
         try:
             if not any(
-                "Condition" in x.text_content() for x in self.page.query_selector_all("li")
+                "Condition" in (x.text_content() or "") for x in self.page.query_selector_all("li")
             ):
                 raise ValueError("Let us try the 2nd method")
             # Find the span with text "condition", then parent, then next...
@@ -575,7 +575,7 @@ class FacebookItemPage(WebPage):
     def get_location(self: "FacebookItemPage") -> str:
         try:
             if not any(
-                "Condition" in x.text_content() for x in self.page.query_selector_all("li")
+                "Condition" in (x.text_content() or "") for x in self.page.query_selector_all("li")
             ):
                 raise ValueError("Let us try the 2nd method")
             description_element = self.page.locator(
