@@ -1,4 +1,3 @@
-import re
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -352,9 +351,7 @@ class FacebookMarketplace(Marketplace):
             for keyword in item_config.keywords or []:
                 self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
 
-                found_items = FacebookSearchResultPage(
-                    self.page.content(), self.logger
-                ).get_listings()
+                found_items = FacebookSearchResultPage(self.page, self.logger).get_listings()
                 time.sleep(5)
                 # go to each item and get the description
                 # if we have not done that before
@@ -394,7 +391,7 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.goto_url(post_url)
-        details = FacebookItemPage(self.page.content(), self.logger).parse(post_url)
+        details = FacebookItemPage(self.page, self.logger).parse(post_url)
         cache.set(
             (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]), details, tag="item_details"
         )
@@ -571,10 +568,10 @@ class FacebookItemPage(WebPage):
         price = ""
         try:
             h1_element = self.page.query_selector_all("h1")[-1]
-            title = h1_element.text_content()
+            title = h1_element.text_content() or ""
             # this is a css selector
             price_element = self.page.locator("h1 + *")
-            price = price_element.text_content()
+            price = price_element.text_content() or ""
         except Exception as e:
             self.logger.debug(f'{hilight("[Skip]", "fail")} {e}')
 
@@ -589,11 +586,11 @@ class FacebookItemPage(WebPage):
             description_element = self.page.locator(
                 'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
             )
-            description = description_element.text_content()
+            description = description_element.text_content() or ""
 
-            location_element = description_element.locator("xpath=following-sibling::*[last()]")
-            location_element = location_element.locator("span:not(:has(*))").first
-            location = location_element.text_content()
+            description_parent = description_element.locator("xpath=following-sibling::*[last()]")
+            location_element = description_parent.locator("span:not(:has(*))").first
+            location = location_element.text_content() or ""
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
 
@@ -603,7 +600,7 @@ class FacebookItemPage(WebPage):
         seller = ""
         try:
             seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
-            return seller_link.text_content()
+            return seller_link.text_content() or ""
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
         return seller
