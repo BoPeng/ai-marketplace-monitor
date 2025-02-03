@@ -457,7 +457,6 @@ class WebPage:
     def __init__(self: "WebPage", page: Page, logger: Logger) -> None:
         self.page = page
         self.logger = logger
-        self._soup = None
 
 
 class FacebookSearchResultPage(WebPage):
@@ -568,10 +567,7 @@ class FacebookItemPage(WebPage):
 
         title = self.get_title()
         price = self.get_price()
-        image_url = self.get_image_url()
-        seller = self.get_seller()
         description = self.get_description()
-        location = self.get_location()
 
         if not title or not price or not description:
             raise ValueError(f"Failed to parse {post_url}")
@@ -582,12 +578,12 @@ class FacebookItemPage(WebPage):
             name="",
             id=item_id,
             title=title,
-            image=image_url,
+            image=self.get_image_url(),
             price=extract_price(price),
             post_url=post_url,
-            location=location,
+            location=self.get_location(),
             description=description,
-            seller=seller,
+            seller=self.get_seller(),
         )
         self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
         return cast(SearchedItem, res)
