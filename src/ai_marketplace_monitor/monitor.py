@@ -438,11 +438,24 @@ class MarketplaceMonitor:
                 self.logger.info(
                     f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
                 )
-                msgs.append(
-                    f"""{listing.title}\n{listing.price}, {listing.location}\nhttps://www.facebook.com{listing.post_url.split("?")[0]}"""
-                )
-                if rating.comment != AIResponse.NOT_EVALUATED:
-                    msgs[-1] += f"""\n{rating.conclusion} ({rating.score}): {rating.comment}"""
+                if rating.comment == AIResponse.NOT_EVALUATED:
+                    msgs.append(
+                        (
+                            f"{listing.title}\n"
+                            f"{listing.price}, {listing.location}\n"
+                            f"https://www.facebook.com{listing.post_url.split("?")[0]}"
+                        )
+                    )
+                else:
+                    msgs.append(
+                        (
+                            f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
+                            f"{listing.price}, {listing.location}\n"
+                            f"https://www.facebook.com{listing.post_url.split("?")[0]}\n"
+                            f"AI: {rating.comment}"
+                        )
+                    )
+
                 unnotified_listings.append(listing)
 
             if not unnotified_listings:

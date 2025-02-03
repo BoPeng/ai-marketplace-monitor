@@ -26,8 +26,8 @@ class AIResponse:
     @property
     def conclusion(self: "AIResponse") -> str:
         return {
-            1: "Unmatched",
-            2: "Unknown",
+            1: "No match",
+            2: "Potential match",
             3: "Poor match",
             4: "Good match",
             5: "Great deal",
