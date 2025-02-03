@@ -3,12 +3,11 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import Any, Generator, List, Type, Union, cast
+from typing import Any, Generator, List, Type, cast
 from urllib.parse import quote
 
 import humanize
 import rich
-from bs4 import BeautifulSoup, element  # type: ignore
 from playwright.sync_api import Browser, Page  # type: ignore
 from rich.pretty import pretty_repr
 
@@ -460,170 +459,124 @@ class WebPage:
         self.logger = logger
         self._soup = None
 
-    @property
-    def soup(self: "WebPage") -> BeautifulSoup:
-        """We can parse directly from the Page object, or from BeautifulSoup"""
-        if self._soup is None:
-            self._soup = BeautifulSoup(self.page.content(), "html.parser")
-        return self._soup
-
 
 class FacebookSearchResultPage(WebPage):
 
-    def get_listings_from_structure(
-        self: "FacebookSearchResultPage",
-    ) -> List[Union[element.Tag, element.NavigableString]]:
-        heading = self.soup.find(attrs={"aria-label": "Collection of Marketplace items"})
-        child1 = next(heading.children)
-        child2 = next(child1.children)
-        grid_parent = list(child2.children)[2]  # groups of listings
-        for group in grid_parent.children:
-            grid_child2 = list(group.children)[1]  # the actual grid container
-            return list(grid_child2.children)
-        return []
-
-    def get_listing_from_css(
-        self: "FacebookSearchResultPage",
-    ) -> List[Union[element.Tag, element.NavigableString]]:
-        return self.soup.find_all(
-            "div",
-            class_="x9f619 x78zum5 x1r8uery xdt5ytf x1iyjqo2 xs83m0k x1e558r4 x150jy0e x1iorvi4 xjkvuk6 xnpuxes x291uyu x1uepa24",
+    def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
+        listings = []
+        heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
+        # find the grid box
+        grid = heading.locator(
+            ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2)"
         )
+        # find each listing
+        for listing in grid.locator("> div").all():
+            if not listing.text_content():
+                return []
+            atag = listing.locator(
+                ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
+            )
+            post_url = atag.get_attribute("href") or ""
+            details = atag.locator(":scope > :first-child > div").nth(1)
+            raw_price = details.locator(":scope > div").nth(0).text_content() or ""
+            title = details.locator(":scope > div").nth(1).text_content() or ""
+            location = details.locator(":scope > div").nth(2).text_content() or ""
+            image = listing.locator("img").get_attribute("src") or ""
 
-    def parse_listing(
-        self: "FacebookSearchResultPage", listing: Union[element.Tag, element.NavigableString]
-    ) -> SearchedItem | None:
-        # if the element has no text (only image etc)
-        if not listing.get_text().strip():
-            return None
+            price = extract_price(raw_price)
 
-        child1 = next(listing.children)
-        child2 = next(child1.children)
-        child3 = next(child2.children)  # span class class="x1lliihq x1iyjqo2"
-        child4 = next(child3.children)  # div
-        child5 = next(child4.children)  # div class="x78zum5 xdt5ytf"
-        child5 = next(child5.children)  # div class="x9f619 x1n2onr6 x1ja2u2z"
-        child6 = next(child5.children)  # div class="x3ct3a4" (real data here)
-        atag = next(child6.children)  # a tag
-        post_url = atag["href"]
-        atag_child1 = next(atag.children)
-        atag_child2 = list(atag_child1.children)  # 2 divs here
-        # Get the item image.
-        image = listing.find("img")["src"]
-
-        details = list(
-            atag_child2[1].children
-        )  # x9f619 x78zum5 xdt5ytf x1qughib x1rdy4ex xz9dl7a xsag5q8 xh8yej3 xp0eagm x1nrcals
-        # There are 4 divs in 'details', in this order: price, title, location, distance
-        price = extract_price(details[0].contents[-1].text)
-
-        title = details[1].contents[-1].text
-        location = details[2].contents[-1].text
+            listings.append(
+                SearchedItem(
+                    marketplace="facebook",
+                    name="",
+                    id=post_url.split("?")[0].rstrip("/").split("/")[-1],
+                    title=title,
+                    image=image,
+                    price=price,
+                    # all the ?referral_code&referral_sotry_type etc
+                    # could be helpful for live navigation, but will be stripped
+                    # for caching item details.
+                    post_url=post_url,
+                    location=location,
+                    seller="",
+                    description="",
+                )
+            )
 
         # Append the parsed data to the list.
-        return SearchedItem(
-            marketplace="facebook",
-            name="",
-            id=post_url.split("?")[0].rstrip("/").split("/")[-1],
-            title=title,
-            image=image,
-            price=price,
-            # all the ?referral_code&referral_sotry_type etc
-            # could be helpful for live navigation, but will be stripped
-            # for caching item details.
-            post_url=post_url,
-            location=location,
-            seller="",
-            description="",
-        )
-
-    def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
-        try:
-            listings = self.get_listings_from_structure()
-        except Exception as e1:
-            try:
-                listings = self.get_listing_from_css()
-            except Exception as e2:
-                self.logger.debug(
-                    f"""{hilight("[Retrieve]", "fail")} No listings found from structure and css: {e1}, {e2}"""
-                )
-                return []
-
-        result = [self.parse_listing(listing) for listing in listings]
-        # case from SearchedItem|None to SearchedItem
-        return [cast(SearchedItem, x) for x in result if x is not None]
+        return listings
 
 
 class FacebookItemPage(WebPage):
-
-    def get_image_url(self: "FacebookItemPage") -> str:
+    def get_title(self: "FacebookItemPage") -> str:
         try:
-            return self.soup.find("img")["src"]
+            h1_element = self.page.query_selector_all("h1")[-1]
+            return h1_element.text_content() or ""
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
-    def get_title_and_price(self: "FacebookItemPage") -> List[str]:
-        title = ""
-        price = ""
+    def get_price(self: "FacebookItemPage") -> str:
         try:
-            h1_element = self.page.query_selector_all("h1")[-1]
-            title = h1_element.text_content() or ""
-            # this is a css selector
             price_element = self.page.locator("h1 + *")
-            price = price_element.text_content() or ""
-        except Exception as e:
-            self.logger.debug(f'{hilight("[Skip]", "fail")} {e}')
-
-        return [title, price]
-
-    def get_description_and_location(self: "FacebookItemPage") -> List[str]:
-        description = ""
-        location = ""
-        try:
-            # description
-            # Find the span with text "condition", then parent, then next...
-            description_element = self.page.locator(
-                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
-            )
-            description = description_element.text_content() or ""
-
-            description_parent = description_element.locator("xpath=following-sibling::*[last()]")
-            location_element = description_parent.locator("span:not(:has(*))").first
-            location = location_element.text_content() or ""
+            return price_element.text_content() or ""
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
 
-        return [description, location]
+    def get_image_url(self: "FacebookItemPage") -> str:
+        try:
+            image_url = self.page.locator("img").get_attribute("src") or ""
+            return image_url
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
 
     def get_seller(self: "FacebookItemPage") -> str:
-        seller = ""
         try:
             seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
             return seller_link.text_content() or ""
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
-        return seller
+            return ""
+
+    def get_description(self: "FacebookItemPage") -> str:
+        try:
+            # description
+            description_element = self.page.locator(
+                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
+            )
+            return description_element.text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_location(self: "FacebookItemPage") -> str:
+        try:
+            # Find the span with text "condition", then parent, then next...
+            description_element = self.page.locator(
+                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
+            )
+            description_parent = description_element.locator("xpath=following-sibling::*[last()]")
+            location_element = description_parent.locator("span:not(:has(*))").first
+            return location_element.text_content() or ""
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
 
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
         # title
         item_id = post_url.split("?")[0].rstrip("/").split("/")[-1]
-        title, price = self.get_title_and_price()
-        description, location = self.get_description_and_location()
 
-        if not title:
-            raise ValueError(
-                f"""No title was found for item {post_url}, which is most likely caused by a network issue. Please report the issue to the developer if the problem persists."""
-            )
-        if not price:
-            raise ValueError(
-                f"""No price was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
-            )
+        title = self.get_title()
+        price = self.get_price()
+        image_url = self.get_image_url()
+        seller = self.get_seller()
+        description = self.get_description()
+        location = self.get_location()
 
-        if not description:
-            raise ValueError(
-                f"""No description was found for item {post_url}, which is most likely caused by a network issue. Consider running with option --disable-javascript"""
-            )
+        if not title or not price or not description:
+            raise ValueError(f"Failed to parse {post_url}")
 
         self.logger.info(f'{hilight("[Retrieve]", "succ")} Parsing {hilight(title)}')
         res = SearchedItem(
@@ -631,12 +584,12 @@ class FacebookItemPage(WebPage):
             name="",
             id=item_id,
             title=title,
-            image=self.get_image_url(),
-            price=price,
+            image=image_url,
+            price=extract_price(price),
             post_url=post_url,
             location=location,
             description=description,
-            seller=self.get_seller(),
+            seller=seller,
         )
         self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
         return cast(SearchedItem, res)
