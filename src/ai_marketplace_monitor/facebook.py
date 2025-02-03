@@ -253,16 +253,17 @@ class FacebookMarketplace(Marketplace):
         self.config: FacebookMarketplaceConfig
         try:
             if self.config.username is not None:
+                time.sleep(2)
                 selector = self.page.wait_for_selector('input[name="email"]')
                 if selector is not None:
-                    selector.fill(self.config.username)
-                time.sleep(1)
+                    selector.type(self.config.username, delay=250)
             if self.config.password is not None:
+                time.sleep(2)
                 selector = self.page.wait_for_selector('input[name="pass"]')
                 if selector is not None:
-                    selector.fill(self.config.password)
-                time.sleep(1)
+                    selector.type(self.config.password, delay=250)
             if self.config.username is not None and self.config.password is not None:
+                time.sleep(2)
                 selector = self.page.wait_for_selector('button[name="login"]')
                 if selector is not None:
                     selector.click()
