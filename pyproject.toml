@@ -29,7 +29,6 @@ ai-marketplace-monitor = 'ai_marketplace_monitor.cli:app'
 [tool.poetry.dependencies]
 python = "<3.13,>=3.10"
 typer = { extras = ["all"], version = "^0.15.1" }
-beautifulsoup4 = "^4.12.3"
 playwright = "^1.49.1"
 rich = "^13.9.4"
 "pushbullet.py" = "^0.12.0"
