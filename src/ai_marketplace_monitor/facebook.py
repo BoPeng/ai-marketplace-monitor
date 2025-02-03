@@ -464,10 +464,17 @@ class FacebookSearchResultPage(WebPage):
     def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
         listings = []
         heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
+
         # find the grid box
-        grid = heading.locator(
-            ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2)"
-        )
+        try:
+            grid = heading.locator(
+                ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2)"
+            )
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}. Page saved to test.html')
+            with open("test.html", "w", encoding="utf-8") as f:
+                f.write(self.page.content())
+            return listings
         # find each listing
         for listing in grid.locator("> div").all():
             if not listing.text_content():
