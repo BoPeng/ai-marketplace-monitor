@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ai-marketplace-monitor"
-version = "0.6.1"
+version = "0.6.2.dev"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = ["Bo Peng <ben.bob@gmail.com>"]
 readme = "README.md"
