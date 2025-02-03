@@ -177,7 +177,7 @@ Use `Ctrl-C` to terminate the program.
 
 ### Updating search
 
-It is recommended that you **check the log messages and make sure that it includes and excluded listings as expected**. Modify the configuration file to update search criteria if needed. The program will detect changes and restart the search automatically.
+It is recommended that you **check the log messages and make sure that it includes and excludes listings as expected**. Modify the configuration file to update search criteria if needed. The program will detect changes and restart the search automatically.
 
 ## Configuration Guide
 
@@ -308,11 +308,11 @@ You can use multiple configuration files. For example, you can add all credentia
 
 We ask AI services to evaluate listings against the criteria that you specify and rate the listing as
 
-1: **No match**: The item does not match at all, for example, is a product in a different category, a brand that the user specifically excluded.
-2: **Potential match**: There is not enough information to make a good judgement. Maybe the description is too terse, and there is no indication of the model and year of the product.
-3: **Poor match**: The item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.
-4: **Good match**: The item matches the selection criteria well and is a potential good deal.
-5: **Great deal**: The item is a very good deal, for example with good condition and very competitive price.
+1. **No match**: The item does not match at all, for example, is a product in a different category, a brand that the user specifically excluded.
+2. **Potential match**: There is not enough information to make a good judgement. Maybe the description is too terse, and there is no indication of the model and year of the product.
+3. **Poor match**: The item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.
+4. **Good match**: The item matches the selection criteria well and is a potential good deal.
+5. **Great deal**: The item is a very good deal, for example with good condition and very competitive price.
 
 When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example
 
