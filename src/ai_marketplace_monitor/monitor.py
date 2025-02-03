@@ -443,7 +443,7 @@ class MarketplaceMonitor:
                         (
                             f"{listing.title}\n"
                             f"{listing.price}, {listing.location}\n"
-                            f"https://www.facebook.com{listing.post_url.split("?")[0]}"
+                            f"https://www.facebook.com{listing.post_url.split('?')[0]}"
                         )
                     )
                 else:
@@ -451,7 +451,7 @@ class MarketplaceMonitor:
                         (
                             f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
                             f"{listing.price}, {listing.location}\n"
-                            f"https://www.facebook.com{listing.post_url.split("?")[0]}\n"
+                            f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
                             f"AI: {rating.comment}"
                         )
                     )

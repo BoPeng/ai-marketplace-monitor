@@ -478,16 +478,16 @@ class FacebookSearchResultPage(WebPage):
 
         # find the grid box
         try:
-            grid = heading.locator(
-                ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2)"
-            )
+            grid_items = heading.locator(
+                ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2) > div"
+            ).all()
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}. Page saved to test.html')
             with open("test.html", "w", encoding="utf-8") as f:
                 f.write(self.page.content())
             return listings
         # find each listing
-        for listing in grid.locator("> div").all():
+        for listing in grid_items:
             if not listing.text_content():
                 continue
             atag = listing.locator(
