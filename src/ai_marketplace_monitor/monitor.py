@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from datetime import datetime
 from logging import Logger
 from typing import ClassVar, List
 
@@ -423,9 +424,13 @@ class MarketplaceMonitor:
             msgs = []
             unnotified_listings = []
             for listing, rating in zip(listings, ratings):
-                if listing.user_notified_key(user) in cache:
+                notified_date = cache.get(listing.user_notified_key(user))
+                if notified_date is not None:
+                    time_since_notification = datetime.now() - datetime.strptime(
+                        notified_date, "%Y-%m-%d %H:%M:%S"
+                    )
                     self.logger.info(
-                        f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title}"""
+                        f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title} {humanize.naturaltime(time_since_notification)}"""
                     )
                     continue
                 self.logger.info(
@@ -465,7 +470,9 @@ class MarketplaceMonitor:
                 User(user, self.config.user[user], logger=self.logger).notify(title, message)
                 for listing in unnotified_listings:
                     cache.set(
-                        listing.user_notified_key(user), True, tag=CacheType.USER_NOTIFIED.value
+                        listing.user_notified_key(user),
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        tag=CacheType.USER_NOTIFIED.value,
                     )
             except Exception as e:
                 self.logger.error(

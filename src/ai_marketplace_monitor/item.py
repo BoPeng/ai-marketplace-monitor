@@ -19,5 +19,5 @@ class SearchedItem:
     condition: str
     description: str
 
-    def user_notified_key(self: "SearchedItem", user: str) -> Tuple[str, str, str]:
+    def user_notified_key(self: "SearchedItem", user: str) -> Tuple[str, str, str, str]:
         return (CacheType.USER_NOTIFIED.value, self.marketplace, self.id, user)
