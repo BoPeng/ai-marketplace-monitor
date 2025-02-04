@@ -1,3 +1,4 @@
+import datetime
 import re
 import time
 from dataclasses import dataclass
@@ -532,8 +533,11 @@ class FacebookSearchResultPage(WebPage):
                 ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2) > div"
             ).all()
         except Exception as e:
-            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}. Page saved to test.html')
-            with open("test.html", "w", encoding="utf-8") as f:
+            filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
+            self.logger.error(
+                f'{hilight("[Retrieve]", "fail")} failed to parse searching result. Page saved to {filename}: {e}'
+            )
+            with open(filename, "w", encoding="utf-8") as f:
                 f.write(self.page.content())
             return listings
         # find each listing
