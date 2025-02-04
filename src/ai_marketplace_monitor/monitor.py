@@ -26,7 +26,6 @@ class MarketplaceMonitor:
         config_files: List[str] | None,
         headless: bool | None,
         disable_javascript: bool | None,
-        clear_cache: bool | None,
         logger: Logger,
     ) -> None:
         for file_path in config_files or []:
@@ -46,8 +45,6 @@ class MarketplaceMonitor:
         self.ai_agents: List[AIBackend] = []
         self.playwright: Playwright | None = None
         self.logger = logger
-        if clear_cache:
-            cache.clear()
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
         """Load the configuration file."""
@@ -125,9 +122,7 @@ class MarketplaceMonitor:
             # increase the searched_count
             item_config.searched_count += 1
             # if everyone has been notified
-            if listing.user_notified_key in cache and all(
-                user in cache.get(listing.user_notified_key, ()) for user in users_to_notify
-            ):
+            if all(listing.user_notified_key(user) in cache for user in users_to_notify):
                 self.logger.info(
                     f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
                 )
@@ -377,7 +372,7 @@ class MarketplaceMonitor:
                     marketplace.configure(marketplace_config)
 
                     # do we need a browser?
-                    if (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]) not in cache:
+                    if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
                         if browser is None:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
@@ -401,14 +396,11 @@ class MarketplaceMonitor:
                         )
                         marketplace.filter_item(listing, item_config)
                         self.evaluate_by_ai(listing, item_config=item_config)
-                        if listing.user_notified_key in cache:
-                            self.logger.info(
-                                f"""{hilight("[Skip]", "succ")} Already sent notification for item {item_config.name}."""
-                            )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor", item: SearchedItem, item_config: TItemConfig
     ) -> AIResponse:
+
         for agent in self.ai_agents:
             try:
                 return agent.evaluate(item, item_config)
@@ -431,9 +423,10 @@ class MarketplaceMonitor:
             msgs = []
             unnotified_listings = []
             for listing, rating in zip(listings, ratings):
-                if listing.user_notified_key in cache and user in cache.get(
-                    listing.user_notified_key, ()
-                ):
+                if listing.user_notified_key(user) in cache:
+                    self.logger.info(
+                        f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title}"""
+                    )
                     continue
                 self.logger.info(
                     f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
@@ -472,12 +465,7 @@ class MarketplaceMonitor:
                 User(user, self.config.user[user], logger=self.logger).notify(title, message)
                 for listing in unnotified_listings:
                     cache.set(
-                        listing.user_notified_key,
-                        (
-                            user,
-                            *cache.get(listing.user_notified_key, ()),
-                        ),
-                        tag=CacheType.USER_NOTIFIED.value,
+                        listing.user_notified_key(user), True, tag=CacheType.USER_NOTIFIED.value
                     )
             except Exception as e:
                 self.logger.error(

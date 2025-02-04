@@ -48,6 +48,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
+  - [Clear cache](#clear-cache)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
@@ -251,7 +252,7 @@ return related items under different names. To select the right items, you can
 
 1. Use `include_keywords` to keep only items with certain words in the title. For example, you can set `include_keywords = ['gopro', 'go pro']` when you search for `keywords = 'gopro'`.
 2. Use `exclude_keywords` to narrow down the search. For example, setting `exclude_keywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title.
-3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera.
+3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera. It is still a good idea to pre-filter listings using non-AI criteria to reduce the cost of AI services.
 
 ### Options that can be specified for both marketplaces and items
 
@@ -429,6 +430,24 @@ date_listed = ["all", "last 24 hours"]
 Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
 
 Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
+
+### Clear cache
+
+_ai-marketplace-monitor_ caches listing details, ai inquiries, and user notifications to avoid repeated queries to marketplaces, AI services, and repeated notification. If for any reason you would like to clear the cache, you can use commands such as
+
+```
+ai-marketplace-monitor --clear-cache listing-details
+```
+
+to clear the cache. The following cache types are supported
+
+- `listing-details` with listing URL as keys
+- `ai-inquiries` with marketplace, item name, and listing id as keys
+- `user-notification` with marketplace, item id, and username as keys
+
+`--clear-cache all` is also possible but not recommended.
+
+Note that
 
 ## TODO List:
 

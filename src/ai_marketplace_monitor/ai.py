@@ -8,7 +8,7 @@ from rich.pretty import pretty_repr
 
 from .item import SearchedItem
 from .marketplace import TItemConfig
-from .utils import DataClassWithHandleFunc, hilight
+from .utils import CacheType, DataClassWithHandleFunc, cache, hilight
 
 
 class AIServiceProvider(Enum):
@@ -158,6 +158,14 @@ class OpenAIBackend(AIBackend):
     ) -> AIResponse:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(listing, item_config)
+        cached_result = cache.get(
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id)
+        )
+        if cached_result is not None:
+            self.logger.info(
+                f"""{hilight("[AI]", "name")} {self.config.name} has already evaluated {hilight(listing.title)}."""
+            )
+            return AIResponse(cached_result["score"], cached_result["comment"])
 
         assert self.client is not None
 
@@ -187,6 +195,13 @@ class OpenAIBackend(AIBackend):
         score, comment = answer.strip().split(":", 1)
         if int(score) > 5 or int(score) < 1:
             score = "1"
+
+        cache.set(
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
+            {"score": int(score), "comment": comment.strip()},
+            timeout=None,
+            tag=CacheType.AI_INQUIRY.value,
+        )
         res = AIResponse(int(score), comment.strip())
 
         self.logger.info(

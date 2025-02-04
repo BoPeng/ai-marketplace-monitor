@@ -33,8 +33,9 @@ class DataClassWithHandleFunc:
 
 
 class CacheType(Enum):
-    ITEM_DETAILS = "get_item_details"
-    USER_NOTIFIED = "notify_user"
+    LISTING_DETAILS = "listing-details"
+    AI_INQUIRY = "ai-inquiries"
+    USER_NOTIFIED = "user-notifications"
 
 
 def calculate_file_hash(file_paths: List[str]) -> str:

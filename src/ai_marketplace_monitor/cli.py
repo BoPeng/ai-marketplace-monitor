@@ -10,7 +10,7 @@ from rich.logging import RichHandler
 
 from . import __version__
 from .monitor import MarketplaceMonitor
-from .utils import hilight
+from .utils import CacheType, cache, hilight
 
 app = typer.Typer()
 
@@ -52,9 +52,15 @@ def main(
         ),
     ] = None,
     clear_cache: Annotated[
-        Optional[bool],
-        typer.Option("--clear-cache", help="Remove all saved items and treat all items as new."),
-    ] = False,
+        Optional[str],
+        typer.Option(
+            "--clear-cache",
+            help=(
+                "Remove all or selected category of cached items and treat all queries as new. "
+                f"""Allowed cache types are {", ".join([x.value for x in CacheType])} and all """
+            ),
+        ),
+    ] = None,
     verbose: Annotated[
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
@@ -105,20 +111,31 @@ def main(
         f"""{hilight("[VERSION]", "info")} AI Marketplace Monitor, version {hilight(__version__, "name")}"""
     )
 
+    if clear_cache is not None:
+        if clear_cache == "all":
+            cache.clear()
+        elif clear_cache in [x.value for x in CacheType]:
+            cache.evict(tag=clear_cache)
+        else:
+            logger.error(
+                f"""{hilight("[Clear Cache]", "fail")} {clear_cache} is not a valid cache type. Allowed cache types are {", ".join([x.value for x in CacheType])} and all """
+            )
+            sys.exit(1)
+        logger.info(f"""{hilight("[Clear Cache]", "succ")} Cache cleared.""")
+        sys.exit(0)
+
     if items is not None:
         try:
-            MarketplaceMonitor(
-                config_files, headless, disable_javascript, False, logger
-            ).check_items(items, for_item)
+            MarketplaceMonitor(config_files, headless, disable_javascript, logger).check_items(
+                items, for_item
+            )
         except Exception as e:
             logger.error(f"""{hilight("[Check]", "fail")} {e}""")
             raise
         sys.exit(0)
 
     try:
-        monitor = MarketplaceMonitor(
-            config_files, headless, disable_javascript, clear_cache, logger
-        )
+        monitor = MarketplaceMonitor(config_files, headless, disable_javascript, logger)
         monitor.start_monitor()
     except KeyboardInterrupt:
         rich.print("Exiting...")
