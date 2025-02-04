@@ -115,7 +115,8 @@ class AIBackend(Generic[TAIConfig]):
         #
         prompt += (
             """\n\nNow the user has found an listing that roughly matches the search criteria. """
-            f"""The listing is listed under title "{listing.title}", has a price of {listing.price} with seller from {listing.location},"""
+            f"""The listing is listed under title "{listing.title}", with {listing.condition} condition, """
+            f"""has a price of {listing.price} with seller from {listing.location}, """
             f"""The listing is posted at {listing.post_url} with description "{listing.description}"\n\n"""
             "Given all these information, please evaluate if this listing matches what the user "
             "has in mind. Please consider the description, any extended knowledge you might have "

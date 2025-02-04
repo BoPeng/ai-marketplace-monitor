@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import Any, Generator, List, Type, cast
+from typing import Any, Callable, Generator, List, Type, cast
 from urllib.parse import quote
 
 import humanize
 import rich
-from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
+from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .item import SearchedItem
@@ -469,6 +469,46 @@ class WebPage:
         self.page = page
         self.logger = logger
 
+    def _parent_with_cond(
+        self: "WebPage", element: Locator | ElementHandle, cond: Callable, ret: Callable | int
+    ) -> str:
+        # get up at the DOM level, testing the children elements with cond,
+        # apply the res callable to return a string
+        parent: ElementHandle | None = (
+            element.element_handle() if isinstance(element, Locator) else element
+        )
+        # look for parent of approximate_element until it has two children and the first child is the heading
+        while parent:
+            children = parent.query_selector_all(":scope > *")
+            if cond(children):
+                if isinstance(ret, Callable):
+                    return ret(children)
+                else:
+                    return children[ret].text_content() or "**unspecified**"
+            parent = parent.query_selector("xpath=..")
+        raise ValueError("Could not find parent element with condition.")
+
+    def _children_with_cond(
+        self: "WebPage", element: Locator | ElementHandle, cond: Callable, ret: Callable | int
+    ) -> str:
+        # Getting the children of an element, test condition, return the `index` or apply res
+        # on the children element if the condition is met. Otherwise locate the first child and repeat the process.
+        child: ElementHandle | None = (
+            element.element_handle() if isinstance(element, Locator) else element
+        )
+        # look for parent of approximate_element until it has two children and the first child is the heading
+        while child:
+            children = child.query_selector_all(":scope > *")
+            if cond(children):
+                if isinstance(ret, Callable):
+                    return ret(children)
+                return children[ret].text_content() or "**unspecified**"
+            if not children:
+                raise ValueError("Could not find child element with condition.")
+            # or we could use query_selector("./*[1]")
+            child = children[0]
+        raise ValueError("Could not find child element with condition.")
+
 
 class FacebookSearchResultPage(WebPage):
 
@@ -490,6 +530,7 @@ class FacebookSearchResultPage(WebPage):
         for listing in grid_items:
             if not listing.text_content():
                 continue
+
             atag = listing.locator(
                 ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
             )
@@ -514,6 +555,7 @@ class FacebookSearchResultPage(WebPage):
                     # for caching item details.
                     post_url=post_url,
                     location=location,
+                    condition="",
                     seller="",
                     description="",
                 )
@@ -545,13 +587,14 @@ class FacebookItemPage(WebPage):
     def get_location(self: "FacebookItemPage") -> str:
         raise NotImplementedError("get_location is not implemented for this page")
 
+    def get_condition(self: "FacebookItemPage") -> str:
+        raise NotImplementedError("get_condition is not implemented for this page")
+
     def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
         if not self.verify_layout():
             raise ValueError("Layout mismatch")
 
         # title
-        item_id = post_url.split("?")[0].rstrip("/").split("/")[-1]
-
         title = self.get_title()
         price = self.get_price()
         description = self.get_description()
@@ -563,12 +606,13 @@ class FacebookItemPage(WebPage):
         res = SearchedItem(
             marketplace="facebook",
             name="",
-            id=item_id,
+            id=post_url.split("?")[0].rstrip("/").split("/")[-1],
             title=title,
             image=self.get_image_url(),
             price=extract_price(price),
             post_url=post_url,
             location=self.get_location(),
+            condition=self.get_condition(),
             description=description,
             seller=self.get_seller(),
         )
@@ -625,20 +669,28 @@ class FacebookRegularItemPage(FacebookItemPage):
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
+    def get_condition(self: "FacebookRegularItemPage") -> str:
+        try:
+            # Find the span with text "condition", then parent, then next...
+            condition_element = self.page.locator('span:text("Condition")')
+            return self._parent_with_cond(
+                condition_element,
+                lambda x: len(x) >= 2 and "Condition" in (x[0].text_content() or ""),
+                1,
+            )
+        except Exception as e:
+            self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
     def get_location(self: "FacebookRegularItemPage") -> str:
         try:
-            # look for "Location is approximate", then find its neightbor
+            # look for "Location is approximate", then find its neighbor
             approximate_element = self.page.locator('span:text("Location is approximate")')
-            parent: ElementHandle | None = approximate_element.element_handle()
-            # look for parent of approximate_element until it has two children and the first child is the heading
-            while parent:
-                children = parent.query_selector_all(":scope > *")
-                if len(children) == 2 and "Location is approximate" in (
-                    children[1].text_content() or ""
-                ):
-                    return children[0].text_content() or "**unspecified**"
-                parent = parent.query_selector("xpath=..")
-            raise ValueError("No location found.")
+            return self._parent_with_cond(
+                approximate_element,
+                lambda x: len(x) == 2 and "Location is approximate" in (x[1].text_content() or ""),
+                0,
+            )
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -656,17 +708,18 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
         # See https://github.com/BoPeng/ai-marketplace-monitor/issues/29 for details.
         try:
             description_header = self.page.query_selector('h2:has(span:text("Description"))')
-            # find the parent until it has two children and the first child is the heading
-            parent = description_header
-            while parent:
-                children = parent.query_selector_all(":scope > *")
-                if len(children) > 1 and children[0].text_content() == "Description":
-                    return children[1].text_content() or "**unspecified**"
-                parent = parent.query_selector("xpath=..")
-            raise ValueError("No description found.")
+            return self._parent_with_cond(
+                description_header,
+                lambda x: len(x) > 1 and x[0].text_content() == "Description",
+                1,
+            )
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
+
+    def get_condition(self: "FacebookRentalItemPage") -> str:
+        # no condition information for rental items
+        return "unspecified"
 
 
 class FacebookAutoItemPage(FacebookRegularItemPage):
@@ -681,44 +734,33 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
         #
         # find a h2 with "Seller's description"
         # then find the parent until it has two children and the first child is the heading
-        description = []
         try:
             # first get about this vehicle
-            element = self.page.locator('h2:has(span:text("About this vehicle"))')
-            parent: ElementHandle | None = element.element_handle()
-            while parent:
-                children = parent.query_selector_all(":scope > *")
-                if len(children) > 1 and "About this vehicle" in (
-                    children[0].text_content() or "**unspecified**"
-                ):
-                    break
-                parent = parent.query_selector("xpath=..")
-            #
-            description.extend([child.text_content() or "" for child in children])
-
-            #
+            about_element = self.page.locator('h2:has(span:text("About this vehicle"))')
             description_header = self.page.query_selector(
                 'h2:has(span:text("Seller\'s description"))'
             )
-            parent = description_header
-            while parent:
-                children = parent.query_selector_all(":scope > *")
-                if len(children) > 1 and (
-                    "Seller's description" in (children[0].text_content() or "")
-                ):
-                    break
-                parent = parent.query_selector("xpath=..")
-            # now, we need to drill down from the 2nd child
-            parent_element: ElementHandle | None = children[1]
-            while parent_element:
-                children = parent_element.query_selector_all(":scope > *")
-                if len(children) > 1:
-                    description.extend(
-                        ["Seller's description", children[0].text_content() or "**unspecified**"]
-                    )
-                    break
-                parent_element = parent_element.query_selector("xpath=/*[1]")
-            return "\n".join(description)
+            return self._parent_with_cond(
+                # start from About this vehicle
+                about_element,
+                # find an array of elements with the first one being "About this vehicle"
+                lambda x: len(x) > 1 and "About this vehicle" in (x[0].text_content() or ""),
+                # Extract all texts from the elements
+                lambda x: "\n".join([child.text_content() or "" for child in x]),
+            ) + self._parent_with_cond(
+                # start from the description header
+                description_header,
+                # find an array of elements with the first one being "Seller's description"
+                lambda x: len(x) > 1 and "Seller's description" in (x[0].text_content() or ""),
+                # then, drill down from the second child
+                lambda x: self._children_with_cond(
+                    x[1],
+                    # find the an array of elements
+                    lambda y: len(y) > 1,
+                    # and return the texts.
+                    lambda y: f"""\n\nSeller's description\n\n{y[0].text_content() or "**unspecified**"}""",
+                ),
+            )
         except Exception as e:
             self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
@@ -732,6 +774,10 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
             return match.group(0)
         else:
             return "**unspecified**"
+
+    def get_condition(self: "FacebookRentalItemPage") -> str:
+        # no condition information for auto items
+        return "unspecified"
 
 
 supported_facebook_item_layouts = [

@@ -16,6 +16,7 @@ class SearchedItem:
     post_url: str
     location: str
     seller: str
+    condition: str
     description: str
 
     @property
