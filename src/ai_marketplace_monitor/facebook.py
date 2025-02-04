@@ -470,8 +470,13 @@ class WebPage:
         self.logger = logger
 
     def _parent_with_cond(
-        self: "WebPage", element: Locator | ElementHandle, cond: Callable, ret: Callable | int
+        self: "WebPage",
+        element: Locator | ElementHandle | None,
+        cond: Callable,
+        ret: Callable | int,
     ) -> str:
+        if element is None:
+            return ""
         # get up at the DOM level, testing the children elements with cond,
         # apply the res callable to return a string
         parent: ElementHandle | None = (
@@ -481,16 +486,21 @@ class WebPage:
         while parent:
             children = parent.query_selector_all(":scope > *")
             if cond(children):
-                if isinstance(ret, Callable):
-                    return ret(children)
-                else:
+                if isinstance(ret, int):
                     return children[ret].text_content() or "**unspecified**"
+                else:
+                    return ret(children)
             parent = parent.query_selector("xpath=..")
         raise ValueError("Could not find parent element with condition.")
 
     def _children_with_cond(
-        self: "WebPage", element: Locator | ElementHandle, cond: Callable, ret: Callable | int
+        self: "WebPage",
+        element: Locator | ElementHandle | None,
+        cond: Callable,
+        ret: Callable | int,
     ) -> str:
+        if element is None:
+            return ""
         # Getting the children of an element, test condition, return the `index` or apply res
         # on the children element if the condition is met. Otherwise locate the first child and repeat the process.
         child: ElementHandle | None = (
@@ -500,9 +510,9 @@ class WebPage:
         while child:
             children = child.query_selector_all(":scope > *")
             if cond(children):
-                if isinstance(ret, Callable):
-                    return ret(children)
-                return children[ret].text_content() or "**unspecified**"
+                if isinstance(ret, int):
+                    return children[ret].text_content() or "**unspecified**"
+                return ret(children)
             if not children:
                 raise ValueError("Could not find child element with condition.")
             # or we could use query_selector("./*[1]")
@@ -775,7 +785,7 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
         else:
             return "**unspecified**"
 
-    def get_condition(self: "FacebookRentalItemPage") -> str:
+    def get_condition(self: "FacebookAutoItemPage") -> str:
         # no condition information for auto items
         return "unspecified"
 
