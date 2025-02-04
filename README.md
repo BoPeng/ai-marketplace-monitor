@@ -443,11 +443,11 @@ to clear the cache. The following cache types are supported
 
 - `listing-details` with listing URL as keys
 - `ai-inquiries` with marketplace, item name, and listing id as keys
-- `user-notification` with marketplace, item id, and username as keys
+- `user-notification` with marketplace, listing id, and username as keys
 
 `--clear-cache all` is also possible but not recommended.
 
-Note that
+Note that the program caches item name, not its conditions with `ai-inquiries`, so the the same AI response will be returned for the same listing even if you have changed the `keywords` and `description` of the item.
 
 ## TODO List:
 
