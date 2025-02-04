@@ -54,6 +54,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.get_region_config(config)
         self.get_item_config(config)
         self.validate_users()
+        self.validate_ais()
         self.expand_regions()
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -135,19 +136,20 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     def validate_users(self: "Config") -> None:
         """Check if notified users exists"""
         # if user is specified in other section, they must exist
-        for marketplace_config in self.marketplace.values():
-            for user in marketplace_config.notify or []:
+        for config in chain(self.marketplace.values(), self.item.values()):
+            for user in config.notify or []:
                 if user not in self.user:
                     raise ValueError(
-                        f"User {hilight(user)} specified in {hilight(marketplace_config.name)} does not exist."
+                        f"User {hilight(user)} specified in {hilight(config.name)} does not exist."
                     )
 
-        # if user is specified for any search item, they must exist
-        for item_config in self.item.values():
-            for user in item_config.notify or []:
-                if user not in self.user:
+    def validate_ais(self: "Config") -> None:
+        # if ai is specified in other section, they must exist
+        for config in chain(self.marketplace.values(), self.item.values()):
+            for ai in config.ai or []:
+                if ai not in self.ai:
                     raise ValueError(
-                        f"User {hilight(user)} specified in {hilight(item_config.name)} does not exist."
+                        f"AI {hilight(config.ai)} specified in {hilight(config.name)} does not exist."
                     )
 
     def expand_regions(self: "Config") -> None:

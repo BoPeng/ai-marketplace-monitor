@@ -60,6 +60,7 @@ condition = ['new', 'used_good']
 date_listed = 7
 delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
+ai = []
 max_price = 300
 min_price = 200
 rating = 4
@@ -89,6 +90,7 @@ search_city = 'houston'
 seller_locations = "city"
 condition = ['new', 'used_good']
 date_listed = 7
+ai = 'openai'
 availability = ['out', 'all']
 delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
@@ -137,7 +139,7 @@ model = 'gpt'
         (base_marketplace_cfg + base_item_cfg + base_user_cfg, True),
         (base_marketplace_cfg + base_item_cfg + base_user_cfg + base_ai_cfg, True),
         (full_marketplace_cfg + full_item_cfg + full_user_cfg + full_ai_cfg, True),
-        (base_marketplace_cfg + full_item_cfg + base_user_cfg, True),
+        (base_marketplace_cfg + full_item_cfg + base_user_cfg + base_ai_cfg, True),
         # user should match
         (
             base_marketplace_cfg + full_item_cfg.replace("user1", "unknown_user") + base_user_cfg,
@@ -155,6 +157,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "seller_locations": (list, type(None)),
         "acceptable_locations": (list, type(None)),
+        "ai": (list, type(None)),
         "availability": (list, type(None)),
         "api_key": str,
         "condition": (list, type(None)),

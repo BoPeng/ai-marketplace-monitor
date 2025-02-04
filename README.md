@@ -48,7 +48,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
-  - [Clear cache](#clear-cache)
+  - [Cache Management](#cache-management)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
@@ -200,8 +200,7 @@ Note that:
 
 1. `provider` can be [Open AI](https://openai.com/) or
    [DeepSeek](https://www.deepseek.com/), which sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-2. If more than one `ai` sections are provided, the program will try all of them in the order for which they are specified.
-3. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
+2. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
 
 A typical section for OpenAI looks like
 
@@ -269,6 +268,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `max_search_interval` | Optional          | Integer/String      | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
 | `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
+| `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
 | `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
 | `rating`              | Optional          | Integer/List        | Notify users with listigns with rating at or higher than specified rating. See [Adjust notification level](#adjust-notification-level) for details          |
 | `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
@@ -431,7 +431,7 @@ Facebook marketplace supports a wide variety of products and use different layou
 
 Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
 
-### Clear cache
+### Cache Management
 
 _ai-marketplace-monitor_ caches listing details, ai inquiries, and user notifications to avoid repeated queries to marketplaces, AI services, and repeated notification. If for any reason you would like to clear the cache, you can use commands such as
 

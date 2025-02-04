@@ -22,6 +22,7 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     in both marketplace and item sections, generic to all marketplaces
     """
 
+    ai: List[str] | None = None
     exclude_sellers: List[str] | None = None
     notify: List[str] | None = None
     search_city: List[str] | None = None
@@ -34,6 +35,15 @@ class MarketItemCommonConfig(DataClassWithHandleFunc):
     max_price: int | None = None
     min_price: int | None = None
     rating: List[int] | None = None
+
+    def handle_ai(self: "MarketItemCommonConfig") -> None:
+        if self.ai is None:
+            return
+
+        if isinstance(self.ai, str):
+            self.ai = [self.ai]
+        if not all(isinstance(x, str) for x in self.ai):
+            raise ValueError(f"Item {hilight(self.name)} ai must be a string or list.")
 
     def handle_exclude_sellers(self: "MarketItemCommonConfig") -> None:
         if self.exclude_sellers is None:

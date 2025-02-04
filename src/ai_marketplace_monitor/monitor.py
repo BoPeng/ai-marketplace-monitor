@@ -129,7 +129,9 @@ class MarketplaceMonitor:
                 )
                 continue
             # for x in self.find_new_items(found_items)
-            res = self.evaluate_by_ai(listing, item_config=item_config)
+            res = self.evaluate_by_ai(
+                listing, item_config=item_config, marketplace_config=marketplace_config
+            )
             if item_config.rating:
                 acceptable_rating = item_config.rating[
                     0 if item_config.searched_count == 0 else -1
@@ -396,13 +398,26 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
                         marketplace.filter_item(listing, item_config)
-                        self.evaluate_by_ai(listing, item_config=item_config)
+                        self.evaluate_by_ai(
+                            listing, item_config=item_config, marketplace_config=marketplace_config
+                        )
 
     def evaluate_by_ai(
-        self: "MarketplaceMonitor", item: SearchedItem, item_config: TItemConfig
+        self: "MarketplaceMonitor",
+        item: SearchedItem,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
     ) -> AIResponse:
-
+        if item_config.ai is not None:
+            ai_agents = item_config.ai
+        elif marketplace_config.ai is not None:
+            ai_agents = marketplace_config.ai
+        else:
+            ai_agents = None
+        #
         for agent in self.ai_agents:
+            if ai_agents is not None and agent.config.name not in ai_agents:
+                continue
             try:
                 return agent.evaluate(item, item_config)
             except Exception as e:
