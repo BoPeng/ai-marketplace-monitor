@@ -780,10 +780,7 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
         # using regular expression to find text that looks like price in the description
         price_pattern = r"\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:,\d{2})?"
         match = re.search(price_pattern, description)
-        if match:
-            return match.group(0)
-        else:
-            return "**unspecified**"
+        return match.group(0) if match else "**unspecified**"
 
     def get_condition(self: "FacebookAutoItemPage") -> str:
         # no condition information for auto items

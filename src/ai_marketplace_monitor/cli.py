@@ -83,7 +83,6 @@ def main(
         level="DEBUG" if verbose else "INFO",
         # format="%(name)s %(message)s",
         format="%(message)s",
-        datefmt="[%x %H:%m]",
         handlers=[
             RichHandler(
                 markup=True, rich_tracebacks=True, show_path=False if verbose is None else verbose
