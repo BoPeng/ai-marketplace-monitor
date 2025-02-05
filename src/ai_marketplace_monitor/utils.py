@@ -38,7 +38,7 @@ class CacheType(Enum):
     USER_NOTIFIED = "user-notifications"
 
 
-def calculate_file_hash(file_paths: List[str]) -> str:
+def calculate_file_hash(file_paths: List[Path]) -> str:
     """Calculate the SHA-256 hash of the file content."""
     hasher = hashlib.sha256()
     # they should exist, just to make sure
@@ -106,14 +106,14 @@ class ChangeHandler(FileSystemEventHandler):
 
 def sleep_with_watchdog(duration: int, files: List[Path]) -> None:
     """Sleep for a specified duration while monitoring the change of files"""
-    event_handler = ChangeHandler(files)
+    event_handler = ChangeHandler([str(x) for x in files])
     observers = []
     for filename in files:
         if not filename.exists():
             raise FileNotFoundError(f"File not found: {filename}")
         observer = Observer()
         # we can only monitor a directory
-        observer.schedule(event_handler, filename.parent, recursive=False)
+        observer.schedule(event_handler, str(filename.parent), recursive=False)
         observer.start()
         observers.append(observer)
 

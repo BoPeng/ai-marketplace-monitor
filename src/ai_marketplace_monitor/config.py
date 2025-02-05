@@ -33,7 +33,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     item: Dict[str, TItemConfig] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
 
-    def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
+    def __init__(self: "Config", config_files: List[Path], logger: Logger | None = None) -> None:
         configs = []
         system_config = Path(__file__).parent / "config.toml"
 
@@ -41,7 +41,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             try:
                 if logger:
                     logger.debug(
-                        f"""{hilight("[Monitor]", "succ")} config file {hilight(config_file)}"""
+                        f"""{hilight("[Monitor]", "succ")} config file {hilight(str(config_file))}"""
                     )
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))

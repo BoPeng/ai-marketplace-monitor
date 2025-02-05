@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from pathlib import Path
 from typing import Annotated, List, Optional
 
 import rich
@@ -33,7 +34,7 @@ def version_callback(value: bool) -> None:
 @app.command()
 def main(
     config_files: Annotated[
-        List[str] | None,
+        List[Path] | None,
         typer.Option(
             "-r",
             "--config",

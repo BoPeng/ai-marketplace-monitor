@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Generic, Type, TypeVar
+from typing import Any, ClassVar, Generic, Type, TypeVar, cast
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
@@ -88,7 +88,7 @@ class DeekSeekConfig(OpenAIConfig):
 
 
 @dataclass
-class OllamaConfig(AIConfig):
+class OllamaConfig(OpenAIConfig):
     api_key: str | None = field(default="ollama")  # required but not used.
 
     def handle_base_url(self: "OllamaConfig") -> None:
@@ -201,6 +201,7 @@ class OpenAIBackend(AIBackend):
         retries = 0
         while retries < self.config.max_retries:
             self.connect()
+            assert self.client is not None
             try:
                 response = self.client.chat.completions.create(
                     model=self.config.model or self.default_model,
@@ -238,7 +239,7 @@ class OpenAIBackend(AIBackend):
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
         score, comment = answer.strip().split("\n", 1)
-        score = re.match(r".*(\d)", score).group(1)
+        score = cast(re.Match[str], re.match(r".*(\d)", score)).group(1)
         if int(score) > 5 or int(score) < 1:
             score = "1"
 
