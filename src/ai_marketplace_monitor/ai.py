@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Generic, Type, TypeVar, cast
+from typing import Any, ClassVar, Generic, Type, TypeVar
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
