@@ -48,6 +48,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
+  - [Cache Management](#cache-management)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
@@ -188,19 +189,21 @@ an example with many of the options.
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
 
-| Option     | Requirement | DataType | Description                                |
-| ---------- | ----------- | -------- | ------------------------------------------ |
-| `provider` | Optional    | String   | Name of the AI service provider.           |
-| `api-key`  | Required    | String   | A program token to access the RESTful API. |
-| `base_url` | Optional    | String   | URL for the RESTful API                    |
-| `model`    | Optional    | String   | Language model to be used.                 |
+| Option        | Requirement | DataType | Description                                            |
+| ------------- | ----------- | -------- | ------------------------------------------------------ |
+| `provider`    | Optional    | String   | Name of the AI service provider.                       |
+| `api-key`     | Optional    | String   | A program token to access the RESTful API.             |
+| `base_url`    | Optional    | String   | URL for the RESTful API                                |
+| `model`       | Optional    | String   | Language model to be used.                             |
+| `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10. |
 
 Note that:
 
 1. `provider` can be [Open AI](https://openai.com/) or
-   [DeepSeek](https://www.deepseek.com/), which sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-2. If more than one `ai` sections are provided, the program will try all of them in the order for which they are specified.
-3. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
+   [DeepSeek](https://www.deepseek.com/), or any of the [Ollama models](https://ollama.com/).
+2. OpenAI and DeepSeek models sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
+3. Ollama model requires `base_url`. A default model `llama3.1:8b`, which has a small footprint and should be sufficient for our applications.
+4. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
 
 A typical section for OpenAI looks like
 
@@ -251,7 +254,7 @@ return related items under different names. To select the right items, you can
 
 1. Use `include_keywords` to keep only items with certain words in the title. For example, you can set `include_keywords = ['gopro', 'go pro']` when you search for `keywords = 'gopro'`.
 2. Use `exclude_keywords` to narrow down the search. For example, setting `exclude_keywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title.
-3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera.
+3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera. It is still a good idea to pre-filter listings using non-AI criteria to reduce the cost of AI services.
 
 ### Options that can be specified for both marketplaces and items
 
@@ -268,6 +271,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `max_search_interval` | Optional          | Integer/String      | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
 | `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
+| `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
 | `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
 | `rating`              | Optional          | Integer/List        | Notify users with listigns with rating at or higher than specified rating. See [Adjust notification level](#adjust-notification-level) for details          |
 | `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
@@ -429,6 +433,39 @@ date_listed = ["all", "last 24 hours"]
 Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
 
 Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
+
+### Self-hosted Ollama Model
+
+If you have access to a decent machine and prefer not to pay for AI services from OpenAI or other vendors. You can opt to install Ollama locally and access it using the `provider = "ollama"`. If you have ollama on your local host, you can use
+
+```
+[ai.ollama]
+base_url = "http://localhost:11434/v1"
+model = "llama3.1:8b"
+```
+
+Note that
+
+1. Depending on your hardware configuration, you can choose any of the models listed [here](https://ollama.com/search). The default model is `llama3.1:8b` becaue after all, the questions we are asking AIs are pretty simple and any language model should be able to answer with some confidence.
+2. You need to `pull` the model before you can use it.
+
+### Cache Management
+
+_ai-marketplace-monitor_ caches listing details, ai inquiries, and user notifications to avoid repeated queries to marketplaces, AI services, and repeated notification. If for any reason you would like to clear the cache, you can use commands such as
+
+```
+ai-marketplace-monitor --clear-cache listing-details
+```
+
+to clear the cache. The following cache types are supported
+
+- `listing-details` with listing URL as keys
+- `ai-inquiries` with marketplace, item name, and listing id as keys
+- `user-notification` with marketplace, listing id, and username as keys
+
+`--clear-cache all` is also possible but not recommended.
+
+Note that the program caches item name, not its conditions with `ai-inquiries`, so the the same AI response will be returned for the same listing even if you have changed the `keywords` and `description` of the item.
 
 ## TODO List:
 

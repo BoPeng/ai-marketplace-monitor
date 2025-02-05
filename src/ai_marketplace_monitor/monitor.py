@@ -1,7 +1,8 @@
-import os
 import sys
 import time
+from datetime import datetime
 from logging import Logger
+from pathlib import Path
 from typing import ClassVar, List
 
 import humanize
@@ -15,7 +16,7 @@ from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
-from .utils import CacheType, cache, calculate_file_hash, hilight, sleep_with_watchdog
+from .utils import CacheType, amm_home, cache, calculate_file_hash, hilight, sleep_with_watchdog
 
 
 class MarketplaceMonitor:
@@ -23,20 +24,17 @@ class MarketplaceMonitor:
 
     def __init__(
         self: "MarketplaceMonitor",
-        config_files: List[str] | None,
+        config_files: List[Path] | None,
         headless: bool | None,
         disable_javascript: bool | None,
-        clear_cache: bool | None,
         logger: Logger,
     ) -> None:
         for file_path in config_files or []:
-            if not os.path.exists(file_path):
+            if not file_path.exists():
                 raise FileNotFoundError(f"Config file {file_path} not found.")
-        default_config = os.path.join(
-            os.path.expanduser("~"), ".ai-marketplace-monitor", "config.toml"
-        )
-        self.config_files = ([default_config] if os.path.isfile(default_config) else []) + (
-            [os.path.abspath(os.path.expanduser(x)) for x in config_files or []]
+        default_config = amm_home / "config.toml"
+        self.config_files = ([default_config] if default_config.exists() else []) + (
+            [x.expanduser().resolve() for x in config_files or []]
         )
         #
         self.config: Config | None = None
@@ -46,8 +44,6 @@ class MarketplaceMonitor:
         self.ai_agents: List[AIBackend] = []
         self.playwright: Playwright | None = None
         self.logger = logger
-        if clear_cache:
-            cache.clear()
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
         """Load the configuration file."""
@@ -94,10 +90,10 @@ class MarketplaceMonitor:
 
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
-                self.ai_agents[-1].connect()
-                self.logger.info(
-                    f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
-                )
+                # self.ai_agents[-1].connect()
+                # self.logger.info(
+                #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
+                # )
             except Exception as e:
                 self.logger.error(
                     f"""{hilight("[AI]", "fail")} Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
@@ -125,15 +121,15 @@ class MarketplaceMonitor:
             # increase the searched_count
             item_config.searched_count += 1
             # if everyone has been notified
-            if listing.user_notified_key in cache and all(
-                user in cache.get(listing.user_notified_key, ()) for user in users_to_notify
-            ):
+            if all(listing.user_notified_key(user) in cache for user in users_to_notify):
                 self.logger.info(
                     f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
                 )
                 continue
             # for x in self.find_new_items(found_items)
-            res = self.evaluate_by_ai(listing, item_config=item_config)
+            res = self.evaluate_by_ai(
+                listing, item_config=item_config, marketplace_config=marketplace_config
+            )
             if item_config.rating:
                 acceptable_rating = item_config.rating[
                     0 if item_config.searched_count == 0 else -1
@@ -377,7 +373,7 @@ class MarketplaceMonitor:
                     marketplace.configure(marketplace_config)
 
                     # do we need a browser?
-                    if (CacheType.ITEM_DETAILS.value, post_url.split("?")[0]) not in cache:
+                    if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
                         if browser is None:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
@@ -400,16 +396,26 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
                         marketplace.filter_item(listing, item_config)
-                        self.evaluate_by_ai(listing, item_config=item_config)
-                        if listing.user_notified_key in cache:
-                            self.logger.info(
-                                f"""{hilight("[Skip]", "succ")} Already sent notification for item {item_config.name}."""
-                            )
+                        self.evaluate_by_ai(
+                            listing, item_config=item_config, marketplace_config=marketplace_config
+                        )
 
     def evaluate_by_ai(
-        self: "MarketplaceMonitor", item: SearchedItem, item_config: TItemConfig
+        self: "MarketplaceMonitor",
+        item: SearchedItem,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
     ) -> AIResponse:
+        if item_config.ai is not None:
+            ai_agents = item_config.ai
+        elif marketplace_config.ai is not None:
+            ai_agents = marketplace_config.ai
+        else:
+            ai_agents = None
+        #
         for agent in self.ai_agents:
+            if ai_agents is not None and agent.config.name not in ai_agents:
+                continue
             try:
                 return agent.evaluate(item, item_config)
             except Exception as e:
@@ -431,9 +437,14 @@ class MarketplaceMonitor:
             msgs = []
             unnotified_listings = []
             for listing, rating in zip(listings, ratings):
-                if listing.user_notified_key in cache and user in cache.get(
-                    listing.user_notified_key, ()
-                ):
+                notified_date = cache.get(listing.user_notified_key(user))
+                if notified_date is not None:
+                    time_since_notification = datetime.now() - datetime.strptime(
+                        notified_date, "%Y-%m-%d %H:%M:%S"
+                    )
+                    self.logger.info(
+                        f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title} {humanize.naturaltime(time_since_notification)}"""
+                    )
                     continue
                 self.logger.info(
                     f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
@@ -472,11 +483,8 @@ class MarketplaceMonitor:
                 User(user, self.config.user[user], logger=self.logger).notify(title, message)
                 for listing in unnotified_listings:
                     cache.set(
-                        listing.user_notified_key,
-                        (
-                            user,
-                            *cache.get(listing.user_notified_key, ()),
-                        ),
+                        listing.user_notified_key(user),
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         tag=CacheType.USER_NOTIFIED.value,
                     )
             except Exception as e:

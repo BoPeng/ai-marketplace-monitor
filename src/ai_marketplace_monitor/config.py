@@ -1,8 +1,8 @@
-import os
 import sys
 from dataclasses import dataclass, field
 from itertools import chain
 from logging import Logger
+from pathlib import Path
 from typing import Any, Dict, Generic, List
 
 if sys.version_info >= (3, 11):
@@ -10,7 +10,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .ai import DeepSeekBackend, OpenAIBackend, TAIConfig
+from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
@@ -18,7 +18,11 @@ from .user import User, UserConfig
 from .utils import hilight, merge_dicts
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
-supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
+supported_ai_backends = {
+    "deepseek": DeepSeekBackend,
+    "openai": OpenAIBackend,
+    "ollama": OllamaBackend,
+}
 
 
 @dataclass
@@ -29,15 +33,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     item: Dict[str, TItemConfig] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
 
-    def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
+    def __init__(self: "Config", config_files: List[Path], logger: Logger | None = None) -> None:
         configs = []
-        system_config = os.path.join(os.path.split(__file__)[0], "config.toml")
+        system_config = Path(__file__).parent / "config.toml"
 
         for config_file in [system_config, *config_files]:
             try:
                 if logger:
                     logger.debug(
-                        f"""{hilight("[Monitor]", "succ")} config file {hilight(config_file)}"""
+                        f"""{hilight("[Monitor]", "succ")} config file {hilight(str(config_file))}"""
                     )
                 with open(config_file, "rb") as f:
                     configs.append(tomllib.load(f))
@@ -54,6 +58,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.get_region_config(config)
         self.get_item_config(config)
         self.validate_users()
+        self.validate_ais()
         self.expand_regions()
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -135,19 +140,20 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     def validate_users(self: "Config") -> None:
         """Check if notified users exists"""
         # if user is specified in other section, they must exist
-        for marketplace_config in self.marketplace.values():
-            for user in marketplace_config.notify or []:
+        for config in chain(self.marketplace.values(), self.item.values()):
+            for user in config.notify or []:
                 if user not in self.user:
                     raise ValueError(
-                        f"User {hilight(user)} specified in {hilight(marketplace_config.name)} does not exist."
+                        f"User {hilight(user)} specified in {hilight(config.name)} does not exist."
                     )
 
-        # if user is specified for any search item, they must exist
-        for item_config in self.item.values():
-            for user in item_config.notify or []:
-                if user not in self.user:
+    def validate_ais(self: "Config") -> None:
+        # if ai is specified in other section, they must exist
+        for config in chain(self.marketplace.values(), self.item.values()):
+            for ai in config.ai or []:
+                if ai not in self.ai:
                     raise ValueError(
-                        f"User {hilight(user)} specified in {hilight(item_config.name)} does not exist."
+                        f"AI {hilight(config.ai)} specified in {hilight(config.name)} does not exist."
                     )
 
     def expand_regions(self: "Config") -> None:

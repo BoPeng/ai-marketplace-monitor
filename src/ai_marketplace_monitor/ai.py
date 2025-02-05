@@ -1,19 +1,22 @@
-from dataclasses import dataclass
+import re
+import time
+from dataclasses import dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Generic, Type, TypeVar
+from typing import Any, ClassVar, Generic, Type, TypeVar, cast
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
 from .item import SearchedItem
 from .marketplace import TItemConfig
-from .utils import DataClassWithHandleFunc, hilight
+from .utils import CacheType, DataClassWithHandleFunc, cache, hilight
 
 
 class AIServiceProvider(Enum):
     OPENAI = "OpenAI"
     DEEPSEEK = "DeepSeek"
+    OLLAMA = "Ollama"
 
 
 @dataclass
@@ -46,10 +49,11 @@ class AIResponse:
 class AIConfig(DataClassWithHandleFunc):
     # this argument is required
 
-    api_key: str
+    api_key: str | None = None
     provider: str | None = None
     model: str | None = None
     base_url: str | None = None
+    max_retries: int = 10
 
     def handle_provider(self: "AIConfig") -> None:
         if self.provider is None:
@@ -60,14 +64,22 @@ class AIConfig(DataClassWithHandleFunc):
             )
 
     def handle_api_key(self: "AIConfig") -> None:
-        if not self.api_key:
-            raise ValueError("AIConfig requires an non-empty api_key.")
+        if self.api_key is None:
+            return
+        if not isinstance(self.api_key, str):
+            raise ValueError("AIConfig requires a string api_key.")
         self.api_key = self.api_key.strip()
+
+    def handle_max_retries(self: "AIConfig") -> None:
+        if not isinstance(self.max_retries, int) or self.max_retries < 0:
+            raise ValueError("AIConfig requires a positive integer max_retries.")
 
 
 @dataclass
 class OpenAIConfig(AIConfig):
-    pass
+    def handle_api_key(self: "OpenAIConfig") -> None:
+        if self.api_key is None:
+            raise ValueError("OpenAI requires a string api_key.")
 
 
 @dataclass
@@ -75,11 +87,24 @@ class DeekSeekConfig(OpenAIConfig):
     pass
 
 
+@dataclass
+class OllamaConfig(OpenAIConfig):
+    api_key: str | None = field(default="ollama")  # required but not used.
+
+    def handle_base_url(self: "OllamaConfig") -> None:
+        if self.base_url is None:
+            raise ValueError("Ollama requires a string base_url.")
+
+    def handle_model(self: "OllamaConfig") -> None:
+        if self.model is None:
+            raise ValueError("Ollama requires a string model.")
+
+
 TAIConfig = TypeVar("TAIConfig", bound=AIConfig)
 
 
 class AIBackend(Generic[TAIConfig]):
-    def __init__(self: "AIBackend", config: AIConfig, logger: Logger) -> None:
+    def __init__(self: "AIBackend", config: AIConfig, logger: Logger | None = None) -> None:
         self.config = config
         self.logger = logger
         self.client: OpenAI | None = None
@@ -127,9 +152,10 @@ class AIBackend(Generic[TAIConfig]):
             "Rating 3, poor match: the item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.\n"
             "Rating 4, good match: the item is a potential good deal and you recommend the user to contact the seller.\n"
             "Rating 5, good deal: the item is a very good deal, with good condition and very competitive price. The user should try to grab it as soon as he can.\n"
-            "Please return the answer in the format of the rating (a number), a colon separator, then a summary why you make this recommendation. The summary should be brief and no more than 30 words."
+            "Please return the answer in the format of the rating (a number), a new line, then a summary why you make this recommendation. The summary should be brief and no more than 30 words."
         )
-        self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
+        if self.logger:
+            self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
         return prompt
 
     def evaluate(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> AIResponse:
@@ -152,46 +178,82 @@ class OpenAIBackend(AIBackend):
                 base_url=self.config.base_url or self.base_url,
                 timeout=10,
             )
+            if self.logger:
+                self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
 
     def evaluate(
         self: "OpenAIBackend", listing: SearchedItem, item_config: TItemConfig
     ) -> AIResponse:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(listing, item_config)
-
-        assert self.client is not None
-
-        response = self.client.chat.completions.create(
-            model=self.config.model or self.default_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            stream=False,
+        cached_result = cache.get(
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id)
         )
+        if cached_result is not None:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[AI]", "name")} {self.config.name} has already evaluated {hilight(listing.title)}."""
+                )
+            return AIResponse(cached_result["score"], cached_result["comment"])
+
+        self.connect()
+
+        retries = 0
+        while retries < self.config.max_retries:
+            self.connect()
+            assert self.client is not None
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.config.model or self.default_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    stream=False,
+                )
+                break
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
+                    )
+                retries += 1
+                # try to initiate a connection
+                self.client = None
+                time.sleep(5)
+
         # check if the response is yes
-        self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
+        if self.logger:
+            self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
 
         answer = response.choices[0].message.content
         if (
             answer is None
             or not answer.strip()
-            or not answer.strip()[0].isdigit()
-            or ":" not in answer
+            or "\n" not in answer
+            or not re.match(r".*(\d)", answer.split("\n")[0])
         ):
-            raise ValueError(f"Empty or invalid response from {self.config.name}")
+            raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        score, comment = answer.strip().split(":", 1)
+        score, comment = answer.strip().split("\n", 1)
+        score = cast(re.Match[str], re.match(r".*(\d)", score)).group(1)
         if int(score) > 5 or int(score) < 1:
             score = "1"
+
+        cache.set(
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
+            {"score": int(score), "comment": comment.strip()},
+            tag=CacheType.AI_INQUIRY.value,
+        )
         res = AIResponse(int(score), comment.strip())
 
-        self.logger.info(
-            f"""{hilight("[AI]", res.style)} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
-        )
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[AI]", res.style)} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+            )
         return res
 
 
@@ -202,3 +264,11 @@ class DeepSeekBackend(OpenAIBackend):
     @classmethod
     def get_config(cls: Type["DeepSeekBackend"], **kwargs: Any) -> DeekSeekConfig:
         return DeekSeekConfig(**kwargs)
+
+
+class OllamaBackend(OpenAIBackend):
+    default_model = "llama3.1:8b"
+
+    @classmethod
+    def get_config(cls: Type["OllamaBackend"], **kwargs: Any) -> OllamaConfig:
+        return OllamaConfig(**kwargs)
