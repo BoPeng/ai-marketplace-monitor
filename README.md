@@ -28,8 +28,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Set up PushBullet](#set-up-pushbullet)
-  - [Sign up with OpenAI (optional)](#sign-up-with-openai-optional)
-  - [Sign up with DeepSeek (optional)](#sign-up-with-deepseek-optional)
+  - [Sign up with an AI service or build your own (optional)](#sign-up-with-an-ai-service-or-build-your-own-optional)
   - [Write a configuration file](#write-a-configuration-file)
   - [Run the program](#run-the-program)
   - [Updating search](#updating-search)
@@ -47,8 +46,9 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
-  - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
+  - [Self-hosted Ollama Model](#self-hosted-ollama-model)
   - [Cache Management](#cache-management)
+  - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
 - [TODO List:](#todo-list)
 - [Credits](#credits)
 
@@ -57,7 +57,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - Search for one or more products using specified keywords.
 - Limit search by price, and location.
 - Exclude irrelevant results and spammers.
-- Use an AI service provider (OpenAI or DeepSeek) to evaluate listing matches and give recommendations.
+- Use an AI service provider to evaluate listing matches and give recommendations.
 - Send notifications via PushBullet.
 - Search repeatedly with specified intervals.
 - Search multiple cities, even pre-defined regions (e.g. USA)
@@ -88,19 +88,14 @@ playwright install
 - Install the app on your phone
 - Go to the PushBullet website and obtain a token
 
-### Sign up with OpenAI (optional)
+### Sign up with an AI service or build your own (optional)
 
-If you would like to use the OpenAI AI assistant,
+You can sign up for an AI service (e.g. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/)) by
 
-- Sign up for a pro account of open AI
+- Sign up for an account
 - Go to the API keys section of your profile, generate a new API key, and copy it
 
-### Sign up with DeepSeek (optional)
-
-If you would like to use the DeepSeek AI assistant,
-
-- Sign up for a deepseek account
-- Generate an API key from the API keys section and copy it
+You can also connect to any other AI service that provides an OpenAI compatible API, or host your own large language model using Ollama (see [Self-hosted Ollama Model](#self-hosted-ollama-model) for details.)
 
 ### Write a configuration file
 
@@ -202,7 +197,7 @@ Note that:
 
 1. `provider` can be [Open AI](https://openai.com/) or
    [DeepSeek](https://www.deepseek.com/), or any of the [Ollama models](https://ollama.com/).
-2. OpenAI and DeepSeek models sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
+2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
 3. Ollama model requires `base_url`. A default model `llama3.1:8b`, which has a small footprint and should be sufficient for our applications.
 4. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
 
@@ -429,12 +424,6 @@ availability = ["all", "in"]
 date_listed = ["all", "last 24 hours"]
 ```
 
-### Support for different layouts of facebook listings
-
-Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
-
-Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
-
 ### Self-hosted Ollama Model
 
 If you have access to a decent machine and prefer not to pay for AI services from OpenAI or other vendors. You can opt to install Ollama locally and access it using the `provider = "ollama"`. If you have ollama on your local host, you can use
@@ -468,6 +457,12 @@ to clear the cache. The following cache types are supported
 `--clear-cache all` is also possible but not recommended.
 
 Note that the program caches item name, not its conditions with `ai-inquiries`, so the the same AI response will be returned for the same listing even if you have changed the `keywords` and `description` of the item.
+
+### Support for different layouts of facebook listings
+
+Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
+
+Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
 
 ## TODO List:
 
