@@ -54,6 +54,7 @@ class AIConfig(DataClassWithHandleFunc):
     model: str | None = None
     base_url: str | None = None
     max_retries: int = 10
+    timeout: int | None = None
 
     def handle_provider(self: "AIConfig") -> None:
         if self.provider is None:
@@ -73,6 +74,12 @@ class AIConfig(DataClassWithHandleFunc):
     def handle_max_retries(self: "AIConfig") -> None:
         if not isinstance(self.max_retries, int) or self.max_retries < 0:
             raise ValueError("AIConfig requires a positive integer max_retries.")
+
+    def handle_timeout(self: "AIConfig") -> None:
+        if self.timeout is None:
+            return
+        if not isinstance(self.timeout, int) or self.timeout < 0:
+            raise ValueError("AIConfig requires a positive integer timeout.")
 
 
 @dataclass
@@ -176,7 +183,7 @@ class OpenAIBackend(AIBackend):
             self.client = OpenAI(
                 api_key=self.config.api_key,
                 base_url=self.config.base_url or self.base_url,
-                timeout=10,
+                timeout=self.config.timeout,
             )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")

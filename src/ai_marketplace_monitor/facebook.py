@@ -533,7 +533,41 @@ class FacebookSearchResultPage(WebPage):
         try:
             grid_items = heading.locator(
                 ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2) > div"
-            ).all()
+            )
+            # find each listing
+            for listing in grid_items.all():
+                if not listing.text_content():
+                    continue
+
+                atag = listing.locator(
+                    ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
+                )
+                post_url = atag.get_attribute("href") or ""
+                details = atag.locator(":scope > :first-child > div").nth(1)
+                raw_price = details.locator(":scope > div").nth(0).text_content() or ""
+                title = details.locator(":scope > div").nth(1).text_content() or ""
+                location = details.locator(":scope > div").nth(2).text_content() or ""
+                image = listing.locator("img").get_attribute("src") or ""
+                price = extract_price(raw_price)
+
+                listings.append(
+                    SearchedItem(
+                        marketplace="facebook",
+                        name="",
+                        id=post_url.split("?")[0].rstrip("/").split("/")[-1],
+                        title=title,
+                        image=image,
+                        price=price,
+                        # all the ?referral_code&referral_sotry_type etc
+                        # could be helpful for live navigation, but will be stripped
+                        # for caching item details.
+                        post_url=post_url,
+                        location=location,
+                        condition="",
+                        seller="",
+                        description="",
+                    )
+                )
         except Exception as e:
             filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
             self.logger.error(
@@ -542,40 +576,7 @@ class FacebookSearchResultPage(WebPage):
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(self.page.content())
             return listings
-        # find each listing
-        for listing in grid_items:
-            if not listing.text_content():
-                continue
 
-            atag = listing.locator(
-                ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
-            )
-            post_url = atag.get_attribute("href") or ""
-            details = atag.locator(":scope > :first-child > div").nth(1)
-            raw_price = details.locator(":scope > div").nth(0).text_content() or ""
-            title = details.locator(":scope > div").nth(1).text_content() or ""
-            location = details.locator(":scope > div").nth(2).text_content() or ""
-            image = listing.locator("img").get_attribute("src") or ""
-            price = extract_price(raw_price)
-
-            listings.append(
-                SearchedItem(
-                    marketplace="facebook",
-                    name="",
-                    id=post_url.split("?")[0].rstrip("/").split("/")[-1],
-                    title=title,
-                    image=image,
-                    price=price,
-                    # all the ?referral_code&referral_sotry_type etc
-                    # could be helpful for live navigation, but will be stripped
-                    # for caching item details.
-                    post_url=post_url,
-                    location=location,
-                    condition="",
-                    seller="",
-                    description="",
-                )
-            )
         # Append the parsed data to the list.
         return listings
 

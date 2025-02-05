@@ -189,13 +189,14 @@ an example with many of the options.
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
 
-| Option        | Requirement | DataType | Description                                            |
-| ------------- | ----------- | -------- | ------------------------------------------------------ |
-| `provider`    | Optional    | String   | Name of the AI service provider.                       |
-| `api-key`     | Optional    | String   | A program token to access the RESTful API.             |
-| `base_url`    | Optional    | String   | URL for the RESTful API                                |
-| `model`       | Optional    | String   | Language model to be used.                             |
-| `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10. |
+| Option        | Requirement | DataType | Description                                                |
+| ------------- | ----------- | -------- | ---------------------------------------------------------- |
+| `provider`    | Optional    | String   | Name of the AI service provider.                           |
+| `api-key`     | Optional    | String   | A program token to access the RESTful API.                 |
+| `base_url`    | Optional    | String   | URL for the RESTful API                                    |
+| `model`       | Optional    | String   | Language model to be used.                                 |
+| `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10.     |
+| `timeout`     | Optional    | Integer  | Timeout (in seconds) waiting for response from AI service. |
 
 Note that:
 
@@ -442,6 +443,7 @@ If you have access to a decent machine and prefer not to pay for AI services fro
 [ai.ollama]
 base_url = "http://localhost:11434/v1"
 model = "llama3.1:8b"
+timeout = 120
 ```
 
 Note that
