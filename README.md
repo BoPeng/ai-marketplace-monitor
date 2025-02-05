@@ -431,13 +431,13 @@ If you have access to a decent machine and prefer not to pay for AI services fro
 ```
 [ai.ollama]
 base_url = "http://localhost:11434/v1"
-model = "llama3.1:8b"
+model = "deepseek-r1:14b"
 timeout = 120
 ```
 
 Note that
 
-1. Depending on your hardware configuration, you can choose any of the models listed [here](https://ollama.com/search). The default model is `llama3.1:8b` becaue after all, the questions we are asking AIs are pretty simple and any language model should be able to answer with some confidence.
+1. Depending on your hardware configuration, you can choose any of the models listed [here](https://ollama.com/search). The default model is `deepseek-r1:14b` becaue it appears to work better than `llama-3.1:8b`.
 2. You need to `pull` the model before you can use it.
 
 ### Cache Management

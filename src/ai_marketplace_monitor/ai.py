@@ -237,6 +237,9 @@ class OpenAIBackend(AIBackend):
             self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
 
         answer = response.choices[0].message.content
+        if answer.strip().startswith("<think>"):
+            # remove <think></think> from the output
+            answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
         if (
             answer is None
             or not answer.strip()
@@ -274,7 +277,7 @@ class DeepSeekBackend(OpenAIBackend):
 
 
 class OllamaBackend(OpenAIBackend):
-    default_model = "llama3.1:8b"
+    default_model = "deepseek-r1:14b"
 
     @classmethod
     def get_config(cls: Type["OllamaBackend"], **kwargs: Any) -> OllamaConfig:
