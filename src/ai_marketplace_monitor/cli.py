@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from logging import FileHandler
 from pathlib import Path
 from typing import Annotated, List, Optional
 
@@ -87,21 +88,19 @@ def main(
 ) -> None:
     """Console script for AI Marketplace Monitor."""
     logging.basicConfig(
-        level="DEBUG" if verbose else "INFO",
+        level="DEBUG",
         # format="%(name)s %(message)s",
         format="%(message)s",
         handlers=[
             RichHandler(
-                markup=True, rich_tracebacks=True, show_path=False if verbose is None else verbose
-            )
+                markup=True,
+                rich_tracebacks=True,
+                show_path=False if verbose is None else verbose,
+                level="DEBUG" if verbose else "INFO",
+            ),
+            FileHandler(amm_home / "ai-marketplace-monitor.log"),
         ],
     )
-    file_handler = logging.FileHandler(amm_home / "ai-marketplace-monitor.log")
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
-    logging.getLogger().addHandler(file_handler)
 
     # remove logging from other packages.
     for logger_name in (
