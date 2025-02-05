@@ -10,7 +10,7 @@ from rich.logging import RichHandler
 
 from . import __version__
 from .monitor import MarketplaceMonitor
-from .utils import CacheType, cache, hilight
+from .utils import CacheType, amm_home, cache, hilight
 
 app = typer.Typer()
 
@@ -95,6 +95,12 @@ def main(
             )
         ],
     )
+    file_handler = logging.FileHandler(amm_home / "ai-marketplace-monitor.log")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+    logging.getLogger().addHandler(file_handler)
 
     # remove logging from other packages.
     for logger_name in (

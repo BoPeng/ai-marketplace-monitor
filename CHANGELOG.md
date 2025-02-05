@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.2] - 2025-02-04
 
-- Add option [ai]
+- Add option `ai` that allows the specification of AI models to use for certain marketplaces or items.
 - Expand command line option --clear-cache
+- Support locally hosted Ollama models
 
 ## [0.6.2] - 2025-02-03
 

@@ -1,8 +1,8 @@
-import os
 import sys
 from dataclasses import dataclass, field
 from itertools import chain
 from logging import Logger
+from pathlib import Path
 from typing import Any, Dict, Generic, List
 
 if sys.version_info >= (3, 11):
@@ -10,7 +10,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .ai import DeepSeekBackend, OpenAIBackend, TAIConfig
+from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
@@ -18,7 +18,11 @@ from .user import User, UserConfig
 from .utils import hilight, merge_dicts
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
-supported_ai_backends = {"deepseek": DeepSeekBackend, "openai": OpenAIBackend}
+supported_ai_backends = {
+    "deepseek": DeepSeekBackend,
+    "openai": OpenAIBackend,
+    "ollama": OllamaBackend,
+}
 
 
 @dataclass
@@ -31,7 +35,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def __init__(self: "Config", config_files: List[str], logger: Logger | None = None) -> None:
         configs = []
-        system_config = os.path.join(os.path.split(__file__)[0], "config.toml")
+        system_config = Path(__file__).parent / "config.toml"
 
         for config_file in [system_config, *config_files]:
             try:

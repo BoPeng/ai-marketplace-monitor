@@ -189,18 +189,21 @@ an example with many of the options.
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
 
-| Option     | Requirement | DataType | Description                                |
-| ---------- | ----------- | -------- | ------------------------------------------ |
-| `provider` | Optional    | String   | Name of the AI service provider.           |
-| `api-key`  | Required    | String   | A program token to access the RESTful API. |
-| `base_url` | Optional    | String   | URL for the RESTful API                    |
-| `model`    | Optional    | String   | Language model to be used.                 |
+| Option        | Requirement | DataType | Description                                            |
+| ------------- | ----------- | -------- | ------------------------------------------------------ |
+| `provider`    | Optional    | String   | Name of the AI service provider.                       |
+| `api-key`     | Optional    | String   | A program token to access the RESTful API.             |
+| `base_url`    | Optional    | String   | URL for the RESTful API                                |
+| `model`       | Optional    | String   | Language model to be used.                             |
+| `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10. |
 
 Note that:
 
 1. `provider` can be [Open AI](https://openai.com/) or
-   [DeepSeek](https://www.deepseek.com/), which sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-2. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
+   [DeepSeek](https://www.deepseek.com/), or any of the [Ollama models](https://ollama.com/).
+2. OpenAI and DeepSeek models sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
+3. Ollama model requires `base_url`. A default model `llama3.1:8b`, which has a small footprint and should be sufficient for our applications.
+4. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
 
 A typical section for OpenAI looks like
 
@@ -430,6 +433,21 @@ date_listed = ["all", "last 24 hours"]
 Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
 
 Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
+
+### Self-hosted Ollama Model
+
+If you have access to a decent machine and prefer not to pay for AI services from OpenAI or other vendors. You can opt to install Ollama locally and access it using the `provider = "ollama"`. If you have ollama on your local host, you can use
+
+```
+[ai.ollama]
+base_url = "http://localhost:11434/v1"
+model = "llama3.1:8b"
+```
+
+Note that
+
+1. Depending on your hardware configuration, you can choose any of the models listed [here](https://ollama.com/search). The default model is `llama3.1:8b` becaue after all, the questions we are asking AIs are pretty simple and any language model should be able to answer with some confidence.
+2. You need to `pull` the model before you can use it.
 
 ### Cache Management
 

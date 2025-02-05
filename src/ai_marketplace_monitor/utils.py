@@ -1,9 +1,9 @@
 import hashlib
-import os
 import re
 import time
 from dataclasses import dataclass, fields
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
@@ -12,8 +12,8 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 # home directory for all settings and caches
-amm_home = os.path.join(os.path.expanduser("~"), ".ai-marketplace-monitor")
-os.makedirs(amm_home, exist_ok=True)
+amm_home = Path.home() / ".ai-marketplace-monitor"
+amm_home.mkdir(parents=True, exist_ok=True)
 
 cache = Cache(amm_home)
 
@@ -43,7 +43,7 @@ def calculate_file_hash(file_paths: List[str]) -> str:
     hasher = hashlib.sha256()
     # they should exist, just to make sure
     for file_path in file_paths:
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
         #
         with open(file_path, "rb") as file:
@@ -104,16 +104,16 @@ class ChangeHandler(FileSystemEventHandler):
             self.changed = True
 
 
-def sleep_with_watchdog(duration: int, files: List[str]) -> None:
+def sleep_with_watchdog(duration: int, files: List[Path]) -> None:
     """Sleep for a specified duration while monitoring the change of files"""
     event_handler = ChangeHandler(files)
     observers = []
     for filename in files:
-        if not os.path.exists(filename):
+        if not filename.exists():
             raise FileNotFoundError(f"File not found: {filename}")
         observer = Observer()
         # we can only monitor a directory
-        observer.schedule(event_handler, os.path.dirname(filename), recursive=False)
+        observer.schedule(event_handler, filename.parent, recursive=False)
         observer.start()
         observers.append(observer)
 

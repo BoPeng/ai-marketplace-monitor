@@ -1,8 +1,8 @@
-import os
 import sys
 import time
 from datetime import datetime
 from logging import Logger
+from pathlib import Path
 from typing import ClassVar, List
 
 import humanize
@@ -16,7 +16,7 @@ from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
-from .utils import CacheType, cache, calculate_file_hash, hilight, sleep_with_watchdog
+from .utils import CacheType, amm_home, cache, calculate_file_hash, hilight, sleep_with_watchdog
 
 
 class MarketplaceMonitor:
@@ -24,19 +24,17 @@ class MarketplaceMonitor:
 
     def __init__(
         self: "MarketplaceMonitor",
-        config_files: List[str] | None,
+        config_files: List[Path] | None,
         headless: bool | None,
         disable_javascript: bool | None,
         logger: Logger,
     ) -> None:
         for file_path in config_files or []:
-            if not os.path.exists(file_path):
+            if not file_path.exists():
                 raise FileNotFoundError(f"Config file {file_path} not found.")
-        default_config = os.path.join(
-            os.path.expanduser("~"), ".ai-marketplace-monitor", "config.toml"
-        )
-        self.config_files = ([default_config] if os.path.isfile(default_config) else []) + (
-            [os.path.abspath(os.path.expanduser(x)) for x in config_files or []]
+        default_config = amm_home / "config.toml"
+        self.config_files = ([default_config] if default_config.exists() else []) + (
+            [x.expanduser().resolve() for x in config_files or []]
         )
         #
         self.config: Config | None = None
@@ -92,10 +90,10 @@ class MarketplaceMonitor:
 
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
-                self.ai_agents[-1].connect()
-                self.logger.info(
-                    f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
-                )
+                # self.ai_agents[-1].connect()
+                # self.logger.info(
+                #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
+                # )
             except Exception as e:
                 self.logger.error(
                     f"""{hilight("[AI]", "fail")} Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
