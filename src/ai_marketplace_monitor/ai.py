@@ -159,7 +159,8 @@ class AIBackend(Generic[TAIConfig]):
             "Rating 3, poor match: the item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.\n"
             "Rating 4, good match: the item is a potential good deal and you recommend the user to contact the seller.\n"
             "Rating 5, good deal: the item is a very good deal, with good condition and very competitive price. The user should try to grab it as soon as he can.\n"
-            "Please return the answer in the format of the rating (a number), a new line, then a summary why you make this recommendation. The summary should be brief and no more than 30 words."
+            "Please return the answer starting with word 'Rating:' and a rating as a number from 1 to 5, a new line, then a summary about why you make this recommendation. "
+            "The summary should be brief and no more than 30 words."
         )
         if self.logger:
             self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
@@ -237,19 +238,14 @@ class OpenAIBackend(AIBackend):
             self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
 
         answer = response.choices[0].message.content or ""
+        if answer is None or not answer.strip() or "Rating:" not in answer:
+            raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
+
         if answer.strip().startswith("<think>"):
             # remove <think></think> from the output
             answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
-        if (
-            answer is None
-            or not answer.strip()
-            or "\n" not in answer
-            or not re.match(r".*(\d)", answer)
-        ):
-            raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        # the lower models does not really following the instruction, and sometimes
-        # shows "Rating: "...
+        #
         lines = answer.split("\n")
         # if any of the lines contains "Rating: ", extract the rating from it.
         score: str | None = None
@@ -262,18 +258,15 @@ class OpenAIBackend(AIBackend):
             if score is not None:
                 comment += line + "\n"
         # if no rating is find, take the first line as the rating
-        if score is None and re.match(r".*([1-5])", lines[0]):
-            score = cast(re.Match[str], re.match(r".*([1-5])", lines[0])).group(1)
-            comment = "\n".join(lines[1:])
-        else:
+        if score is None:
             raise ValueError(f"Unrecognized response from {self.config.name}: {response}")
 
         cache.set(
             (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
-            {"score": int(score), "comment": comment.strip().strip("*")},
+            {"score": int(score), "comment": comment.strip()},
             tag=CacheType.AI_INQUIRY.value,
         )
-        res = AIResponse(int(score), comment.strip().strip("*"))
+        res = AIResponse(int(score), comment.strip())
 
         if self.logger:
             self.logger.info(
