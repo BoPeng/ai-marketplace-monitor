@@ -8,6 +8,7 @@ from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
 from diskcache import Cache  # type: ignore
+from pynput import keyboard  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -17,7 +18,70 @@ amm_home.mkdir(parents=True, exist_ok=True)
 
 cache = Cache(amm_home)
 
+
 TConfigType = TypeVar("TConfigType", bound="DataClassWithHandleFunc")
+
+
+class KeyboardMonitor:
+    confirm_character = "c"
+
+    def __init__(self: "KeyboardMonitor") -> None:
+        self._paused: bool = False
+        self._listener: keyboard.Listener | None = None
+        self._sleeping: bool = False
+        self._confirmed: bool = False
+        self._waiting_for_confirmed = False
+
+    def start(self: "KeyboardMonitor") -> None:
+        self._listener = keyboard.Listener(on_press=self.handle_key_press)
+        self._listener.start()  # start to listen on a separate thread
+
+    def stop(self: "KeyboardMonitor") -> None:
+        if self._listener:
+            self._listener.stop()  # stop the listener
+
+    def start_sleeping(self: "KeyboardMonitor") -> None:
+        self._sleeping = True
+
+    def start_waiting_for_confirmation(self: "KeyboardMonitor") -> None:
+        self._waiting_for_confirmed = True
+        self._confirmed = False
+        print(
+            f"Press {self.confirm_character} to confirm or I will go back to work ...",
+            end="",
+            flush=True,
+        )
+
+    def is_sleeping(self: "KeyboardMonitor") -> bool:
+        return self._sleeping
+
+    def is_paused(self: "KeyboardMonitor") -> bool:
+        return self._paused
+
+    def is_confirmed(self: "KeyboardMonitor") -> bool:
+        return self._confirmed
+
+    def reset_paused(self: "KeyboardMonitor") -> None:
+        self._paused = False
+
+    def handle_key_press(self: "KeyboardMonitor", key: keyboard.Key) -> None:
+        # otherwise allow the main program to handle it.
+        if self._sleeping:
+            if key == keyboard.Key.enter:
+                print("Waking up ...")
+                self._sleeping = False
+                return
+        if self._waiting_for_confirmed:
+            if not self._confirmed and getattr(key, "char", "") == self.confirm_character:
+                self._confirmed = True
+                self._waiting_for_confirmed = False
+                return
+        if self.is_paused():
+            if key == keyboard.Key.enter:
+                print("Still searching ... will pause as soon as I am done.")
+                return
+        print("Get it ... will pause search after I am done with this one.")
+        self._paused = True
 
 
 @dataclass
@@ -104,11 +168,16 @@ class ChangeHandler(FileSystemEventHandler):
             self.changed = True
 
 
-def sleep_with_watchdog(duration: int, files: List[Path]) -> None:
+def doze(
+    duration: int, files: List[Path] | None = None, keyboard_monitor: KeyboardMonitor | None = None
+) -> None:
     """Sleep for a specified duration while monitoring the change of files"""
-    event_handler = ChangeHandler([str(x) for x in files])
+    event_handler = ChangeHandler([str(x) for x in (files or [])])
     observers = []
-    for filename in files:
+    if keyboard_monitor:
+        keyboard_monitor.start_sleeping()
+
+    for filename in files or []:
         if not filename.exists():
             raise FileNotFoundError(f"File not found: {filename}")
         observer = Observer()
@@ -123,6 +192,8 @@ def sleep_with_watchdog(duration: int, files: List[Path]) -> None:
             if event_handler.changed:
                 return
             time.sleep(1)
+            if keyboard_monitor and not keyboard_monitor.is_sleeping():
+                return
     finally:
         for observer in observers:
             observer.stop()
