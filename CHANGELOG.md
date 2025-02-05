@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add option `ai` that allows the specification of AI models to use for certain marketplaces or items.
 - Support locally hosted Ollama models
+- Support DeepSeek-r1 model with `<think>` tags.
 - Add option `timeout` to AI request.
-- Expand command line option --clear-cache
+- Expand command line option `--clear-cache`
 
 ## [0.6.2] - 2025-02-03
 
