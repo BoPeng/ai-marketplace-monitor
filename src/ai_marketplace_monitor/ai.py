@@ -236,7 +236,7 @@ class OpenAIBackend(AIBackend):
         if self.logger:
             self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
 
-        answer = response.choices[0].message.content
+        answer = response.choices[0].message.content or ""
         if answer.strip().startswith("<think>"):
             # remove <think></think> from the output
             answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
@@ -244,21 +244,36 @@ class OpenAIBackend(AIBackend):
             answer is None
             or not answer.strip()
             or "\n" not in answer
-            or not re.match(r".*(\d)", answer.split("\n")[0])
+            or not re.match(r".*(\d)", answer)
         ):
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        score, comment = answer.strip().split("\n", 1)
-        score = cast(re.Match[str], re.match(r".*(\d)", score)).group(1)
-        if int(score) > 5 or int(score) < 1:
-            score = "1"
+        # the lower models does not really following the instruction, and sometimes
+        # shows "Rating: "...
+        lines = answer.split("\n")
+        # if any of the lines contains "Rating: ", extract the rating from it.
+        score: str | None = None
+        comment = ""
+        for line in lines:
+            matched = re.match(r".*Rating:?\s*([1-5])", line)
+            if matched:
+                score = matched.group(1)
+                continue
+            if score is not None:
+                comment += line + "\n"
+        # if no rating is find, take the first line as the rating
+        if score is None and re.match(r".*([1-5])", lines[0]):
+            score = cast(re.Match[str], re.match(r".*([1-5])", lines[0])).group(1)
+            comment = "\n".join(lines[1:])
+        else:
+            raise ValueError(f"Unrecognized response from {self.config.name}: {response}")
 
         cache.set(
             (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
-            {"score": int(score), "comment": comment.strip()},
+            {"score": int(score), "comment": comment.strip().strip("*")},
             tag=CacheType.AI_INQUIRY.value,
         )
-        res = AIResponse(int(score), comment.strip())
+        res = AIResponse(int(score), comment.strip().strip("*"))
 
         if self.logger:
             self.logger.info(
