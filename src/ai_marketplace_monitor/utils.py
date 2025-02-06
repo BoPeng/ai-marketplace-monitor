@@ -7,7 +7,17 @@ from pathlib import Path
 from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
+import rich
 from diskcache import Cache  # type: ignore
+
+try:
+    from pynput import keyboard  # type: ignore
+
+    pynput_installed = True
+except ImportError:
+    # some platforms are not supported
+    pynput_installed = False
+
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -17,7 +27,89 @@ amm_home.mkdir(parents=True, exist_ok=True)
 
 cache = Cache(amm_home)
 
+
 TConfigType = TypeVar("TConfigType", bound="DataClassWithHandleFunc")
+
+
+class SleepStatus(Enum):
+    NOT_DISRUPTED = 0
+    BY_KEYBOARD = 1
+    BY_FILE_CHANGE = 2
+
+
+class KeyboardMonitor:
+    confirm_character = "c"
+
+    def __init__(self: "KeyboardMonitor") -> None:
+        self._paused: bool = False
+        self._listener: keyboard.Listener | None = None
+        self._sleeping: bool = False
+        self._confirmed: bool | None = None
+
+    def start(self: "KeyboardMonitor") -> None:
+        if pynput_installed:
+            self._listener = keyboard.Listener(on_press=self.handle_key_press)
+            self._listener.start()  # start to listen on a separate thread
+
+    def stop(self: "KeyboardMonitor") -> None:
+        if self._listener:
+            self._listener.stop()  # stop the listener
+
+    def start_sleeping(self: "KeyboardMonitor") -> None:
+        self._sleeping = True
+
+    def confirm(self: "KeyboardMonitor", msg: str | None = None) -> bool:
+        self._confirmed = False
+        rich.print(
+            msg
+            or f"Press {hilight(self.confirm_character)} to enter interactive mode in 10 seconds: ",
+            end="",
+            flush=True,
+        )
+        count = 0
+        while self._confirmed is False:
+            time.sleep(0.1)
+            if self._confirmed:
+                return True
+            count += 1
+            # wait a total of 10s
+            if count > 100:
+                break
+        return self._confirmed
+
+    def is_sleeping(self: "KeyboardMonitor") -> bool:
+        return self._sleeping
+
+    def is_paused(self: "KeyboardMonitor") -> bool:
+        return self._paused
+
+    def is_confirmed(self: "KeyboardMonitor") -> bool:
+        return self._confirmed is True
+
+    def set_paused(self: "KeyboardMonitor", paused: bool = True) -> None:
+        self._paused = paused
+
+    if pynput_installed:
+
+        def handle_key_press(
+            self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None
+        ) -> None:
+            # otherwise allow the main program to handle it.
+            if self._sleeping:
+                if key == keyboard.Key.esc:
+                    self._sleeping = False
+                    return
+            if self._confirmed is False:
+                if getattr(key, "char", "") == self.confirm_character:
+                    self._confirmed = True
+                    return
+            if self.is_paused():
+                if key == keyboard.Key.esc:
+                    print("Still searching ... will pause as soon as I am done.")
+                    return
+            if key == keyboard.Key.esc:
+                print("Pausing search ...")
+                self._paused = True
 
 
 @dataclass
@@ -104,11 +196,22 @@ class ChangeHandler(FileSystemEventHandler):
             self.changed = True
 
 
-def sleep_with_watchdog(duration: int, files: List[Path]) -> None:
-    """Sleep for a specified duration while monitoring the change of files"""
-    event_handler = ChangeHandler([str(x) for x in files])
+def doze(
+    duration: int, files: List[Path] | None = None, keyboard_monitor: KeyboardMonitor | None = None
+) -> SleepStatus:
+    """Sleep for a specified duration while monitoring the change of files.
+
+    Return:
+        0: if doze was done naturally.
+        1: if doze was disrupted by keyboard
+        2: if doze was disrupted by file change
+    """
+    event_handler = ChangeHandler([str(x) for x in (files or [])])
     observers = []
-    for filename in files:
+    if keyboard_monitor:
+        keyboard_monitor.start_sleeping()
+
+    for filename in files or []:
         if not filename.exists():
             raise FileNotFoundError(f"File not found: {filename}")
         observer = Observer()
@@ -121,8 +224,11 @@ def sleep_with_watchdog(duration: int, files: List[Path]) -> None:
     try:
         while time.time() - start_time < duration:
             if event_handler.changed:
-                return
+                return SleepStatus.BY_FILE_CHANGE
             time.sleep(1)
+            if keyboard_monitor and not keyboard_monitor.is_sleeping():
+                return SleepStatus.BY_KEYBOARD
+        return SleepStatus.NOT_DISRUPTED
     finally:
         for observer in observers:
             observer.stop()
@@ -147,7 +253,7 @@ def convert_to_seconds(time_str: str) -> int:
 def hilight(text: str, style: str = "name") -> str:
     """Highlight the keywords in the text with the specified color."""
     color = {
-        "name": "bright_cyan",
+        "name": "cyan",
         "fail": "red",
         "info": "blue",
         "succ": "green",

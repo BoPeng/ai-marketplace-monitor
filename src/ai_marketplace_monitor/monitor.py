@@ -10,13 +10,23 @@ import inflect
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
+from rich.prompt import Prompt
 
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .item import SearchedItem
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
-from .utils import CacheType, amm_home, cache, calculate_file_hash, hilight, sleep_with_watchdog
+from .utils import (
+    CacheType,
+    KeyboardMonitor,
+    SleepStatus,
+    amm_home,
+    cache,
+    calculate_file_hash,
+    doze,
+    hilight,
+)
 
 
 class MarketplaceMonitor:
@@ -27,7 +37,7 @@ class MarketplaceMonitor:
         config_files: List[Path] | None,
         headless: bool | None,
         disable_javascript: bool | None,
-        logger: Logger,
+        logger: Logger | None,
     ) -> None:
         for file_path in config_files or []:
             if not file_path.exists():
@@ -42,7 +52,9 @@ class MarketplaceMonitor:
         self.headless = headless
         self.disable_javascript = disable_javascript
         self.ai_agents: List[AIBackend] = []
-        self.playwright: Playwright | None = None
+        self.keyboard_monitor: KeyboardMonitor | None = None
+        self.playwright: Playwright = sync_playwright().start()
+        self.browser: Browser | None = None
         self.logger = logger
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
@@ -65,10 +77,11 @@ class MarketplaceMonitor:
             except Exception as e:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
-                    self.logger.error(
-                        f"""{hilight("[Config]", "fail")} Error parsing:\n\n{hilight(str(e), "fail")}\n\nPlease fix the configuration and I will try again as soon as you are done."""
-                    )
-                sleep_with_watchdog(60, self.config_files)
+                    if self.logger:
+                        self.logger.error(
+                            f"""{hilight("[Config]", "fail")} Error parsing:\n\n{hilight(str(e), "fail")}\n\nPlease fix the configuration and I will try again as soon as you are done."""
+                        )
+                doze(60, self.config_files, self.keyboard_monitor)
                 continue
 
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
@@ -83,9 +96,10 @@ class MarketplaceMonitor:
             elif ai_config.name.lower() in supported_ai_backends:
                 ai_class = supported_ai_backends[ai_config.name.lower()]
             else:
-                self.logger.error(
-                    f"""{hilight("[Config]", "fail")} Cannot determine an AI service provider from service name or provider."""
-                )
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[Config]", "fail")} Cannot determine an AI service provider from service name or provider."""
+                    )
                 continue
 
             try:
@@ -95,9 +109,10 @@ class MarketplaceMonitor:
                 #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
                 # )
             except Exception as e:
-                self.logger.error(
-                    f"""{hilight("[AI]", "fail")} Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
-                )
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[AI]", "fail")} Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
+                    )
                 continue
 
     def search_item(
@@ -107,9 +122,10 @@ class MarketplaceMonitor:
         item_config: TItemConfig,
     ) -> None:
         """Search for an item on the marketplace."""
-        self.logger.info(
-            f"""{hilight("[Search]", "info")} Searching {marketplace_config.name} for {hilight(item_config.name)}"""
-        )
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Search]", "info")} Searching {marketplace_config.name} for {hilight(item_config.name)}"""
+            )
         new_listings = []
         listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
@@ -122,9 +138,10 @@ class MarketplaceMonitor:
             item_config.searched_count += 1
             # if everyone has been notified
             if all(listing.user_notified_key(user) in cache for user in users_to_notify):
-                self.logger.info(
-                    f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
-                )
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
+                    )
                 continue
             # for x in self.find_new_items(found_items)
             res = self.evaluate_by_ai(
@@ -142,22 +159,24 @@ class MarketplaceMonitor:
                 acceptable_rating = 3
 
             if res.score < acceptable_rating:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}."""
-                )
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}."""
+                    )
                 continue
             new_listings.append(listing)
             listing_ratings.append(res)
 
         p = inflect.engine()
-        self.logger.info(
-            f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
-        )
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
+            )
         if new_listings:
             self.notify_users(users_to_notify, new_listings, listing_ratings)
         time.sleep(5)
 
-    def schedule_jobs(self: "MarketplaceMonitor", browser: Browser) -> None:
+    def schedule_jobs(self: "MarketplaceMonitor") -> None:
         """Schedule jobs to run periodically."""
         # we reload the config file each time when a scan action is completed
         # this allows users to add/remove products dynamically.
@@ -170,7 +189,9 @@ class MarketplaceMonitor:
             if marketplace_config.name in self.active_marketplaces:
                 marketplace = self.active_marketplaces[marketplace_config.name]
             else:
-                marketplace = marketplace_class(marketplace_config.name, browser, self.logger)
+                marketplace = marketplace_class(
+                    marketplace_config.name, self.browser, self.keyboard_monitor, self.logger
+                )
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
             # Configure might have been changed
@@ -195,23 +216,26 @@ class MarketplaceMonitor:
                         for start_at in start_at_list:
                             if start_at.startswith("*:*:"):
                                 # '*:*:12' to ':12'
-                                self.logger.info(
-                                    f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
-                                )
+                                if self.logger:
+                                    self.logger.info(
+                                        f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
+                                    )
                                 scheduled = schedule.every().minute.at(start_at[3:])
                             elif start_at.startswith("*:"):
                                 # '*:12:12' or  '*:12'
-                                self.logger.info(
-                                    f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
-                                )
+                                if self.logger:
+                                    self.logger.info(
+                                        f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
+                                    )
                                 scheduled = schedule.every().hour.at(
                                     start_at[1:] if start_at.count(":") == 1 else start_at[2:]
                                 )
                             else:
                                 # '12:12:12' or '12:12'
-                                self.logger.info(
-                                    f"""{hilight("[Search]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
-                                )
+                                if self.logger:
+                                    self.logger.info(
+                                        f"""{hilight("[Search]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
+                                    )
                                 scheduled = schedule.every().day.at(start_at)
                     else:
                         search_interval = max(
@@ -226,9 +250,10 @@ class MarketplaceMonitor:
                             or 60 * 60,
                             search_interval,
                         )
-                        self.logger.info(
-                            f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"""
-                        )
+                        if self.logger:
+                            self.logger.info(
+                                f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"""
+                            )
                         scheduled = schedule.every(search_interval).to(max_search_interval).seconds
                     if scheduled is None:
                         raise ValueError(
@@ -241,53 +266,110 @@ class MarketplaceMonitor:
                         item_config,
                     ).tag(item_config.name)
 
+    def handle_pause(self: "MarketplaceMonitor") -> None:
+        """Handle interruption signal."""
+        if (
+            self.keyboard_monitor is None
+            or not self.keyboard_monitor.is_paused()
+            or not self.keyboard_monitor.confirm()
+        ):
+            return
+
+        # now we should go to an interactive session
+        while True:
+            while True:
+                url = (
+                    Prompt.ask(
+                        f"""\n{hilight("What item do you want to check?")} Please provide an ID or a URL, or exit to quite."""
+                    )
+                    .strip("\x1b")
+                    .strip()
+                )
+
+                if not url.isnumeric() and not url.startswith("https://"):
+                    if url.endswith("exit"):
+                        url = "exit"
+                        break
+                    if url:
+                        print(f'Invalid input "{url}". Please try again.')
+                else:
+                    break
+
+            if url == "exit":
+                break
+
+            name = None
+            assert self.config is not None
+            item_names = list(self.config.item.keys())
+            if len(item_names) > 1:
+                name = Prompt.ask("Which item? ", choices=item_names)
+
+            try:
+                self.check_items([url], for_item=name)
+            except Exception as e:
+                if self.logger:
+                    self.logger.debug(f"Failed to check item {url}: {e}")
+        self.keyboard_monitor.set_paused(False)
+
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
         # start a browser with playwright, cannot use with statement since the jobs will be
         # executed outside of the scope by schedule job runner
-        self.playwright = sync_playwright().start()
+        self.keyboard_monitor = KeyboardMonitor()
+        self.keyboard_monitor.start()
+
         # Open a new browser page.
-        assert self.playwright is not None
-        browser: Browser = self.playwright.chromium.launch(headless=self.headless)
+        self.browser = self.playwright.chromium.launch(headless=self.headless)
         #
+        assert self.browser is not None
         while True:
-            self.schedule_jobs(browser)
+            self.handle_pause()
+            self.schedule_jobs()
             if not schedule.get_jobs():
                 # this actually should not happen because at least one item is required for the configuration file
-                self.logger.error(
-                    "No search job is defined. Please add search items to your config file."
-                )
-                sleep_with_watchdog(60, self.config_files)
+                if self.logger:
+                    self.logger.error(
+                        "No search job is defined. Please add search items to your config file."
+                    )
+                self.handle_pause()
+                if doze(60, self.config_files, self.keyboard_monitor) == SleepStatus.BY_KEYBOARD:
+                    self.keyboard_monitor.set_paused(True)
                 continue
             # run all jobs at the first time, then on their own schedule
             # we could have used schedule.run_all() but we would like to check if
             # configuration file has been changed, if so, clear all jobs and restart
             for job in schedule.get_jobs():
                 job.run()
+                self.handle_pause()
                 # if configuration file has been changed, clear all scheduled jobs and restart
                 new_file_hash = calculate_file_hash(self.config_files)
                 assert self.config_hash is not None
                 if new_file_hash != self.config_hash:
-                    self.logger.info(
-                        f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
-                    )
+                    if self.logger:
+                        self.logger.info(
+                            f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
+                        )
                     schedule.clear()
                     break
             if not schedule.get_jobs():
                 continue
             # subsequent runs will be scheduled runs
             while True:
-                next_job = None
+                next_job: schedule.Job | None = None
                 for job in schedule.jobs:
                     if job.next_run is None:
                         continue
-                    if next_job is None or next_job.next_run > job.next_run:
+                    if next_job is None or (
+                        next_job.next_run and next_job.next_run > job.next_run
+                    ):
                         next_job = job
+
                 if next_job is None:
                     # no more job
-                    self.logger.warning(
-                        f"""{hilight("[Search]", "fail")} No more active search job."""
-                    )
+                    if self.logger:
+                        self.logger.warning(
+                            f"""{hilight("[Search]", "fail")} No more active search job."""
+                        )
                     sys.exit(0)
                 # assert next_job is not None
                 assert next_job.next_run is not None
@@ -296,31 +378,36 @@ class MarketplaceMonitor:
                     # the sleep time might not be enough, causing this message
                     # to be sent repeatedly. Having a idle_seconds > 60 helps
                     # to reduce the frequency of this message.
-                    self.logger.info(
-                        f"""{hilight("[Search]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
-                    )
+                    if self.logger:
+                        self.logger.info(
+                            f"""{hilight("[Search]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
+                        )
 
-                sleep_with_watchdog(
-                    max(5, int(idle_seconds)),
-                    self.config_files,
-                )
-                # if configuration file has been changed, clear all scheduled jobs and restart
-                new_file_hash = calculate_file_hash(self.config_files)
-                assert self.config_hash is not None
-                if new_file_hash != self.config_hash:
-                    self.logger.info(
-                        f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
-                    )
-                    schedule.clear()
-                    break
+                res = doze(max(5, int(idle_seconds)), self.config_files, self.keyboard_monitor)
+                if res == SleepStatus.BY_FILE_CHANGE:
+                    # if configuration file has been changed, clear all scheduled jobs and restart
+                    new_file_hash = calculate_file_hash(self.config_files)
+                    assert self.config_hash is not None
+                    if new_file_hash != self.config_hash:
+                        if self.logger:
+                            self.logger.info(
+                                f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
+                            )
+                        schedule.clear()
+                        break
+                elif res == SleepStatus.BY_KEYBOARD:
+                    self.keyboard_monitor.set_paused(True)
+
+                self.handle_pause()
                 schedule.run_pending()
 
     def stop_monitor(self: "MarketplaceMonitor") -> None:
         """Stop the monitor."""
         for marketplace in self.active_marketplaces.values():
             marketplace.stop()
-        if self.playwright is not None:
-            self.playwright.stop()
+        self.playwright.stop()
+        if self.keyboard_monitor:
+            self.keyboard_monitor.stop()
         cache.close()
 
     def check_items(
@@ -352,53 +439,55 @@ class MarketplaceMonitor:
         if not post_urls:
             raise ValueError("No URLs to check.")
 
-        # we may or may not need a browser
-        with sync_playwright() as p:
-            # Open a new browser page.
-            browser = None
-            for post_url in post_urls or []:
-                # check if item in config
-                assert self.config is not None
+        # Open a new browser page.
+        for post_url in post_urls or []:
+            # check if item in config
+            assert self.config is not None
 
-                # which marketplace to check it?
-                for marketplace_config in self.config.marketplace.values():
-                    marketplace_class = supported_marketplaces[marketplace_config.name]
-                    if marketplace_config.name in self.active_marketplaces:
-                        marketplace = self.active_marketplaces[marketplace_config.name]
-                    else:
-                        marketplace = marketplace_class(marketplace_config.name, None, self.logger)
-                        self.active_marketplaces[marketplace_config.name] = marketplace
+            # which marketplace to check it?
+            for marketplace_config in self.config.marketplace.values():
+                marketplace_class = supported_marketplaces[marketplace_config.name]
+                if marketplace_config.name in self.active_marketplaces:
+                    marketplace = self.active_marketplaces[marketplace_config.name]
+                else:
+                    marketplace = marketplace_class(
+                        marketplace_config.name, None, None, self.logger
+                    )
+                    self.active_marketplaces[marketplace_config.name] = marketplace
 
-                    # Configure might have been changed
-                    marketplace.configure(marketplace_config)
+                # Configure might have been changed
+                marketplace.configure(marketplace_config)
 
-                    # do we need a browser?
-                    if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
-                        if browser is None:
+                # do we need a browser?
+                if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
+                    if self.browser is None:
+                        if self.logger:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                            browser = p.chromium.launch(headless=self.headless)
-                            marketplace.set_browser(browser)
+                        self.browser = self.playwright.chromium.launch(headless=self.headless)
+                        marketplace.set_browser(self.browser)
 
-                    # ignore enabled
-                    # do not search, get the item details directly
-                    listing: SearchedItem = marketplace.get_item_details(post_url)
+                # ignore enabled
+                # do not search, get the item details directly
+                listing: SearchedItem = marketplace.get_item_details(post_url)
 
+                if self.logger:
                     self.logger.info(
                         f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
                     )
 
-                    for item_config in self.config.item.values():
-                        if for_item is not None and item_config.name != for_item:
-                            continue
+                for item_config in self.config.item.values():
+                    if for_item is not None and item_config.name != for_item:
+                        continue
+                    if self.logger:
                         self.logger.info(
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
-                        marketplace.filter_item(listing, item_config)
-                        self.evaluate_by_ai(
-                            listing, item_config=item_config, marketplace_config=marketplace_config
-                        )
+                    marketplace.filter_item(listing, item_config)
+                    self.evaluate_by_ai(
+                        listing, item_config=item_config, marketplace_config=marketplace_config
+                    )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",
@@ -419,9 +508,10 @@ class MarketplaceMonitor:
             try:
                 return agent.evaluate(item, item_config)
             except Exception as e:
-                self.logger.error(
-                    f"""{hilight("[AI]", "fail")} Failed to get an answer from {agent.config.name}: {e}"""
-                )
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[AI]", "fail")} Failed to get an answer from {agent.config.name}: {e}"""
+                    )
                 continue
         return AIResponse(5, AIResponse.NOT_EVALUATED)
 
@@ -442,13 +532,15 @@ class MarketplaceMonitor:
                     time_since_notification = datetime.now() - datetime.strptime(
                         notified_date, "%Y-%m-%d %H:%M:%S"
                     )
-                    self.logger.info(
-                        f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title} {humanize.naturaltime(time_since_notification)}"""
-                    )
+                    if self.logger:
+                        self.logger.info(
+                            f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title} {humanize.naturaltime(time_since_notification)}"""
+                        )
                     continue
-                self.logger.info(
-                    f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
-                )
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
+                    )
                 if rating.comment == AIResponse.NOT_EVALUATED:
                     msgs.append(
                         (
@@ -474,9 +566,10 @@ class MarketplaceMonitor:
 
             title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
             message = "\n\n".join(msgs)
-            self.logger.info(
-                f"""{hilight("[Notify]", "succ")} Sending {user} a message with title {hilight(title)} and message {hilight(message)}"""
-            )
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Notify]", "succ")} Sending {user} a message with title {hilight(title)} and message {hilight(message)}"""
+                )
             assert self.config is not None
             assert self.config.user is not None
             try:
@@ -488,7 +581,8 @@ class MarketplaceMonitor:
                         tag=CacheType.USER_NOTIFIED.value,
                     )
             except Exception as e:
-                self.logger.error(
-                    f"""{hilight("[Notify]", "fail")} Failed to notify {user}: {e}"""
-                )
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[Notify]", "fail")} Failed to notify {user}: {e}"""
+                    )
                 continue

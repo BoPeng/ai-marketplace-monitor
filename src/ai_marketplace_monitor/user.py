@@ -22,7 +22,7 @@ class UserConfig(DataClassWithHandleFunc):
 class User:
     allowed_config_keys: ClassVar = {"pushbullet_token"}
 
-    def __init__(self: "User", name: str, config: UserConfig, logger: Logger) -> None:
+    def __init__(self: "User", name: str, config: UserConfig, logger: Logger | None) -> None:
         self.name = name
         self.config = config
         self.push_bullet_token = None
@@ -42,17 +42,20 @@ class User:
                 pb.push_note(title, message)
                 return True
             except Exception as e:
-                self.logger.debug(
-                    f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
-                )
-                if attempt < max_retries - 1:
+                if self.logger:
                     self.logger.debug(
-                        f"""{hilight("[Notify]", "fail")} Retrying in {delay} seconds..."""
+                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
                     )
+                if attempt < max_retries - 1:
+                    if self.logger:
+                        self.logger.debug(
+                            f"""{hilight("[Notify]", "fail")} Retrying in {delay} seconds..."""
+                        )
                     time.sleep(delay)
                 else:
-                    self.logger.error(
-                        f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
-                    )
+                    if self.logger:
+                        self.logger.error(
+                            f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
+                        )
                     return False
         return True

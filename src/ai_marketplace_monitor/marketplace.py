@@ -7,7 +7,7 @@ from typing import Any, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, Page
 
 from .item import SearchedItem
-from .utils import DataClassWithHandleFunc, convert_to_seconds, hilight
+from .utils import DataClassWithHandleFunc, KeyboardMonitor, convert_to_seconds, hilight
 
 
 class MarketPlace(Enum):
@@ -311,9 +311,16 @@ TItemConfig = TypeVar("TItemConfig", bound=ItemConfig)
 
 class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
-    def __init__(self: "Marketplace", name: str, browser: Browser | None, logger: Logger) -> None:
+    def __init__(
+        self: "Marketplace",
+        name: str,
+        browser: Browser | None,
+        keyboard_monitor: KeyboardMonitor | None = None,
+        logger: Logger | None = None,
+    ) -> None:
         self.name = name
         self.browser = browser
+        self.keyboard_monitor = keyboard_monitor
         self.disable_javascript: bool = False
         self.logger = logger
         self.page: Page | None = None
@@ -342,7 +349,12 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
     def stop(self: "Marketplace") -> None:
         if self.browser is not None:
-            self.browser.close()
+            # stop closing the browser since Ctrl-C will kill playwright,
+            # leaving browser in a dysfunctional status.
+            # see
+            #   https://github.com/microsoft/playwright-python/issues/1170
+            # for details.
+            # self.browser.close()
             self.browser = None
             self.page = None
 

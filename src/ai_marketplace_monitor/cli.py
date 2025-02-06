@@ -132,12 +132,14 @@ def main(
 
     if items is not None:
         try:
-            MarketplaceMonitor(config_files, headless, disable_javascript, logger).check_items(
-                items, for_item
-            )
+            monitor = MarketplaceMonitor(config_files, headless, disable_javascript, logger)
+            monitor.check_items(items, for_item)
         except Exception as e:
             logger.error(f"""{hilight("[Check]", "fail")} {e}""")
             raise
+        finally:
+            monitor.stop_monitor()
+
         sys.exit(0)
 
     try:
