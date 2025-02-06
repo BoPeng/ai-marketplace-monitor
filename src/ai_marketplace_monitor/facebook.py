@@ -575,9 +575,11 @@ class FacebookSearchResultPage(WebPage):
                 )
                 post_url = atag.get_attribute("href") or ""
                 details = atag.locator(":scope > :first-child > div").nth(1)
-                raw_price = details.locator(":scope > div").nth(0).text_content() or ""
-                title = details.locator(":scope > div").nth(1).text_content() or ""
-                location = details.locator(":scope > div").nth(2).text_content() or ""
+                divs = details.locator(":scope > div").all()
+                raw_price = "" if len(divs) < 1 else divs[0].text_content() or ""
+                title = "" if len(divs) < 2 else divs[1].text_content() or ""
+                # location can be empty in some rare cases
+                location = "" if len(divs) <= 3 else divs[2].text_content() or ""
                 image = listing.locator("img").get_attribute("src") or ""
                 price = extract_price(raw_price)
 
