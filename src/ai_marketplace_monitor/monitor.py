@@ -314,7 +314,6 @@ class MarketplaceMonitor:
             except Exception as e:
                 if self.logger:
                     self.logger.debug(f"Failed to check item {url}: {e}")
-        self.keyboard_monitor.set_paused(False)
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""

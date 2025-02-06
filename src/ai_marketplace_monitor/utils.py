@@ -66,16 +66,21 @@ class KeyboardMonitor:
             end="",
             flush=True,
         )
-        count = 0
-        while self._confirmed is False:
-            time.sleep(0.1)
-            if self._confirmed:
-                return True
-            count += 1
-            # wait a total of 10s
-            if count > 100:
-                break
-        return self._confirmed
+        try:
+            count = 0
+            while self._confirmed is False:
+                time.sleep(0.1)
+                if self._confirmed:
+                    return True
+                count += 1
+                # wait a total of 10s
+                if count > 100:
+                    break
+            return self._confirmed
+        finally:
+            # whether or not confirm is successful, reset paused and confirmed flag
+            self._paused = False
+            self._confirmed = None
 
     def is_sleeping(self: "KeyboardMonitor") -> bool:
         return self._sleeping
@@ -94,15 +99,17 @@ class KeyboardMonitor:
         def handle_key_press(
             self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None
         ) -> None:
-            # otherwise allow the main program to handle it.
+            # is sleeping, wake up
             if self._sleeping:
                 if key == keyboard.Key.esc:
                     self._sleeping = False
                     return
+            # if waiting for confirmation, set confirm
             if self._confirmed is False:
                 if getattr(key, "char", "") == self.confirm_character:
                     self._confirmed = True
                     return
+            # if being paused
             if self.is_paused():
                 if key == keyboard.Key.esc:
                     print("Still searching ... will pause as soon as I am done.")
