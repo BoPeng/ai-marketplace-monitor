@@ -368,7 +368,7 @@ class FacebookMarketplace(Marketplace):
                 for item in found_items:
                     if item.post_url in found:
                         continue
-                    if self.keyboard_monitor.is_paused():
+                    if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
                     found[item.post_url] = True
                     # filter by title and location since we do not have description and seller yet.
@@ -552,10 +552,20 @@ class FacebookSearchResultPage(WebPage):
                 ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2) > div"
             )
             # find each listing
-            for listing in grid_items.all():
-                if not listing.text_content():
-                    continue
+            valid_listings = []
+            try:
+                for listing in grid_items.all():
+                    if not listing.text_content():
+                        continue
+                    valid_listings.append(listing)
+            except Exception as e:
+                # this error should be tolerated
+                if self.logger:
+                    self.logger.debug(
+                        f'{hilight("[Retrieve]", "fail")} Some grid item cannot be readt: {e}'
+                    )
 
+            for listing in valid_listings:
                 atag = listing.locator(
                     ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
                 )

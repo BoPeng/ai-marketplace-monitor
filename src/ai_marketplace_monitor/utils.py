@@ -49,17 +49,23 @@ class KeyboardMonitor:
     def start_sleeping(self: "KeyboardMonitor") -> None:
         self._sleeping = True
 
-    def confirm(self: "KeyboardMonitor", msg: str | None = None) -> None:
+    def confirm(self: "KeyboardMonitor", msg: str | None = None) -> bool:
         self._confirmed = False
         rich.print(
-            msg or f"Press {hilight(self.confirm_character)} to enter interactive mode: ",
+            msg
+            or f"Press {hilight(self.confirm_character)} to enter interactive mode in 10 seconds: ",
             end="",
             flush=True,
         )
+        count = 0
         while self._confirmed is False:
             time.sleep(0.1)
             if self._confirmed:
                 return True
+            count += 1
+            # wait a total of 10s
+            if count > 100:
+                break
         return self._confirmed
 
     def is_sleeping(self: "KeyboardMonitor") -> bool:

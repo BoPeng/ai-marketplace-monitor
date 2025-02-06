@@ -54,6 +54,7 @@ class MarketplaceMonitor:
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
+        self.browser: Browser | None = None
         self.logger = logger
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
@@ -175,7 +176,7 @@ class MarketplaceMonitor:
             self.notify_users(users_to_notify, new_listings, listing_ratings)
         time.sleep(5)
 
-    def schedule_jobs(self: "MarketplaceMonitor", browser: Browser) -> None:
+    def schedule_jobs(self: "MarketplaceMonitor") -> None:
         """Schedule jobs to run periodically."""
         # we reload the config file each time when a scan action is completed
         # this allows users to add/remove products dynamically.
@@ -189,7 +190,7 @@ class MarketplaceMonitor:
                 marketplace = self.active_marketplaces[marketplace_config.name]
             else:
                 marketplace = marketplace_class(
-                    marketplace_config.name, browser, self.keyboard_monitor, self.logger
+                    marketplace_config.name, self.browser, self.keyboard_monitor, self.logger
                 )
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
@@ -291,23 +292,23 @@ class MarketplaceMonitor:
                         break
                     if url:
                         print(f'Invalid input "{url}". Please try again.')
+                else:
+                    break
 
             if url == "exit":
                 break
 
-            item_names = self.config.item.keys()
-            print(f' "{item_names=}"')
-
             name = None
+            assert self.config is not None
+            item_names = list(self.config.item.keys())
             if len(item_names) > 1:
                 name = Prompt.ask("Which item? ", choices=item_names)
-            print(f' "{name=}"')
 
             try:
                 self.check_items([url], for_item=name)
             except Exception as e:
-                self.logger.debug(f"Failed to check item {url}: {e}")
-            #
+                if self.logger:
+                    self.logger.debug(f"Failed to check item {url}: {e}")
         self.keyboard_monitor.set_paused(False)
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
@@ -318,11 +319,12 @@ class MarketplaceMonitor:
         self.keyboard_monitor.start()
 
         # Open a new browser page.
-        browser: Browser = self.playwright.chromium.launch(headless=self.headless)
+        self.browser = self.playwright.chromium.launch(headless=self.headless)
         #
+        assert self.browser is not None
         while True:
             self.handle_pause()
-            self.schedule_jobs(browser)
+            self.schedule_jobs()
             if not schedule.get_jobs():
                 # this actually should not happen because at least one item is required for the configuration file
                 if self.logger:
@@ -438,7 +440,6 @@ class MarketplaceMonitor:
             raise ValueError("No URLs to check.")
 
         # Open a new browser page.
-        browser = None
         for post_url in post_urls or []:
             # check if item in config
             assert self.config is not None
@@ -459,13 +460,13 @@ class MarketplaceMonitor:
 
                 # do we need a browser?
                 if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
-                    if browser is None:
+                    if self.browser is None:
                         if self.logger:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                        browser = self.playwright.chromium.launch(headless=self.headless)
-                        marketplace.set_browser(browser)
+                        self.browser = self.playwright.chromium.launch(headless=self.headless)
+                        marketplace.set_browser(self.browser)
 
                 # ignore enabled
                 # do not search, get the item details directly
