@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
+import rich
 from diskcache import Cache  # type: ignore
 from pynput import keyboard  # type: ignore
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
@@ -22,6 +23,12 @@ cache = Cache(amm_home)
 TConfigType = TypeVar("TConfigType", bound="DataClassWithHandleFunc")
 
 
+class SleepStatus(Enum):
+    NOT_DISRUPTED = 0
+    BY_KEYBOARD = 1
+    BY_FILE_CHANGE = 2
+
+
 class KeyboardMonitor:
     confirm_character = "c"
 
@@ -29,8 +36,7 @@ class KeyboardMonitor:
         self._paused: bool = False
         self._listener: keyboard.Listener | None = None
         self._sleeping: bool = False
-        self._confirmed: bool = False
-        self._waiting_for_confirmed = False
+        self._confirmed: bool | None = None
 
     def start(self: "KeyboardMonitor") -> None:
         self._listener = keyboard.Listener(on_press=self.handle_key_press)
@@ -43,14 +49,18 @@ class KeyboardMonitor:
     def start_sleeping(self: "KeyboardMonitor") -> None:
         self._sleeping = True
 
-    def start_waiting_for_confirmation(self: "KeyboardMonitor") -> None:
-        self._waiting_for_confirmed = True
+    def confirm(self: "KeyboardMonitor", msg: str | None = None) -> None:
         self._confirmed = False
-        print(
-            f"Press {self.confirm_character} to confirm or I will go back to work ...",
+        rich.print(
+            msg or f"Press {hilight(self.confirm_character)} to enter interactive mode: ",
             end="",
             flush=True,
         )
+        while self._confirmed is False:
+            time.sleep(0.1)
+            if self._confirmed:
+                return True
+        return self._confirmed
 
     def is_sleeping(self: "KeyboardMonitor") -> bool:
         return self._sleeping
@@ -59,29 +69,28 @@ class KeyboardMonitor:
         return self._paused
 
     def is_confirmed(self: "KeyboardMonitor") -> bool:
-        return self._confirmed
+        return self._confirmed is True
 
-    def reset_paused(self: "KeyboardMonitor") -> None:
-        self._paused = False
+    def set_paused(self: "KeyboardMonitor", paused: bool = True) -> None:
+        self._paused = paused
 
     def handle_key_press(self: "KeyboardMonitor", key: keyboard.Key) -> None:
         # otherwise allow the main program to handle it.
         if self._sleeping:
-            if key == keyboard.Key.enter:
-                print("Waking up ...")
+            if key == keyboard.Key.esc:
                 self._sleeping = False
                 return
-        if self._waiting_for_confirmed:
-            if not self._confirmed and getattr(key, "char", "") == self.confirm_character:
+        if self._confirmed is False:
+            if getattr(key, "char", "") == self.confirm_character:
                 self._confirmed = True
-                self._waiting_for_confirmed = False
                 return
         if self.is_paused():
-            if key == keyboard.Key.enter:
+            if key == keyboard.Key.esc:
                 print("Still searching ... will pause as soon as I am done.")
                 return
-        print("Get it ... will pause search after I am done with this one.")
-        self._paused = True
+        if key == keyboard.Key.esc:
+            print("Pausing search ...")
+            self._paused = True
 
 
 @dataclass
@@ -170,8 +179,14 @@ class ChangeHandler(FileSystemEventHandler):
 
 def doze(
     duration: int, files: List[Path] | None = None, keyboard_monitor: KeyboardMonitor | None = None
-) -> None:
-    """Sleep for a specified duration while monitoring the change of files"""
+) -> SleepStatus:
+    """Sleep for a specified duration while monitoring the change of files.
+
+    Return:
+        0: if doze was done naturally.
+        1: if doze was disrupted by keyboard
+        2: if doze was disrupted by file change
+    """
     event_handler = ChangeHandler([str(x) for x in (files or [])])
     observers = []
     if keyboard_monitor:
@@ -190,10 +205,11 @@ def doze(
     try:
         while time.time() - start_time < duration:
             if event_handler.changed:
-                return
+                return SleepStatus.BY_FILE_CHANGE
             time.sleep(1)
             if keyboard_monitor and not keyboard_monitor.is_sleeping():
-                return
+                return SleepStatus.BY_KEYBOARD
+        return SleepStatus.NOT_DISRUPTED
     finally:
         for observer in observers:
             observer.stop()
@@ -218,7 +234,7 @@ def convert_to_seconds(time_str: str) -> int:
 def hilight(text: str, style: str = "name") -> str:
     """Highlight the keywords in the text with the specified color."""
     color = {
-        "name": "bright_cyan",
+        "name": "cyan",
         "fail": "red",
         "info": "blue",
         "succ": "green",

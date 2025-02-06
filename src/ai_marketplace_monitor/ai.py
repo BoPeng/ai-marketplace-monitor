@@ -237,7 +237,7 @@ class OpenAIBackend(AIBackend):
         if (
             answer is None
             or not answer.strip()
-            or re.search(r"Rating\s*[1-5]:", answer, re.DOTALL) is None
+            or re.search(r"Rating[:\s]*[1-5]", answer, re.DOTALL) is None
         ):
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
@@ -246,7 +246,7 @@ class OpenAIBackend(AIBackend):
         score: int = 1
         comment = ""
         for line in lines:
-            matched = re.match(r".*Rating\s*([1-5]):(.*)", line)
+            matched = re.match(r".*Rating[:\s]*([1-5])[:\s]*(.*)", line)
             if matched:
                 score = int(matched.group(1))
                 comment = matched.group(2).strip()

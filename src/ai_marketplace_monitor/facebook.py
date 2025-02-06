@@ -282,7 +282,7 @@ class FacebookMarketplace(Marketplace):
         login_wait_time = self.config.login_wait_time or 60
         if self.logger:
             self.logger.info(
-                f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} to get ready (Enter to wake me up)."""
+                f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} or press {hilight("Esc")} when you are ready."""
             )
         doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
 
@@ -368,6 +368,8 @@ class FacebookMarketplace(Marketplace):
                 for item in found_items:
                     if item.post_url in found:
                         continue
+                    if self.keyboard_monitor.is_paused():
+                        return
                     found[item.post_url] = True
                     # filter by title and location since we do not have description and seller yet.
                     if not self.filter_item(item, item_config):

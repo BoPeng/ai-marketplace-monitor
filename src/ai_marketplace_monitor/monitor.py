@@ -10,6 +10,7 @@ import inflect
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
+from rich.prompt import Prompt
 
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
@@ -19,6 +20,7 @@ from .user import User
 from .utils import (
     CacheType,
     KeyboardMonitor,
+    SleepStatus,
     amm_home,
     cache,
     calculate_file_hash,
@@ -50,8 +52,8 @@ class MarketplaceMonitor:
         self.headless = headless
         self.disable_javascript = disable_javascript
         self.ai_agents: List[AIBackend] = []
-        self.playwright: Playwright | None = None
         self.keyboard_monitor: KeyboardMonitor | None = None
+        self.playwright: Playwright = sync_playwright().start()
         self.logger = logger
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
@@ -265,25 +267,48 @@ class MarketplaceMonitor:
 
     def handle_pause(self: "MarketplaceMonitor") -> None:
         """Handle interruption signal."""
-        if self.keyboard_monitor is None:
+        if (
+            self.keyboard_monitor is None
+            or not self.keyboard_monitor.is_paused()
+            or not self.keyboard_monitor.confirm()
+        ):
             return
 
-        if not self.keyboard_monitor.is_paused():
-            return
+        # now we should go to an interactive session
+        while True:
+            while True:
+                url = (
+                    Prompt.ask(
+                        f"""\n{hilight("What item do you want to check?")} Please provide an ID or a URL, or exit to quite."""
+                    )
+                    .strip("\x1b")
+                    .strip()
+                )
 
-        if not self.keyboard_monitor.is_confirmed():
-            self.keyboard_monitor.start_waiting_for_confirmation()
-            time.sleep(10)
+                if not url.isnumeric() and not url.startswith("https://"):
+                    if url.endswith("exit"):
+                        url = "exit"
+                        break
+                    if url:
+                        print(f'Invalid input "{url}". Please try again.')
 
-        if not self.keyboard_monitor.is_confirmed():
-            print("No response after 10 seconds. I will go back to work.")
-            return
+            if url == "exit":
+                break
 
-        if self.logger:
-            self.logger.error("paused, sleep 5")
+            item_names = self.config.item.keys()
+            print(f' "{item_names=}"')
 
-        time.sleep(5)
-        self.keyboard_monitor.reset_paused()
+            name = None
+            if len(item_names) > 1:
+                name = Prompt.ask("Which item? ", choices=item_names)
+            print(f' "{name=}"')
+
+            try:
+                self.check_items([url], for_item=name)
+            except Exception as e:
+                self.logger.debug(f"Failed to check item {url}: {e}")
+            #
+        self.keyboard_monitor.set_paused(False)
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
@@ -291,9 +316,8 @@ class MarketplaceMonitor:
         # executed outside of the scope by schedule job runner
         self.keyboard_monitor = KeyboardMonitor()
         self.keyboard_monitor.start()
-        self.playwright = sync_playwright().start()
+
         # Open a new browser page.
-        assert self.playwright is not None
         browser: Browser = self.playwright.chromium.launch(headless=self.headless)
         #
         while True:
@@ -306,7 +330,8 @@ class MarketplaceMonitor:
                         "No search job is defined. Please add search items to your config file."
                     )
                 self.handle_pause()
-                doze(60, self.config_files, self.keyboard_monitor)
+                if doze(60, self.config_files, self.keyboard_monitor) == SleepStatus.BY_KEYBOARD:
+                    self.keyboard_monitor.set_paused(True)
                 continue
             # run all jobs at the first time, then on their own schedule
             # we could have used schedule.run_all() but we would like to check if
@@ -356,27 +381,29 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
                         )
 
-                doze(max(5, int(idle_seconds)), self.config_files, self.keyboard_monitor)
-                # if configuration file has been changed, clear all scheduled jobs and restart
-                new_file_hash = calculate_file_hash(self.config_files)
-                assert self.config_hash is not None
-                if new_file_hash != self.config_hash:
-                    if self.logger:
-                        self.logger.info(
-                            f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
-                        )
-                    schedule.clear()
-                    break
+                res = doze(max(5, int(idle_seconds)), self.config_files, self.keyboard_monitor)
+                if res == SleepStatus.BY_FILE_CHANGE:
+                    # if configuration file has been changed, clear all scheduled jobs and restart
+                    new_file_hash = calculate_file_hash(self.config_files)
+                    assert self.config_hash is not None
+                    if new_file_hash != self.config_hash:
+                        if self.logger:
+                            self.logger.info(
+                                f"""{hilight("[Config]", "info")} Config file changed, restarting monitor."""
+                            )
+                        schedule.clear()
+                        break
+                elif res == SleepStatus.BY_KEYBOARD:
+                    self.keyboard_monitor.set_paused(True)
+
                 self.handle_pause()
                 schedule.run_pending()
-                self.handle_pause()
 
     def stop_monitor(self: "MarketplaceMonitor") -> None:
         """Stop the monitor."""
         for marketplace in self.active_marketplaces.values():
             marketplace.stop()
-        if self.playwright is not None:
-            self.playwright.stop()
+        self.playwright.stop()
         if self.keyboard_monitor:
             self.keyboard_monitor.stop()
         cache.close()
@@ -410,58 +437,56 @@ class MarketplaceMonitor:
         if not post_urls:
             raise ValueError("No URLs to check.")
 
-        # we may or may not need a browser
-        with sync_playwright() as p:
-            # Open a new browser page.
-            browser = None
-            for post_url in post_urls or []:
-                # check if item in config
-                assert self.config is not None
+        # Open a new browser page.
+        browser = None
+        for post_url in post_urls or []:
+            # check if item in config
+            assert self.config is not None
 
-                # which marketplace to check it?
-                for marketplace_config in self.config.marketplace.values():
-                    marketplace_class = supported_marketplaces[marketplace_config.name]
-                    if marketplace_config.name in self.active_marketplaces:
-                        marketplace = self.active_marketplaces[marketplace_config.name]
-                    else:
-                        marketplace = marketplace_class(
-                            marketplace_config.name, None, None, self.logger
-                        )
-                        self.active_marketplaces[marketplace_config.name] = marketplace
+            # which marketplace to check it?
+            for marketplace_config in self.config.marketplace.values():
+                marketplace_class = supported_marketplaces[marketplace_config.name]
+                if marketplace_config.name in self.active_marketplaces:
+                    marketplace = self.active_marketplaces[marketplace_config.name]
+                else:
+                    marketplace = marketplace_class(
+                        marketplace_config.name, None, None, self.logger
+                    )
+                    self.active_marketplaces[marketplace_config.name] = marketplace
 
-                    # Configure might have been changed
-                    marketplace.configure(marketplace_config)
+                # Configure might have been changed
+                marketplace.configure(marketplace_config)
 
-                    # do we need a browser?
-                    if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
-                        if browser is None:
-                            if self.logger:
-                                self.logger.info(
-                                    f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
-                                )
-                            browser = p.chromium.launch(headless=self.headless)
-                            marketplace.set_browser(browser)
-
-                    # ignore enabled
-                    # do not search, get the item details directly
-                    listing: SearchedItem = marketplace.get_item_details(post_url)
-
-                    if self.logger:
-                        self.logger.info(
-                            f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
-                        )
-
-                    for item_config in self.config.item.values():
-                        if for_item is not None and item_config.name != for_item:
-                            continue
+                # do we need a browser?
+                if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
+                    if browser is None:
                         if self.logger:
                             self.logger.info(
-                                f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
+                                f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                        marketplace.filter_item(listing, item_config)
-                        self.evaluate_by_ai(
-                            listing, item_config=item_config, marketplace_config=marketplace_config
+                        browser = self.playwright.chromium.launch(headless=self.headless)
+                        marketplace.set_browser(browser)
+
+                # ignore enabled
+                # do not search, get the item details directly
+                listing: SearchedItem = marketplace.get_item_details(post_url)
+
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
+                    )
+
+                for item_config in self.config.item.values():
+                    if for_item is not None and item_config.name != for_item:
+                        continue
+                    if self.logger:
+                        self.logger.info(
+                            f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
+                    marketplace.filter_item(listing, item_config)
+                    self.evaluate_by_ai(
+                        listing, item_config=item_config, marketplace_config=marketplace_config
+                    )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",
