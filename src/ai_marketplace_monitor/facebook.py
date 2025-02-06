@@ -396,7 +396,7 @@ class FacebookMarketplace(Marketplace):
                         yield item
 
     def get_item_details(self: "FacebookMarketplace", post_url: str) -> Listing:
-        details = cache.get((CacheType.LISTING_DETAILS.value, post_url.split("?")[0]))
+        details = Listing.from_cache(post_url)
         if details is not None:
             return details
 
@@ -415,11 +415,7 @@ class FacebookMarketplace(Marketplace):
                 continue
         if details is None:
             raise ValueError(f"Failed to get item details from {post_url}")
-        cache.set(
-            (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]),
-            details,
-            tag=CacheType.LISTING_DETAILS.value,
-        )
+        details.to_cache()
         return details
 
     def filter_item(

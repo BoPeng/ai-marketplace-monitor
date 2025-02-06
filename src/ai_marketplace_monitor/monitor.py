@@ -465,7 +465,7 @@ class MarketplaceMonitor:
                 marketplace.configure(marketplace_config)
 
                 # do we need a browser?
-                if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
+                if Listing.from_cache(post_url) is None:
                     if self.browser is None:
                         if self.logger:
                             self.logger.info(
