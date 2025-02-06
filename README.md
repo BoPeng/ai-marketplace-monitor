@@ -59,7 +59,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - Exclude irrelevant results and spammers.
 - Use an AI service provider to evaluate listing matches and give recommendations.
 - Send notifications via PushBullet.
-- Search repeatedly with specified intervals.
+- Search repeatedly with specified intervals or at specific times.
 - Search multiple cities, even pre-defined regions (e.g. USA)
 
 ## Quickstart
@@ -195,11 +195,12 @@ One of more sections to list the AI agent that can be used to judge if listings 
 
 Note that:
 
-1. `provider` can be [Open AI](https://openai.com/) or
-   [DeepSeek](https://www.deepseek.com/), or any of the [Ollama models](https://ollama.com/).
-2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers. The name of the provider will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-3. Ollama model requires `base_url`. A default model `llama3.1:8b`, which has a small footprint and should be sufficient for our applications.
-4. Although only OpenAI and DeepSeek are supported, you can use any other provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
+1. `provider` can be [OpenAI](https://openai.com/), 
+   [DeepSeek](https://www.deepseek.com/), or [Ollama](https://ollama.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
+2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers. 
+3. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
+4. Although only three providers are supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
+5. You can use option `ai` to list the AI services for particular marketplaces or items.
 
 A typical section for OpenAI looks like
 
@@ -220,7 +221,7 @@ One or more sections `marketplace.name` show the options for interacting with va
 | `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
 | **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
-Because the default `marketplace` for all items are `facebook`, it is easiest to define a single section called `marketplace.facebook`.
+Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`. 
 
 ### Users
 
@@ -317,10 +318,10 @@ We ask AI services to evaluate listings against the criteria that you specify an
 When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example
 
 ```toml
-rating = 2
+rating = 4
 ```
 
-to see more potential listings. Note that all listings after non-AI-based filtering will be returned if no AI service is specified.
+to see only listings that match your criteria well. Note that all listings after non-AI-based filtering will be returned if no AI service is specified or non-functional.
 
 ### Searching multiple cities and regions
 
@@ -462,16 +463,16 @@ Note that the program caches item name, not its conditions with `ai-inquiries`, 
 
 ### Support for different layouts of facebook listings
 
-Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from normal household items, rental items, and automobiles, but you may encounter items that this program cannot handle.
+Facebook marketplace supports a wide variety of products and use different layouts for them. _ai_marketplace_monitor_ can extract description from common listings such as household items and automobiles, but you may encounter items that this program cannot handle.
 
-Although I certainly do not have the bandwidth to add support for all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
+Although I certainly do not have the bandwidth to support all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
 
 ## TODO List:
 
-- Support more AI engines
-- Develop better ways to identify spammers
 - Support more notification methods.
 - Support more marketplaces such as NextDoor and Craigslist
+- Support more AI engines (if needed)
+- Develop better ways to identify spammers
 
 The structure of this project makes it relatively easy to support more notification methods, AI engines, and marketplaces, but I will mostly rely on PRs to add these features.
 
