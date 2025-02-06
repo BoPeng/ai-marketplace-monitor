@@ -415,7 +415,7 @@ class FacebookMarketplace(Marketplace):
                 continue
         if details is None:
             raise ValueError(f"Failed to get item details from {post_url}")
-        details.to_cache()
+        details.to_cache(post_url)
         return details
 
     def filter_item(
