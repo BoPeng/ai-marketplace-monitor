@@ -386,7 +386,7 @@ ai-marketplace-monitor --check your-url --for item_name
 
 Option `--check` will load the details of the item from the cache if it was previously examined. Otherwise a browser will be started to retrieve the page.
 
-Another way to check individual IDs is to enter interactive mode when the _ai-marketplace-monitor_ is running. If you press `Esc`, then confirm with `c` when prompted, you can enter the `URL` and `item_name` interactively and check the URL. Enter `exit` to exit the interactive session after you are done. However, using this method requires OS to allow the program to monitor your keyboard, and you have to allow the terminal that you use to run _ai-marketplace-monitor_ to monitor keyboard from the security settings of MacOS.
+Another way to check individual IDs is to enter interactive mode when the _ai-marketplace-monitor_ is running. If you press `Esc`, then confirm with `c` when prompted, you can enter the `URL` and `item_name` interactively and check the URL. Enter `exit` to exit the interactive session after you are done. However, using this method requires OS to allow the program to monitor your keyboard. It would not work on a terminal accessed through SSH, and you have to allow the terminal that you use to run _ai-marketplace-monitor_ to monitor keyboard from the _Privacy and Security_ settings on MacOS.
 
 ### Multiple marketplaces
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2025-02-05
+
+- Allow checking URLs during monitoring (#34)
+
 ## [0.6.4] - 2025-02-04
 
 - Add option `ai` that allows the specification of AI models to use for certain marketplaces or items.
