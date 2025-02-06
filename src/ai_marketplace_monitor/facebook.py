@@ -539,7 +539,6 @@ class WebPage:
 class FacebookSearchResultPage(WebPage):
 
     def get_listings(self: "FacebookSearchResultPage") -> List[Listing]:
-        listings: List[Listing] = []
         heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
 
         # find the grid box
@@ -560,8 +559,19 @@ class FacebookSearchResultPage(WebPage):
                     self.logger.debug(
                         f'{hilight("[Retrieve]", "fail")} Some grid item cannot be readt: {e}'
                     )
+        except Exception as e:
+            filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
+            if self.logger:
+                self.logger.error(
+                    f'{hilight("[Retrieve]", "fail")} failed to parse searching result. Page saved to {filename}: {e}'
+                )
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(self.page.content())
+            return []
 
-            for listing in valid_listings:
+        listings: List[Listing] = []
+        for idx, listing in enumerate(valid_listings):
+            try:
                 atag = listing.locator(
                     ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
                 )
@@ -591,15 +601,12 @@ class FacebookSearchResultPage(WebPage):
                         description="",
                     )
                 )
-        except Exception as e:
-            filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
-            if self.logger:
-                self.logger.error(
-                    f'{hilight("[Retrieve]", "fail")} failed to parse searching result. Page saved to {filename}: {e}'
-                )
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(self.page.content())
-            return listings
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(
+                        f'{hilight("[Retrieve]", "fail")} Failed to parse search results {idx + 1} listing: {e}'
+                    )
+                continue
 
         # Append the parsed data to the list.
         return listings
