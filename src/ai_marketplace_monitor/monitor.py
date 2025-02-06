@@ -286,7 +286,7 @@ class MarketplaceMonitor:
             while True:
                 url = (
                     Prompt.ask(
-                        f"""\n{hilight("What item do you want to check?")} Please provide an ID or a URL, or exit to quite."""
+                        f"""\nEnter an {hilight("ID")} or a {hilight("URL")} to check, or {hilight("exit")}."""
                     )
                     .strip("\x1b")
                     .strip()
@@ -308,7 +308,9 @@ class MarketplaceMonitor:
             assert self.config is not None
             item_names = list(self.config.item.keys())
             if len(item_names) > 1:
-                name = Prompt.ask("Which item? ", choices=item_names)
+                name = Prompt.ask(
+                    f"""Enter name of {hilight("search item")}""", choices=item_names
+                )
 
             try:
                 self.check_items([url], for_item=name)
