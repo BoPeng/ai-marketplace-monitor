@@ -13,7 +13,7 @@ from rich.prompt import Prompt
 
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
-from .item import SearchedItem
+from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
 from .utils import (
@@ -475,7 +475,7 @@ class MarketplaceMonitor:
 
                 # ignore enabled
                 # do not search, get the item details directly
-                listing: SearchedItem = marketplace.get_item_details(post_url)
+                listing: Listing = marketplace.get_item_details(post_url)
 
                 if self.logger:
                     self.logger.info(
@@ -496,7 +496,7 @@ class MarketplaceMonitor:
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",
-        item: SearchedItem,
+        item: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
     ) -> AIResponse:

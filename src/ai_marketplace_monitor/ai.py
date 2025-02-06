@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Generic, Type, TypeVar
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
-from .item import SearchedItem
+from .listing import Listing
 from .marketplace import TItemConfig
 from .utils import CacheType, DataClassWithHandleFunc, cache, hilight
 
@@ -123,7 +123,7 @@ class AIBackend(Generic[TAIConfig]):
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
-    def get_prompt(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> str:
+    def get_prompt(self: "AIBackend", listing: Listing, item_config: TItemConfig) -> str:
         prompt = (
             f"""A user wants to buy a {item_config.name} from Facebook Marketplace. """
             f"""Search keywords: "{'" and "'.join(item_config.keywords)}", """
@@ -162,7 +162,7 @@ class AIBackend(Generic[TAIConfig]):
             self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
         return prompt
 
-    def evaluate(self: "AIBackend", listing: SearchedItem, item_config: TItemConfig) -> AIResponse:
+    def evaluate(self: "AIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
 
@@ -185,9 +185,7 @@ class OpenAIBackend(AIBackend):
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
 
-    def evaluate(
-        self: "OpenAIBackend", listing: SearchedItem, item_config: TItemConfig
-    ) -> AIResponse:
+    def evaluate(self: "OpenAIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(listing, item_config)
         cached_result = cache.get(

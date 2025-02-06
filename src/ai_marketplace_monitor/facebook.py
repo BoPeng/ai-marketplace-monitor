@@ -13,7 +13,7 @@ import rich
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 from rich.pretty import pretty_repr
 
-from .item import SearchedItem
+from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig
 from .utils import (
     CacheType,
@@ -288,7 +288,7 @@ class FacebookMarketplace(Marketplace):
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
-    ) -> Generator[SearchedItem, None, None]:
+    ) -> Generator[Listing, None, None]:
         if not self.page:
             self.login()
             assert self.page is not None
@@ -395,7 +395,7 @@ class FacebookMarketplace(Marketplace):
                     if self.filter_item(item, item_config):
                         yield item
 
-    def get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
+    def get_item_details(self: "FacebookMarketplace", post_url: str) -> Listing:
         details = cache.get((CacheType.LISTING_DETAILS.value, post_url.split("?")[0]))
         if details is not None:
             return details
@@ -423,7 +423,7 @@ class FacebookMarketplace(Marketplace):
         return details
 
     def filter_item(
-        self: "FacebookMarketplace", item: SearchedItem, item_config: FacebookItemConfig
+        self: "FacebookMarketplace", item: Listing, item_config: FacebookItemConfig
     ) -> bool:
         # get exclude_keywords from both item_config or config
         exclude_keywords = item_config.exclude_keywords
@@ -542,8 +542,8 @@ class WebPage:
 
 class FacebookSearchResultPage(WebPage):
 
-    def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
-        listings: List[SearchedItem] = []
+    def get_listings(self: "FacebookSearchResultPage") -> List[Listing]:
+        listings: List[Listing] = []
         heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
 
         # find the grid box
@@ -578,7 +578,7 @@ class FacebookSearchResultPage(WebPage):
                 price = extract_price(raw_price)
 
                 listings.append(
-                    SearchedItem(
+                    Listing(
                         marketplace="facebook",
                         name="",
                         id=post_url.split("?")[0].rstrip("/").split("/")[-1],
@@ -635,7 +635,7 @@ class FacebookItemPage(WebPage):
     def get_condition(self: "FacebookItemPage") -> str:
         raise NotImplementedError("get_condition is not implemented for this page")
 
-    def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
+    def parse(self: "FacebookItemPage", post_url: str) -> Listing:
         if not self.verify_layout():
             raise ValueError("Layout mismatch")
 
@@ -649,7 +649,7 @@ class FacebookItemPage(WebPage):
 
         if self.logger:
             self.logger.info(f'{hilight("[Retrieve]", "succ")} Parsing {hilight(title)}')
-        res = SearchedItem(
+        res = Listing(
             marketplace="facebook",
             name="",
             id=post_url.split("?")[0].rstrip("/").split("/")[-1],
@@ -664,7 +664,7 @@ class FacebookItemPage(WebPage):
         )
         if self.logger:
             self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
-        return cast(SearchedItem, res)
+        return cast(Listing, res)
 
 
 class FacebookRegularItemPage(FacebookItemPage):

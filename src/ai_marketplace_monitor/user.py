@@ -9,7 +9,7 @@ import inflect
 from pushbullet import Pushbullet  # type: ignore
 
 from .ai import AIResponse  # type: ignore
-from .item import SearchedItem
+from .listing import Listing
 from .utils import CacheType, DataClassWithHandleFunc, cache, convert_to_seconds, hilight
 
 
@@ -64,10 +64,10 @@ class User:
     def get_config(cls: Type["User"], **kwargs: Any) -> UserConfig:
         return UserConfig(**kwargs)
 
-    def notified_key(self: "User", listing: SearchedItem) -> Tuple[str, str, str, str]:
+    def notified_key(self: "User", listing: Listing) -> Tuple[str, str, str, str]:
         return (CacheType.USER_NOTIFIED.value, listing.marketplace, listing.id, self.name)
 
-    def notified(self: "User", listing: SearchedItem) -> bool:
+    def notified(self: "User", listing: Listing) -> bool:
         notified = cache.get(self.notified_key(listing))
         # not notified before
         if notified is None:
@@ -82,14 +82,14 @@ class User:
         # if expired is in the future, user is already notified.
         return expired > datetime.now()
 
-    def time_since_notification(self: "User", listing: SearchedItem) -> int:
+    def time_since_notification(self: "User", listing: Listing) -> int:
         key = self.notified_key(listing)
         notified = cache.get(key)
         if notified is None:
             return -1
         return (datetime.now() - datetime.strptime(notified, "%Y-%m-%d %H:%M:%S")).seconds
 
-    def notify(self: "User", listings: List[SearchedItem], ratings: List[AIResponse]) -> None:
+    def notify(self: "User", listings: List[Listing], ratings: List[AIResponse]) -> None:
         msgs = []
         unnotified_listings = []
         p = inflect.engine()

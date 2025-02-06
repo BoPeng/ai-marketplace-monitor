@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class SearchedItem:
+class Listing:
     marketplace: str
     name: str
     # unique identification
