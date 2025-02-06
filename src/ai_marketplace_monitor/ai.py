@@ -1,9 +1,9 @@
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Generic, Type, TypeVar
+from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
@@ -43,6 +43,24 @@ class AIResponse:
         if self.score > 3:
             return "succ"
         return "name"
+
+    @classmethod
+    def from_cache(
+        cls: Type["AIResponse"], listing: Listing, item_config: TItemConfig
+    ) -> Optional["AIResponse"]:
+        res = cache.get(
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id)
+        )
+        if res is None:
+            return None
+        return AIResponse(**res)
+
+    def to_cache(self: "AIResponse", listing: Listing, item_config: TItemConfig) -> None:
+        cache.set(
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
+            asdict(self),
+            tag=CacheType.AI_INQUIRY.value,
+        )
 
 
 @dataclass
@@ -188,15 +206,13 @@ class OpenAIBackend(AIBackend):
     def evaluate(self: "OpenAIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
         # ask openai to confirm the item is correct
         prompt = self.get_prompt(listing, item_config)
-        cached_result = cache.get(
-            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id)
-        )
-        if cached_result is not None:
+        res: AIResponse | None = AIResponse.from_cache(listing, item_config)
+        if res is not None:
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[AI]", "name")} {self.config.name} has already evaluated {hilight(listing.title)}."""
                 )
-            return AIResponse(cached_result["score"], cached_result["comment"])
+            return res
 
         self.connect()
 
@@ -250,12 +266,8 @@ class OpenAIBackend(AIBackend):
                 comment = matched.group(2).strip()
                 break
 
-        cache.set(
-            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
-            {"score": score, "comment": comment},
-            tag=CacheType.AI_INQUIRY.value,
-        )
         res = AIResponse(score, comment)
+        res.to_cache(listing, item_config)
         if self.logger:
             self.logger.info(
                 f"""{hilight("[AI]", res.style)} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
