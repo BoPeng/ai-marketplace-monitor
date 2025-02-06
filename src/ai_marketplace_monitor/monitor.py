@@ -1,6 +1,5 @@
 import sys
 import time
-from datetime import datetime
 from logging import Logger
 from pathlib import Path
 from typing import ClassVar, List
@@ -137,7 +136,10 @@ class MarketplaceMonitor:
             # increase the searched_count
             item_config.searched_count += 1
             # if everyone has been notified
-            if all(listing.user_notified_key(user) in cache for user in users_to_notify):
+            if all(
+                User(self.config.user[user], self.logger).notified(listing)
+                for user in users_to_notify
+            ):
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
@@ -173,7 +175,10 @@ class MarketplaceMonitor:
                 f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
             )
         if new_listings:
-            self.notify_users(users_to_notify, new_listings, listing_ratings)
+            for user in users_to_notify:
+                User(self.config.user[user], logger=self.logger).notify(
+                    new_listings, listing_ratings
+                )
         time.sleep(5)
 
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
@@ -514,75 +519,3 @@ class MarketplaceMonitor:
                     )
                 continue
         return AIResponse(5, AIResponse.NOT_EVALUATED)
-
-    def notify_users(
-        self: "MarketplaceMonitor",
-        users: List[str],
-        listings: List[SearchedItem],
-        ratings: List[AIResponse],
-    ) -> None:
-        # get notification msg for this item
-        p = inflect.engine()
-        for user in users:
-            msgs = []
-            unnotified_listings = []
-            for listing, rating in zip(listings, ratings):
-                notified_date = cache.get(listing.user_notified_key(user))
-                if notified_date is not None:
-                    time_since_notification = datetime.now() - datetime.strptime(
-                        notified_date, "%Y-%m-%d %H:%M:%S"
-                    )
-                    if self.logger:
-                        self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title} {humanize.naturaltime(time_since_notification)}"""
-                        )
-                    continue
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
-                    )
-                if rating.comment == AIResponse.NOT_EVALUATED:
-                    msgs.append(
-                        (
-                            f"{listing.title}\n"
-                            f"{listing.price}, {listing.location}\n"
-                            f"https://www.facebook.com{listing.post_url.split('?')[0]}"
-                        )
-                    )
-                else:
-                    msgs.append(
-                        (
-                            f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
-                            f"{listing.price}, {listing.location}\n"
-                            f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
-                            f"AI: {rating.comment}"
-                        )
-                    )
-
-                unnotified_listings.append(listing)
-
-            if not unnotified_listings:
-                continue
-
-            title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
-            message = "\n\n".join(msgs)
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Notify]", "succ")} Sending {user} a message with title {hilight(title)} and message {hilight(message)}"""
-                )
-            assert self.config is not None
-            assert self.config.user is not None
-            try:
-                User(user, self.config.user[user], logger=self.logger).notify(title, message)
-                for listing in unnotified_listings:
-                    cache.set(
-                        listing.user_notified_key(user),
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        tag=CacheType.USER_NOTIFIED.value,
-                    )
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[Notify]", "fail")} Failed to notify {user}: {e}"""
-                    )
-                continue
