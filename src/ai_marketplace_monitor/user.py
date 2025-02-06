@@ -10,7 +10,14 @@ from pushbullet import Pushbullet  # type: ignore
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import CacheType, DataClassWithHandleFunc, cache, convert_to_seconds, hilight
+from .utils import (
+    CacheType,
+    DataClassWithHandleFunc,
+    NotificationStatus,
+    cache,
+    convert_to_seconds,
+    hilight,
+)
 
 
 @dataclass
@@ -67,20 +74,22 @@ class User:
     def notified_key(self: "User", listing: Listing) -> Tuple[str, str, str, str]:
         return (CacheType.USER_NOTIFIED.value, listing.marketplace, listing.id, self.name)
 
-    def notified(self: "User", listing: Listing) -> bool:
+    def notification_status(self: "User", listing: Listing) -> NotificationStatus:
         notified = cache.get(self.notified_key(listing))
         # not notified before
         if notified is None:
-            return False
+            return NotificationStatus.NOT_NOTIFIED
         # notified before and remind is None, so one notification will remain valid forever
         if self.config.remind is None:
-            return True
+            return NotificationStatus.NOTIFIED
         # if remind is not None, we need to check the time
         expired = datetime.strptime(notified, "%Y-%m-%d %H:%M:%S") + timedelta(
             seconds=self.config.remind
         )
         # if expired is in the future, user is already notified.
-        return expired > datetime.now()
+        return (
+            NotificationStatus.NOTIFIED if expired > datetime.now() else NotificationStatus.EXPIRED
+        )
 
     def time_since_notification(self: "User", listing: Listing) -> int:
         key = self.notified_key(listing)
@@ -94,28 +103,36 @@ class User:
         unnotified_listings = []
         p = inflect.engine()
         for listing, rating in zip(listings, ratings):
-
-            if self.notified(listing):
+            ns = self.notification_status(listing)
+            if ns == NotificationStatus.NOTIFIED:
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Notify]", "info")} {self.name} has already been notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}"""
+                        f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}"""
                     )
                 return
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
-                )
+            if ns == NotificationStatus.EXPIRED:
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}, which has been expired."""
+                    )
+            else:
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
+                    )
             if rating.comment == AIResponse.NOT_EVALUATED:
+                msg_prefix = "[REMINDER] " if ns == NotificationStatus.EXPIRED else ""
                 msgs.append(
                     (
-                        f"{listing.title}\n{listing.price}, {listing.location}\n"
+                        f"{msg_prefix}{listing.title}\n{listing.price}, {listing.location}\n"
                         f"https://www.facebook.com{listing.post_url.split('?')[0]}"
                     )
                 )
             else:
+                msg_prefix = "REMINDER " if ns == NotificationStatus.EXPIRED else ""
                 msgs.append(
                     (
-                        f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
+                        f"[{msg_prefix}{rating.conclusion} ({rating.score})] {listing.title}\n"
                         f"{listing.price}, {listing.location}\n"
                         f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
                         f"AI: {rating.comment}"

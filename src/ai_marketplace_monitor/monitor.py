@@ -19,6 +19,7 @@ from .user import User
 from .utils import (
     CacheType,
     KeyboardMonitor,
+    NotificationStatus,
     SleepStatus,
     amm_home,
     cache,
@@ -137,7 +138,8 @@ class MarketplaceMonitor:
             item_config.searched_count += 1
             # if everyone has been notified
             if all(
-                User(self.config.user[user], self.logger).notified(listing)
+                User(self.config.user[user], self.logger).notification_status(listing)
+                == NotificationStatus.NOTIFIED
                 for user in users_to_notify
             ):
                 if self.logger:

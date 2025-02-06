@@ -37,6 +37,12 @@ class SleepStatus(Enum):
     BY_FILE_CHANGE = 2
 
 
+class NotificationStatus(Enum):
+    NOT_NOTIFIED = 0
+    EXPIRED = 1
+    NOTIFIED = 2
+
+
 class KeyboardMonitor:
     confirm_character = "c"
 
