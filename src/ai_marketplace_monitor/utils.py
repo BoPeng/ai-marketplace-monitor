@@ -9,7 +9,15 @@ from typing import Any, Dict, List, TypeVar
 import parsedatetime  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
-from pynput import keyboard  # type: ignore
+
+try:
+    from pynput import keyboard  # type: ignore
+
+    pynput_installed = True
+except ImportError:
+    # some platforms are not supported
+    pynput_installed = False
+
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -39,8 +47,9 @@ class KeyboardMonitor:
         self._confirmed: bool | None = None
 
     def start(self: "KeyboardMonitor") -> None:
-        self._listener = keyboard.Listener(on_press=self.handle_key_press)
-        self._listener.start()  # start to listen on a separate thread
+        if pynput_installed:
+            self._listener = keyboard.Listener(on_press=self.handle_key_press)
+            self._listener.start()  # start to listen on a separate thread
 
     def stop(self: "KeyboardMonitor") -> None:
         if self._listener:
@@ -80,7 +89,9 @@ class KeyboardMonitor:
     def set_paused(self: "KeyboardMonitor", paused: bool = True) -> None:
         self._paused = paused
 
-    def handle_key_press(self: "KeyboardMonitor", key: keyboard.Key) -> None:
+    def handle_key_press(
+        self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None
+    ) -> None:
         # otherwise allow the main program to handle it.
         if self._sleeping:
             if key == keyboard.Key.esc:
