@@ -89,25 +89,27 @@ class KeyboardMonitor:
     def set_paused(self: "KeyboardMonitor", paused: bool = True) -> None:
         self._paused = paused
 
-    def handle_key_press(
-        self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None
-    ) -> None:
-        # otherwise allow the main program to handle it.
-        if self._sleeping:
+    if pynput_installed:
+
+        def handle_key_press(
+            self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None
+        ) -> None:
+            # otherwise allow the main program to handle it.
+            if self._sleeping:
+                if key == keyboard.Key.esc:
+                    self._sleeping = False
+                    return
+            if self._confirmed is False:
+                if getattr(key, "char", "") == self.confirm_character:
+                    self._confirmed = True
+                    return
+            if self.is_paused():
+                if key == keyboard.Key.esc:
+                    print("Still searching ... will pause as soon as I am done.")
+                    return
             if key == keyboard.Key.esc:
-                self._sleeping = False
-                return
-        if self._confirmed is False:
-            if getattr(key, "char", "") == self.confirm_character:
-                self._confirmed = True
-                return
-        if self.is_paused():
-            if key == keyboard.Key.esc:
-                print("Still searching ... will pause as soon as I am done.")
-                return
-        if key == keyboard.Key.esc:
-            print("Pausing search ...")
-            self._paused = True
+                print("Pausing search ...")
+                self._paused = True
 
 
 @dataclass
