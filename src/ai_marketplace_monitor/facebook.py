@@ -16,10 +16,8 @@ from rich.pretty import pretty_repr
 from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig
 from .utils import (
-    CacheType,
     DataClassWithHandleFunc,
     KeyboardMonitor,
-    cache,
     convert_to_seconds,
     doze,
     extract_price,

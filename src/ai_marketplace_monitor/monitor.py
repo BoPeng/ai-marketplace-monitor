@@ -17,7 +17,6 @@ from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
 from .utils import (
-    CacheType,
     KeyboardMonitor,
     NotificationStatus,
     SleepStatus,
