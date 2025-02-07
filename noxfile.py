@@ -13,7 +13,9 @@ python_versions = ["3.10", "3.11", "3.12"]
 def tests(session: Session) -> None:
     """Run the test suite."""
     session.install(".")
-    session.install("invoke", "pytest", "xdoctest", "coverage[toml]", "pytest-cov")
+    session.install(
+        "invoke", "pytest", "xdoctest", "coverage[toml]", "pytest-cov", "pytest-playwright"
+    )
     try:
         session.run(
             "inv",
