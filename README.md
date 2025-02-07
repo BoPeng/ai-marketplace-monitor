@@ -46,6 +46,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
+  - [Showing statistics](#showing-statistics)
   - [Self-hosted Ollama Model](#self-hosted-ollama-model)
   - [Cache Management](#cache-management)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
@@ -429,6 +430,10 @@ rating = [2, 4]
 availability = ["all", "in"]
 date_listed = ["all", "last 24 hours"]
 ```
+
+### Showing statistics
+
+_ai-marketplace-monitor_ shows statistics such as the number of pages searched, number of listings examined and excluded, number of matching lists found and number of users notified when you exit the program. If you would like to see the statistics during monitoring, press `Esc` and wait till the current search to end.
 
 ### Self-hosted Ollama Model
 
