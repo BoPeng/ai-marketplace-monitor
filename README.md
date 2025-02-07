@@ -162,7 +162,15 @@ or use option `--config` for a non-standard configuration file. The terminal out
 
 ![Search In Action](docs/search_in_action.png)
 
-which shows how _ai-marketplace-monitor_ excludes listings for various reasons, and askes OpenAI to evaluate a potential matching one.
+which shows how _ai-marketplace-monitor_ excludes listings for various reasons, and asks OpenAI to evaluate a potential matching one.
+
+A typical notification would look like
+
+> Found 1 new gopro from facebook
+> [Great deal (5)] Go Pro hero 12
+> $180, Houston, TX
+> `https://facebook.com/marketplace/item/1234567890`
+> AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger.
 
 Use `Ctrl-C` to terminate the program.
 
