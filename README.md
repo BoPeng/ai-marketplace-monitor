@@ -46,6 +46,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
+  - [Showing statistics](#showing-statistics)
   - [Self-hosted Ollama Model](#self-hosted-ollama-model)
   - [Cache Management](#cache-management)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
@@ -195,9 +196,9 @@ One of more sections to list the AI agent that can be used to judge if listings 
 
 Note that:
 
-1. `provider` can be [OpenAI](https://openai.com/), 
+1. `provider` can be [OpenAI](https://openai.com/),
    [DeepSeek](https://www.deepseek.com/), or [Ollama](https://ollama.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers. 
+2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers.
 3. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
 4. Although only three providers are supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
 5. You can use option `ai` to list the AI services for particular marketplaces or items.
@@ -221,15 +222,18 @@ One or more sections `marketplace.name` show the options for interacting with va
 | `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
 | **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
-Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`. 
+Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
 
 ### Users
 
 One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. [PushBullet](https://www.pushbullet.com/) is currently the only method of notification.
 
-| Option             | Requirement | DataType | Description    |
-| ------------------ | ----------- | -------- | -------------- |
-| `pushbullet_token` | Required    | String   | Token for user |
+| Option             | Requirement | DataType | Description                                                                     |
+| ------------------ | ----------- | -------- | ------------------------------------------------------------------------------- |
+| `pushbullet_token` | Required    | String   | Token for user                                                                  |
+| `remind`           | Optional    | String   | Notify users again after a set time (e.g., 3 days) if a listing remains active. |
+
+Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
 
 ### Items to search
 
@@ -265,14 +269,14 @@ The following options that can specified for both `marketplace` sections and `it
 | `delivery_method`     | Optional          | String/List         | One of `all`, `local_pick_up`, and `shipping`.                                                                                                              |
 | `exclude_sellers`     | Optional          | String/List         | Exclude certain sellers by their names (not username).                                                                                                      |
 | `max_price`           | Optional          | Integer             | Maximum price.                                                                                                                                              |
-| `max_search_interval` | Optional          | Integer/String      | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
+| `max_search_interval` | Optional          | String              | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
 | `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
 | `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
 | `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
 | `rating`              | Optional          | Integer/List        | Notify users with listigns with rating at or higher than specified rating. See [Adjust notification level](#adjust-notification-level) for details          |
 | `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
-| `search_interval`     | Optional          | Integer/String      | Minimal interval in seconds between searches. Can use human-friendly strings like `1d`, `5h`, or `1h 30m`.                                                  |
+| `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`.                                                          |
 | `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
 | `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
 | `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                      |
@@ -426,6 +430,10 @@ rating = [2, 4]
 availability = ["all", "in"]
 date_listed = ["all", "last 24 hours"]
 ```
+
+### Showing statistics
+
+_ai-marketplace-monitor_ shows statistics such as the number of pages searched, number of listings examined and excluded, number of matching lists found and number of users notified when you exit the program. If you would like to see the statistics during monitoring, press `Esc` and wait till the current search to end.
 
 ### Self-hosted Ollama Model
 

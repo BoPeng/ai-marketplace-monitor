@@ -7,7 +7,7 @@ import pytest
 import ai_marketplace_monitor
 from ai_marketplace_monitor.ai import OllamaBackend, OllamaConfig
 from ai_marketplace_monitor.facebook import FacebookItemConfig
-from ai_marketplace_monitor.item import SearchedItem
+from ai_marketplace_monitor.listing import Listing
 
 
 @pytest.fixture
@@ -18,12 +18,12 @@ def version() -> Generator[str, None, None]:
 
 def test_version(version: str) -> None:
     """Sample pytest test function with the pytest fixture as an argument."""
-    assert version == "0.6.6.dev"
+    assert version == "0.6.7.dev"
 
 
 @pytest.fixture
-def listing() -> SearchedItem:
-    return SearchedItem(
+def listing() -> Listing:
+    return Listing(
         marketplace="facebook",
         name="test",
         id="111",
@@ -83,7 +83,7 @@ def ollama_config() -> OllamaConfig:
 
 @pytest.mark.skipif(True, reason="Condition met, skipping this test")
 def test_ai(
-    ollama_config: OllamaConfig, item_config: FacebookItemConfig, listing: SearchedItem
+    ollama_config: OllamaConfig, item_config: FacebookItemConfig, listing: Listing
 ) -> None:
     ai = OllamaBackend(ollama_config)
     # ai.config = ollama_config

@@ -13,14 +13,14 @@ import rich
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 from rich.pretty import pretty_repr
 
-from .item import SearchedItem
+from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig
 from .utils import (
-    CacheType,
+    CounterItem,
     DataClassWithHandleFunc,
     KeyboardMonitor,
-    cache,
     convert_to_seconds,
+    counter,
     doze,
     extract_price,
     hilight,
@@ -288,7 +288,7 @@ class FacebookMarketplace(Marketplace):
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
-    ) -> Generator[SearchedItem, None, None]:
+    ) -> Generator[Listing, None, None]:
         if not self.page:
             self.login()
             assert self.page is not None
@@ -360,22 +360,27 @@ class FacebookMarketplace(Marketplace):
 
             for keyword in item_config.keywords or []:
                 self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
+                counter.increment(CounterItem.SEARCH)
 
-                found_items = FacebookSearchResultPage(self.page, self.logger).get_listings()
+                found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
                 time.sleep(5)
                 # go to each item and get the description
                 # if we have not done that before
-                for item in found_items:
-                    if item.post_url in found:
+                for listing in found_listings:
+                    if listing.post_url in found:
                         continue
                     if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
-                    found[item.post_url] = True
+                    counter.increment(CounterItem.LISTING_EXAMINED)
+                    found[listing.post_url] = True
                     # filter by title and location since we do not have description and seller yet.
-                    if not self.filter_item(item, item_config):
+                    if not self.check_listing(listing, item_config):
+                        counter.increment(CounterItem.EXCLUDED_LISTING)
                         continue
                     try:
-                        details = self.get_item_details(f"https://www.facebook.com{item.post_url}")
+                        details = self.get_listing_details(
+                            f"https://www.facebook.com{listing.post_url}"
+                        )
                         time.sleep(5)
                     except Exception as e:
                         if self.logger:
@@ -385,18 +390,19 @@ class FacebookMarketplace(Marketplace):
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
-                    item.description = details.description
-                    item.seller = details.seller
-                    item.name = item_config.name
+                    listing.description = details.description
+                    listing.seller = details.seller
+                    listing.name = item_config.name
                     if self.logger:
                         self.logger.debug(
-                            f"""{hilight("[Retrieve]", "succ")} New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
+                            f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from https://www.facebook.com{listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
                         )
-                    if self.filter_item(item, item_config):
-                        yield item
+                    if self.check_listing(listing, item_config):
+                        counter.increment(CounterItem.EXCLUDED_LISTING)
+                        yield listing
 
-    def get_item_details(self: "FacebookMarketplace", post_url: str) -> SearchedItem:
-        details = cache.get((CacheType.LISTING_DETAILS.value, post_url.split("?")[0]))
+    def get_listing_details(self: "FacebookMarketplace", post_url: str) -> Listing:
+        details = Listing.from_cache(post_url)
         if details is not None:
             return details
 
@@ -405,6 +411,7 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.goto_url(post_url)
+        counter.increment(CounterItem.LISTING_QUERY)
         details = None
         for page_model in supported_facebook_item_layouts:
             try:
@@ -415,15 +422,11 @@ class FacebookMarketplace(Marketplace):
                 continue
         if details is None:
             raise ValueError(f"Failed to get item details from {post_url}")
-        cache.set(
-            (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]),
-            details,
-            tag=CacheType.LISTING_DETAILS.value,
-        )
+        details.to_cache(post_url)
         return details
 
-    def filter_item(
-        self: "FacebookMarketplace", item: SearchedItem, item_config: FacebookItemConfig
+    def check_listing(
+        self: "FacebookMarketplace", item: Listing, item_config: FacebookItemConfig
     ) -> bool:
         # get exclude_keywords from both item_config or config
         exclude_keywords = item_config.exclude_keywords
@@ -542,8 +545,7 @@ class WebPage:
 
 class FacebookSearchResultPage(WebPage):
 
-    def get_listings(self: "FacebookSearchResultPage") -> List[SearchedItem]:
-        listings: List[SearchedItem] = []
+    def get_listings(self: "FacebookSearchResultPage") -> List[Listing]:
         heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
 
         # find the grid box
@@ -564,21 +566,34 @@ class FacebookSearchResultPage(WebPage):
                     self.logger.debug(
                         f'{hilight("[Retrieve]", "fail")} Some grid item cannot be readt: {e}'
                     )
+        except Exception as e:
+            filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
+            if self.logger:
+                self.logger.error(
+                    f'{hilight("[Retrieve]", "fail")} failed to parse searching result. Page saved to {filename}: {e}'
+                )
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(self.page.content())
+            return []
 
-            for listing in valid_listings:
+        listings: List[Listing] = []
+        for idx, listing in enumerate(valid_listings):
+            try:
                 atag = listing.locator(
                     ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
                 )
                 post_url = atag.get_attribute("href") or ""
                 details = atag.locator(":scope > :first-child > div").nth(1)
-                raw_price = details.locator(":scope > div").nth(0).text_content() or ""
-                title = details.locator(":scope > div").nth(1).text_content() or ""
-                location = details.locator(":scope > div").nth(2).text_content() or ""
+                divs = details.locator(":scope > div").all()
+                raw_price = "" if len(divs) < 1 else divs[0].text_content() or ""
+                title = "" if len(divs) < 2 else divs[1].text_content() or ""
+                # location can be empty in some rare cases
+                location = "" if len(divs) <= 3 else divs[2].text_content() or ""
                 image = listing.locator("img").get_attribute("src") or ""
                 price = extract_price(raw_price)
 
                 listings.append(
-                    SearchedItem(
+                    Listing(
                         marketplace="facebook",
                         name="",
                         id=post_url.split("?")[0].rstrip("/").split("/")[-1],
@@ -595,15 +610,12 @@ class FacebookSearchResultPage(WebPage):
                         description="",
                     )
                 )
-        except Exception as e:
-            filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
-            if self.logger:
-                self.logger.error(
-                    f'{hilight("[Retrieve]", "fail")} failed to parse searching result. Page saved to {filename}: {e}'
-                )
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(self.page.content())
-            return listings
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(
+                        f'{hilight("[Retrieve]", "fail")} Failed to parse search results {idx + 1} listing: {e}'
+                    )
+                continue
 
         # Append the parsed data to the list.
         return listings
@@ -635,7 +647,7 @@ class FacebookItemPage(WebPage):
     def get_condition(self: "FacebookItemPage") -> str:
         raise NotImplementedError("get_condition is not implemented for this page")
 
-    def parse(self: "FacebookItemPage", post_url: str) -> SearchedItem:
+    def parse(self: "FacebookItemPage", post_url: str) -> Listing:
         if not self.verify_layout():
             raise ValueError("Layout mismatch")
 
@@ -649,7 +661,7 @@ class FacebookItemPage(WebPage):
 
         if self.logger:
             self.logger.info(f'{hilight("[Retrieve]", "succ")} Parsing {hilight(title)}')
-        res = SearchedItem(
+        res = Listing(
             marketplace="facebook",
             name="",
             id=post_url.split("?")[0].rstrip("/").split("/")[-1],
@@ -664,7 +676,7 @@ class FacebookItemPage(WebPage):
         )
         if self.logger:
             self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
-        return cast(SearchedItem, res)
+        return cast(Listing, res)
 
 
 class FacebookRegularItemPage(FacebookItemPage):

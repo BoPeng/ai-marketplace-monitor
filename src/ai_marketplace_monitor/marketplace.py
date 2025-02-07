@@ -6,7 +6,7 @@ from typing import Any, Generator, Generic, List, Type, TypeVar
 
 from playwright.sync_api import Browser, Page
 
-from .item import SearchedItem
+from .listing import Listing
 from .utils import DataClassWithHandleFunc, KeyboardMonitor, convert_to_seconds, hilight
 
 
@@ -371,5 +371,5 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         except KeyboardInterrupt:
             raise
 
-    def search(self: "Marketplace", item: TItemConfig) -> Generator[SearchedItem, None, None]:
+    def search(self: "Marketplace", item: TItemConfig) -> Generator[Listing, None, None]:
         raise NotImplementedError("Search method must be implemented by subclasses.")

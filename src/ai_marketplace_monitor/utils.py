@@ -9,6 +9,7 @@ from typing import Any, Dict, List, TypeVar
 import parsedatetime  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
+from rich.pretty import pretty_repr
 
 try:
     from pynput import keyboard  # type: ignore
@@ -18,6 +19,7 @@ except ImportError:
     # some platforms are not supported
     pynput_installed = False
 
+import rich.pretty
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -35,6 +37,12 @@ class SleepStatus(Enum):
     NOT_DISRUPTED = 0
     BY_KEYBOARD = 1
     BY_FILE_CHANGE = 2
+
+
+class NotificationStatus(Enum):
+    NOT_NOTIFIED = 0
+    EXPIRED = 1
+    NOTIFIED = 2
 
 
 class KeyboardMonitor:
@@ -66,16 +74,21 @@ class KeyboardMonitor:
             end="",
             flush=True,
         )
-        count = 0
-        while self._confirmed is False:
-            time.sleep(0.1)
-            if self._confirmed:
-                return True
-            count += 1
-            # wait a total of 10s
-            if count > 100:
-                break
-        return self._confirmed
+        try:
+            count = 0
+            while self._confirmed is False:
+                time.sleep(0.1)
+                if self._confirmed:
+                    return True
+                count += 1
+                # wait a total of 10s
+                if count > 100:
+                    break
+            return self._confirmed
+        finally:
+            # whether or not confirm is successful, reset paused and confirmed flag
+            self._paused = False
+            self._confirmed = None
 
     def is_sleeping(self: "KeyboardMonitor") -> bool:
         return self._sleeping
@@ -94,15 +107,17 @@ class KeyboardMonitor:
         def handle_key_press(
             self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None
         ) -> None:
-            # otherwise allow the main program to handle it.
+            # is sleeping, wake up
             if self._sleeping:
                 if key == keyboard.Key.esc:
                     self._sleeping = False
                     return
+            # if waiting for confirmation, set confirm
             if self._confirmed is False:
                 if getattr(key, "char", "") == self.confirm_character:
                     self._confirmed = True
                     return
+            # if being paused
             if self.is_paused():
                 if key == keyboard.Key.esc:
                     print("Still searching ... will pause as soon as I am done.")
@@ -110,6 +125,43 @@ class KeyboardMonitor:
             if key == keyboard.Key.esc:
                 print("Pausing search ...")
                 self._paused = True
+
+
+class CounterItem(Enum):
+    SEARCH = "Search performed"
+    LISTING_EXAMINED = "Total listing examined"
+    LISTING_QUERY = "Listing details fetched (not cached)"
+    EXCLUDED_LISTING = "Listing excluded"
+    NEW_LISTING = "New listing"
+    AI_QUERY = "AI Queries"
+    NEW_AI_QUERY = "AI Queies (not cached)"
+    FAILED_AI_QUERY = "Failed AI Queries)"
+    NOTIFICATIONS = "Notifications sent"
+    REMINDERS = "Reminders sent"
+
+
+class Counter:
+
+    def __init__(self: "Counter") -> None:
+        self.counters: Dict[str, int] = {}
+
+    def increment(self: "Counter", key: CounterItem, by: int = 1) -> None:
+        if key not in CounterItem:
+            raise ValueError(f"Invalid cunter key: {key}")
+
+        self.counters[key.value] = self.counters.get(key.value, 0) + by
+
+    def __str__(self: "Counter") -> str:
+        """Return pretty form of all non-zero counters"""
+        cnt = {
+            x.value: self.counters.get(x.value, 0)
+            for x in CounterItem
+            if self.counters.get(x.value, 0)
+        }
+        return pretty_repr(cnt)
+
+
+counter = Counter()
 
 
 @dataclass

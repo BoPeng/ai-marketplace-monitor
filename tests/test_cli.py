@@ -112,6 +112,7 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 full_user_cfg = """
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+remind = '1 day'
 
 [user.user2]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -183,6 +184,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "pushbullet_token": str,
         "radius": (list, type(None)),
         "rating": (list, type(None)),
+        "remind": (int, type(None)),
         "search_city": (list, type(None)),
         "search_interval": (int, type(None)),
         "search_region": (list, type(None)),

@@ -1,12 +1,12 @@
 import sys
 import time
-from datetime import datetime
 from logging import Logger
 from pathlib import Path
 from typing import ClassVar, List
 
 import humanize
 import inflect
+import rich
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
@@ -14,16 +14,18 @@ from rich.prompt import Prompt
 
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
-from .item import SearchedItem
+from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
 from .utils import (
-    CacheType,
+    CounterItem,
     KeyboardMonitor,
+    NotificationStatus,
     SleepStatus,
     amm_home,
     cache,
     calculate_file_hash,
+    counter,
     doze,
     hilight,
 )
@@ -137,7 +139,11 @@ class MarketplaceMonitor:
             # increase the searched_count
             item_config.searched_count += 1
             # if everyone has been notified
-            if all(listing.user_notified_key(user) in cache for user in users_to_notify):
+            if all(
+                User(self.config.user[user], self.logger).notification_status(listing)
+                == NotificationStatus.NOTIFIED
+                for user in users_to_notify
+            ):
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
@@ -163,6 +169,7 @@ class MarketplaceMonitor:
                     self.logger.info(
                         f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}."""
                     )
+                counter.increment(CounterItem.EXCLUDED_LISTING)
                 continue
             new_listings.append(listing)
             listing_ratings.append(res)
@@ -173,7 +180,11 @@ class MarketplaceMonitor:
                 f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
             )
         if new_listings:
-            self.notify_users(users_to_notify, new_listings, listing_ratings)
+            counter.increment(CounterItem.NEW_LISTING, len(new_listings))
+            for user in users_to_notify:
+                User(self.config.user[user], logger=self.logger).notify(
+                    new_listings, listing_ratings
+                )
         time.sleep(5)
 
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
@@ -268,11 +279,11 @@ class MarketplaceMonitor:
 
     def handle_pause(self: "MarketplaceMonitor") -> None:
         """Handle interruption signal."""
-        if (
-            self.keyboard_monitor is None
-            or not self.keyboard_monitor.is_paused()
-            or not self.keyboard_monitor.confirm()
-        ):
+        if self.keyboard_monitor is None or not self.keyboard_monitor.is_paused():
+            return
+
+        rich.print(counter)
+        if not self.keyboard_monitor.confirm():
             return
 
         # now we should go to an interactive session
@@ -280,7 +291,7 @@ class MarketplaceMonitor:
             while True:
                 url = (
                     Prompt.ask(
-                        f"""\n{hilight("What item do you want to check?")} Please provide an ID or a URL, or exit to quite."""
+                        f"""\nEnter an {hilight("ID")} or a {hilight("URL")} to check, or {hilight("exit")}."""
                     )
                     .strip("\x1b")
                     .strip()
@@ -302,14 +313,15 @@ class MarketplaceMonitor:
             assert self.config is not None
             item_names = list(self.config.item.keys())
             if len(item_names) > 1:
-                name = Prompt.ask("Which item? ", choices=item_names)
+                name = Prompt.ask(
+                    f"""Enter name of {hilight("search item")}""", choices=item_names
+                )
 
             try:
                 self.check_items([url], for_item=name)
             except Exception as e:
                 if self.logger:
                     self.logger.debug(f"Failed to check item {url}: {e}")
-        self.keyboard_monitor.set_paused(False)
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
@@ -459,7 +471,7 @@ class MarketplaceMonitor:
                 marketplace.configure(marketplace_config)
 
                 # do we need a browser?
-                if (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]) not in cache:
+                if Listing.from_cache(post_url) is None:
                     if self.browser is None:
                         if self.logger:
                             self.logger.info(
@@ -470,7 +482,7 @@ class MarketplaceMonitor:
 
                 # ignore enabled
                 # do not search, get the item details directly
-                listing: SearchedItem = marketplace.get_item_details(post_url)
+                listing: Listing = marketplace.get_listing_details(post_url)
 
                 if self.logger:
                     self.logger.info(
@@ -484,14 +496,14 @@ class MarketplaceMonitor:
                         self.logger.info(
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
-                    marketplace.filter_item(listing, item_config)
+                    marketplace.check_listing(listing, item_config)
                     self.evaluate_by_ai(
                         listing, item_config=item_config, marketplace_config=marketplace_config
                     )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",
-        item: SearchedItem,
+        item: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
     ) -> AIResponse:
@@ -514,75 +526,3 @@ class MarketplaceMonitor:
                     )
                 continue
         return AIResponse(5, AIResponse.NOT_EVALUATED)
-
-    def notify_users(
-        self: "MarketplaceMonitor",
-        users: List[str],
-        listings: List[SearchedItem],
-        ratings: List[AIResponse],
-    ) -> None:
-        # get notification msg for this item
-        p = inflect.engine()
-        for user in users:
-            msgs = []
-            unnotified_listings = []
-            for listing, rating in zip(listings, ratings):
-                notified_date = cache.get(listing.user_notified_key(user))
-                if notified_date is not None:
-                    time_since_notification = datetime.now() - datetime.strptime(
-                        notified_date, "%Y-%m-%d %H:%M:%S"
-                    )
-                    if self.logger:
-                        self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {user} has already been notified for {listing.title} {humanize.naturaltime(time_since_notification)}"""
-                        )
-                    continue
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {user}"""
-                    )
-                if rating.comment == AIResponse.NOT_EVALUATED:
-                    msgs.append(
-                        (
-                            f"{listing.title}\n"
-                            f"{listing.price}, {listing.location}\n"
-                            f"https://www.facebook.com{listing.post_url.split('?')[0]}"
-                        )
-                    )
-                else:
-                    msgs.append(
-                        (
-                            f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
-                            f"{listing.price}, {listing.location}\n"
-                            f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
-                            f"AI: {rating.comment}"
-                        )
-                    )
-
-                unnotified_listings.append(listing)
-
-            if not unnotified_listings:
-                continue
-
-            title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
-            message = "\n\n".join(msgs)
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Notify]", "succ")} Sending {user} a message with title {hilight(title)} and message {hilight(message)}"""
-                )
-            assert self.config is not None
-            assert self.config.user is not None
-            try:
-                User(user, self.config.user[user], logger=self.logger).notify(title, message)
-                for listing in unnotified_listings:
-                    cache.set(
-                        listing.user_notified_key(user),
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        tag=CacheType.USER_NOTIFIED.value,
-                    )
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[Notify]", "fail")} Failed to notify {user}: {e}"""
-                    )
-                continue
