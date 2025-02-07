@@ -124,9 +124,9 @@ class User:
                     )
 
             counter.increment(
-                CounterItem.REMINDERS
+                CounterItem.REMINDERS_SENT
                 if ns == NotificationStatus.EXPIRED
-                else CounterItem.NOTIFICATIONS
+                else CounterItem.NOTIFICATIONS_SENT
             )
             if rating.comment == AIResponse.NOT_EVALUATED:
                 msg_prefix = "[REMINDER] " if ns == NotificationStatus.EXPIRED else ""

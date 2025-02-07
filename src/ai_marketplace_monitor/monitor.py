@@ -180,7 +180,7 @@ class MarketplaceMonitor:
                 f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
             )
         if new_listings:
-            counter.increment(CounterItem.NEW_LISTING, len(new_listings))
+            counter.increment(CounterItem.NEW_VALIDATED_LISTING, len(new_listings))
             for user in users_to_notify:
                 User(self.config.user[user], logger=self.logger).notify(
                     new_listings, listing_ratings

@@ -360,7 +360,7 @@ class FacebookMarketplace(Marketplace):
 
             for keyword in item_config.keywords or []:
                 self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
-                counter.increment(CounterItem.SEARCH)
+                counter.increment(CounterItem.SEARCH_PERFORMED)
 
                 found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
                 time.sleep(5)
@@ -398,8 +398,9 @@ class FacebookMarketplace(Marketplace):
                             f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from https://www.facebook.com{listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
                         )
                     if self.check_listing(listing, item_config):
-                        counter.increment(CounterItem.EXCLUDED_LISTING)
                         yield listing
+                    else:
+                        counter.increment(CounterItem.EXCLUDED_LISTING)
 
     def get_listing_details(self: "FacebookMarketplace", post_url: str) -> Listing:
         details = Listing.from_cache(post_url)

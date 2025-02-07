@@ -128,16 +128,16 @@ class KeyboardMonitor:
 
 
 class CounterItem(Enum):
-    SEARCH = "Search performed"
+    SEARCH_PERFORMED = "Search performed"
     LISTING_EXAMINED = "Total listing examined"
-    LISTING_QUERY = "Listing details fetched (not cached)"
+    LISTING_QUERY = "New listing fetched"
     EXCLUDED_LISTING = "Listing excluded"
-    NEW_LISTING = "New listing"
-    AI_QUERY = "AI Queries"
-    NEW_AI_QUERY = "AI Queies (not cached)"
+    NEW_VALIDATED_LISTING = "New validated listing"
+    AI_QUERY = "Total AI Queries"
+    NEW_AI_QUERY = "New AI Queries"
     FAILED_AI_QUERY = "Failed AI Queries)"
-    NOTIFICATIONS = "Notifications sent"
-    REMINDERS = "Reminders sent"
+    NOTIFICATIONS_SENT = "Notifications sent"
+    REMINDERS_SENT = "Reminders sent"
 
 
 class Counter:
