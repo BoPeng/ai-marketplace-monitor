@@ -311,13 +311,22 @@ You can use multiple configuration files. For example, you can add all credentia
 
 ### Adjust notification level
 
-We ask AI services to evaluate listings against the criteria that you specify and rate the listing as
+We ask AI services to evaluate listings against the criteria that you specify with the following prompt:
 
-1. **No match**: The item does not match at all, for example, is a product in a different category, a brand that the user specifically excluded.
-2. **Potential match**: There is not enough information to make a good judgement. Maybe the description is too terse, and there is no indication of the model and year of the product.
-3. **Poor match**: The item is acceptable but not a good match, which can be due to higher than average price, item condition, or poor description from the seller.
-4. **Good match**: The item matches the selection criteria well and is a potential good deal.
-5. **Great deal**: The item is a very good deal, for example with good condition and very competitive price.
+```
+Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year,
+condition, and seller's credibility. Rate from 1 to 5 based on the following:
+
+1 - No match: Missing key details, wrong category/brand, or suspicious activity (e.g., external links).
+2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.
+3 - Poor match: Some mismatches or missing details; acceptable but not ideal.
+4 - Good match: Mostly meets criteria with clear, relevant details.
+5 - Great deal: Fully matches criteria, with excellent condition or price.
+
+Conclude with:
+"Rating [1-5]: [summary]"
+where [1-5] is the rating and [summary] is a brief recommendation (max 30 words)."
+```
 
 When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example
 

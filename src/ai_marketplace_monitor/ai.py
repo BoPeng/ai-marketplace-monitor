@@ -175,7 +175,7 @@ class AIBackend(Generic[TAIConfig]):
             "4 - Good match: Mostly meets criteria with clear, relevant details.\n"
             "5 - Great deal: Fully matches criteria, with excellent condition or price.\n"
             "Conclude with:\n"
-            "Rating [1-5]: [summary]\n"
+            '"Rating [1-5]: [summary]"\n'
             "where [1-5] is the rating and [summary] is a brief recommendation (max 30 words)."
         )
         if self.logger:
