@@ -360,9 +360,9 @@ class FacebookMarketplace(Marketplace):
 
             for keyword in item_config.keywords or []:
                 self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
+                counter.increment(CounterItem.SEARCH)
 
                 found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
-                counter.increment(CounterItem.LISTING_EXAMINED)
                 time.sleep(5)
                 # go to each item and get the description
                 # if we have not done that before
@@ -371,6 +371,7 @@ class FacebookMarketplace(Marketplace):
                         continue
                     if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
+                    counter.increment(CounterItem.LISTING_EXAMINED)
                     found[listing.post_url] = True
                     # filter by title and location since we do not have description and seller yet.
                     if not self.check_listing(listing, item_config):

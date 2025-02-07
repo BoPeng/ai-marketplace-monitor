@@ -128,14 +128,14 @@ class KeyboardMonitor:
 
 
 class CounterItem(Enum):
-    LISTING_EXAMINED = "Listing examined"
-    LISTING_QUERY = "Listing fetched"
+    SEARCH = "Search performed"
+    LISTING_EXAMINED = "Total listing examined"
+    LISTING_QUERY = "Listing details fetched (not cached)"
     EXCLUDED_LISTING = "Listing excluded"
     NEW_LISTING = "New listing"
-    SEARCH = "Search performed"
+    AI_QUERY = "AI Queries"
     NEW_AI_QUERY = "AI Queies (not cached)"
     FAILED_AI_QUERY = "Failed AI Queries)"
-    AI_QUERY = "AI Queies"
     NOTIFICATIONS = "Notifications sent"
     REMINDERS = "Reminders sent"
 
@@ -145,11 +145,11 @@ class Counter:
     def __init__(self: "Counter") -> None:
         self.counters: Dict[str, int] = {}
 
-    def increment(self: "Counter", key: CounterItem) -> None:
+    def increment(self: "Counter", key: CounterItem, by: int = 1) -> None:
         if key not in CounterItem:
             raise ValueError(f"Invalid cunter key: {key}")
 
-        self.counters[key.value] = self.counters.get(key.value, 0) + 1
+        self.counters[key.value] = self.counters.get(key.value, 0) + by
 
     def __str__(self: "Counter") -> str:
         """Return pretty form of all non-zero counters"""
