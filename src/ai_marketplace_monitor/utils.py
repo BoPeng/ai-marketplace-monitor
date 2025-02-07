@@ -9,6 +9,7 @@ from typing import Any, Dict, List, TypeVar
 import parsedatetime  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
+from rich.pretty import pretty_repr
 
 try:
     from pynput import keyboard  # type: ignore
@@ -18,6 +19,7 @@ except ImportError:
     # some platforms are not supported
     pynput_installed = False
 
+import rich.pretty
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -123,6 +125,43 @@ class KeyboardMonitor:
             if key == keyboard.Key.esc:
                 print("Pausing search ...")
                 self._paused = True
+
+
+class CounterItem(Enum):
+    LISTING_EXAMINED = "Listing examined"
+    LISTING_QUERY = "Listing fetched"
+    EXCLUDED_LISTING = "Listing excluded"
+    NEW_LISTING = "New listing"
+    SEARCH = "Search performed"
+    NEW_AI_QUERY = "AI Queies (not cached)"
+    FAILED_AI_QUERY = "Failed AI Queries)"
+    AI_QUERY = "AI Queies"
+    NOTIFICATIONS = "Notifications sent"
+    REMINDERS = "Reminders sent"
+
+
+class Counter:
+
+    def __init__(self: "Counter") -> None:
+        self.counters: Dict[str, int] = {}
+
+    def increment(self: "Counter", key: CounterItem) -> None:
+        if key not in CounterItem:
+            raise ValueError(f"Invalid cunter key: {key}")
+
+        self.counters[key.value] = self.counters.get(key.value, 0) + 1
+
+    def __str__(self: "Counter") -> str:
+        """Return pretty form of all non-zero counters"""
+        cnt = {
+            x.value: self.counters.get(x.value, 0)
+            for x in CounterItem
+            if self.counters.get(x.value, 0)
+        }
+        return pretty_repr(cnt)
+
+
+counter = Counter()
 
 
 @dataclass

@@ -16,9 +16,11 @@ from rich.pretty import pretty_repr
 from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig
 from .utils import (
+    CounterItem,
     DataClassWithHandleFunc,
     KeyboardMonitor,
     convert_to_seconds,
+    counter,
     doze,
     extract_price,
     hilight,
@@ -359,21 +361,25 @@ class FacebookMarketplace(Marketplace):
             for keyword in item_config.keywords or []:
                 self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
 
-                found_items = FacebookSearchResultPage(self.page, self.logger).get_listings()
+                found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
+                counter.increment(CounterItem.LISTING_EXAMINED)
                 time.sleep(5)
                 # go to each item and get the description
                 # if we have not done that before
-                for item in found_items:
-                    if item.post_url in found:
+                for listing in found_listings:
+                    if listing.post_url in found:
                         continue
                     if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
-                    found[item.post_url] = True
+                    found[listing.post_url] = True
                     # filter by title and location since we do not have description and seller yet.
-                    if not self.filter_item(item, item_config):
+                    if not self.check_listing(listing, item_config):
+                        counter.increment(CounterItem.EXCLUDED_LISTING)
                         continue
                     try:
-                        details = self.get_item_details(f"https://www.facebook.com{item.post_url}")
+                        details = self.get_listing_details(
+                            f"https://www.facebook.com{listing.post_url}"
+                        )
                         time.sleep(5)
                     except Exception as e:
                         if self.logger:
@@ -383,17 +389,18 @@ class FacebookMarketplace(Marketplace):
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
-                    item.description = details.description
-                    item.seller = details.seller
-                    item.name = item_config.name
+                    listing.description = details.description
+                    listing.seller = details.seller
+                    listing.name = item_config.name
                     if self.logger:
                         self.logger.debug(
-                            f"""{hilight("[Retrieve]", "succ")} New item "{item.title}" from https://www.facebook.com{item.post_url} is sold by "{item.seller}" and with description "{item.description[:100]}..." """
+                            f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from https://www.facebook.com{listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
                         )
-                    if self.filter_item(item, item_config):
-                        yield item
+                    if self.check_listing(listing, item_config):
+                        counter.increment(CounterItem.EXCLUDED_LISTING)
+                        yield listing
 
-    def get_item_details(self: "FacebookMarketplace", post_url: str) -> Listing:
+    def get_listing_details(self: "FacebookMarketplace", post_url: str) -> Listing:
         details = Listing.from_cache(post_url)
         if details is not None:
             return details
@@ -403,6 +410,7 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.goto_url(post_url)
+        counter.increment(CounterItem.LISTING_QUERY)
         details = None
         for page_model in supported_facebook_item_layouts:
             try:
@@ -416,7 +424,7 @@ class FacebookMarketplace(Marketplace):
         details.to_cache(post_url)
         return details
 
-    def filter_item(
+    def check_listing(
         self: "FacebookMarketplace", item: Listing, item_config: FacebookItemConfig
     ) -> bool:
         # get exclude_keywords from both item_config or config

@@ -17,12 +17,14 @@ from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .user import User
 from .utils import (
+    CounterItem,
     KeyboardMonitor,
     NotificationStatus,
     SleepStatus,
     amm_home,
     cache,
     calculate_file_hash,
+    counter,
     doze,
     hilight,
 )
@@ -166,6 +168,7 @@ class MarketplaceMonitor:
                     self.logger.info(
                         f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}."""
                     )
+                counter.increment(CounterItem.EXCLUDED_LISTING)
                 continue
             new_listings.append(listing)
             listing_ratings.append(res)
@@ -274,11 +277,11 @@ class MarketplaceMonitor:
 
     def handle_pause(self: "MarketplaceMonitor") -> None:
         """Handle interruption signal."""
-        if (
-            self.keyboard_monitor is None
-            or not self.keyboard_monitor.is_paused()
-            or not self.keyboard_monitor.confirm()
-        ):
+        if self.keyboard_monitor is None or not self.keyboard_monitor.is_paused():
+            return
+
+        print(counter)
+        if not self.keyboard_monitor.confirm():
             return
 
         # now we should go to an interactive session
@@ -477,7 +480,7 @@ class MarketplaceMonitor:
 
                 # ignore enabled
                 # do not search, get the item details directly
-                listing: Listing = marketplace.get_item_details(post_url)
+                listing: Listing = marketplace.get_listing_details(post_url)
 
                 if self.logger:
                     self.logger.info(
@@ -491,7 +494,7 @@ class MarketplaceMonitor:
                         self.logger.info(
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
-                    marketplace.filter_item(listing, item_config)
+                    marketplace.check_listing(listing, item_config)
                     self.evaluate_by_ai(
                         listing, item_config=item_config, marketplace_config=marketplace_config
                     )

@@ -12,10 +12,12 @@ from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .utils import (
     CacheType,
+    CounterItem,
     DataClassWithHandleFunc,
     NotificationStatus,
     cache,
     convert_to_seconds,
+    counter,
     hilight,
 )
 
@@ -120,6 +122,12 @@ class User:
                     self.logger.info(
                         f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
                     )
+
+            counter.increment(
+                CounterItem.REMINDERS
+                if ns == NotificationStatus.EXPIRED
+                else CounterItem.NOTIFICATIONS
+            )
             if rating.comment == AIResponse.NOT_EVALUATED:
                 msg_prefix = "[REMINDER] " if ns == NotificationStatus.EXPIRED else ""
                 msgs.append(

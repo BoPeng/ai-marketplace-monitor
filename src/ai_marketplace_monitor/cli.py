@@ -12,7 +12,7 @@ from rich.logging import RichHandler
 
 from . import __version__
 from .monitor import MarketplaceMonitor
-from .utils import CacheType, amm_home, cache, hilight
+from .utils import CacheType, amm_home, cache, counter, hilight
 
 app = typer.Typer()
 
@@ -153,6 +153,7 @@ def main(
         sys.exit(1)
     finally:
         monitor.stop_monitor()
+        print(counter)
 
 
 if __name__ == "__main__":

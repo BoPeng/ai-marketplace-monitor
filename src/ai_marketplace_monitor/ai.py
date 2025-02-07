@@ -10,7 +10,7 @@ from rich.pretty import pretty_repr
 
 from .listing import Listing
 from .marketplace import TItemConfig
-from .utils import CacheType, DataClassWithHandleFunc, cache, hilight
+from .utils import CacheType, CounterItem, DataClassWithHandleFunc, cache, counter, hilight
 
 
 class AIServiceProvider(Enum):
@@ -205,6 +205,7 @@ class OpenAIBackend(AIBackend):
 
     def evaluate(self: "OpenAIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
         # ask openai to confirm the item is correct
+        counter.increment(CounterItem.AI_QUERY)
         prompt = self.get_prompt(listing, item_config)
         res: AIResponse | None = AIResponse.from_cache(listing, item_config)
         if res is not None:
@@ -253,6 +254,7 @@ class OpenAIBackend(AIBackend):
             or not answer.strip()
             or re.search(r"Rating[:\s]*[1-5]", answer, re.DOTALL) is None
         ):
+            counter.increment(CounterItem.FAILED_AI_QUERY)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
         lines = answer.split("\n")
@@ -272,6 +274,7 @@ class OpenAIBackend(AIBackend):
             self.logger.info(
                 f"""{hilight("[AI]", res.style)} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
             )
+        counter.increment(CounterItem.NEW_AI_QUERY)
         return res
 
 
