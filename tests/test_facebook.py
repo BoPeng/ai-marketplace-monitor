@@ -16,6 +16,7 @@ def test_search_page(page: Page, filename: str = "search_result_1.html") -> None
 
     for _ in range(10):
         p = FacebookSearchResultPage(page)
+        page.wait_for_load_state("domcontentloaded")
         listings = p.get_listings()
         if len(listings) != 0:
             break
@@ -54,6 +55,7 @@ def test_listing_page(page: Page, filename: str, price: str, seller: str, locati
 
     for _ in range(10):
         page.goto(f"file://{local_file_path}")
+        page.wait_for_load_state("domcontentloaded")
         listing = parse_listing(page, "post_url", None)
 
         if listing is not None:
