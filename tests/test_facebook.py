@@ -62,6 +62,7 @@ def test_listing_page(page: Page, filename: str, price: str, seller: str, locati
             break
         time.sleep(1)
 
+    assert listing is not None, f"Should be able to parse {filename}"
     assert listing.title, f"Title of {filename} should be {listing.title}"
     assert listing.price == price, f"Price of {filename} should be {listing.price}"
     assert listing.location == location, f"Location of {filename} should be {listing.location}"
