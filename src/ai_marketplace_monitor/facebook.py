@@ -412,14 +412,7 @@ class FacebookMarketplace(Marketplace):
         assert self.page is not None
         self.goto_url(post_url)
         counter.increment(CounterItem.LISTING_QUERY)
-        details = None
-        for page_model in supported_facebook_item_layouts:
-            try:
-                details = page_model(self.page, self.logger).parse(post_url)
-                break
-            except Exception:
-                # try next page layout
-                continue
+        details = parse_listing(self.page, post_url, self.logger)
         if details is None:
             raise ValueError(f"Failed to get item details from {post_url}")
         details.to_cache(post_url)
@@ -488,7 +481,7 @@ class FacebookMarketplace(Marketplace):
 
 class WebPage:
 
-    def __init__(self: "WebPage", page: Page, logger: Logger | None) -> None:
+    def __init__(self: "WebPage", page: Page, logger: Logger | None = None) -> None:
         self.page = page
         self.logger = logger
 
@@ -588,7 +581,7 @@ class FacebookSearchResultPage(WebPage):
                 raw_price = "" if len(divs) < 1 else divs[0].text_content() or ""
                 title = "" if len(divs) < 2 else divs[1].text_content() or ""
                 # location can be empty in some rare cases
-                location = "" if len(divs) <= 3 else divs[2].text_content() or ""
+                location = "" if len(divs) < 3 else (divs[2].text_content() or "")
                 image = listing.locator("img").get_attribute("src") or ""
                 price = extract_price(raw_price)
 
@@ -714,7 +707,7 @@ class FacebookRegularItemPage(FacebookItemPage):
 
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
-            seller_link = self.page.locator('a[href^="/marketplace/profile"]').last
+            seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
             return seller_link.text_content() or "**unspecified**"
         except Exception as e:
             if self.logger:
@@ -845,8 +838,17 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
         return "unspecified"
 
 
-supported_facebook_item_layouts = [
-    FacebookRegularItemPage,
-    FacebookRentalItemPage,
-    FacebookAutoItemPage,
-]
+def parse_listing(page: Page, post_url: str, logger: Logger | None = None) -> Listing | None:
+    supported_facebook_item_layouts = [
+        FacebookRegularItemPage,
+        FacebookRentalItemPage,
+        FacebookAutoItemPage,
+    ]
+
+    for page_model in supported_facebook_item_layouts:
+        try:
+            return page_model(page, logger).parse(post_url)
+        except Exception:
+            # try next page layout
+            continue
+    return None
