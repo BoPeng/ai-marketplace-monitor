@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -13,11 +14,13 @@ def test_search_page(page: Page, filename: str = "search_result_1.html") -> None
     # heading = page.locator('[aria-label="Collection of Marketplace items"]')
     # assert heading is not None
 
-    p = FacebookSearchResultPage(page)
+    for _ in range(10):
+        p = FacebookSearchResultPage(page)
+        listings = p.get_listings()
+        if len(listings) != 0:
+            break
+        time.sleep(1)
 
-    listings = p.get_listings()
-
-    print(listings)
     for idx, listing in enumerate(listings):
         assert listing.marketplace == "facebook"
         assert listing.id.isnumeric(), f"wrong id for listing {idx+1} with title {listing.title}"
@@ -48,9 +51,14 @@ def test_search_page(page: Page, filename: str = "search_result_1.html") -> None
 )
 def test_listing_page(page: Page, filename: str, price: str, seller: str, location: str) -> None:
     local_file_path = Path(__file__).parent / filename
-    page.goto(f"file://{local_file_path}")
 
-    listing = parse_listing(page, "post_url", None)
+    for _ in range(10):
+        page.goto(f"file://{local_file_path}")
+        listing = parse_listing(page, "post_url", None)
+
+        if listing is not None:
+            break
+        time.sleep(1)
 
     assert listing.title, f"Title of {filename} should be {listing.title}"
     assert listing.price == price, f"Price of {filename} should be {listing.price}"
