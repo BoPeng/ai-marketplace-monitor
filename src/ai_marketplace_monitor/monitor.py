@@ -6,6 +6,7 @@ from typing import ClassVar, List
 
 import humanize
 import inflect
+import rich
 import schedule  # type: ignore
 from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
@@ -281,7 +282,7 @@ class MarketplaceMonitor:
         if self.keyboard_monitor is None or not self.keyboard_monitor.is_paused():
             return
 
-        print(counter)
+        rich.print(counter)
         if not self.keyboard_monitor.confirm():
             return
 

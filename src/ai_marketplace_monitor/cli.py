@@ -153,7 +153,7 @@ def main(
         sys.exit(1)
     finally:
         monitor.stop_monitor()
-        print(counter)
+        rich.print(counter)
 
 
 if __name__ == "__main__":
