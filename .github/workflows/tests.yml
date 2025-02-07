@@ -58,7 +58,9 @@ jobs:
         run: nox --force-color -s mypy-${{ matrix.python-version }}
 
       - name: Install Playwright Browsers
-        run: playwright install --with-deps # Ensures browsers and dependencies are installed
+        run: |
+          pip install playwright
+          playwright install --with-deps # Ensures browsers and dependencies are installed
 
       - name: Run tests with nox
         shell: bash
