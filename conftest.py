@@ -7,7 +7,7 @@ from diskcache import Cache
 from pytest import TempPathFactory
 
 import ai_marketplace_monitor
-from ai_marketplace_monitor.ai import OllamaConfig
+from ai_marketplace_monitor.ai import OllamaBackend, OllamaConfig
 from ai_marketplace_monitor.facebook import FacebookItemConfig
 from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.user import User, UserConfig
@@ -111,3 +111,8 @@ def user_config() -> UserConfig:
 @pytest.fixture
 def user(user_config: UserConfig) -> User:
     return User(user_config)
+
+
+@pytest.fixture
+def ollama(ollama_config: OllamaConfig) -> User:
+    return OllamaBackend(ollama_config)
