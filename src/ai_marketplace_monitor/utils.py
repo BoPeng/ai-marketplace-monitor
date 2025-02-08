@@ -31,7 +31,7 @@ amm_home.mkdir(parents=True, exist_ok=True)
 cache = Cache(amm_home)
 
 
-TConfigType = TypeVar("TConfigType", bound="DataClassWithHandleFunc")
+TConfigType = TypeVar("TConfigType", bound="BaseConfig")
 
 
 class SleepStatus(Enum):
@@ -173,10 +173,10 @@ def hash_dict(obj: Dict[str, Any]) -> str:
 
 
 @dataclass
-class DataClassWithHandleFunc:
+class BaseConfig:
     name: str
 
-    def __post_init__(self: "DataClassWithHandleFunc") -> None:
+    def __post_init__(self: "BaseConfig") -> None:
         """Handle all methods that start with 'handle_' in the dataclass."""
         for f in fields(self):
             handle_method = getattr(self, f"handle_{f.name}", None)
@@ -184,7 +184,7 @@ class DataClassWithHandleFunc:
                 handle_method()
 
     @property
-    def hash(self: "DataClassWithHandleFunc") -> str:
+    def hash(self: "BaseConfig") -> str:
         return hash_dict(asdict(self))
 
 

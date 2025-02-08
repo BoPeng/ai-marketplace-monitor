@@ -18,7 +18,7 @@ def test_ai(
 def test_prompt(ollama: OllamaBackend, listing: Listing, item_config: FacebookItemConfig) -> None:
     prompt = ollama.get_prompt(listing, item_config)
     assert item_config.name in prompt
-    assert item_config.description in prompt
+    assert (item_config.description or "something weird") in prompt
     assert str(item_config.min_price) in prompt
     assert str(item_config.max_price) in prompt
 

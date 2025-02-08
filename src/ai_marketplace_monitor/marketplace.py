@@ -7,7 +7,7 @@ from typing import Any, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, Page
 
 from .listing import Listing
-from .utils import DataClassWithHandleFunc, KeyboardMonitor, convert_to_seconds, hilight
+from .utils import BaseConfig, KeyboardMonitor, convert_to_seconds, hilight
 
 
 class MarketPlace(Enum):
@@ -15,7 +15,7 @@ class MarketPlace(Enum):
 
 
 @dataclass
-class MarketItemCommonConfig(DataClassWithHandleFunc):
+class MarketItemCommonConfig(BaseConfig):
     """Item options that can be specified in market (non-marketplace specifc)
 
     This class defines and processes options that can be specified

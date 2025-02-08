@@ -11,7 +11,7 @@ from rich.pretty import pretty_repr
 
 from .listing import Listing
 from .marketplace import TItemConfig
-from .utils import CacheType, CounterItem, DataClassWithHandleFunc, cache, counter, hilight
+from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
 
 
 class AIServiceProvider(Enum):
@@ -73,7 +73,7 @@ class AIResponse:
 
 
 @dataclass
-class AIConfig(DataClassWithHandleFunc):
+class AIConfig(BaseConfig):
     # this argument is required
 
     api_key: str | None = None
@@ -263,7 +263,7 @@ class OpenAIBackend(AIBackend):
         if (
             answer is None
             or not answer.strip()
-            or re.search(r"Rating[:\s]*[1-5]", answer, re.DOTALL) is None
+            or re.search(r"Rating[^1-5]*[1-5]", answer, re.DOTALL) is None
         ):
             counter.increment(CounterItem.FAILED_AI_QUERY)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
@@ -272,11 +272,14 @@ class OpenAIBackend(AIBackend):
         # if any of the lines contains "Rating: ", extract the rating from it.
         score: int = 1
         comment = ""
-        for line in lines:
-            matched = re.match(r".*Rating[:\s]*([1-5])[:\s]*(.*)", line)
+        for idx, line in enumerate(lines):
+            matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
             if matched:
                 score = int(matched.group(1))
                 comment = matched.group(2).strip()
+                # if somehow AI ends the response with "Rating 3:", return the previous paragraph.
+                if comment == "":
+                    comment = lines[max(idx - 1, 0)]
                 break
 
         res = AIResponse(score, comment)

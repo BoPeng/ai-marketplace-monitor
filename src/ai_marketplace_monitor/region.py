@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from .utils import DataClassWithHandleFunc
+from .utils import BaseConfig
 
 
 @dataclass
-class RegionConfig(DataClassWithHandleFunc):
+class RegionConfig(BaseConfig):
     search_city: List[str]
     full_name: str = ""
     radius: List[int] = field(default_factory=list)

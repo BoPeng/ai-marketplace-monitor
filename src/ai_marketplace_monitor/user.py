@@ -1,4 +1,3 @@
-import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -8,14 +7,14 @@ from typing import Any, DefaultDict, List, Tuple, Type
 import humanize
 import inflect
 from diskcache import Cache  # type: ignore
-from pushbullet import Pushbullet  # type: ignore
 
 from .ai import AIResponse  # type: ignore
+from .email import SMTPConfig
 from .listing import Listing
+from .pushbullet import PushbulletConfig
 from .utils import (
     CacheType,
     CounterItem,
-    DataClassWithHandleFunc,
     NotificationStatus,
     cache,
     convert_to_seconds,
@@ -25,9 +24,10 @@ from .utils import (
 
 
 @dataclass
-class UserConfig(DataClassWithHandleFunc):
+class UserConfig(SMTPConfig, PushbulletConfig):
     # this argument is required
-    pushbullet_token: str
+    email: List[str] | None = None
+    smtp: str | None = None
     remind: int | None = None
 
     def handle_pushbullet_token(self: "UserConfig") -> None:
@@ -61,6 +61,27 @@ class UserConfig(DataClassWithHandleFunc):
         if not isinstance(self.remind, int):
             raise ValueError(
                 f"Item {hilight(self.name)} remind must be an time (e.g. 1 day) or false."
+            )
+
+    def handle_email(self: "UserConfig") -> None:
+        if self.email is None:
+            return
+        if isinstance(self.email, str):
+            self.email = [self.email]
+        if not isinstance(self.email, list) or not all(
+            (not isinstance(x, str) or "@" not in x or "." not in x.split("@")[1])
+            for x in self.email
+        ):
+            raise ValueError(
+                f"Item {hilight(self.name)} email must be a string or list of string."
+            )
+
+    def handle_smtp(self: "UserConfig") -> None:
+        if self.smtp is None:
+            return
+        if not isinstance(self.smtp, str):
+            raise ValueError(
+                f"Item {hilight(self.name)} smtp must be a valid smtp server configuration name."
             )
 
 
@@ -187,35 +208,11 @@ class User:
                     f"""{hilight("[Notify]", "succ")} Sending {self.name} a message with title {hilight(title)} and message {hilight(message)}"""
                 )
             #
-            if self.send_pushbullet_message(title, message):
+            if self.config.send_pushbullet_message(
+                title, message, logger=self.logger
+            ) or self.config.send_email_message(
+                self.config.email, title, message, logger=self.logger
+            ):
                 counter.increment(CounterItem.NOTIFICATIONS_SENT)
                 for listing, _ in listing_msg:
                     self.to_cache(listing, local_cache=local_cache)
-
-    def send_pushbullet_message(
-        self: "User", title: str, message: str, max_retries: int = 6, delay: int = 10
-    ) -> bool:
-        pb = Pushbullet(self.config.pushbullet_token)
-
-        for attempt in range(max_retries):
-            try:
-                pb.push_note(title, message)
-                return True
-            except Exception as e:
-                if self.logger:
-                    self.logger.debug(
-                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
-                    )
-                if attempt < max_retries - 1:
-                    if self.logger:
-                        self.logger.debug(
-                            f"""{hilight("[Notify]", "fail")} Retrying in {delay} seconds..."""
-                        )
-                    time.sleep(delay)
-                else:
-                    if self.logger:
-                        self.logger.error(
-                            f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
-                        )
-                    return False
-        return False

@@ -17,7 +17,7 @@
 
 ## Overview
 
-An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, this tool automates the process of searching for specific products, filtering out irrelevant listings, and notifying you of new matches via PushBullet.
+An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, this tool automates the process of searching for specific products, filtering out irrelevant listings, and notifying you of new matches via email or phone notifiction.
 
 ## Table of content:
 
@@ -83,7 +83,9 @@ Install a browser for Playwright using the command:
 playwright install
 ```
 
-### Set up PushBullet
+### Set up PushBullet (optional)
+
+If you would like to receive notification through phone notification
 
 - Sign up for [PushBullet](https://www.pushbullet.com/)
 - Install the app on your phone
@@ -149,7 +151,9 @@ delivery_method = 'shipping'
 seller_locations = []
 
 [user.user1]
-pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+email = 'you@gmail.com'
+# gmail passcode
+smtp_password = 'xxxxxxx'
 ```
 
 ### Run the program
@@ -236,14 +240,31 @@ Multiple marketplaces with different `name`s can be specified for different `ite
 
 ### Users
 
-One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. [PushBullet](https://www.pushbullet.com/) is currently the only method of notification.
+One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. Currently emails and [PushBullet](https://www.pushbullet.com/) are supported methods of notification.
 
-| Option             | Requirement | DataType | Description                                                                     |
-| ------------------ | ----------- | -------- | ------------------------------------------------------------------------------- |
-| `pushbullet_token` | Required    | String   | Token for user                                                                  |
-| `remind`           | Optional    | String   | Notify users again after a set time (e.g., 3 days) if a listing remains active. |
+| Option             | Requirement | DataType    | Description                                                                               |
+| ------------------ | ----------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `pushbullet_token` | Optional    | String      | Token for user                                                                            |
+| `email`            | Optional    | String/List | One or more email addresses for email notificaitons                                       |
+| `remind`           | Optional    | String      | Notify users again after a set time (e.g., 3 days) if a listing remains active.           |
+| `smtp`             | optional    | String      | name of `SMTP` server to a separate SMTP section if there are more than one such sections |
 
 Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
+
+If an `email` is specified, we need to know how to connect to an SMTP server to send the email. An smtp section should be named such as `smtp.gmail` and can have the following keys
+
+| Option          | Requirement | DataType    | Description                                                                                       |
+| --------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address.                                           |
+| `smtp_username` | Optional    | String/List | SMTP username, which will usually be determined from `smtp_from` or `email` (recipient) of users. |
+| `smtp_password` | Optional    | String      | A password or passcode for the SMTP server.                                                       |
+| `smtp_port`     | Optional    | Integer     | SMTP port, default to `465`                                                                       |
+| `smtp_from`     | optional    | String      | A separate from email address, if different from `smtp_username`                                  |
+
+Note that
+
+1. You can add values of an `smtp` section directly into a `user` section, or keep them an separate section to be shared by multiple users.
+2. You can use `smtp = "gmail"` to point to a specific `smtp` section if multiple smtp servers are configured.
 
 ### Items to search
 

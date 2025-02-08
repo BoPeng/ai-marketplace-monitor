@@ -1,5 +1,6 @@
 import sys
 from dataclasses import dataclass, field
+from enum import Enum
 from itertools import chain
 from logging import Logger
 from pathlib import Path
@@ -11,6 +12,7 @@ else:
     import tomli as tomllib
 
 from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
+from .email import SMTPConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
@@ -25,10 +27,20 @@ supported_ai_backends = {
 }
 
 
+class ConfigItem(Enum):
+    MARKETPLACE = "marketplace"
+    USER = "user"
+    ITEM = "item"
+    AI = "ai"
+    REGION = "region"
+    SMTP = "smtp"
+
+
 @dataclass
 class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     ai: Dict[str, TAIConfig] = field(init=False)
     user: Dict[str, UserConfig] = field(init=False)
+    smtp: Dict[str, SMTPConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
     item: Dict[str, TItemConfig] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
@@ -53,12 +65,14 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
         self.validate_sections(config)
         self.get_ai_config(config)
+        self.get_smtp_config(config)
         self.get_marketplace_config(config)
         self.get_user_config(config)
         self.get_region_config(config)
         self.get_item_config(config)
         self.validate_users()
         self.validate_ais()
+        self.expand_emails()
         self.expand_regions()
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -75,6 +89,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     f"Config file contains an unsupported AI backend {key} in the ai section."
                 ) from e
             self.ai[key] = backend_class.get_config(name=key, **value)
+
+    def get_smtp_config(self: "Config", config: Dict[str, Any]) -> None:
+        # convert ai config to AIConfig objects
+        if not isinstance(config.get("smtp", {}), dict):
+            raise ValueError("smtp section must be a dictionary.")
+
+        self.smtp = {}
+        for key, value in config.get("smtp", {}).items():
+            self.smtp[key] = SMTPConfig(name=key, **value)
 
     def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each marketplace
@@ -134,7 +157,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
         # check allowed keys in config
         for key in config:
-            if key not in ("marketplace", "user", "item", "ai", "region"):
+            if key not in [x.value for x in ConfigItem]:
                 raise ValueError(f"Config file contains an invalid section {key}.")
 
     def validate_users(self: "Config") -> None:
@@ -155,6 +178,33 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     raise ValueError(
                         f"AI {hilight(config.ai)} specified in {hilight(config.name)} does not exist."
                     )
+
+    def expand_emails(self: "Config") -> None:
+        # if ai is specified in other section, they must exist
+        for config in self.user.values():
+            # if any email is specified, there must be one smtp config
+            if config.email and len(self.smtp) == 0:
+                raise ValueError(
+                    f"User {hilight(config.name)} specifies email but no smtp config."
+                )
+            # if smtp is specified, it must exist
+            if config.smtp:
+                if not config.smtp not in self.smtp:
+                    raise ValueError(
+                        f"User {hilight(config.name)} specifies a smtp server that does not exist."
+                    )
+                smtp_config = self.smtp[config.smtp]
+            else:
+                # otherwise use a random one (likely the only one)
+                smtp_config = next(iter(self.smtp.values()))
+            # smtp_config.smtp_server should not be None
+            if smtp_config.smtp_server is None:
+                raise ValueError(
+                    f"User {hilight(config.name)} specifies a smtp server that does not exist."
+                )
+            # add values of smtp_config to user config
+            for key, value in smtp_config.__dict__.items():
+                setattr(config, key, value)
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist

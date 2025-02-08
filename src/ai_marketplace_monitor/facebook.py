@@ -16,8 +16,8 @@ from rich.pretty import pretty_repr
 from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig
 from .utils import (
+    BaseConfig,
     CounterItem,
-    DataClassWithHandleFunc,
     KeyboardMonitor,
     convert_to_seconds,
     counter,
@@ -55,7 +55,7 @@ class Availability(Enum):
 
 
 @dataclass
-class FacebookMarketItemCommonConfig(DataClassWithHandleFunc):
+class FacebookMarketItemCommonConfig(BaseConfig):
     """Item options that can be defined in marketplace
 
     This class defines and processes options that can be specified
