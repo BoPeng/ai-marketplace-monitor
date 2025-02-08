@@ -7,6 +7,7 @@ from typing import Any, DefaultDict, List, Tuple, Type
 
 import humanize
 import inflect
+from diskcache import Cache  # type: ignore
 from pushbullet import Pushbullet  # type: ignore
 
 from .ai import AIResponse  # type: ignore
@@ -77,8 +78,10 @@ class User:
     def notified_key(self: "User", listing: Listing) -> Tuple[str, str, str, str]:
         return (CacheType.USER_NOTIFIED.value, listing.marketplace, listing.id, self.name)
 
-    def notification_status(self: "User", listing: Listing) -> NotificationStatus:
-        notified = cache.get(self.notified_key(listing))
+    def notification_status(
+        self: "User", listing: Listing, local_cache: Cache | None = None
+    ) -> NotificationStatus:
+        notified = (local_cache or cache).get(self.notified_key(listing))
         # not notified before, or saved information is of old type
         if notified is None:
             return NotificationStatus.NOT_NOTIFIED
@@ -106,16 +109,23 @@ class User:
             NotificationStatus.NOTIFIED if expired > datetime.now() else NotificationStatus.EXPIRED
         )
 
-    def time_since_notification(self: "User", listing: Listing) -> int:
+    def time_since_notification(
+        self: "User", listing: Listing, local_cache: Cache | None = None
+    ) -> int:
         key = self.notified_key(listing)
-        notified = cache.get(key)
+        notified = (local_cache or cache).get(key)
         if notified is None:
             return -1
 
         notification_date = notified if isinstance(notified, str) else notified[0]
         return (datetime.now() - datetime.strptime(notification_date, "%Y-%m-%d %H:%M:%S")).seconds
 
-    def notify(self: "User", listings: List[Listing], ratings: List[AIResponse]) -> None:
+    def notify(
+        self: "User",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        local_cache: Cache | None = None,
+    ) -> None:
         msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
         p = inflect.engine()
         for listing, rating in zip(listings, ratings):
@@ -173,7 +183,7 @@ class User:
             if self.send_pushbullet_message(title, message):
                 counter.increment(CounterItem.NOTIFICATIONS_SENT)
                 for listing, _ in listing_msg:
-                    cache.set(
+                    (local_cache or cache).set(
                         self.notified_key(listing),
                         (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), listing.hash),
                         tag=CacheType.USER_NOTIFIED.value,

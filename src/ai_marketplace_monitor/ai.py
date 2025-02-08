@@ -5,6 +5,7 @@ from enum import Enum
 from logging import Logger
 from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
+from diskcache import Cache  # type: ignore
 from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
@@ -46,15 +47,25 @@ class AIResponse:
 
     @classmethod
     def from_cache(
-        cls: Type["AIResponse"], listing: Listing, item_config: TItemConfig
+        cls: Type["AIResponse"],
+        listing: Listing,
+        item_config: TItemConfig,
+        local_cache: Cache | None = None,
     ) -> Optional["AIResponse"]:
-        res = cache.get((CacheType.AI_INQUIRY.value, item_config.hash, listing.hash))
+        res = (local_cache or cache).get(
+            (CacheType.AI_INQUIRY.value, item_config.hash, listing.hash)
+        )
         if res is None:
             return None
         return AIResponse(**res)
 
-    def to_cache(self: "AIResponse", listing: Listing, item_config: TItemConfig) -> None:
-        cache.set(
+    def to_cache(
+        self: "AIResponse",
+        listing: Listing,
+        item_config: TItemConfig,
+        local_cache: Cache | None = None,
+    ) -> None:
+        (local_cache or cache).set(
             (CacheType.AI_INQUIRY.value, item_config.hash, listing.hash),
             asdict(self),
             tag=CacheType.AI_INQUIRY.value,

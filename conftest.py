@@ -1,6 +1,9 @@
+import shutil
+import tempfile
 from typing import Callable, Generator
 
 import pytest
+from diskcache import Cache
 from pytest import TempPathFactory
 
 import ai_marketplace_monitor
@@ -84,3 +87,12 @@ def config_file(tmp_path_factory: TempPathFactory) -> Callable:
         return str(fn)
 
     return generate_config_file
+
+
+@pytest.fixture
+def temp_cache() -> Generator[Cache, None, None]:
+    temp_dir = tempfile.mkdtemp()
+    cache = Cache(temp_dir)
+    yield cache
+    cache.close()
+    shutil.rmtree(temp_dir)
