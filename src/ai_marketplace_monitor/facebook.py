@@ -379,7 +379,9 @@ class FacebookMarketplace(Marketplace):
                         continue
                     try:
                         details = self.get_listing_details(
-                            f"https://www.facebook.com{listing.post_url}"
+                            f"https://www.facebook.com{listing.post_url}",
+                            price=listing.price,
+                            title=listing.title,
                         )
                         time.sleep(5)
                     except Exception as e:
@@ -390,8 +392,9 @@ class FacebookMarketplace(Marketplace):
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
-                    listing.description = details.description
-                    listing.seller = details.seller
+                    for attr in ("condition", "seller", "description"):
+                        # other attributes should be consistent
+                        setattr(listing, attr, getattr(details, attr))
                     listing.name = item_config.name
                     if self.logger:
                         self.logger.debug(
@@ -402,9 +405,19 @@ class FacebookMarketplace(Marketplace):
                     else:
                         counter.increment(CounterItem.EXCLUDED_LISTING)
 
-    def get_listing_details(self: "FacebookMarketplace", post_url: str) -> Listing:
+    def get_listing_details(
+        self: "FacebookMarketplace",
+        post_url: str,
+        price: str | None = None,
+        title: str | None = None,
+    ) -> Listing:
         details = Listing.from_cache(post_url)
-        if details is not None:
+        if (
+            details is not None
+            and (price is None or details.price == price)
+            and (title is None or details.title == title)
+        ):
+            # if the price and title are the same, we assume everything else is unchanged.
             return details
 
         if not self.page:
