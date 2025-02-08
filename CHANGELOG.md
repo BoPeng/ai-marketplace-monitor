@@ -7,17 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.6] - 2025-02-06
+## [0.6.8] - 2025-02-06
 
+- Re-retrieve details of listings if there are title or price change
 - Allow sending reminders for available items after specified time. (#41)
 - Display counters
 
 ## [0.6.5] - 2025-02-05
 
 - Allow checking URLs during monitoring (#34)
-
-## [0.6.4] - 2025-02-04
-
 - Add option `ai` that allows the specification of AI models to use for certain marketplaces or items.
 - Support locally hosted Ollama models
 - Support DeepSeek-r1 model with `<think>` tags.

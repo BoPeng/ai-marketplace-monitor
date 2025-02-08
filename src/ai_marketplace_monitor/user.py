@@ -102,7 +102,9 @@ class User:
 
     def notify(self: "User", listings: List[Listing], ratings: List[AIResponse]) -> None:
         msgs = []
-        unnotified_listings = []
+        reminders = []
+        new_listings = []
+        reminder_listings = []
         p = inflect.engine()
         for listing, rating in zip(listings, ratings):
             ns = self.notification_status(listing)
@@ -112,60 +114,69 @@ class User:
                         f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}"""
                     )
                 return
+
+            msg = (
+                (
+                    f"{listing.title}\n{listing.price}, {listing.location}\n"
+                    f"https://www.facebook.com{listing.post_url.split('?')[0]}"
+                )
+                if rating.comment == AIResponse.NOT_EVALUATED
+                else (
+                    f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
+                    f"{listing.price}, {listing.location}\n"
+                    f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
+                    f"AI: {rating.comment}"
+                )
+            )
             if ns == NotificationStatus.EXPIRED:
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}, which has been expired."""
                     )
+                # reminder
+                reminders.append(msg)
+                reminder_listings.append(listing)
             else:
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
                     )
+                # regular
+                msgs.append(msg)
+                new_listings.append(listing)
 
-            counter.increment(
-                CounterItem.REMINDERS_SENT
-                if ns == NotificationStatus.EXPIRED
-                else CounterItem.NOTIFICATIONS_SENT
-            )
-            if rating.comment == AIResponse.NOT_EVALUATED:
-                msg_prefix = "[REMINDER] " if ns == NotificationStatus.EXPIRED else ""
-                msgs.append(
-                    (
-                        f"{msg_prefix}{listing.title}\n{listing.price}, {listing.location}\n"
-                        f"https://www.facebook.com{listing.post_url.split('?')[0]}"
+        if new_listings:
+            title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}:"
+            message = "\n\n".join(msgs)
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Notify]", "succ")} Sending {self.name} a message with title {hilight(title)} and message {hilight(message)}"""
+                )
+            #
+            if self.send_pushbullet_message(title, message):
+                counter.increment(CounterItem.NOTIFICATIONS_SENT)
+                for listing in new_listings:
+                    cache.set(
+                        self.notified_key(listing),
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        tag=CacheType.USER_NOTIFIED.value,
                     )
+        if reminder_listings:
+            title = f"Another look at {len(reminders)} {p.plural_noun(listing.name, len(reminders))} from {listing.marketplace}:"
+            message = "\n\n".join(reminders)
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Notify]", "succ")} Sending {self.name} a reminder with title {hilight(title)} and message {hilight(message)}"""
                 )
-            else:
-                msg_prefix = "REMINDER " if ns == NotificationStatus.EXPIRED else ""
-                msgs.append(
-                    (
-                        f"[{msg_prefix}{rating.conclusion} ({rating.score})] {listing.title}\n"
-                        f"{listing.price}, {listing.location}\n"
-                        f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
-                        f"AI: {rating.comment}"
+            #
+            if self.send_pushbullet_message(title, message):
+                counter.increment(CounterItem.REMINDERS_SENT)
+                for listing in reminder_listings:
+                    cache.set(
+                        self.notified_key(listing),
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        tag=CacheType.USER_NOTIFIED.value,
                     )
-                )
-
-            unnotified_listings.append(listing)
-
-        if not unnotified_listings:
-            return
-
-        title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}: "
-        message = "\n\n".join(msgs)
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[Notify]", "succ")} Sending {self.name} a message with title {hilight(title)} and message {hilight(message)}"""
-            )
-        #
-        if self.send_pushbullet_message(title, message):
-            for listing in unnotified_listings:
-                cache.set(
-                    self.notified_key(listing),
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    tag=CacheType.USER_NOTIFIED.value,
-                )
 
     def send_pushbullet_message(
         self: "User", title: str, message: str, max_retries: int = 6, delay: int = 10
