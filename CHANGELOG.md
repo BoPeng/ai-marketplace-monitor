@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.8] - 2025-02-06
+## [0.6.9] - 2025-02-06
 
 - Re-retrieve details of listings if there are title or price change
 - Allow sending reminders for available items after specified time. (#41)
