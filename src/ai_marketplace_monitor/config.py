@@ -181,12 +181,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def expand_emails(self: "Config") -> None:
         # if ai is specified in other section, they must exist
+        if not self.smtp:
+            return
         for config in self.user.values():
-            # if any email is specified, there must be one smtp config
-            if config.email and len(self.smtp) == 0:
-                raise ValueError(
-                    f"User {hilight(config.name)} specifies email but no smtp config."
-                )
             # if smtp is specified, it must exist
             if config.smtp:
                 if not config.smtp not in self.smtp:

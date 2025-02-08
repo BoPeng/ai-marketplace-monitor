@@ -23,7 +23,11 @@ class Listing:
 
     @property
     def hash(self: "Listing") -> str:
-        return hash_dict(asdict(self))
+        # we need to normalize post_url before hashing because post_url will be different
+        # each time from a search page
+        return hash_dict(
+            {x: (y.split("?")[0] if x == "post_url" else y) for x, y in asdict(self).items()}
+        )
 
     @classmethod
     def from_cache(
