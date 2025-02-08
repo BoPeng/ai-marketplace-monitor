@@ -4,7 +4,7 @@ import time
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, TypeVar
+from typing import Any, Dict, List, Tuple, TypeVar
 
 import parsedatetime  # type: ignore
 import rich
@@ -165,6 +165,32 @@ class Counter:
 counter = Counter()
 
 
+def hashable(obj: Any) -> bool:
+    try:
+        hash(obj)
+        return True
+    except:
+        return False
+
+
+def freeze_dict(d: Dict[str, Any]) -> Tuple[str, Any]:
+    frozen_items = []
+    for key, value in d.items():
+        # Convert mutable values to immutable types
+        if isinstance(value, dict):
+            value = freeze_dict(value)  # Recursively freeze nested dictionaries
+        elif isinstance(value, list) and all(hashable(x) for x in value):
+            value = tuple(value)  # Convert lists to tuples
+        elif isinstance(value, set):
+            value = frozenset(value)  # Convert sets to frozensets
+        elif not hashable(value):
+            raise ValueError(
+                f"Cannot freeze dictionary for hashing: {key}={value} of type {type(value)}"
+            )
+        frozen_items.append((key, value))
+    return tuple(frozen_items)
+
+
 @dataclass
 class DataClassWithHandleFunc:
     name: str
@@ -178,7 +204,7 @@ class DataClassWithHandleFunc:
 
     @property
     def hash(self: "DataClassWithHandleFunc") -> str:
-        return str(hash(tuple(asdict(self).items())))
+        return str(hash(freeze_dict(asdict(self))))
 
 
 class CacheType(Enum):
