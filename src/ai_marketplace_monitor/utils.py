@@ -173,7 +173,7 @@ def hashable(obj: Any) -> bool:
         return False
 
 
-def freeze_dict(d: Dict[str, Any]) -> Tuple[str, Any]:
+def freeze_dict(d: Dict[str, Any]) -> Tuple[Tuple[str, Any], ...]:
     frozen_items = []
     for key, value in d.items():
         # Convert mutable values to immutable types
