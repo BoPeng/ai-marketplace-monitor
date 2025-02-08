@@ -10,6 +10,7 @@ import ai_marketplace_monitor
 from ai_marketplace_monitor.ai import OllamaConfig
 from ai_marketplace_monitor.facebook import FacebookItemConfig
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.user import User, UserConfig
 
 
 @pytest.fixture
@@ -96,3 +97,17 @@ def temp_cache() -> Generator[Cache, None, None]:
     yield cache
     cache.close()
     shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def user_config() -> UserConfig:
+    return UserConfig(
+        name="test",
+        pushbullet_token="whatever",
+        remind=True,
+    )
+
+
+@pytest.fixture
+def user(user_config: UserConfig) -> User:
+    return User(user_config)

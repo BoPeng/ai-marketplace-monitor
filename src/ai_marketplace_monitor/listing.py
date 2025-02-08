@@ -35,7 +35,7 @@ class Listing:
             # details could be a different datatype, miss some key etc.
             # and we have recently changed to save Listing as a dictionary
             return cls(
-                **(local_cache or cache).get(
+                **(cache if local_cache is None else local_cache).get(
                     (CacheType.LISTING_DETAILS.value, post_url.split("?")[0])
                 )
             )
@@ -47,7 +47,7 @@ class Listing:
         post_url: str,
         local_cache: Cache | None = None,
     ) -> None:
-        (local_cache or cache).set(
+        (cache if local_cache is None else local_cache).set(
             (CacheType.LISTING_DETAILS.value, post_url.split("?")[0]),
             asdict(self),
             tag=CacheType.LISTING_DETAILS.value,

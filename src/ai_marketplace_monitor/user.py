@@ -66,7 +66,7 @@ class UserConfig(DataClassWithHandleFunc):
 
 class User:
 
-    def __init__(self: "User", config: UserConfig, logger: Logger | None) -> None:
+    def __init__(self: "User", config: UserConfig, logger: Logger | None = None) -> None:
         self.name = config.name
         self.config = config
         self.logger = logger
@@ -78,10 +78,17 @@ class User:
     def notified_key(self: "User", listing: Listing) -> Tuple[str, str, str, str]:
         return (CacheType.USER_NOTIFIED.value, listing.marketplace, listing.id, self.name)
 
+    def to_cache(self: "User", listing: Listing, local_cache: Cache | None = None) -> None:
+        (cache if local_cache is None else local_cache).set(
+            self.notified_key(listing),
+            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), listing.hash),
+            tag=CacheType.USER_NOTIFIED.value,
+        )
+
     def notification_status(
         self: "User", listing: Listing, local_cache: Cache | None = None
     ) -> NotificationStatus:
-        notified = (local_cache or cache).get(self.notified_key(listing))
+        notified = (cache if local_cache is None else local_cache).get(self.notified_key(listing))
         # not notified before, or saved information is of old type
         if notified is None:
             return NotificationStatus.NOT_NOTIFIED
@@ -113,7 +120,7 @@ class User:
         self: "User", listing: Listing, local_cache: Cache | None = None
     ) -> int:
         key = self.notified_key(listing)
-        notified = (local_cache or cache).get(key)
+        notified = (cache if local_cache is None else local_cache).get(key)
         if notified is None:
             return -1
 
@@ -183,11 +190,7 @@ class User:
             if self.send_pushbullet_message(title, message):
                 counter.increment(CounterItem.NOTIFICATIONS_SENT)
                 for listing, _ in listing_msg:
-                    (local_cache or cache).set(
-                        self.notified_key(listing),
-                        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), listing.hash),
-                        tag=CacheType.USER_NOTIFIED.value,
-                    )
+                    self.to_cache(listing, local_cache=local_cache)
 
     def send_pushbullet_message(
         self: "User", title: str, message: str, max_retries: int = 6, delay: int = 10

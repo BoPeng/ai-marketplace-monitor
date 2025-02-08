@@ -52,7 +52,7 @@ class AIResponse:
         item_config: TItemConfig,
         local_cache: Cache | None = None,
     ) -> Optional["AIResponse"]:
-        res = (local_cache or cache).get(
+        res = (cache if local_cache is None else local_cache).get(
             (CacheType.AI_INQUIRY.value, item_config.hash, listing.hash)
         )
         if res is None:
@@ -65,7 +65,7 @@ class AIResponse:
         item_config: TItemConfig,
         local_cache: Cache | None = None,
     ) -> None:
-        (local_cache or cache).set(
+        (cache if local_cache is None else local_cache).set(
             (CacheType.AI_INQUIRY.value, item_config.hash, listing.hash),
             asdict(self),
             tag=CacheType.AI_INQUIRY.value,
