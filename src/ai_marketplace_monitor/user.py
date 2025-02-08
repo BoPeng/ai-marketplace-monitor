@@ -1,8 +1,9 @@
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
-from typing import Any, List, Tuple, Type
+from typing import Any, DefaultDict, List, Tuple, Type
 
 import humanize
 import inflect
@@ -78,14 +79,26 @@ class User:
 
     def notification_status(self: "User", listing: Listing) -> NotificationStatus:
         notified = cache.get(self.notified_key(listing))
-        # not notified before
+        # not notified before, or saved information is of old type
         if notified is None:
             return NotificationStatus.NOT_NOTIFIED
+
+        if isinstance(notified, str):
+            # old style cache
+            notification_date, listing_hash = notified, None
+        else:
+            notification_date, listing_hash = notified
+
+        # if listing_hash is not None, we need to check if the listing is still valid
+        if listing_hash is not None and listing_hash != listing.hash:
+            return NotificationStatus.LISTING_CHANGED
+
         # notified before and remind is None, so one notification will remain valid forever
         if self.config.remind is None:
             return NotificationStatus.NOTIFIED
+
         # if remind is not None, we need to check the time
-        expired = datetime.strptime(notified, "%Y-%m-%d %H:%M:%S") + timedelta(
+        expired = datetime.strptime(notification_date, "%Y-%m-%d %H:%M:%S") + timedelta(
             seconds=self.config.remind
         )
         # if expired is in the future, user is already notified.
@@ -98,13 +111,12 @@ class User:
         notified = cache.get(key)
         if notified is None:
             return -1
-        return (datetime.now() - datetime.strptime(notified, "%Y-%m-%d %H:%M:%S")).seconds
+
+        notification_date = notified if isinstance(notified, str) else notified[0]
+        return (datetime.now() - datetime.strptime(notification_date, "%Y-%m-%d %H:%M:%S")).seconds
 
     def notify(self: "User", listings: List[Listing], ratings: List[AIResponse]) -> None:
-        msgs = []
-        reminders = []
-        new_listings = []
-        reminder_listings = []
+        msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
         p = inflect.engine()
         for listing, rating in zip(listings, ratings):
             ns = self.notification_status(listing)
@@ -128,26 +140,31 @@ class User:
                     f"AI: {rating.comment}"
                 )
             )
-            if ns == NotificationStatus.EXPIRED:
-                if self.logger:
+
+            if self.logger:
+                if ns == NotificationStatus.EXPIRED:
                     self.logger.info(
                         f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}, which has been expired."""
                     )
-                # reminder
-                reminders.append(msg)
-                reminder_listings.append(listing)
-            else:
-                if self.logger:
+                elif ns == NotificationStatus.LISTING_CHANGED:
                     self.logger.info(
-                        f"""{hilight("[Search]", "succ")} New item found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
+                        f"""{hilight("[Notify]", "info")} Updated listing found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
                     )
-                # regular
-                msgs.append(msg)
-                new_listings.append(listing)
+                else:
+                    self.logger.info(
+                        f"""{hilight("[Notify]", "info")} New listing found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
+                    )
 
-        if new_listings:
-            title = f"Found {len(msgs)} new {p.plural_noun(listing.name, len(msgs))} from {listing.marketplace}:"
-            message = "\n\n".join(msgs)
+            msgs[ns].append((listing, msg))
+
+        for ns_status, listing_msg in msgs.items():
+            if ns_status == NotificationStatus.NOT_NOTIFIED:
+                title = f"Found {len(listing_msg)} new {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}:"
+            elif ns_status == NotificationStatus.EXPIRED:
+                title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}:"
+            elif ns_status == NotificationStatus.LISTING_CHANGED:
+                title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}:"
+            message = "\n\n".join([x[1] for x in listing_msg])
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Notify]", "succ")} Sending {self.name} a message with title {hilight(title)} and message {hilight(message)}"""
@@ -155,26 +172,10 @@ class User:
             #
             if self.send_pushbullet_message(title, message):
                 counter.increment(CounterItem.NOTIFICATIONS_SENT)
-                for listing in new_listings:
+                for listing, _ in listing_msg:
                     cache.set(
                         self.notified_key(listing),
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        tag=CacheType.USER_NOTIFIED.value,
-                    )
-        if reminder_listings:
-            title = f"Another look at {len(reminders)} {p.plural_noun(listing.name, len(reminders))} from {listing.marketplace}:"
-            message = "\n\n".join(reminders)
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Notify]", "succ")} Sending {self.name} a reminder with title {hilight(title)} and message {hilight(message)}"""
-                )
-            #
-            if self.send_pushbullet_message(title, message):
-                counter.increment(CounterItem.REMINDERS_SENT)
-                for listing in reminder_listings:
-                    cache.set(
-                        self.notified_key(listing),
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), listing.hash),
                         tag=CacheType.USER_NOTIFIED.value,
                     )
 

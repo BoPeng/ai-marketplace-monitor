@@ -1,7 +1,7 @@
 import hashlib
 import re
 import time
-from dataclasses import dataclass, fields
+from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, TypeVar
@@ -43,6 +43,7 @@ class NotificationStatus(Enum):
     NOT_NOTIFIED = 0
     EXPIRED = 1
     NOTIFIED = 2
+    LISTING_CHANGED = 3
 
 
 class KeyboardMonitor:
@@ -174,6 +175,10 @@ class DataClassWithHandleFunc:
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
                 handle_method()
+
+    @property
+    def hash(self: "DataClassWithHandleFunc") -> str:
+        return str(hash(tuple(asdict(self).items())))
 
 
 class CacheType(Enum):
