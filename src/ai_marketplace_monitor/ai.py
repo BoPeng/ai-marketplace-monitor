@@ -162,7 +162,7 @@ class AIBackend(Generic[TAIConfig]):
             prompt += f"""Exclude description with: "{'" and "'.join(item_config.exclude_by_description)}"."""
         #
         prompt += (
-            """\n\nThe user found a listing titled "{listing.title}" in {listing.condition} condition, """
+            f"""\n\nThe user found a listing titled "{listing.title}" in {listing.condition} condition, """
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
             "Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year, "
