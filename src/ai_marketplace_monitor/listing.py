@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
 from typing import Optional, Type
 
-from .utils import CacheType, cache
+from .utils import CacheType, cache, hash_dict
 
 
 @dataclass
@@ -21,7 +21,7 @@ class Listing:
 
     @property
     def hash(self: "Listing") -> str:
-        return str(hash(tuple(asdict(self).items())))
+        return hash_dict(asdict(self))
 
     @classmethod
     def from_cache(cls: Type["Listing"], post_url: str) -> Optional["Listing"]:

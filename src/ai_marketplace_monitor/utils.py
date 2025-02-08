@@ -1,10 +1,11 @@
 import hashlib
+import json
 import re
 import time
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, TypeVar
+from typing import Any, Dict, List, TypeVar
 
 import parsedatetime  # type: ignore
 import rich
@@ -165,30 +166,10 @@ class Counter:
 counter = Counter()
 
 
-def hashable(obj: Any) -> bool:
-    try:
-        hash(obj)
-        return True
-    except:
-        return False
-
-
-def freeze_dict(d: Dict[str, Any]) -> Tuple[Tuple[str, Any], ...]:
-    frozen_items = []
-    for key, value in d.items():
-        # Convert mutable values to immutable types
-        if isinstance(value, dict):
-            value = freeze_dict(value)  # Recursively freeze nested dictionaries
-        elif isinstance(value, list) and all(hashable(x) for x in value):
-            value = tuple(value)  # Convert lists to tuples
-        elif isinstance(value, set):
-            value = frozenset(value)  # Convert sets to frozensets
-        elif not hashable(value):
-            raise ValueError(
-                f"Cannot freeze dictionary for hashing: {key}={value} of type {type(value)}"
-            )
-        frozen_items.append((key, value))
-    return tuple(frozen_items)
+def hash_dict(obj: Dict[str, Any]) -> str:
+    """Hash a dictionary to a string."""
+    dict_string = json.dumps(obj).encode("utf-8")
+    return hashlib.sha256(dict_string).hexdigest()
 
 
 @dataclass
@@ -204,7 +185,7 @@ class DataClassWithHandleFunc:
 
     @property
     def hash(self: "DataClassWithHandleFunc") -> str:
-        return str(hash(freeze_dict(asdict(self))))
+        return hash_dict(asdict(self))
 
 
 class CacheType(Enum):
