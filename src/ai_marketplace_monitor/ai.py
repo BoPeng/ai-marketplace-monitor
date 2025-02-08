@@ -49,7 +49,7 @@ class AIResponse:
         cls: Type["AIResponse"], listing: Listing, item_config: TItemConfig
     ) -> Optional["AIResponse"]:
         res = cache.get(
-            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id)
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.hash)
         )
         if res is None:
             return None
@@ -57,7 +57,7 @@ class AIResponse:
 
     def to_cache(self: "AIResponse", listing: Listing, item_config: TItemConfig) -> None:
         cache.set(
-            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.id),
+            (CacheType.AI_INQUIRY.value, listing.marketplace, item_config.name, listing.hash),
             asdict(self),
             tag=CacheType.AI_INQUIRY.value,
         )

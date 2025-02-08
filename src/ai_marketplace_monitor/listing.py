@@ -19,6 +19,10 @@ class Listing:
     condition: str
     description: str
 
+    @property
+    def hash(self: "Listing") -> str:
+        return str(hash(tuple(asdict(self).items())))
+
     @classmethod
     def from_cache(cls: Type["Listing"], post_url: str) -> Optional["Listing"]:
         try:
