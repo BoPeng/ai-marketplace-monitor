@@ -1,7 +1,8 @@
 import smtplib
 import ssl
 from dataclasses import dataclass
-from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from logging import Logger
 from typing import List
 
@@ -64,19 +65,11 @@ class SMTPConfig(BaseConfig):
             raise ValueError("user requires a string smtp_from.")
         self.smtp_from = self.smtp_from.strip()
 
-    def notify_through_email(
+    def get_title(
         self: "SMTPConfig",
-        recipients: List[str] | None,
         listings: List[Listing],
-        ratings: List[AIResponse],
         notification_status: List[NotificationStatus],
-        logger: Logger | None = None,
-    ) -> bool:
-        if not recipients:
-            if logger:
-                logger.debug("No recipients specified. No email sent.")
-            return False
-
+    ) -> str:
         p = inflect.engine()
         n_new = len([x for x in notification_status if x == NotificationStatus.NOT_NOTIFIED])
         n_notified = len([x for x in notification_status if x == NotificationStatus.NOTIFIED])
@@ -98,13 +91,18 @@ class SMTPConfig(BaseConfig):
             cnts[-1] = hilight(cnts[-1])
         else:
             # no new items
-            if logger:
-                logger.debug("No unnotified items.")
-            return False
+            return ""
 
         title += " ".join(cnts)
         title += f"{p.plural_noun(listings[0].name, len(listings)-n_notified)} from {listings[0].marketplace}"
-        # messages
+        return title
+
+    def get_text_message(
+        self: "SMTPConfig",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+    ) -> str:
         messages = []
         for listing, rating, ns in zip(listings, ratings, notification_status):
             prefix = ""
@@ -128,15 +126,69 @@ class SMTPConfig(BaseConfig):
                     f"AI: {rating.comment}"
                 )
             )
-
         message = "\n\n".join(messages)
-        return self.send_email_message(recipients, title, message, logger=logger)
+        return message
+
+    def get_html_message(
+        self: "SMTPConfig",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+    ) -> str:
+        messages = []
+        for listing, rating, ns in zip(listings, ratings, notification_status):
+            prefix = ""
+            if ns == NotificationStatus.NOTIFIED:
+                continue
+            if ns == NotificationStatus.EXPIRED:
+                prefix = "[REMINDER] "
+            elif ns == NotificationStatus.LISTING_CHANGED:
+                prefix = "[lISTING UPDATED] "
+
+            messages.append(
+                (
+                    f"{prefix}{listing.title}\n{listing.price}, {listing.location}\n"
+                    f"{listing.post_url.split('?')[0]}"
+                )
+                if rating.comment == AIResponse.NOT_EVALUATED
+                else (
+                    f"{prefix} [{rating.conclusion} ({rating.score})] {listing.title}\n"
+                    f"{listing.price}, {listing.location}\n"
+                    f"{listing.post_url.split('?')[0]}\n"
+                    f"AI: {rating.comment}"
+                )
+            )
+        message = "\n\n".join(messages)
+        return message
+
+    def notify_through_email(
+        self: "SMTPConfig",
+        recipients: List[str] | None,
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+        logger: Logger | None = None,
+    ) -> bool:
+        if not recipients:
+            if logger:
+                logger.debug("No recipients specified. No email sent.")
+            return False
+
+        title = self.get_title(listings, notification_status)
+        if not title:
+            if logger:
+                logger.debug("No new listings. No email sent.")
+            return False
+        message = self.get_text_message(listings, ratings, notification_status)
+        html_message = self.get_html_message(listings, ratings, notification_status)
+        return self.send_email_message(recipients, title, message, html_message, logger=logger)
 
     def send_email_message(
         self: "SMTPConfig",
         recipients: List[str] | None,
         title: str,
         message: str,
+        html: str,
         logger: Logger | None = None,
     ) -> bool:
         if not recipients:
@@ -152,12 +204,12 @@ class SMTPConfig(BaseConfig):
             smtp_server = f"smtp.{sender.split("@")[1]}"
 
         # s.starttls()
-        msg = EmailMessage()
-        msg.set_content(message)
-
+        msg = MIMEMultipart()
         msg["Subject"] = title
         msg["From"] = sender
         msg["To"] = ", ".join(recipients)
+        msg.attach(MIMEText(message, "plain"))
+        msg.attach(MIMEText(html, "html"))
 
         try:
             smtp_port = self.smtp_port or 587
