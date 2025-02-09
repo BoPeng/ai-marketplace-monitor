@@ -1,3 +1,4 @@
+import base64
 import smtplib
 import ssl
 from dataclasses import dataclass
@@ -10,11 +11,7 @@ import inflect
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import (
-    BaseConfig,
-    NotificationStatus,
-    hilight,
-)
+from .utils import BaseConfig, NotificationStatus, fetch_with_retry, hilight, resize_image_data
 
 
 @dataclass
@@ -102,6 +99,7 @@ class SMTPConfig(BaseConfig):
         listings: List[Listing],
         ratings: List[AIResponse],
         notification_status: List[NotificationStatus],
+        logger: Logger | None = None,
     ) -> str:
         messages = []
         for listing, rating, ns in zip(listings, ratings, notification_status):
@@ -134,7 +132,13 @@ class SMTPConfig(BaseConfig):
         listings: List[Listing],
         ratings: List[AIResponse],
         notification_status: List[NotificationStatus],
+        logger: Logger | None,
     ) -> str:
+        html_text = """
+    <html>
+        <body>
+    """
+
         messages = []
         for listing, rating, ns in zip(listings, ratings, notification_status):
             prefix = ""
@@ -147,19 +151,44 @@ class SMTPConfig(BaseConfig):
 
             messages.append(
                 (
-                    f"{prefix}{listing.title}\n{listing.price}, {listing.location}\n"
-                    f"{listing.post_url.split('?')[0]}"
+                    f"<h3>{prefix}<b>{listing.title}</b><h3><p><b>{listing.price}</b>, {listing.location}</p>"
+                    f"""<p><a href="{listing.post_url.split('?')[0]}">{listing.post_url.split('?')[0]}</a><p>"""
                 )
                 if rating.comment == AIResponse.NOT_EVALUATED
                 else (
-                    f"{prefix} [{rating.conclusion} ({rating.score})] {listing.title}\n"
-                    f"{listing.price}, {listing.location}\n"
-                    f"{listing.post_url.split('?')[0]}\n"
-                    f"AI: {rating.comment}"
+                    f"<h3>{prefix} [{rating.conclusion} ({rating.score})] <b>{listing.title}</b></h3>"
+                    f"<p><b>{listing.price}</b>, {listing.location}</p>"
+                    f"""<p><a href="{listing.post_url.split('?')[0]}">{listing.post_url.split('?')[0]}</a><p>"""
+                    f"<p><b>AI</b>: {rating.comment}</p>"
                 )
             )
-        message = "\n\n".join(messages)
-        return message
+            # attaching image
+            if listing.image:
+                # download the content of image with URL listing.image
+                result = fetch_with_retry(listing.image, logger=logger)
+                if result is None:
+                    continue
+                image_data, content_type = result
+                # get the image data, try to resize if it is too big
+                image_data = resize_image_data(image_data)
+                if len(image_data) > 1024 * 1024:
+                    if logger:
+                        logger.warning(f"Image {listing.image} is too big, skipping.")
+                    continue
+                # encode the image data to base64
+                encoded_image = base64.b64encode(image_data).decode("utf-8")
+                # create the HTML img tag with the base64 encoded image
+                img_tag = f"""<img src="data:{content_type};base64,{encoded_image}"
+                    alt="Image" width="500" height="auto" style="max-width: 600px;">"""
+                # add the img tag to the message
+                messages[-1] += img_tag
+
+        html_text = "\n\n".join(messages)
+        html_text += """
+        </body>
+    </html>
+    """
+        return html_text
 
     def notify_through_email(
         self: "SMTPConfig",
@@ -179,8 +208,8 @@ class SMTPConfig(BaseConfig):
             if logger:
                 logger.debug("No new listings. No email sent.")
             return False
-        message = self.get_text_message(listings, ratings, notification_status)
-        html_message = self.get_html_message(listings, ratings, notification_status)
+        message = self.get_text_message(listings, ratings, notification_status, logger)
+        html_message = self.get_html_message(listings, ratings, notification_status, logger)
         return self.send_email_message(recipients, title, message, html_message, logger=logger)
 
     def send_email_message(
