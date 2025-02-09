@@ -286,7 +286,12 @@ class FacebookMarketplace(Marketplace):
         login_wait_time = self.config.login_wait_time or 60
         if self.logger:
             self.logger.info(
-                f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)} or press {hilight("Esc")} when you are ready."""
+                f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)}"""
+                + (
+                    f""" or press {hilight("Esc")} when you are ready."""
+                    if self.keyboard_monitor is not None
+                    else ""
+                )
             )
         doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
 
@@ -737,7 +742,6 @@ class FacebookRegularItemPage(FacebookItemPage):
             return image_url
         except KeyboardInterrupt:
             raise
-
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -749,7 +753,6 @@ class FacebookRegularItemPage(FacebookItemPage):
             return seller_link.text_content() or "**unspecified**"
         except KeyboardInterrupt:
             raise
-
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
