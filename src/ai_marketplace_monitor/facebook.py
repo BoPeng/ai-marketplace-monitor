@@ -379,7 +379,7 @@ class FacebookMarketplace(Marketplace):
                         continue
                     try:
                         details = self.get_listing_details(
-                            f"https://www.facebook.com{listing.post_url}",
+                            f"{listing.post_url}",
                             price=listing.price,
                             title=listing.title,
                         )
@@ -411,6 +411,7 @@ class FacebookMarketplace(Marketplace):
         price: str | None = None,
         title: str | None = None,
     ) -> Listing:
+        assert post_url.startswith("https://www.facebook.com")
         details = Listing.from_cache(post_url)
         if (
             details is not None
