@@ -31,6 +31,8 @@ class UserConfig(SMTPConfig, PushbulletConfig):
     remind: int | None = None
 
     def handle_pushbullet_token(self: "UserConfig") -> None:
+        if self.pushbullet_token is None:
+            return
         if not isinstance(self.pushbullet_token, str) or not self.pushbullet_token:
             raise ValueError("user requires an non-empty pushbullet_token.")
         self.pushbullet_token = self.pushbullet_token.strip()
@@ -69,8 +71,7 @@ class UserConfig(SMTPConfig, PushbulletConfig):
         if isinstance(self.email, str):
             self.email = [self.email]
         if not isinstance(self.email, list) or not all(
-            (not isinstance(x, str) or "@" not in x or "." not in x.split("@")[1])
-            for x in self.email
+            (isinstance(x, str) and "@" in x and "." in x.split("@")[1]) for x in self.email
         ):
             raise ValueError(
                 f"Item {hilight(self.name)} email must be a string or list of string."
@@ -168,13 +169,13 @@ class User:
             msg = (
                 (
                     f"{listing.title}\n{listing.price}, {listing.location}\n"
-                    f"https://www.facebook.com{listing.post_url.split('?')[0]}"
+                    f"{listing.post_url.split('?')[0]}"
                 )
                 if rating.comment == AIResponse.NOT_EVALUATED
                 else (
                     f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
                     f"{listing.price}, {listing.location}\n"
-                    f"https://www.facebook.com{listing.post_url.split('?')[0]}\n"
+                    f"{listing.post_url.split('?')[0]}\n"
                     f"AI: {rating.comment}"
                 )
             )
@@ -197,11 +198,11 @@ class User:
 
         for ns_status, listing_msg in msgs.items():
             if ns_status == NotificationStatus.NOT_NOTIFIED:
-                title = f"Found {len(listing_msg)} new {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}:"
+                title = f"Found {len(listing_msg)} new {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             elif ns_status == NotificationStatus.EXPIRED:
-                title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}:"
+                title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             elif ns_status == NotificationStatus.LISTING_CHANGED:
-                title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}:"
+                title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             message = "\n\n".join([x[1] for x in listing_msg])
             if self.logger:
                 self.logger.info(

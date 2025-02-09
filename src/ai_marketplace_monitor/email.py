@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from logging import Logger
 from typing import List
-
+import ssl
 from .utils import BaseConfig
 
 
@@ -63,12 +63,15 @@ class SMTPConfig(BaseConfig):
         logger: Logger | None = None,
     ) -> bool:
         if not recipients:
+            if logger:
+                logger.debug("No recipients specified. No email sent.")
             return False
 
         sender = self.smtp_from or self.smtp_username or recipients[0]
 
-        smtp_server = self.self.smtp_server
-        if sender.endswith("gmail.com"):
+        if self.smtp_server:
+            smtp_server = self.smtp_server
+        elif sender.endswith("gmail.com"):
             smtp_server = "smtp.gmail.com"
         elif sender.endswith("yahoo.com"):
             smtp_server = "smtp.mail.yahoo.com"
@@ -106,11 +109,36 @@ class SMTPConfig(BaseConfig):
         msg["To"] = ", ".join(recipients)
 
         try:
-            with smtplib.SMTP_SSL(smtp_server, self.smtp_port or 465) as smtp:
-                smtp.set_debuglevel(1)
-                if self.smtp_username and self.smtp_password:
-                    smtp.login(self.smtp_username, self.smtp_password)
-                    smtp.send_message(msg)
+            smtp_port = self.smtp_port or 587
+            smtp_username = self.smtp_username or sender
+            if not smtp_username:
+                if logger:
+                    logger.error(f"No smtp username.")
+                return False
+
+            smtp_password = self.smtp_password
+            if not smtp_password:
+                if logger:
+                    logger.error(f"No smtp password.")
+                return False
+
+            context = ssl.create_default_context()
+            with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+                # smtp.set_debuglevel(1)
+                smtp.ehlo()  # Can be omitted
+                smtp.starttls(context=context)
+                smtp.ehlo()  # Can be omitted
+                try:
+                    smtp.login(smtp_username, smtp_password)
+                except Exception as e:
+                    if logger:
+                        logger.error(
+                            f"Failed to login to smtp server {smtp_server}:{smtp_port} with username {smtp_username}: {e}"
+                        )
+                    return False
+                smtp.send_message(msg)
+            if logger:
+                logger.info(f"""Email with title {title} sent to {msg["To"]}""")
             return True
         except Exception as e:
             if logger:

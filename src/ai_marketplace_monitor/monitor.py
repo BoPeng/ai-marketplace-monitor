@@ -527,9 +527,12 @@ class MarketplaceMonitor:
                                 self.logger.info(
                                     f"""{hilight("[Notify]", "info")} Not notified {user} about {post_url} yet."""
                                 )
-                                User(self.config.user[user], logger=self.logger).notify(
-                                    [listing], [listing_ratings]
-                                )
+                        #
+                        # testing notification
+                        #
+                        # User(self.config.user[user], logger=self.logger).notify(
+                        #     [listing], [listing_ratings]
+                        # )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",

@@ -20,6 +20,8 @@ class PushbulletConfig(BaseConfig):
         logger: Logger | None = None,
     ) -> bool:
         if not self.pushbullet_token:
+            if logger:
+                logger.debug(f"No pushbullet_token specified.")
             return False
 
         pb = Pushbullet(self.pushbullet_token)

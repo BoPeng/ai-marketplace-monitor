@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2025-02-07
+
+- Allow email notification
+
 ## [0.7.0] - 2025-02-06
 
 - Re-retrieve details of listings if there are title or price change

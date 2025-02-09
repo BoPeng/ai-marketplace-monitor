@@ -27,7 +27,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - [Quickstart](#quickstart)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [Set up PushBullet](#set-up-pushbullet)
+  - [Set up PushBullet (optional)](#set-up-pushbullet-optional)
   - [Sign up with an AI service or build your own (optional)](#sign-up-with-an-ai-service-or-build-your-own-optional)
   - [Write a configuration file](#write-a-configuration-file)
   - [Run the program](#run-the-program)
@@ -36,10 +36,12 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [AI Agents](#ai-agents)
   - [Marketplaces](#marketplaces)
   - [Users](#users)
+  - [Notification](#notification)
   - [Items to search](#items-to-search)
   - [Options that can be specified for both marketplaces and items](#options-that-can-be-specified-for-both-marketplaces-and-items)
   - [Regions](#regions)
 - [Advanced features](#advanced-features)
+  - [Setting up email notification](#setting-up-email-notification)
   - [Multiple configuration files](#multiple-configuration-files)
   - [Adjust notification level](#adjust-notification-level)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
@@ -59,7 +61,7 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
 - Limit search by price, and location.
 - Exclude irrelevant results and spammers.
 - Use an AI service provider to evaluate listing matches and give recommendations.
-- Send notifications via PushBullet.
+- Send notifications via PushBullet or Email.
 - Search repeatedly with specified intervals or at specific times.
 - Search multiple cities, even pre-defined regions (e.g. USA)
 
@@ -251,20 +253,24 @@ One or more `user.username` sections are allowed. The `username` need to match w
 
 Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
 
-If an `email` is specified, we need to know how to connect to an SMTP server to send the email. An smtp section should be named such as `smtp.gmail` and can have the following keys
+### Notification
 
-| Option          | Requirement | DataType    | Description                                                                                       |
-| --------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------- |
-| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address.                                           |
-| `smtp_username` | Optional    | String/List | SMTP username, which will usually be determined from `smtp_from` or `email` (recipient) of users. |
-| `smtp_password` | Optional    | String      | A password or passcode for the SMTP server.                                                       |
-| `smtp_port`     | Optional    | Integer     | SMTP port, default to `465`                                                                       |
-| `smtp_from`     | optional    | String      | A separate from email address, if different from `smtp_username`                                  |
+If an `email` is specified, we need to know how to connect to an SMTP server to send the email. An smtp section should be named like `smtp.gmail` and can have the following keys
+
+| Option          | Requirement | DataType | Description                                             |
+| --------------- | ----------- | -------- | ------------------------------------------------------- |
+| `smtp_username` | Optional    | String   | SMTP username.                                          |
+| `smtp_password` | Required    | String   | A password or passcode for the SMTP server.             |
+| `smtp_server`   | Optional    | String   | SMTP server, usually guessed from sender email address. |
+| `smtp_port`     | Optional    | Integer  | SMTP port, default to `587`                             |
 
 Note that
 
 1. You can add values of an `smtp` section directly into a `user` section, or keep them an separate section to be shared by multiple users.
-2. You can use `smtp = "gmail"` to point to a specific `smtp` section if multiple smtp servers are configured.
+2. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
+3. `smtp_username` is assumed to be the first `email`.
+
+See [Setting up email notification](#setting-up-email-notification) for details on how to set up email notification.
 
 ### Items to search
 
@@ -335,6 +341,50 @@ Note that
 2. Options `full_name` and `city_name` are for documentation purposes only.
 
 ## Advanced features
+
+### Setting up email notification
+
+Sending email notifications requires recipient email addresses, which are specified in `email` of `user`. For example, you can send email notifications to multiple users with multiple email addresses as
+
+```toml
+[user.user1]
+email = 'user1@gmail.com'
+
+[user.user2]
+email = ['user2@gmail.com', 'user2@outlook.com']
+```
+
+You then need a SMTP server that helps you to send the email, for which you will need a `smtp_server`, `smtp_port`, `smtp_username` and `smtp_password`. Generally speaking, you will need to create an `smtp` section with the information obtained from your email service provider.
+
+```toml
+[smtp.myprovider]
+smtp_server = 'smtp.soho.com'
+smtp_port = 587
+smtp_username = 'username'
+smtp_password = 'mypassword'
+```
+
+If you have a GMAIL account,
+
+- `smtp_username` is your gmail address, which is assumed to be the first `email` if left unspecified (assume that you are sending notification to yourself)
+- `smtp_server` and `smtp_port`: Assumed to be `smtp.gmail.com` and `587` if `smtp_username` ends with `gmail.com`.
+- `smtp_password`: You cannot use your gmail password. Instead, you will need to go to your Google `Account Manager`, select `Security`, search for `App passwords` (you may need to enable two-step authentication first), create an app (e.g. `ai-marketplace-monitor`), and copy the password.
+
+That is to say, you `smtp` setting for your gmail account should look like
+
+```toml
+[smtp.google]
+smtp_username = 'myemail@gmail.com'
+smtp_password = 'abcdefghijklmnop'
+```
+
+If you are using an gmail account and only notify yourself, you can simply do
+
+```toml
+[user.me]
+email = 'myemail@gmail.com'
+smtp_password = 'abcdefghijklmnop'
+```
 
 ### Multiple configuration files
 

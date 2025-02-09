@@ -599,6 +599,9 @@ class FacebookSearchResultPage(WebPage):
                 image = listing.locator("img").get_attribute("src") or ""
                 price = extract_price(raw_price)
 
+                if post_url.startswith("/"):
+                    post_url = f"https://www.facebook.com{post_url}"
+
                 listings.append(
                     Listing(
                         marketplace="facebook",
