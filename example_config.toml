@@ -1,45 +1,31 @@
 [ai.openai]
-# Token for open AI, used to intelligently judge the match if the items
 api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-# OPTIONAL, default to gpt-4o
 model = "gpt-4o"
 
-# REQUIRED. Right now only facebook is supported.
 [marketplace.facebook]
-# REQUIRED, can be specified for each search item
 search_city = 'city'
-# OPTIONAL, will have to enter manually if left unspecified
 username = 'username'
-# OPTIONAL, will have to enter manually if left unspecified
 password = 'password'
-# OPTIONAL, time for you to login
 login_wait_time = 60
-# OPTIONAL, default to 30 minutes, time between repeated searches
 search_interval = '30m'
-# OPTIONAL, if specified, a random time will be chosen between search_interval and max_search_interval
 max_search_interval = '1h'
-#
-# OPTIONAL string or list of strings, can be specified for each search item
 seller_locations = ['city', 'surrounding city']
-# OPTIONAL, string or list of strings, can be specified for each search item
 notify = 'user1'
-# OPTIONAL, string or list of strings, can be specified for each search item
 exclude_sellers = []
-#
 exclude_by_description = []
 
-# REQUIRED for notification
 [notify.user1]
-# REQUIRED, only pushbullet notification is supported now.
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+email = 'myself@gmail.com'
 
-# Another user
 [notify.user2]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+email = 'someone@gmail.com'
 
+[smtp.gmail]
+smtp_username = 'myself@gmail.com'
+smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-# search an item across the usa, acceptable listing from any location
-# and perform one search each day
 [item.name1]
 keywords = 'search word one'
 search_region = 'usa'
@@ -47,23 +33,13 @@ search_interval = '1d'
 delivery_method = 'shipping'
 seller_locations = []
 
-# search for a local item with longer description
 [item.name2]
-# REUIRED string or list of strings
 keywords = ['search word one', 'search word two']
-# OPTIONAL, recommended for AI
 description = "it should be from manufacture, the seller should not offer shipping."
-# OPTIONAL words that should appear in the title
 include_keywords = ['search word']
-# OPTIONAL words that should not be in the title
 exclude_keywords = ['exclude word one', 'exclude word two']
-# OPTIONAL product specific user to notify
 notify = 'user2'
-# REQUIRED, can be specified for each search item
 search_city = 'another city'
-# OPTIONAL
 seller_locations = ['another city', 'surrounding city']
-# OPTONAL
 exclude_sellers = []
-# OPTIONAL
 exclude_by_description = []

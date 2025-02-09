@@ -385,9 +385,9 @@ class SMTPConfig(BaseConfig):
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
                         <td class="footer">
-                            <p>This is an automated message from AI Marketplace Monitor</p>
+                            <p>This is an automated message from <a href="https://github.com/BoPeng/ai-marketplace-monitor">AI Marketplace Monitor</a></p>
                             <p>
-                                Check How it Works: <a href="https://github.com/BoPeng/ai-marketplace-monitor">https://github.com/BoPeng/ai-marketplace-monitor</a><br>
+                                Brought to you by <a href="https://www.linkedin.com/in/bo-peng-53668026/">Bo Peng</a> from <a href="https://bioworkflows.com/">BioWorkflows.com</a><br>
                                 To stop this email, contact the sender
                             </p>
                         </td>
