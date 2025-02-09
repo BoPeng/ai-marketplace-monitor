@@ -181,7 +181,7 @@ email = 'you@gmail.com'
 smtp_password = 'xxxxxxxxxxxxxxxx'
 ```
 
-Please see ([`docs/README.md`](docs/README.md)) for a complete list of options.
+For a complete list of options, please see the [configuration documentation](docs/README.md).
 
 ### Run the program
 
