@@ -188,19 +188,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for config in self.user.values():
             # if smtp is specified, it must exist
             if config.smtp:
-                if not config.smtp not in self.smtp:
+                if config.smtp not in self.smtp:
                     raise ValueError(
-                        f"User {hilight(config.name)} specifies a smtp server that does not exist."
+                        f"User {hilight(config.name)} specifies an undefined smtp server {config.name}."
                     )
-                smtp_config = self.smtp[config.smtp]
+                else:
+                    smtp_config = self.smtp[config.smtp]
             else:
                 # otherwise use a random one (likely the only one)
                 smtp_config = next(iter(self.smtp.values()))
-            # smtp_config.smtp_server should not be None
-            if smtp_config.smtp_server is None:
-                raise ValueError(
-                    f"User {hilight(config.name)} specifies a smtp server that does not exist."
-                )
             # add values of smtp_config to user config
             for key, value in smtp_config.__dict__.items():
                 setattr(config, key, value)
