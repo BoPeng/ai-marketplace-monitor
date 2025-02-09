@@ -619,6 +619,9 @@ class FacebookSearchResultPage(WebPage):
                 if post_url.startswith("/"):
                     post_url = f"https://www.facebook.com{post_url}"
 
+                if image.startswith("/"):
+                    image = f"https://www.facebook.com{image}"
+
                 listings.append(
                     Listing(
                         marketplace="facebook",

@@ -154,12 +154,13 @@ class User:
         listings: List[Listing],
         ratings: List[AIResponse],
         local_cache: Cache | None = None,
+        force: bool = False,
     ) -> None:
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
         if self.config.notify_through_pushbullet(
-            listings, ratings, statuses, logger=self.logger
+            listings, ratings, statuses, force=force, logger=self.logger
         ) or self.config.notify_through_email(
-            self.config.email, listings, ratings, statuses, logger=self.logger
+            self.config.email, listings, ratings, statuses, force=force, logger=self.logger
         ):
             counter.increment(CounterItem.NOTIFICATIONS_SENT)
             for listing, ns in zip(listings, statuses):
@@ -178,7 +179,7 @@ class User:
                         )
                     else:
                         self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {self.name} was notified for new listing {hilight(listing.title)}."""
+                            f"""{hilight("[Notify]", "info")} {self.name} was just notified for new listing {hilight(listing.title)}."""
                         )
                 if ns != NotificationStatus.NOTIFIED:
                     self.to_cache(listing, local_cache=local_cache)

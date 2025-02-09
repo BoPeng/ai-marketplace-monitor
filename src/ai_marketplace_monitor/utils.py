@@ -6,13 +6,13 @@ from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from logging import Logger
 from pathlib import Path
-from typing import Any, Byte, Dict, List, Tuple, TypeVar
+from typing import Any, Dict, List, Tuple, TypeVar
 
 import parsedatetime  # type: ignore
-import requests
+import requests  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
-from requests.exceptions import RequestException, Timeout
+from requests.exceptions import RequestException, Timeout  # type: ignore
 from rich.pretty import pretty_repr
 
 try:
@@ -350,6 +350,8 @@ def fetch_with_retry(
     Returns:
         Tuple of (content, content_type) if successful, None if failed
     """
+    if logger:
+        logger.debug(f"Fetching {url} with timeout {timeout}s")
     for attempt in range(max_retries):
         try:
             response = requests.get(
@@ -361,22 +363,26 @@ def fetch_with_retry(
 
         except Timeout:
             wait_time = backoff_factor**attempt
-            logger.warning(
-                f"Timeout fetching {url} (attempt {attempt + 1}/{max_retries}). "
-                f"Waiting {wait_time:.1f}s before retry"
-            )
+            if logger:
+                logger.warning(
+                    f"Timeout fetching {url} (attempt {attempt + 1}/{max_retries}). "
+                    f"Waiting {wait_time:.1f}s before retry"
+                )
+
             if attempt < max_retries - 1:
                 time.sleep(wait_time)
 
         except RequestException as e:
-            logger.error(f"Error fetching {url}: {e!s}")
+            if logger:
+                logger.error(f"Error fetching {url}: {e!s}")
             return None
 
-    logger.error(f"Failed to fetch {url} after {max_retries} attempts")
+    if logger:
+        logger.error(f"Failed to fetch {url} after {max_retries} attempts")
     return None
 
 
-def resize_image_data(image_data: Byte, max_width: int = 800, max_height: int = 600) -> Byte:
+def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int = 600) -> bytes:
     # Create image object from binary data
     try:
         image = Image.open(io.BytesIO(image_data))

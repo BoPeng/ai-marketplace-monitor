@@ -25,6 +25,7 @@ class PushbulletConfig(BaseConfig):
         listings: List[Listing],
         ratings: List[AIResponse],
         notification_status: List[NotificationStatus],
+        force: bool = False,
         logger: Logger | None = None,
     ) -> bool:
         if not self.pushbullet_token:
@@ -37,7 +38,7 @@ class PushbulletConfig(BaseConfig):
         msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
         p = inflect.engine()
         for listing, rating, ns in zip(listings, ratings, notification_status):
-            if ns == NotificationStatus.NOTIFIED:
+            if ns == NotificationStatus.NOTIFIED and not force:
                 continue
             msg = (
                 (
@@ -66,6 +67,9 @@ class PushbulletConfig(BaseConfig):
                 title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             elif ns == NotificationStatus.LISTING_CHANGED:
                 title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
+            else:
+                title = f"Resend {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
+
             message = "\n\n".join([x[1] for x in listing_msg])
             if logger:
                 logger.debug(
@@ -93,7 +97,9 @@ class PushbulletConfig(BaseConfig):
 
         for attempt in range(max_retries):
             try:
-                pb.push_note(title, message)
+                pb.push_note(
+                    title, message + "\n\nSent by https://github.com/BoPeng/ai-marketplace-monitor"
+                )
                 return True
             except KeyboardInterrupt:
                 raise

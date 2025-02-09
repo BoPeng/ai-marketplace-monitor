@@ -79,7 +79,7 @@ def main(
         Optional[str],
         typer.Option(
             "--for",
-            help="Item to check for URLs specified --check. If unspecified, the URLs will be checked against all configured items.",
+            help="Item to check for URLs specified --check. You will be prmopted for each URL if unspecified and there are multiple items to search.",
         ),
     ] = None,
     version: Annotated[
