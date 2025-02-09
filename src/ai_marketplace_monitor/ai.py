@@ -272,16 +272,22 @@ class OpenAIBackend(AIBackend):
         # if any of the lines contains "Rating: ", extract the rating from it.
         score: int = 1
         comment = ""
+        rating_line = None
         for idx, line in enumerate(lines):
             matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
             if matched:
                 score = int(matched.group(1))
                 comment = matched.group(2).strip()
-                # if somehow AI ends the response with "Rating 3:", return the previous paragraph.
-                if comment == "":
-                    comment = lines[max(idx - 1, 0)]
-                break
+                rating_line = idx
+            if rating_line is not None:
+                # if the AI puts comment after Rating, we need to include them
+                comment += line
+        # if the AI puts the rating at the end, let us try to use the line before the Rating line
+        if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
+            comment = lines[rating_line - 1]
 
+        # remove multiple spaces, take first 30 words
+        comment = " ".join([x for x in comment.split() if x.strip()][:30]).strip()
         res = AIResponse(score, comment)
         res.to_cache(listing, item_config)
         if self.logger:
