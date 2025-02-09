@@ -363,13 +363,13 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             assert self.page is not None
             self.page.goto(url, timeout=0)
             self.page.wait_for_load_state("domcontentloaded")
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if attempt == 10:
                 raise RuntimeError(f"Failed to navigate to {url} after 10 attempts. {e}") from e
             time.sleep(5)
             self.goto_url(url, attempt + 1)
-        except KeyboardInterrupt:
-            raise
 
     def search(self: "Marketplace", item: TItemConfig) -> Generator[Listing, None, None]:
         raise NotImplementedError("Search method must be implemented by subclasses.")

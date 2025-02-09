@@ -55,6 +55,8 @@ class UserConfig(SMTPConfig, PushbulletConfig):
                 self.remind = convert_to_seconds(self.remind)
                 if self.remind < 60 * 60:
                     raise ValueError(f"Item {hilight(self.name)} remind must be at least 1 hour.")
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 raise ValueError(
                     f"Item {hilight(self.name)} remind {self.remind} is not recognized."

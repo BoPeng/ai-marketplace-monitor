@@ -207,6 +207,8 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
         if isinstance(self.login_wait_time, str):
             try:
                 self.login_wait_time = convert_to_seconds(self.login_wait_time)
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 raise ValueError(
                     f"Marketplace {self.name} login_wait_time {self.login_wait_time} is not recognized."
@@ -274,6 +276,8 @@ class FacebookMarketplace(Marketplace):
                 selector = self.page.wait_for_selector('button[name="login"]')
                 if selector is not None:
                     selector.click()
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.error(f"""{hilight("[Login]", "fail")} {e}""")
@@ -387,6 +391,8 @@ class FacebookMarketplace(Marketplace):
                             title=listing.title,
                         )
                         time.sleep(5)
+                    except KeyboardInterrupt:
+                        raise
                     except Exception as e:
                         if self.logger:
                             self.logger.error(
@@ -577,6 +583,8 @@ class FacebookSearchResultPage(WebPage):
                     self.logger.debug(
                         f'{hilight("[Retrieve]", "fail")} Some grid item cannot be readt: {e}'
                     )
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
             if self.logger:
@@ -624,6 +632,8 @@ class FacebookSearchResultPage(WebPage):
                         description="",
                     )
                 )
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if self.logger:
                     self.logger.error(
@@ -703,6 +713,8 @@ class FacebookRegularItemPage(FacebookItemPage):
         try:
             h1_element = self.page.query_selector_all("h1")[-1]
             return h1_element.text_content() or "**unspecified**"
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -712,6 +724,8 @@ class FacebookRegularItemPage(FacebookItemPage):
         try:
             price_element = self.page.locator("h1 + *")
             return price_element.text_content() or "**unspecified**"
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -721,6 +735,9 @@ class FacebookRegularItemPage(FacebookItemPage):
         try:
             image_url = self.page.locator("img").first.get_attribute("src") or ""
             return image_url
+        except KeyboardInterrupt:
+            raise
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -730,6 +747,9 @@ class FacebookRegularItemPage(FacebookItemPage):
         try:
             seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
             return seller_link.text_content() or "**unspecified**"
+        except KeyboardInterrupt:
+            raise
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -742,6 +762,8 @@ class FacebookRegularItemPage(FacebookItemPage):
                 'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
             )
             return description_element.text_content() or "**unspecified**"
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -756,6 +778,8 @@ class FacebookRegularItemPage(FacebookItemPage):
                 lambda x: len(x) >= 2 and "Condition" in (x[0].text_content() or ""),
                 1,
             )
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -770,6 +794,8 @@ class FacebookRegularItemPage(FacebookItemPage):
                 lambda x: len(x) == 2 and "Location is approximate" in (x[1].text_content() or ""),
                 0,
             )
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -793,6 +819,8 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
                 lambda x: len(x) > 1 and x[0].text_content() == "Description",
                 1,
             )
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -842,6 +870,8 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
                     lambda y: f"""\n\nSeller's description\n\n{y[0].text_content() or "**unspecified**"}""",
                 ),
             )
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if self.logger:
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
@@ -869,6 +899,8 @@ def parse_listing(page: Page, post_url: str, logger: Logger | None = None) -> Li
     for page_model in supported_facebook_item_layouts:
         try:
             return page_model(page, logger).parse(post_url)
+        except KeyboardInterrupt:
+            raise
         except Exception:
             # try next page layout
             continue

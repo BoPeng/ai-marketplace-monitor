@@ -245,6 +245,8 @@ class OpenAIBackend(AIBackend):
                     stream=False,
                 )
                 break
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if self.logger:
                     self.logger.error(

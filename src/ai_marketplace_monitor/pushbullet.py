@@ -30,6 +30,8 @@ class PushbulletConfig(BaseConfig):
             try:
                 pb.push_note(title, message)
                 return True
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if logger:
                     logger.debug(

@@ -131,6 +131,8 @@ class SMTPConfig(BaseConfig):
                 smtp.ehlo()  # Can be omitted
                 try:
                     smtp.login(smtp_username, smtp_password)
+                except KeyboardInterrupt:
+                    raise
                 except Exception as e:
                     if logger:
                         logger.error(
@@ -141,6 +143,8 @@ class SMTPConfig(BaseConfig):
             if logger:
                 logger.info(f"""Email with title {title} sent to {msg["To"]}""")
             return True
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if logger:
                 logger.error(f"Failed to send email: {e}")

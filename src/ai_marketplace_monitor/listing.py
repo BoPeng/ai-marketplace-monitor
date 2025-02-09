@@ -47,6 +47,8 @@ class Listing:
                     (CacheType.LISTING_DETAILS.value, post_url.split("?")[0])
                 )
             )
+        except KeyboardInterrupt:
+            raise
         except Exception:
             return None
 

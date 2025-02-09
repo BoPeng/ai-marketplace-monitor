@@ -76,6 +76,8 @@ class MarketplaceMonitor:
                 # self.logger.debug(self.config)
                 assert self.config is not None
                 return self.config
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if last_invalid_hash != new_file_hash:
                     last_invalid_hash = new_file_hash
@@ -110,6 +112,8 @@ class MarketplaceMonitor:
                 # self.logger.info(
                 #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
                 # )
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if self.logger:
                     self.logger.error(
@@ -322,6 +326,8 @@ class MarketplaceMonitor:
 
             try:
                 self.check_items([url], for_item=name)
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if self.logger:
                     self.logger.debug(f"Failed to check item {url}: {e}")
@@ -555,6 +561,8 @@ class MarketplaceMonitor:
                 continue
             try:
                 return agent.evaluate(item, item_config)
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 if self.logger:
                     self.logger.error(
