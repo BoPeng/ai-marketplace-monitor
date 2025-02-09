@@ -46,6 +46,15 @@ class AIResponse:
             return "succ"
         return "name"
 
+    @property
+    def stars(self: "AIResponse") -> str:
+        full_stars = self.score
+        empty_stars = 5 - full_stars
+        return (
+            '<span style="color: #FFD700; font-size: 20px;">★</span>' * full_stars
+            + '<span style="color: #D3D3D3; font-size: 20px;">☆</span>' * empty_stars
+        )
+
     @classmethod
     def from_cache(
         cls: Type["AIResponse"],
