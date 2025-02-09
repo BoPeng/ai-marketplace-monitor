@@ -24,6 +24,7 @@ class AIServiceProvider(Enum):
 class AIResponse:
     score: int
     comment: str
+    name: str = ""
 
     NOT_EVALUATED: ClassVar = "Not evaluated by AI"
 
@@ -291,12 +292,8 @@ class OpenAIBackend(AIBackend):
 
         # remove multiple spaces, take first 30 words
         comment = " ".join([x for x in comment.split() if x.strip()]).strip()
-        res = AIResponse(score, comment)
+        res = AIResponse(name=self.config.name, score=score, comment=comment)
         res.to_cache(listing, item_config)
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[AI]", res.style)} {self.config.name} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
-            )
         counter.increment(CounterItem.NEW_AI_QUERY)
         return res
 

@@ -160,6 +160,10 @@ class MarketplaceMonitor:
             res = self.evaluate_by_ai(
                 listing, item_config=item_config, marketplace_config=marketplace_config
             )
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                )
             if item_config.rating:
                 acceptable_rating = item_config.rating[
                     0 if item_config.searched_count == 0 else -1
@@ -316,16 +320,8 @@ class MarketplaceMonitor:
             if url == "exit":
                 break
 
-            name = None
-            assert self.config is not None
-            item_names = list(self.config.item.keys())
-            if len(item_names) > 1:
-                name = Prompt.ask(
-                    f"""Enter name of {hilight("search item")}""", choices=item_names
-                )
-
             try:
-                self.check_items([url], for_item=name)
+                self.check_items([url], for_item=None)
             except KeyboardInterrupt:
                 raise
             except Exception as e:
@@ -515,9 +511,13 @@ class MarketplaceMonitor:
                         f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                     )
                 marketplace.check_listing(listing, item_config)
-                self.evaluate_by_ai(
+                res = self.evaluate_by_ai(
                     listing, item_config=item_config, marketplace_config=marketplace_config
                 )
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                    )
                 # notification status?
                 users_to_notify = (
                     item_config.notify

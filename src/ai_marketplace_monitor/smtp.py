@@ -5,9 +5,11 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from logging import Logger
+from pathlib import Path
 from typing import List, Tuple
 
 import inflect
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
@@ -140,264 +142,48 @@ class SMTPConfig(BaseConfig):
         force: bool = False,
         logger: Logger | None = None,
     ) -> Tuple[str, list[Tuple[bytes, str, str]]]:  # Return HTML and image data
-        html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-            <style type="text/css">
-                /* Base */
-                body {
-                    margin: 0;
-                    padding: 0;
-                    min-width: 100%;
-                    font-family: Arial, sans-serif;
-                    font-size: 16px;
-                    line-height: 1.5;
-                    background-color: #FAFAFA;
-                    color: #222222;
-                }
+        template_dir = Path(__file__).parent
 
-                /* Layout */
-                .wrapper {
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }
+        # Set up Jinja2 environment
+        env = Environment(
+            loader=FileSystemLoader(template_dir), autoescape=select_autoescape(["html", "xml"])
+        )
 
-                .header {
-                    background-color: #2C5364;
-                    padding: 20px;
-                    text-align: center;
-                }
+        # Add custom filter for hashing
+        env.filters["hash"] = hash
 
-                .content {
-                    background-color: #FFFFFF;
-                    padding: 20px;
-                }
+        # Load template
+        template = env.get_template("email.html.j2")
 
-                .footer {
-                    background-color: #F5F5F5;
-                    padding: 20px;
-                    text-align: center;
-                    font-size: 12px;
-                    color: #666666;
-                }
+        # Prepare images list for attachments
+        images = []
+        valid_image_hashes = set()  # Track which images were successfully processed
 
-                /* Tables */
-                .listing-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                }
-
-                .listing-table td {
-                    padding: 12px;
-                    border-bottom: 1px solid #EEEEEE;
-                }
-
-                /* Typography */
-                h1 {
-                    color: #FFFFFF;
-                    font-size: 24px;
-                    margin: 0;
-                }
-
-                h2 {
-                    color: #2C5364;
-                    font-size: 20px;
-                    margin: 0 0 20px 0;
-                }
-
-                /* Images */
-                .listing-image {
-                    max-width: 100%;
-                    height: auto;
-                    margin: 10px 0;
-                }
-
-                /* Status Tags */
-                .status-tag {
-                    display: inline-block;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-
-                /* Description styling */
-                .description {
-                    color: #444444;
-                    margin: 12px 0;
-                    line-height: 1.6;
-                    font-size: 14px;
-                    white-space: pre-line;  /* Preserves line breaks */
-                }
-
-                .status-new { background-color: #4CAF50; color: white; }
-                .status-updated { background-color: #2196F3; color: white; }
-                .status-expired { background-color: #F44336; color: white; }
-                .status-sent { background-color: #9E9E9E; color: white; }
-            </style>
-        </head>
-        <body>
-            <div class="wrapper">
-                <!-- Header -->
-                <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                        <td class="header">
-                            <h1>AI Marketplace Monitor</h1>
-                        </td>
-                    </tr>
-                </table>
-
-                <!-- Content -->
-                <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                        <td class="content">
-                            <h2>Latest Listings</h2>
-                            <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
-        """
-        images = []  # Will store (image_data, content_type, cid) tuples
-
-        # Add listings
-        for listing, rating, ns in zip(listings, ratings, notification_status):
-            status_class = ""
-            status_text = ""
-
-            if ns == NotificationStatus.NOT_NOTIFIED:
-                status_class = "status-new"
-                status_text = "NEW"
-            elif ns == NotificationStatus.LISTING_CHANGED:
-                status_class = "status-updated"
-                status_text = "UPDATED"
-            elif ns == NotificationStatus.EXPIRED:
-                status_class = "status-expired"
-                status_text = "EXPIRED"
-            elif ns == NotificationStatus.NOTIFIED and force:
-                status_class = "status-sent"
-                status_text = "NOTIFIED"
-
-            html += f"""
-                <tr>
-                  <td style="padding: 20px;">
-                    <!-- Title with integrated status tag -->
-                    <div style="margin-bottom: 15px;">
-                        <h3 style="color: #2C5364; font-size: 18px; font-weight: bold; margin: 0; display: inline;">
-                            {listing.title}
-                        </h3>
-                        <span class="status-tag {status_class}"
-                              style="display: inline-block; padding: 3px 8px; border-radius: 3px;
-                                     font-size: 12px; font-weight: bold; margin-left: 10px;
-                                     vertical-align: middle;">
-                            {status_text}
-                        </span>
-                    </div>
-
-                    <!-- Info rows -->
-                    <div style="color: #666666; margin-bottom: 10px;">
-                        <span style="font-weight: bold; color: #333333;">Price:</span> {listing.price}
-                    </div>
-                    <div style="color: #666666; margin-bottom: 15px;">
-                        <span style="font-weight: bold; color: #333333;">Location:</span> {listing.location}
-                    </div>
-
-                    <!-- Description -->
-                    <div style="color: #444444; margin: 12px 0; line-height: 1.6; font-size: 14px;
-                                white-space: pre-line; background-color: #FFFFFF; padding: 0;">
-                        {listing.description if listing.description else ''}
-                    </div>
-            """
-
-            # Add AI rating if available
-            if rating.comment != AIResponse.NOT_EVALUATED:
-                html += f"""
-                        <p style="margin: 0 0 10px 0;">
-                            <strong>AI Rating:</strong> {rating.conclusion} ({rating.score})<br>
-                            <em>{rating.comment}</em>
-                        </p>
-                """
-            # Add image if available
+        # Process images first
+        for listing in listings:
             if listing.image:
                 result = fetch_with_retry(listing.image, logger=logger)
                 if result:
-                    original_image_data, ct = result
-                    image_data = resize_image_data(original_image_data)
+                    image_data, content_type = result
+                    image_data = resize_image_data(image_data)
                     if image_data and len(image_data) <= 1024 * 1024:
-                        cid = f"image_{hash(listing.image)}"
-                        images.append((image_data, ct, cid))
-
-                        # Reference image using cid: URL
-                        html += f"""
-                            <img src="cid:{cid}"
-                                 alt="img:{listing.title}"
-                                class="listing-image">
-                        """
-
-                        # import os
-
-                        # debug_dir = "debug_images"
-                        # os.makedirs(debug_dir, exist_ok=True)
-
-                        # # Create a safe filename from the listing title
-                        # safe_filename = "".join(
-                        #     c for c in listing.title if c.isalnum() or c in (" ", "-", "_")
-                        # ).rstrip()
-                        # safe_filename = safe_filename[:50]  # Limit length
-
-                        # # Write original image
-                        # original_path = os.path.join(debug_dir, f"{safe_filename}_original.jpg")
-                        # with open(original_path, "wb") as f:
-                        #     f.write(original_image_data)
-
-                        # resized_path = os.path.join(debug_dir, f"{safe_filename}_resized.jpg")
-                        # with open(resized_path, "wb") as f:
-                        #     f.write(image_data)
+                        image_hash = hash(listing.image)
+                        images.append((image_data, content_type, f"image_{image_hash}"))
+                        valid_image_hashes.add(image_hash)  # Track valid image
                     else:
                         if logger:
                             logger.debug(f"Image too large: {len(image_data)} bytes, skipped.")
+                else:
+                    if logger:
+                        logger.debug(f"Failed to fetch image: {listing.image}")
 
-                elif logger:
-                    logger.debug(f"Failed to fetch image: {listing.image}")
-
-            # Add view listing button
-            html += f"""
-                        <p style="margin: 10px 0;">
-                            <a href="{listing.post_url.split('?')[0]}"
-                                style="background-color: #2C5364; color: white; padding: 10px 20px;
-                                        text-decoration: none; border-radius: 4px; display: inline-block;">
-                                View Listing
-                            </a>
-                        </p>
-                    </td>
-                </tr>
-            """
-
-        # Close content and add footer
-        html += """
-                            </table>
-                        </td>
-                    </tr>
-                </table>
-
-                <!-- Footer -->
-                <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                        <td class="footer">
-                            <p>This is an automated message from <a href="https://github.com/BoPeng/ai-marketplace-monitor">AI Marketplace Monitor</a></p>
-                            <p>
-                                Brought to you by <a href="https://www.linkedin.com/in/bo-peng-53668026/">Bo Peng</a> from <a href="https://bioworkflows.com/">BioWorkflows.com</a><br>
-                                To stop this email, contact the sender
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-        </body>
-        </html>
-        """
-
+        # Render template
+        html = template.render(
+            listings=zip(listings, ratings, notification_status),
+            force=force,
+            NotificationStatus=NotificationStatus,  # Pass enum for comparison
+            valid_image_hashes=valid_image_hashes,  # Pass set of valid image hashes
+        )
         return html, images
 
     def notify_through_email(
