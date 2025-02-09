@@ -1,11 +1,9 @@
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
-from typing import Any, DefaultDict, List, Tuple, Type
+from typing import Any, List, Tuple, Type
 
 import humanize
-import inflect
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
@@ -157,65 +155,30 @@ class User:
         ratings: List[AIResponse],
         local_cache: Cache | None = None,
     ) -> None:
-        msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
-        p = inflect.engine()
-        for listing, rating in zip(listings, ratings):
-            ns = self.notification_status(listing)
-            if ns == NotificationStatus.NOTIFIED:
+        statuses = [self.notification_status(listing, local_cache) for listing in listings]
+        if self.config.notify_through_pushbullet(
+            listings, ratings, statuses, logger=self.logger
+        ) or self.config.notify_through_email(
+            self.config.email, listings, ratings, statuses, logger=self.logger
+        ):
+            counter.increment(CounterItem.NOTIFICATIONS_SENT)
+            for listing, ns in zip(listings, statuses):
                 if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}"""
-                    )
-                return
-
-            msg = (
-                (
-                    f"{listing.title}\n{listing.price}, {listing.location}\n"
-                    f"{listing.post_url.split('?')[0]}"
-                )
-                if rating.comment == AIResponse.NOT_EVALUATED
-                else (
-                    f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
-                    f"{listing.price}, {listing.location}\n"
-                    f"{listing.post_url.split('?')[0]}\n"
-                    f"AI: {rating.comment}"
-                )
-            )
-
-            if self.logger:
-                if ns == NotificationStatus.EXPIRED:
-                    self.logger.info(
-                        f"""{hilight("[Notify]", "info")} {self.name} was notified for {listing.title} {humanize.naturaltime(self.time_since_notification(listing))}, which has been expired."""
-                    )
-                elif ns == NotificationStatus.LISTING_CHANGED:
-                    self.logger.info(
-                        f"""{hilight("[Notify]", "info")} Updated listing found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
-                    )
-                else:
-                    self.logger.info(
-                        f"""{hilight("[Notify]", "info")} New listing found: {listing.title} with URL https://www.facebook.com{listing.post_url.split("?")[0]} for user {self.name}"""
-                    )
-
-            msgs[ns].append((listing, msg))
-
-        for ns_status, listing_msg in msgs.items():
-            if ns_status == NotificationStatus.NOT_NOTIFIED:
-                title = f"Found {len(listing_msg)} new {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
-            elif ns_status == NotificationStatus.EXPIRED:
-                title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
-            elif ns_status == NotificationStatus.LISTING_CHANGED:
-                title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
-            message = "\n\n".join([x[1] for x in listing_msg])
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Notify]", "succ")} Sending {self.name} a message with title {hilight(title)} and message {hilight(message)}"""
-                )
-            #
-            if self.config.send_pushbullet_message(
-                title, message, logger=self.logger
-            ) or self.config.send_email_message(
-                self.config.email, title, message, logger=self.logger
-            ):
-                counter.increment(CounterItem.NOTIFICATIONS_SENT)
-                for listing, _ in listing_msg:
+                    if ns == NotificationStatus.NOTIFIED:
+                        self.logger.info(
+                            f"""{hilight("[Notify]", "info")} {self.name} was not notified for notified {hilight(listing.title)} {humanize.naturaltime(self.time_since_notification(listing))}"""
+                        )
+                    elif ns == NotificationStatus.EXPIRED:
+                        self.logger.info(
+                            f"""{hilight("[Notify]", "info")} {self.name} was re-notified for listing {hilight(listing.title)} notified {humanize.naturaltime(self.time_since_notification(listing))}."""
+                        )
+                    elif ns == NotificationStatus.LISTING_CHANGED:
+                        self.logger.info(
+                            f"""{hilight("[Notify]", "info")} {self.name} was re-notified for updated listing {hilight(listing.title)} notified {humanize.naturaltime(self.time_since_notification(listing))}."""
+                        )
+                    else:
+                        self.logger.info(
+                            f"""{hilight("[Notify]", "info")} {self.name} was notified for new listing {hilight(listing.title)}."""
+                        )
+                if ns != NotificationStatus.NOTIFIED:
                     self.to_cache(listing, local_cache=local_cache)

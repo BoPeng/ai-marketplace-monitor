@@ -5,7 +5,15 @@ from email.message import EmailMessage
 from logging import Logger
 from typing import List
 
-from .utils import BaseConfig
+import inflect
+
+from .ai import AIResponse  # type: ignore
+from .listing import Listing
+from .utils import (
+    BaseConfig,
+    NotificationStatus,
+    hilight,
+)
 
 
 @dataclass
@@ -56,6 +64,74 @@ class SMTPConfig(BaseConfig):
             raise ValueError("user requires a string smtp_from.")
         self.smtp_from = self.smtp_from.strip()
 
+    def notify_through_email(
+        self: "SMTPConfig",
+        recipients: List[str] | None,
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+        logger: Logger | None = None,
+    ) -> bool:
+        if not recipients:
+            if logger:
+                logger.debug("No recipients specified. No email sent.")
+            return False
+
+        p = inflect.engine()
+        n_new = len([x for x in notification_status if x == NotificationStatus.NOT_NOTIFIED])
+        n_notified = len([x for x in notification_status if x == NotificationStatus.NOTIFIED])
+        n_expired = len([x for x in notification_status if x == NotificationStatus.EXPIRED])
+        n_updated = len(
+            [x for x in notification_status if x == NotificationStatus.LISTING_CHANGED]
+        )
+        title = "Found "
+        cnts = []
+        if n_new > 0:
+            cnts.append(f"{n_new} new ")
+        if n_expired > 0:
+            cnts.append(f"{n_expired} expired ")
+        if n_updated > 0:
+            cnts.append(f"{n_updated} updated ")
+        if len(cnts) > 1:
+            cnts[-1] = f"and {cnts[-1]}"
+        if len(cnts) > 0:
+            cnts[-1] = hilight(cnts[-1])
+        else:
+            # no new items
+            if logger:
+                logger.debug("No unnotified items.")
+            return False
+
+        title += " ".join(cnts)
+        title += f"{p.plural_noun(listings[0].name, len(listings)-n_notified)} from {listings[0].marketplace}"
+        # messages
+        messages = []
+        for listing, rating, ns in zip(listings, ratings, notification_status):
+            prefix = ""
+            if ns == NotificationStatus.NOTIFIED:
+                continue
+            if ns == NotificationStatus.EXPIRED:
+                prefix = "[REMINDER] "
+            elif ns == NotificationStatus.LISTING_CHANGED:
+                prefix = "[lISTING UPDATED] "
+
+            messages.append(
+                (
+                    f"{prefix}{listing.title}\n{listing.price}, {listing.location}\n"
+                    f"{listing.post_url.split('?')[0]}"
+                )
+                if rating.comment == AIResponse.NOT_EVALUATED
+                else (
+                    f"{prefix} [{rating.conclusion} ({rating.score})] {listing.title}\n"
+                    f"{listing.price}, {listing.location}\n"
+                    f"{listing.post_url.split('?')[0]}\n"
+                    f"AI: {rating.comment}"
+                )
+            )
+
+        message = "\n\n".join(messages)
+        return self.send_email_message(recipients, title, message, logger=logger)
+
     def send_email_message(
         self: "SMTPConfig",
         recipients: List[str] | None,
@@ -72,34 +148,8 @@ class SMTPConfig(BaseConfig):
 
         if self.smtp_server:
             smtp_server = self.smtp_server
-        elif sender.endswith("gmail.com"):
-            smtp_server = "smtp.gmail.com"
-        elif sender.endswith("yahoo.com"):
-            smtp_server = "smtp.mail.yahoo.com"
-        elif sender.endswith("outlook.com"):
-            smtp_server = "smtp-mail.outlook.com"
-        elif sender.endswith("hotmail.com"):
-            smtp_server = "smtp-mail.outlook.com"
-        elif sender.endswith("aol.com"):
-            smtp_server = "smtp.aol.com"
-        elif sender.endswith("zoho.com"):
-            smtp_server = "smtp.zoho.com"
-        elif sender.endswith("icloud.com"):
-            smtp_server = "smtp.icloud.com"
-        elif sender.endswith("protonmail.com"):
-            smtp_server = "smtp.protonmail.com"
-        elif sender.endswith("proton.me"):
-            smtp_server = "smtp.proton.me"
-        elif sender.endswith("yandex.com"):
-            smtp_server = "smtp.yandex.com"
-        elif sender.endswith("gmx.com"):
-            smtp_server = "smtp.gmx.com"
-        elif sender.endswith("mail.com"):
-            smtp_server = "smtp.mail.com"
-
-        if not smtp_server:
-            if logger:
-                logger.warning(f"Cannot determine a smtp server for sender {sender}")
+        else:
+            smtp_server = f"smtp.{sender.split("@")[1]}"
 
         # s.starttls()
         msg = EmailMessage()

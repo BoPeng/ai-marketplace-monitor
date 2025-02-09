@@ -132,7 +132,7 @@ class MarketplaceMonitor:
             self.logger.info(
                 f"""{hilight("[Search]", "info")} Searching {marketplace_config.name} for {hilight(item_config.name)}"""
             )
-        new_listings = []
+        new_listings: List[Listing] = []
         listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
