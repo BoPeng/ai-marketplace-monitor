@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ai-marketplace-monitor"
-version = "0.7.2"
+version = "0.7.3"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = ["Bo Peng <ben.bob@gmail.com>"]
 readme = "README.md"
@@ -40,6 +40,8 @@ humanize = "^4.11.0"
 schedule = "^1.2.2"
 inflect = "^7.5.0"
 pynput = "^1.7.7"
+pillow = "^11.1.0"
+jinja2 = "^3.1.5"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
 
 [tool.poetry.group.dev.dependencies]

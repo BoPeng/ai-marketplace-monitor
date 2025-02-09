@@ -4,12 +4,15 @@ import re
 import time
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
+from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, TypeVar
+from typing import Any, Dict, List, Tuple, TypeVar
 
 import parsedatetime  # type: ignore
+import requests  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
+from requests.exceptions import RequestException, Timeout  # type: ignore
 from rich.pretty import pretty_repr
 
 try:
@@ -20,7 +23,10 @@ except ImportError:
     # some platforms are not supported
     pynput_installed = False
 
+import io
+
 import rich.pretty
+from PIL import Image
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -323,3 +329,82 @@ def hilight(text: str, style: str = "name") -> str:
         "succ": "green",
     }.get(style, "blue")
     return f"[{color}]{text}[/{color}]"
+
+
+def fetch_with_retry(
+    url: str,
+    timeout: int = 10,
+    max_retries: int = 3,
+    backoff_factor: float = 1.5,
+    logger: Logger | None = None,
+) -> Tuple[bytes, str] | None:
+    """Fetch URL content with retry logic
+
+    Args:
+        url: URL to fetch
+        timeout: Timeout in seconds
+        max_retries: Maximum number of retry attempts
+        backoff_factor: Multiplier for exponential backoff
+        logger: logger object
+
+    Returns:
+        Tuple of (content, content_type) if successful, None if failed
+    """
+    if logger:
+        logger.debug(f"Fetching {url} with timeout {timeout}s")
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                url, timeout=timeout, stream=True  # Good practice for downloading files
+            )
+            response.raise_for_status()  # Raises exception for 4XX/5XX status codes
+
+            return response.content, response.headers["Content-Type"]
+
+        except Timeout:
+            wait_time = backoff_factor**attempt
+            if logger:
+                logger.warning(
+                    f"Timeout fetching {url} (attempt {attempt + 1}/{max_retries}). "
+                    f"Waiting {wait_time:.1f}s before retry"
+                )
+
+            if attempt < max_retries - 1:
+                time.sleep(wait_time)
+
+        except RequestException as e:
+            if logger:
+                logger.error(f"Error fetching {url}: {e!s}")
+            return None
+
+    if logger:
+        logger.error(f"Failed to fetch {url} after {max_retries} attempts")
+    return None
+
+
+def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int = 600) -> bytes:
+    # Create image object from binary data
+    try:
+        image = Image.open(io.BytesIO(image_data))
+        if image.format == "GIF":
+            return image_data
+    except Exception:
+        # if unacceptable file format, just return
+        return image_data
+
+    # Calculate new dimensions maintaining aspect ratio
+    width, height = image.size
+    ratio = min(max_width / width, max_height / height)
+    if ratio >= 1:
+        return image_data
+
+    new_width = int(width * ratio)
+    new_height = int(height * ratio)
+
+    # Resize image
+    resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    # Convert back to bytes
+    buffer = io.BytesIO()
+    resized_image.save(buffer, format=image.format)
+    return buffer.getvalue()

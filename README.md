@@ -15,31 +15,31 @@
 
 </div>
 
-## Overview
+An intelligent tool that monitors Facebook Marketplace listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
 
-An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, this tool automates the process of searching for specific products, filtering out irrelevant listings, and notifying you of new matches via email or phone notifiction.
+![Search In Action](docs/search_in_action.png)
+
+Example notification from PushBullet:
+
+```
+Found 1 new gopro from facebook
+[Great deal (5)] Go Pro hero 12
+$180, Houston, TX
+https://facebook.com/marketplace/item/1234567890
+AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger.
+```
 
 ## Table of content:
 
-- [Overview](#overview)
-- [Table of content:](#table-of-content)
-- [Features](#features)
-- [Quickstart](#quickstart)
+- [✨ Key Features](#-key-features)
+- [Usage](#usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Set up PushBullet (optional)](#set-up-pushbullet-optional)
   - [Sign up with an AI service or build your own (optional)](#sign-up-with-an-ai-service-or-build-your-own-optional)
-  - [Write a configuration file](#write-a-configuration-file)
+  - [Configuration](#configuration)
   - [Run the program](#run-the-program)
   - [Updating search](#updating-search)
-- [Configuration Guide](#configuration-guide)
-  - [AI Agents](#ai-agents)
-  - [Marketplaces](#marketplaces)
-  - [Users](#users)
-  - [Notification](#notification)
-  - [Items to search](#items-to-search)
-  - [Options that can be specified for both marketplaces and items](#options-that-can-be-specified-for-both-marketplaces-and-items)
-  - [Regions](#regions)
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
   - [Multiple configuration files](#multiple-configuration-files)
@@ -52,24 +52,48 @@ An AI-based tool for monitoring Facebook Marketplace. With the aids from AI, thi
   - [Self-hosted Ollama Model](#self-hosted-ollama-model)
   - [Cache Management](#cache-management)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
-- [TODO List:](#todo-list)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Support](#support)
+- [License](#license)
 - [Credits](#credits)
 
-## Features
+## ✨ Key Features
 
-- Search for one or more products using specified keywords.
-- Limit search by price, and location.
-- Exclude irrelevant results and spammers.
-- Use an AI service provider to evaluate listing matches and give recommendations.
-- Send notifications via PushBullet or Email.
-- Search repeatedly with specified intervals or at specific times.
-- Search multiple cities, even pre-defined regions (e.g. USA)
+🔍 **Smart Search**
 
-## Quickstart
+- Search multiple products using keywords
+- Filter by price and location
+- Exclude irrelevant results and spammers
+- Support for different Facebook Marketplace layouts
+
+🤖 **AI-Powered**
+
+- Intelligent listing evaluation
+- Smart recommendations
+- Multiple AI service providers supported
+- Self-hosted model option (Ollama)
+
+📱 **Notifications**
+
+- PushBullet notifications
+- HTML email notifications with images
+- Customizable notification levels
+- Repeated notification options
+
+🌎 **Location Support**
+
+- Multi-city search
+- Pre-defined regions (USA, Canada, etc.)
+- Customizable search radius
+- Flexible seller location filtering
+
+## Usage
 
 ### Prerequisites
 
 - Python 3.x installed.
+- Internet connection
 
 ### Installation
 
@@ -102,7 +126,7 @@ You can sign up for an AI service (e.g. [OpenAI](https://openai.com/) and [DeepS
 
 You can also connect to any other AI service that provides an OpenAI compatible API, or host your own large language model using Ollama (see [Self-hosted Ollama Model](#self-hosted-ollama-model) for details.)
 
-### Write a configuration file
+### Configuration
 
 One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you get notified with matching listings.
 
@@ -154,9 +178,10 @@ seller_locations = []
 
 [user.user1]
 email = 'you@gmail.com'
-# gmail passcode
-smtp_password = 'xxxxxxx'
+smtp_password = 'xxxxxxxxxxxxxxxx'
 ```
+
+For a complete list of options, please see the [configuration documentation](docs/README.md).
 
 ### Run the program
 
@@ -164,21 +189,7 @@ smtp_password = 'xxxxxxx'
 ai-marketplace-monitor
 ```
 
-or use option `--config` for a non-standard configuration file. The terminal output will look similar to
-
-![Search In Action](docs/search_in_action.png)
-
-which shows how _ai-marketplace-monitor_ excludes listings for various reasons, and asks OpenAI to evaluate a potential matching one.
-
-A typical notification would look like
-
-```
-Found 1 new gopro from facebook
-[Great deal (5)] Go Pro hero 12
-$180, Houston, TX
-https://facebook.com/marketplace/item/1234567890
-AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger.
-```
+or use option `--config` for a non-standard configuration file.
 
 Use `Ctrl-C` to terminate the program.
 
@@ -186,159 +197,10 @@ Use `Ctrl-C` to terminate the program.
 
 1. You need to keep the terminal running to allow the program to run indefinitely.
 2. You will see a browser firing up. **You may need to manually enter username and/or password (if unspecified in config file), and answer any prompt (e.g. CAPTCHA) to login**. You may want to click "OK" to save the password, etc.
-3. If you continue to experience login problem, it can be helpful to remove `username` and `password` from `marketplace.facebook` to authenticate manually. You may want to set `login_wait_time` to be larger than 60 if you need more time to solve the CAPTCHA.
 
 ### Updating search
 
 It is recommended that you **check the log messages and make sure that it includes and excludes listings as expected**. Modify the configuration file to update search criteria if needed. The program will detect changes and restart the search automatically.
-
-## Configuration Guide
-
-Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
-an example with many of the options.
-
-### AI Agents
-
-One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
-
-| Option        | Requirement | DataType | Description                                                |
-| ------------- | ----------- | -------- | ---------------------------------------------------------- |
-| `provider`    | Optional    | String   | Name of the AI service provider.                           |
-| `api-key`     | Optional    | String   | A program token to access the RESTful API.                 |
-| `base_url`    | Optional    | String   | URL for the RESTful API                                    |
-| `model`       | Optional    | String   | Language model to be used.                                 |
-| `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10.     |
-| `timeout`     | Optional    | Integer  | Timeout (in seconds) waiting for response from AI service. |
-
-Note that:
-
-1. `provider` can be [OpenAI](https://openai.com/),
-   [DeepSeek](https://www.deepseek.com/), or [Ollama](https://ollama.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers.
-3. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
-4. Although only three providers are supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api-key`.
-5. You can use option `ai` to list the AI services for particular marketplaces or items.
-
-A typical section for OpenAI looks like
-
-```toml
-[ai.openai]
-api_key = 'sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-```
-
-### Marketplaces
-
-One or more sections `marketplace.name` show the options for interacting with various marketplaces.
-
-| Option             | Requirement | DataType | Description                                                                                                      |
-| ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `market_type`      | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                                              |
-| `username`         | Optional    | String   | Username can be entered manually or kept in the config file.                                                     |
-| `password`         | Optional    | String   | Password can be entered manually or kept in the config file.                                                     |
-| `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
-| **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
-
-Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
-
-### Users
-
-One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. Currently emails and [PushBullet](https://www.pushbullet.com/) are supported methods of notification.
-
-| Option             | Requirement | DataType    | Description                                                                               |
-| ------------------ | ----------- | ----------- | ----------------------------------------------------------------------------------------- |
-| `pushbullet_token` | Optional    | String      | Token for user                                                                            |
-| `email`            | Optional    | String/List | One or more email addresses for email notificaitons                                       |
-| `remind`           | Optional    | String      | Notify users again after a set time (e.g., 3 days) if a listing remains active.           |
-| `smtp`             | optional    | String      | name of `SMTP` server to a separate SMTP section if there are more than one such sections |
-
-Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
-
-### Notification
-
-If an `email` is specified, we need to know how to connect to an SMTP server to send the email. An smtp section should be named like `smtp.gmail` and can have the following keys
-
-| Option          | Requirement | DataType | Description                                             |
-| --------------- | ----------- | -------- | ------------------------------------------------------- |
-| `smtp_username` | Optional    | String   | SMTP username.                                          |
-| `smtp_password` | Required    | String   | A password or passcode for the SMTP server.             |
-| `smtp_server`   | Optional    | String   | SMTP server, usually guessed from sender email address. |
-| `smtp_port`     | Optional    | Integer  | SMTP port, default to `587`                             |
-
-Note that
-
-1. You can add values of an `smtp` section directly into a `user` section, or keep them an separate section to be shared by multiple users.
-2. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
-3. `smtp_username` is assumed to be the first `email`.
-
-See [Setting up email notification](#setting-up-email-notification) for details on how to set up email notification.
-
-### Items to search
-
-One or more `item.item_name` where `item_name` is the name of the item.
-
-| Option                   | Requirement | DataType    | Description                                                                                                                                                                                    |
-| ------------------------ | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keywords`               | Required    | String/List | One or more strings for searching the item.                                                                                                                                                    |
-| `description`            | Optional    | String      | A longer description of the item that better describes your requirements (e.g., manufacture, condition, location, seller reputation, shipping options). Only used if AI assistance is enabled. |
-| `enabled`                | Optional    | Boolean     | Stops searching this item if set to `false`.                                                                                                                                                   |
-| `include_keywords`       | Optional    | String/List | Excludes listings that do not contain any of the keywords.                                                                                                                                     |
-| `exclude_keywords`       | Optional    | String/List | Excludes listings whose titles contain any of the specified strings.                                                                                                                           |
-| `exclude_by_description` | Optional    | String/List | Excludes items with descriptions containing any of the specified strings.                                                                                                                      |
-| `marketplace`            | Optional    | String      | Name of the marketplace, default to `facebook` that points to a `marketplace.facebook` sectiion.                                                                                               |
-| **Common options**       |             |             | Options listed below. These options, if specified in the item section, will override options in the marketplace section.                                                                       |
-
-Marketplaces may return listings that are completely unrelated to search keywords, but can also
-return related items under different names. To select the right items, you can
-
-1. Use `include_keywords` to keep only items with certain words in the title. For example, you can set `include_keywords = ['gopro', 'go pro']` when you search for `keywords = 'gopro'`.
-2. Use `exclude_keywords` to narrow down the search. For example, setting `exclude_keywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title.
-3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera. It is still a good idea to pre-filter listings using non-AI criteria to reduce the cost of AI services.
-
-### Options that can be specified for both marketplaces and items
-
-The following options that can specified for both `marketplace` sections and `item` sections. Values in the `item` section will override value in corresponding marketplace if specified in both places.
-
-| `Parameter`           | Required/Optional | Datatype            | Description                                                                                                                                                 |
-| --------------------- | ----------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `availability`        | Optional          | String/List         | Shows output with `in` (in stock), `out` (out of stock), or `all` (both).                                                                                   |
-| `condition`           | Optional          | String/List         | One or more of `new`, `used_like_new`, `used_good`, and `used_fair`.                                                                                        |
-| `date_listed`         | Optional          | String/Integer/List | One of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.                                                                   |
-| `delivery_method`     | Optional          | String/List         | One of `all`, `local_pick_up`, and `shipping`.                                                                                                              |
-| `exclude_sellers`     | Optional          | String/List         | Exclude certain sellers by their names (not username).                                                                                                      |
-| `max_price`           | Optional          | Integer             | Maximum price.                                                                                                                                              |
-| `max_search_interval` | Optional          | String              | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
-| `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
-| `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
-| `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
-| `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
-| `rating`              | Optional          | Integer/List        | Notify users with listigns with rating at or higher than specified rating. See [Adjust notification level](#adjust-notification-level) for details          |
-| `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
-| `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`.                                                          |
-| `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
-| `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
-| `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                      |
-
-Note that
-
-1. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-2. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
-3. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](#first-and-subsequent-searches) for details.
-
-### Regions
-
-One or more sections of `[region.region_name]`, which defines regions to search. Multiple searches will be performed for multiple cities to cover entire regions.
-
-| Parameter     | Required/Optional | Data Type    | Description                                                                 |
-| ------------- | ----------------- | ------------ | --------------------------------------------------------------------------- |
-| `search_city` | Required          | String/List  | One or more cities with names used by Facebook.                             |
-| `full_name`   | Optional          | String       | A display name for the region.                                              |
-| `radius`      | Optional          | Integer/List | Recommended `805` for regions using miles, and `500` for regions using kms. |
-| `city_name`   | Optional          | String/List  | Corresponding city names for bookkeeping purposes only.                     |
-
-Note that
-
-1. `radius` has a default value of `500` (miles). You can specify different `radius` for different `search_city`.
-2. Options `full_name` and `city_name` are for documentation purposes only.
 
 ## Advanced features
 
@@ -367,8 +229,8 @@ smtp_password = 'mypassword'
 If you have a GMAIL account,
 
 - `smtp_username` is your gmail address, which is assumed to be the first `email` if left unspecified (assume that you are sending notification to yourself)
-- `smtp_server` and `smtp_port`: Assumed to be `smtp.gmail.com` and `587` if `smtp_username` ends with `gmail.com`.
-- `smtp_password`: You cannot use your gmail password. Instead, you will need to go to your Google `Account Manager`, select `Security`, search for `App passwords` (you may need to enable two-step authentication first), create an app (e.g. `ai-marketplace-monitor`), and copy the password.
+- `smtp_server` and `smtp_port`: Assumed to be `smtp.gmail.com` and `587` if `smtp_username` ends with `gmail.com`, and `smtp.outlook.com` for `email@outlook.com` etc.
+- `smtp_password`: You cannot use your gmail password. Instead, you will need to go to your Google `Account Manager`, select `Security`, search for `App passwords` (you may need to enable two-step authentication first), create an app (e.g. `ai-marketplace-monitor`), and copy the app password.
 
 That is to say, you `smtp` setting for your gmail account should look like
 
@@ -378,7 +240,7 @@ smtp_username = 'myemail@gmail.com'
 smtp_password = 'abcdefghijklmnop'
 ```
 
-If you are using an gmail account and only notify yourself, you can simply do
+If you use an gmail account and only notify yourself, you can simply do
 
 ```toml
 [user.me]
@@ -563,14 +425,50 @@ Facebook marketplace supports a wide variety of products and use different layou
 
 Although I certainly do not have the bandwidth to support all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
 
-## TODO List:
+## Troubleshooting
 
-- Support more notification methods.
-- Support more marketplaces such as NextDoor and Craigslist
-- Support more AI engines (if needed)
-- Develop better ways to identify spammers
+1. **Browser Login**
 
-The structure of this project makes it relatively easy to support more notification methods, AI engines, and marketplaces, but I will mostly rely on PRs to add these features.
+   - You may need to manually enter credentials on first run
+   - Answer any CAPTCHA prompts if presented
+   - Consider saving password in browser if prompted
+
+2. **Notifications**
+
+   - Check `rating` level if receiving too many/few alerts
+   - For email issues, verify SMTP settings and credentials
+   - For PushBullet, verify token is correct
+
+3. **AI Services**
+   - Ensure API keys are valid
+   - Check network connectivity
+   - Verify model names if using custom models
+
+For more issues, please check our [Issues](https://github.com/BoPeng/ai-marketplace-monitor/issues) page.
+
+## Contributing
+
+Contributions are welcome! Here are some ways you can contribute:
+
+- 🐛 Report bugs and issues
+- 💡 Suggest new features
+- 🔧 Submit pull requests
+- 📚 Improve documentation
+- 🌍 Add support for new regions
+- 🤖 Add support for new AI providers
+- 📱 Add new notification methods
+
+Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a Pull Request.
+
+## Support
+
+- 📖 Read the [Documentation](https://ai-marketplace-monitor.readthedocs.io/)
+- 🤝 Join our [Discussions](https://github.com/BoPeng/ai-marketplace-monitor/discussions)
+- 🐛 Report [Issues](https://github.com/BoPeng/ai-marketplace-monitor/issues)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Credits
 

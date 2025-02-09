@@ -132,7 +132,7 @@ class MarketplaceMonitor:
             self.logger.info(
                 f"""{hilight("[Search]", "info")} Searching {marketplace_config.name} for {hilight(item_config.name)}"""
             )
-        new_listings = []
+        new_listings: List[Listing] = []
         listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
@@ -160,6 +160,10 @@ class MarketplaceMonitor:
             res = self.evaluate_by_ai(
                 listing, item_config=item_config, marketplace_config=marketplace_config
             )
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                )
             if item_config.rating:
                 acceptable_rating = item_config.rating[
                     0 if item_config.searched_count == 0 else -1
@@ -316,16 +320,8 @@ class MarketplaceMonitor:
             if url == "exit":
                 break
 
-            name = None
-            assert self.config is not None
-            item_names = list(self.config.item.keys())
-            if len(item_names) > 1:
-                name = Prompt.ask(
-                    f"""Enter name of {hilight("search item")}""", choices=item_names
-                )
-
             try:
-                self.check_items([url], for_item=name)
+                self.check_items([url], for_item=None)
             except KeyboardInterrupt:
                 raise
             except Exception as e:
@@ -498,50 +494,62 @@ class MarketplaceMonitor:
                         f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
                     )
 
-                for item_config in self.config.item.values():
-                    if for_item is not None and item_config.name != for_item:
-                        continue
-                    if self.logger:
-                        self.logger.info(
-                            f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
+                if for_item is None:
+                    # get by asking user
+                    name = None
+                    item_names = list(self.config.item.keys())
+                    if len(item_names) > 1:
+                        name = Prompt.ask(
+                            f"""Enter name of {hilight("search item")}""", choices=item_names
                         )
-                    marketplace.check_listing(listing, item_config)
-                    self.evaluate_by_ai(
-                        listing, item_config=item_config, marketplace_config=marketplace_config
+                    item_config = self.config.item[name or item_names[0]]
+                else:
+                    item_config = self.config.item[for_item]
+
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                     )
-                    # notification status?
-                    users_to_notify = (
-                        item_config.notify
-                        or marketplace_config.notify
-                        or list(self.config.user.keys())
+                marketplace.check_listing(listing, item_config)
+                res = self.evaluate_by_ai(
+                    listing, item_config=item_config, marketplace_config=marketplace_config
+                )
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
                     )
-                    # for notification usages
-                    listing.name = item_config.name
-                    for user in users_to_notify:
-                        ns = User(self.config.user[user], self.logger).notification_status(listing)
-                        if self.logger:
-                            if ns == NotificationStatus.NOTIFIED:
-                                self.logger.info(
-                                    f"""{hilight("[Notify]", "succ")} Notified {user} about {post_url}."""
-                                )
-                            elif ns == NotificationStatus.EXPIRED:
-                                self.logger.info(
-                                    f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}. The notification is ow expired."""
-                                )
-                            elif ns == NotificationStatus.LISTING_CHANGED:
-                                self.logger.info(
-                                    f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now changed."""
-                                )
-                            else:
-                                self.logger.info(
-                                    f"""{hilight("[Notify]", "info")} Not notified {user} about {post_url} yet."""
-                                )
-                        #
-                        # testing notification
-                        #
-                        # User(self.config.user[user], logger=self.logger).notify(
-                        #     [listing], [listing_ratings]
-                        # )
+                # notification status?
+                users_to_notify = (
+                    item_config.notify
+                    or marketplace_config.notify
+                    or list(self.config.user.keys())
+                )
+                # for notification usages
+                listing.name = item_config.name
+                for user in users_to_notify:
+                    ns = User(self.config.user[user], self.logger).notification_status(listing)
+                    if self.logger:
+                        if ns == NotificationStatus.NOTIFIED:
+                            self.logger.info(
+                                f"""{hilight("[Notify]", "succ")} Notified {user} about {post_url}."""
+                            )
+                        elif ns == NotificationStatus.EXPIRED:
+                            self.logger.info(
+                                f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}. The notification is ow expired."""
+                            )
+                        elif ns == NotificationStatus.LISTING_CHANGED:
+                            self.logger.info(
+                                f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now changed."""
+                            )
+                        else:
+                            self.logger.info(
+                                f"""{hilight("[Notify]", "info")} Not notified {user} about {post_url} yet."""
+                            )
+
+                    # testing notification
+                    # User(self.config.user[user], logger=self.logger).notify(
+                    #     [listing], [rating], force=True
+                    # )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",

@@ -1,11 +1,19 @@
 import smtplib
 import ssl
 from dataclasses import dataclass
-from email.message import EmailMessage
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from logging import Logger
-from typing import List
+from pathlib import Path
+from typing import List, Tuple
 
-from .utils import BaseConfig
+import inflect
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from .ai import AIResponse  # type: ignore
+from .listing import Listing
+from .utils import BaseConfig, NotificationStatus, fetch_with_retry, resize_image_data
 
 
 @dataclass
@@ -56,11 +64,164 @@ class SMTPConfig(BaseConfig):
             raise ValueError("user requires a string smtp_from.")
         self.smtp_from = self.smtp_from.strip()
 
+    def get_title(
+        self: "SMTPConfig",
+        listings: List[Listing],
+        notification_status: List[NotificationStatus],
+        force: bool = False,
+    ) -> str:
+        p = inflect.engine()
+        n_new = len([x for x in notification_status if x == NotificationStatus.NOT_NOTIFIED])
+        n_notified = len([x for x in notification_status if x == NotificationStatus.NOTIFIED])
+        n_expired = len([x for x in notification_status if x == NotificationStatus.EXPIRED])
+        n_updated = len(
+            [x for x in notification_status if x == NotificationStatus.LISTING_CHANGED]
+        )
+        title = "Found "
+        cnts = []
+        if n_new > 0:
+            cnts.append(f"{n_new} new ")
+        if n_expired > 0:
+            cnts.append(f"{n_expired} expired ")
+        if n_updated > 0:
+            cnts.append(f"{n_updated} updated ")
+        if force and n_notified > 0:
+            cnts.append(f"{n_notified} notified ")
+        if len(cnts) > 1:
+            cnts[-1] = f"and {cnts[-1]}"
+        elif len(cnts) == 0:
+            # no new items
+            return ""
+
+        title += " ".join(cnts)
+        title += f"{p.plural_noun(listings[0].name, len(listings)-(0 if force else n_notified))} from {listings[0].marketplace}"
+        return title
+
+    def get_text_message(
+        self: "SMTPConfig",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+        force: bool = False,
+        logger: Logger | None = None,
+    ) -> str:
+        messages = []
+        for listing, rating, ns in zip(listings, ratings, notification_status):
+            prefix = ""
+            if ns == NotificationStatus.NOTIFIED:
+                if force:
+                    prefix = "[NOTIFIED] "
+                else:
+                    continue
+            if ns == NotificationStatus.EXPIRED:
+                prefix = "[REMINDER] "
+            elif ns == NotificationStatus.LISTING_CHANGED:
+                prefix = "[lISTING UPDATED] "
+
+            messages.append(
+                (
+                    f"{prefix}{listing.title}\n{listing.price}, {listing.location}\n"
+                    f"{listing.post_url.split('?')[0]}"
+                )
+                if rating.comment == AIResponse.NOT_EVALUATED
+                else (
+                    f"{prefix} [{rating.conclusion} ({rating.score})] {listing.title}\n"
+                    f"{listing.price}, {listing.location}\n"
+                    f"{listing.post_url.split('?')[0]}\n"
+                    f"AI: {rating.comment}"
+                )
+            )
+        message = "\n\n".join(messages)
+        return message
+
+    def get_html_message(
+        self: "SMTPConfig",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+        force: bool = False,
+        logger: Logger | None = None,
+    ) -> Tuple[str, list[Tuple[bytes, str, str]]]:  # Return HTML and image data
+        template_dir = Path(__file__).parent
+
+        # Set up Jinja2 environment
+        env = Environment(
+            loader=FileSystemLoader(template_dir), autoescape=select_autoescape(["html", "xml"])
+        )
+
+        # Add custom filter for hashing
+        env.filters["hash"] = hash
+
+        # Load template
+        template = env.get_template("email.html.j2")
+
+        # Prepare images list for attachments
+        images = []
+        valid_image_hashes = set()  # Track which images were successfully processed
+
+        # Process images first
+        for listing in listings:
+            if listing.image:
+                result = fetch_with_retry(listing.image, logger=logger)
+                if result:
+                    image_data, content_type = result
+                    image_data = resize_image_data(image_data)
+                    if image_data and len(image_data) <= 1024 * 1024:
+                        image_hash = hash(listing.image)
+                        images.append((image_data, content_type, f"image_{image_hash}"))
+                        valid_image_hashes.add(image_hash)  # Track valid image
+                    else:
+                        if logger:
+                            logger.debug(f"Image too large: {len(image_data)} bytes, skipped.")
+                else:
+                    if logger:
+                        logger.debug(f"Failed to fetch image: {listing.image}")
+
+        # Render template
+        html = template.render(
+            listings=zip(listings, ratings, notification_status),
+            force=force,
+            NotificationStatus=NotificationStatus,  # Pass enum for comparison
+            valid_image_hashes=valid_image_hashes,  # Pass set of valid image hashes
+        )
+        return html, images
+
+    def notify_through_email(
+        self: "SMTPConfig",
+        recipients: List[str] | None,
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        notification_status: List[NotificationStatus],
+        force: bool = False,
+        logger: Logger | None = None,
+    ) -> bool:
+        if not recipients:
+            if logger:
+                logger.debug("No recipients specified. No email sent.")
+            return False
+
+        title = self.get_title(listings, notification_status, force=force)
+        if not title:
+            if logger:
+                logger.debug("No new listings. No email sent.")
+            return False
+        message = self.get_text_message(
+            listings, ratings, notification_status, force, logger=logger
+        )
+        html_message, images = self.get_html_message(
+            listings, ratings, notification_status, force, logger=logger
+        )
+        return self.send_email_message(
+            recipients, title, message, html_message, images, logger=logger
+        )
+
     def send_email_message(
         self: "SMTPConfig",
         recipients: List[str] | None,
         title: str,
         message: str,
+        html: str,
+        images: List[Tuple[bytes, str, str]],
         logger: Logger | None = None,
     ) -> bool:
         if not recipients:
@@ -72,42 +233,28 @@ class SMTPConfig(BaseConfig):
 
         if self.smtp_server:
             smtp_server = self.smtp_server
-        elif sender.endswith("gmail.com"):
-            smtp_server = "smtp.gmail.com"
-        elif sender.endswith("yahoo.com"):
-            smtp_server = "smtp.mail.yahoo.com"
-        elif sender.endswith("outlook.com"):
-            smtp_server = "smtp-mail.outlook.com"
-        elif sender.endswith("hotmail.com"):
-            smtp_server = "smtp-mail.outlook.com"
-        elif sender.endswith("aol.com"):
-            smtp_server = "smtp.aol.com"
-        elif sender.endswith("zoho.com"):
-            smtp_server = "smtp.zoho.com"
-        elif sender.endswith("icloud.com"):
-            smtp_server = "smtp.icloud.com"
-        elif sender.endswith("protonmail.com"):
-            smtp_server = "smtp.protonmail.com"
-        elif sender.endswith("proton.me"):
-            smtp_server = "smtp.proton.me"
-        elif sender.endswith("yandex.com"):
-            smtp_server = "smtp.yandex.com"
-        elif sender.endswith("gmx.com"):
-            smtp_server = "smtp.gmx.com"
-        elif sender.endswith("mail.com"):
-            smtp_server = "smtp.mail.com"
-
-        if not smtp_server:
-            if logger:
-                logger.warning(f"Cannot determine a smtp server for sender {sender}")
+        else:
+            smtp_server = f"""smtp.{sender.split("@")[1]}"""
 
         # s.starttls()
-        msg = EmailMessage()
-        msg.set_content(message)
-
+        msg = MIMEMultipart("related")
         msg["Subject"] = title
         msg["From"] = sender
         msg["To"] = ", ".join(recipients)
+
+        # Create alternative part
+        alt_part = MIMEMultipart("alternative")
+        msg.attach(alt_part)
+
+        alt_part.attach(MIMEText(message, "plain"))
+        alt_part.attach(MIMEText(html, "html"))  # HTML part last = preferred
+
+        # Attach images
+        for image_data, _, cid in images:
+            image = MIMEImage(image_data)
+            image.add_header("Content-ID", f"<{cid}>")
+            image.add_header("Content-Disposition", "inline")
+            msg.attach(image)
 
         try:
             smtp_port = self.smtp_port or 587
