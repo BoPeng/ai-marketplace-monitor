@@ -497,9 +497,39 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
                     marketplace.check_listing(listing, item_config)
-                    self.evaluate_by_ai(
+                    listing_ratings = self.evaluate_by_ai(
                         listing, item_config=item_config, marketplace_config=marketplace_config
                     )
+                    # notification status?
+                    users_to_notify = (
+                        item_config.notify
+                        or marketplace_config.notify
+                        or list(self.config.user.keys())
+                    )
+                    # for notification usages
+                    listing.name = item_config.name
+                    for user in users_to_notify:
+                        ns = User(self.config.user[user], self.logger).notification_status(listing)
+                        if self.logger:
+                            if ns == NotificationStatus.NOTIFIED:
+                                self.logger.info(
+                                    f"""{hilight("[Notify]", "succ")} Notified {user} about {post_url}."""
+                                )
+                            elif ns == NotificationStatus.EXPIRED:
+                                self.logger.info(
+                                    f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}. The notification is ow expired."""
+                                )
+                            elif ns == NotificationStatus.LISTING_CHANGED:
+                                self.logger.info(
+                                    f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now changed."""
+                                )
+                            else:
+                                self.logger.info(
+                                    f"""{hilight("[Notify]", "info")} Not notified {user} about {post_url} yet."""
+                                )
+                                User(self.config.user[user], logger=self.logger).notify(
+                                    [listing], [listing_ratings]
+                                )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",

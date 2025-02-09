@@ -222,7 +222,7 @@ class OpenAIBackend(AIBackend):
         if res is not None:
             if self.logger:
                 self.logger.info(
-                    f"""{hilight("[AI]", "name")} {self.config.name} has already evaluated {hilight(listing.title)}."""
+                    f"""{hilight("[AI]", res.style)} {self.config.name} previously concluded {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
                 )
             return res
 

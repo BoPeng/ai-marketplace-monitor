@@ -24,9 +24,13 @@ class Listing:
     @property
     def hash(self: "Listing") -> str:
         # we need to normalize post_url before hashing because post_url will be different
-        # each time from a search page
+        # each time from a search page. We also does not count image
         return hash_dict(
-            {x: (y.split("?")[0] if x == "post_url" else y) for x, y in asdict(self).items()}
+            {
+                x: (y.split("?")[0] if x == "post_url" else y)
+                for x, y in asdict(self).items()
+                if x != "image"
+            }
         )
 
     @classmethod
