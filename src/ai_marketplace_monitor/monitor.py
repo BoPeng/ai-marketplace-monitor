@@ -511,12 +511,12 @@ class MarketplaceMonitor:
                         f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                     )
                 marketplace.check_listing(listing, item_config)
-                res = self.evaluate_by_ai(
+                rating = self.evaluate_by_ai(
                     listing, item_config=item_config, marketplace_config=marketplace_config
                 )
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                        f"""{hilight("[AI]", rating.style)} {rating.name or "AI"} concludes {hilight(f"{rating.conclusion} ({rating.score}): {rating.comment}", rating.style)} for listing {hilight(listing.title)}."""
                     )
                 # notification status?
                 users_to_notify = (
