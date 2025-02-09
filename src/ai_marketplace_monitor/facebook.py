@@ -349,6 +349,9 @@ class FacebookMarketplace(Marketplace):
         found = {}
         search_city = item_config.search_city or self.config.search_city or []
         radiuses = item_config.radius or self.config.radius
+
+        # increase the searched_count to differentiate first and subsequent searches
+        item_config.searched_count += 1
         for city, radius in zip(search_city, repeat(None) if radiuses is None else radiuses):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
@@ -367,19 +370,19 @@ class FacebookMarketplace(Marketplace):
                 # go to each item and get the description
                 # if we have not done that before
                 for listing in found_listings:
-                    if listing.post_url in found:
+                    if listing.post_url.split("?")[0] in found:
                         continue
                     if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
                     counter.increment(CounterItem.LISTING_EXAMINED)
-                    found[listing.post_url] = True
+                    found[listing.post_url.split("?")[0]] = True
                     # filter by title and location since we do not have description and seller yet.
                     if not self.check_listing(listing, item_config):
                         counter.increment(CounterItem.EXCLUDED_LISTING)
                         continue
                     try:
                         details = self.get_listing_details(
-                            f"{listing.post_url}",
+                            listing.post_url,
                             price=listing.price,
                             title=listing.title,
                         )

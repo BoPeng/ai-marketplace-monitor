@@ -136,8 +136,11 @@ class MarketplaceMonitor:
             item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
         for listing in marketplace.search(item_config):
-            # increase the searched_count
-            item_config.searched_count += 1
+            # duplicated? This should not happen but let us check anyway
+            if listing.id in [x.id for x in new_listings]:
+                if self.logger:
+                    self.logger.warning(f"Search function returns duplicated result for {listing}")
+                continue
             # if everyone has been notified
             if all(
                 User(self.config.user[user], self.logger).notification_status(listing)
