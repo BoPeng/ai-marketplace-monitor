@@ -84,6 +84,8 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for key, value in config.get("ai", {}).items():
             try:
                 backend_class = supported_ai_backends[value.get("provider", key).lower()]
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 raise ValueError(
                     f"Config file contains an unsupported AI backend {key} in the ai section."
