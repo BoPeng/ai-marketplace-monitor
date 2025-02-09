@@ -110,6 +110,7 @@ ignore = [
   "S311",
   "B017",
   "S106",
+  "G003",
   "S101",   # use of assert
   "BLE001", # blank exception
   "C901",   # too complex (function name too long etc)
