@@ -12,10 +12,10 @@ else:
     import tomli as tomllib
 
 from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
-from .email import SMTPConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .region import RegionConfig
+from .smtp import SMTPConfig
 from .user import User, UserConfig
 from .utils import hilight, merge_dicts
 

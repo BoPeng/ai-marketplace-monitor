@@ -1,9 +1,10 @@
 import smtplib
+import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from logging import Logger
 from typing import List
-import ssl
+
 from .utils import BaseConfig
 
 
@@ -113,13 +114,13 @@ class SMTPConfig(BaseConfig):
             smtp_username = self.smtp_username or sender
             if not smtp_username:
                 if logger:
-                    logger.error(f"No smtp username.")
+                    logger.error("No smtp username.")
                 return False
 
             smtp_password = self.smtp_password
             if not smtp_password:
                 if logger:
-                    logger.error(f"No smtp password.")
+                    logger.error("No smtp password.")
                 return False
 
             context = ssl.create_default_context()

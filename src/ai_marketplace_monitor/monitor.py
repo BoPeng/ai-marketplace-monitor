@@ -497,7 +497,7 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
                         )
                     marketplace.check_listing(listing, item_config)
-                    listing_ratings = self.evaluate_by_ai(
+                    self.evaluate_by_ai(
                         listing, item_config=item_config, marketplace_config=marketplace_config
                     )
                     # notification status?

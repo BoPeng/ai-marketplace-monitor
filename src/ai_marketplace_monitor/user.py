@@ -9,9 +9,9 @@ import inflect
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
-from .email import SMTPConfig
 from .listing import Listing
 from .pushbullet import PushbulletConfig
+from .smtp import SMTPConfig
 from .utils import (
     CacheType,
     CounterItem,

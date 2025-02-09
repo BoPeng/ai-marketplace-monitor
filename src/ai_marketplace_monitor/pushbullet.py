@@ -21,7 +21,7 @@ class PushbulletConfig(BaseConfig):
     ) -> bool:
         if not self.pushbullet_token:
             if logger:
-                logger.debug(f"No pushbullet_token specified.")
+                logger.debug("No pushbullet_token specified.")
             return False
 
         pb = Pushbullet(self.pushbullet_token)
