@@ -281,15 +281,16 @@ class OpenAIBackend(AIBackend):
                 score = int(matched.group(1))
                 comment = matched.group(2).strip()
                 rating_line = idx
+                continue
             if rating_line is not None:
                 # if the AI puts comment after Rating, we need to include them
-                comment += line
+                comment += " " + line
         # if the AI puts the rating at the end, let us try to use the line before the Rating line
         if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
             comment = lines[rating_line - 1]
 
         # remove multiple spaces, take first 30 words
-        comment = " ".join([x for x in comment.split() if x.strip()][:30]).strip()
+        comment = " ".join([x for x in comment.split() if x.strip()]).strip()
         res = AIResponse(score, comment)
         res.to_cache(listing, item_config)
         if self.logger:
