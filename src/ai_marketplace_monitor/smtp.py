@@ -448,7 +448,7 @@ class SMTPConfig(BaseConfig):
         if self.smtp_server:
             smtp_server = self.smtp_server
         else:
-            smtp_server = f"smtp.{sender.split("@")[1]}"
+            smtp_server = f"""smtp.{sender.split("@")[1]}"""
 
         # s.starttls()
         msg = MIMEMultipart("related")
