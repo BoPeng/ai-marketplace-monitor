@@ -104,7 +104,7 @@
         <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
                 <td class="content">
-                    <h2>Latest Listings</h2>
+                    <h2>Latest {{ item_name }} Listings</h2>
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
                         {% for listing, rating, ns in listings %}
                         <tr>
@@ -114,14 +114,14 @@
                                     <h3 style="color: #2C5364; font-size: 18px; font-weight: bold; margin: 0; display: inline;">
                                         {{ listing.title }}
                                     </h3>
-                                    {% if ns.value == 'NOT_NOTIFIED' %}
+                                    {% if ns == NotificationStatus.NOT_NOTIFIED %}
                                         <span class="status-tag status-new">NEW</span>
-                                    {% elif ns.value == 'LISTING_CHANGED' %}
+                                    {% elif ns == NotificationStatus.LISTING_CHANGED %}
                                         <span class="status-tag status-updated">UPDATED</span>
-                                    {% elif ns.value == 'EXPIRED' %}
-                                        <span class="status-tag status-expired">EXPIRED</span>
-                                    {% elif ns.value == 'NOTIFIED' and force %}
-                                        <span class="status-tag status-sent">NOTIFIED</span>
+                                    {% elif ns == NotificationStatus.EXPIRED %}
+                                        <span class="status-tag status-expired">REVISITABLE</span>
+                                    {% elif ns == NotificationStatus.NOTIFIED and force %}
+                                        <span class="status-tag status-sent">REVISITABLE</span>
                                     {% endif %}
                                 </div>
 

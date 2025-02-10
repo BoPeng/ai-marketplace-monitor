@@ -81,12 +81,10 @@ class SMTPConfig(BaseConfig):
         cnts = []
         if n_new > 0:
             cnts.append(f"{n_new} new ")
-        if n_expired > 0:
-            cnts.append(f"{n_expired} expired ")
         if n_updated > 0:
             cnts.append(f"{n_updated} updated ")
-        if force and n_notified > 0:
-            cnts.append(f"{n_notified} notified ")
+        if n_expired > 0 or (force and n_notified > 0):
+            cnts.append(f"{n_expired + (n_notified if force else 0)} revisitable ")
         if len(cnts) > 1:
             cnts[-1] = f"and {cnts[-1]}"
         elif len(cnts) == 0:
@@ -94,7 +92,7 @@ class SMTPConfig(BaseConfig):
             return ""
 
         title += " ".join(cnts)
-        title += f"{p.plural_noun(listings[0].name, len(listings)-(0 if force else n_notified))} from {listings[0].marketplace}"
+        title += f"{listings[0].name} {p.plural_noun('listing', len(listings)-(0 if force else n_notified))} from {listings[0].marketplace}"
         return title
 
     def get_text_message(
@@ -181,6 +179,7 @@ class SMTPConfig(BaseConfig):
         html = template.render(
             listings=zip(listings, ratings, notification_status),
             force=force,
+            item_name=listings[0].name.capitalize(),
             NotificationStatus=NotificationStatus,  # Pass enum for comparison
             valid_image_hashes=valid_image_hashes,  # Pass set of valid image hashes
         )
