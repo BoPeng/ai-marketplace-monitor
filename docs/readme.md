@@ -10,7 +10,7 @@
 - [Options that can be specified for both marketplaces and items](#options-that-can-be-specified-for-both-marketplaces-and-items)
 - [Regions](#regions)
 
-Here is a complete list of options that are acceptable by the program. [`../example_config.toml`](example_config.toml) provides
+Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
 an example with many of the options.
 
 ### AI Agents

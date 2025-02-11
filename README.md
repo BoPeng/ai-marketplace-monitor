@@ -128,7 +128,7 @@ You can also connect to any other AI service that provides an OpenAI compatible 
 
 ### Configuration
 
-One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you get notified with matching listings.
+One or more configuration file in [TOML format](https://toml.io/en/) is needed. The following example ([`minimal_config.toml`](docs/minimal_config.toml)) shows the absolute minimal number of options, namely which city you are searching in, what item you are searching for, and how you get notified with matching listings.
 
 ```toml
 [marketplace.facebook]
