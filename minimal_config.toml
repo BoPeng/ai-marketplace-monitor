@@ -3,7 +3,7 @@ username = 'username@gmail.com'
 search_city = 'houston'
 
 [item.name1]
-keywords = 'search word one'
+search_phrases = 'search word one'
 
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'

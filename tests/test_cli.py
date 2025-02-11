@@ -73,17 +73,16 @@ search_region = 'usa'
 
 base_item_cfg = """
 [item.name]
-keywords = 'search word one'
+search_phrases = 'search word one'
 """
 
 full_item_cfg = """
 [item.name]
+antikeywords = ['exclude1', 'exclude2']
 description = 'long description'
 enabled = true
-exclude_by_description = ['some exclude1', 'some exclude2']
-exclude_keywords = ['exclude1', 'exclude2']
-include_keywords = ['exclude1', 'exclude2']
-keywords = 'search word one'
+keywords = ['exclude1', 'exclude2']
+search_phrases = 'search word one'
 marketplace = 'facebook'
 search_city = 'houston'
 # the following are common options
@@ -166,11 +165,9 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "delivery_method": (list, type(None)),
         "description": (str, type(None)),
         "enabled": (bool, type(None)),
-        "exclude_by_description": (list, type(None)),
-        "exclude_keywords": (list, type(None)),
+        "antikeywords": (list, type(None)),
         "exclude_sellers": (list, type(None)),
         "keywords": (list, type(None)),
-        "include_keywords": (list, type(None)),
         "login_wait_time": (int, type(None)),
         "marketplace": (str, type(None)),
         "max_price": (int, type(None)),
@@ -187,6 +184,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "remind": (int, type(None)),
         "search_city": (list, type(None)),
         "search_interval": (int, type(None)),
+        "search_phrases": list,
         "search_region": (list, type(None)),
         "searched_count": int,
         "start_at": (list, type(None)),
@@ -219,7 +217,7 @@ search_city = 'houston'
 alt_item_cfg = """
 [item.whatever]
 marketplace = "houston"
-keywords = "search word two"
+search_phrases = "search word two"
 """
 
 

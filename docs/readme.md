@@ -90,22 +90,21 @@ See [Setting up email notification](#setting-up-email-notification) for details 
 
 One or more `item.item_name` where `item_name` is the name of the item.
 
-| Option                   | Requirement | DataType    | Description                                                                                                                                                                                    |
-| ------------------------ | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `keywords`               | Required    | String/List | One or more strings for searching the item.                                                                                                                                                    |
-| `description`            | Optional    | String      | A longer description of the item that better describes your requirements (e.g., manufacture, condition, location, seller reputation, shipping options). Only used if AI assistance is enabled. |
-| `enabled`                | Optional    | Boolean     | Stops searching this item if set to `false`.                                                                                                                                                   |
-| `include_keywords`       | Optional    | String/List | Excludes listings that do not contain any of the keywords.                                                                                                                                     |
-| `exclude_keywords`       | Optional    | String/List | Excludes listings whose titles contain any of the specified strings.                                                                                                                           |
-| `exclude_by_description` | Optional    | String/List | Excludes items with descriptions containing any of the specified strings.                                                                                                                      |
-| `marketplace`            | Optional    | String      | Name of the marketplace, default to `facebook` that points to a `marketplace.facebook` sectiion.                                                                                               |
-| **Common options**       |             |             | Options listed below. These options, if specified in the item section, will override options in the marketplace section.                                                                       |
+| Option             | Requirement | DataType    | Description                                                                                                                                                                                    |
+| ------------------ | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_phrases`   | Required    | String/List | One or more strings for searching the item.                                                                                                                                                    |
+| `description`      | Optional    | String      | A longer description of the item that better describes your requirements (e.g., manufacture, condition, location, seller reputation, shipping options). Only used if AI assistance is enabled. |
+| `enabled`          | Optional    | Boolean     | Stops searching this item if set to `false`.                                                                                                                                                   |
+| `keywords`         | Optional    | String/List | Excludes listings whose titles and description do not contain any of the keywords.                                                                                                             |
+| `antikeywords`     | Optional    | String/List | Excludes listings whose titles or descriptions contain any of the specified keywords.                                                                                                          |
+| `marketplace`      | Optional    | String      | Name of the marketplace, default to `facebook` that points to a `marketplace.facebook` sectiion.                                                                                               |
+| **Common options** |             |             | Options listed below. These options, if specified in the item section, will override options in the marketplace section.                                                                       |
 
-Marketplaces may return listings that are completely unrelated to search keywords, but can also
+Marketplaces may return listings that are completely unrelated to search search_phrases, but can also
 return related items under different names. To select the right items, you can
 
-1. Use `include_keywords` to keep only items with certain words in the title. For example, you can set `include_keywords = ['gopro', 'go pro']` when you search for `keywords = 'gopro'`.
-2. Use `exclude_keywords` to narrow down the search. For example, setting `exclude_keywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title.
+1. Use `keywords` to keep only items with certain words in the title. For example, you can set `include_search_phrases = ['gopro', 'go pro']` when you search for `search_phrases = 'gopro'`.
+2. Use `antikeywords` to narrow down the search. For example, setting `antikeywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title or description.
 3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera. It is still a good idea to pre-filter listings using non-AI criteria to reduce the cost of AI services.
 
 ### Options that can be specified for both marketplaces and items

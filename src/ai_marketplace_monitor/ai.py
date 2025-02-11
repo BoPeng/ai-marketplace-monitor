@@ -177,10 +177,8 @@ class AIBackend(Generic[TAIConfig]):
         elif min_price:
             prompt += f"""Min price {min_price}. """
         #
-        if item_config.exclude_keywords:
-            prompt += f"""Exclude keywords "{'" and "'.join(item_config.exclude_keywords)}"."""
-        if item_config.exclude_by_description:
-            prompt += f"""Exclude description with: "{'" and "'.join(item_config.exclude_by_description)}"."""
+        if item_config.antikeywords:
+            prompt += f"""Exclude keywords "{'" and "'.join(item_config.antikeywords)}" in title or description."""
         #
         prompt += (
             f"""\n\nThe user found a listing titled "{listing.title}" in {listing.condition} condition, """

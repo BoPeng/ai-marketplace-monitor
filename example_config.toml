@@ -12,7 +12,6 @@ max_search_interval = '1h'
 seller_locations = ['city', 'surrounding city']
 notify = 'user1'
 exclude_sellers = []
-exclude_by_description = []
 
 [notify.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -27,19 +26,18 @@ smtp_username = 'myself@gmail.com'
 smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 [item.name1]
-keywords = 'search word one'
+search_phrases = 'search word one'
 search_region = 'usa'
 search_interval = '1d'
 delivery_method = 'shipping'
 seller_locations = []
 
 [item.name2]
-keywords = ['search word one', 'search word two']
+search_phrases = ['search word one', 'search word two']
 description = "it should be from manufacture, the seller should not offer shipping."
-include_keywords = ['search word']
-exclude_keywords = ['exclude word one', 'exclude word two']
+keywords = ['search word']
+antikeywords = ['exclude word one', 'exclude word two']
 notify = 'user2'
 search_city = 'another city'
 seller_locations = ['another city', 'surrounding city']
 exclude_sellers = []
-exclude_by_description = []

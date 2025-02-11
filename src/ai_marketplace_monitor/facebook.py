@@ -370,8 +370,10 @@ class FacebookMarketplace(Marketplace):
                     options.pop()
                 options.append(f"radius={radius}")
 
-            for keyword in item_config.keywords or []:
-                self.goto_url(marketplace_url + "&".join([f"query={quote(keyword)}", *options]))
+            for search_phrase in item_config.search_phrases or []:
+                self.goto_url(
+                    marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
+                )
                 counter.increment(CounterItem.SEARCH_PERFORMED)
 
                 found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
@@ -450,18 +452,22 @@ class FacebookMarketplace(Marketplace):
     def check_listing(
         self: "FacebookMarketplace", item: Listing, item_config: FacebookItemConfig
     ) -> bool:
-        # get exclude_keywords from both item_config or config
-        exclude_keywords = item_config.exclude_keywords
-        if exclude_keywords and is_substring(exclude_keywords, item.title):
+        # get antikeywords from both item_config or config
+        antikeywords = item_config.antikeywords
+        if antikeywords and (
+            is_substring(antikeywords, item.title) or is_substring(antikeywords, item.description)
+        ):
             if self.logger:
                 self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(exclude_keywords)}"""
+                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(antikeywords)}"""
                 )
             return False
 
         # if the return description does not contain any of the search keywords
-        include_keywords = item_config.include_keywords
-        if include_keywords and not is_substring(include_keywords, item.title):
+        keywords = item_config.keywords
+        if keywords and not (
+            is_substring(keywords, item.title) or is_substring(keywords, item.description)
+        ):
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
@@ -477,19 +483,6 @@ class FacebookMarketplace(Marketplace):
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
-                )
-            return False
-
-        # get exclude_keywords from both item_config or config
-        exclude_by_description = item_config.exclude_by_description or []
-        if (
-            item.description
-            and exclude_by_description
-            and is_substring(exclude_by_description, item.description)
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} by {hilight("description", "fail")}.\n{hilight(item.description[:100])}..."""
                 )
             return False
 
