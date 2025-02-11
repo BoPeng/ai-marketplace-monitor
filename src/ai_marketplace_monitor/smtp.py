@@ -1,7 +1,6 @@
 import smtplib
 import ssl
 from dataclasses import dataclass
-from email.header import Header
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -239,7 +238,7 @@ class SMTPConfig(BaseConfig):
 
         # s.starttls()
         msg = MIMEMultipart("related")
-        msg["Subject"] = Header(title, "utf-8")
+        msg["Subject"] = title
         # can use the humanized version of self.name as well
         msg["From"] = formataddr(("AI Marketplace Monitor", sender))
         msg["To"] = ", ".join(recipients)
