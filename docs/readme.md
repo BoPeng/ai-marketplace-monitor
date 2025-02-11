@@ -1,4 +1,6 @@
-## Table of content:
+## Configuration Guide
+
+### Table of content:
 
 - [AI Agents](#ai-agents)
 - [Marketplaces](#marketplaces)

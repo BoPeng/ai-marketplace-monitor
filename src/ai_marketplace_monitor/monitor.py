@@ -180,7 +180,7 @@ class MarketplaceMonitor:
                     self.logger.info(
                         f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}."""
                     )
-                counter.increment(CounterItem.EXCLUDED_LISTING)
+                counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                 continue
             new_listings.append(listing)
             listing_ratings.append(res)
@@ -191,10 +191,12 @@ class MarketplaceMonitor:
                 f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
             )
         if new_listings:
-            counter.increment(CounterItem.NEW_VALIDATED_LISTING, len(new_listings))
+            counter.increment(
+                CounterItem.NEW_VALIDATED_LISTING, item_config.name, len(new_listings)
+            )
             for user in users_to_notify:
                 User(self.config.user[user], logger=self.logger).notify(
-                    new_listings, listing_ratings
+                    new_listings, listing_ratings, item_config
                 )
         time.sleep(5)
 
@@ -486,14 +488,6 @@ class MarketplaceMonitor:
                         marketplace.set_browser(self.browser)
 
                 # ignore enabled
-                # do not search, get the item details directly
-                listing: Listing = marketplace.get_listing_details(post_url)
-
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
-                    )
-
                 if for_item is None:
                     # get by asking user
                     name = None
@@ -505,6 +499,14 @@ class MarketplaceMonitor:
                     item_config = self.config.item[name or item_names[0]]
                 else:
                     item_config = self.config.item[for_item]
+
+                # do not search, get the item details directly
+                listing: Listing = marketplace.get_listing_details(post_url, item_config)
+
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
+                    )
 
                 if self.logger:
                     self.logger.info(
@@ -548,7 +550,7 @@ class MarketplaceMonitor:
 
                     # testing notification
                     User(self.config.user[user], logger=self.logger).notify(
-                        [listing], [rating], force=True
+                        [listing], [rating], item_config, force=True
                     )
 
     def evaluate_by_ai(

@@ -374,7 +374,7 @@ class FacebookMarketplace(Marketplace):
                 self.goto_url(
                     marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
                 )
-                counter.increment(CounterItem.SEARCH_PERFORMED)
+                counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
 
                 found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
                 time.sleep(5)
@@ -385,15 +385,16 @@ class FacebookMarketplace(Marketplace):
                         continue
                     if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
-                    counter.increment(CounterItem.LISTING_EXAMINED)
+                    counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
                     found[listing.post_url.split("?")[0]] = True
                     # filter by title and location since we do not have description and seller yet.
                     if not self.check_listing(listing, item_config):
-                        counter.increment(CounterItem.EXCLUDED_LISTING)
+                        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                         continue
                     try:
                         details = self.get_listing_details(
                             listing.post_url,
+                            item_config,
                             price=listing.price,
                             title=listing.title,
                         )
@@ -419,11 +420,12 @@ class FacebookMarketplace(Marketplace):
                     if self.check_listing(listing, item_config):
                         yield listing
                     else:
-                        counter.increment(CounterItem.EXCLUDED_LISTING)
+                        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
 
     def get_listing_details(
         self: "FacebookMarketplace",
         post_url: str,
+        item_config: ItemConfig,
         price: str | None = None,
         title: str | None = None,
     ) -> Listing:
@@ -442,7 +444,7 @@ class FacebookMarketplace(Marketplace):
 
         assert self.page is not None
         self.goto_url(post_url)
-        counter.increment(CounterItem.LISTING_QUERY)
+        counter.increment(CounterItem.LISTING_QUERY, item_config.name)
         details = parse_listing(self.page, post_url, self.logger)
         if details is None:
             raise ValueError(f"Failed to get item details from {post_url}")

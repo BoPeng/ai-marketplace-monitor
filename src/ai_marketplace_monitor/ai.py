@@ -163,7 +163,7 @@ class AIBackend(Generic[TAIConfig]):
     def get_prompt(self: "AIBackend", listing: Listing, item_config: TItemConfig) -> str:
         prompt = (
             f"""A user wants to buy a {item_config.name} from Facebook Marketplace. """
-            f"""Search keywords: "{'" and "'.join(item_config.keywords)}", """
+            f"""Search phrases: "{'" and "'.join(item_config.search_phrases)}", """
         )
         if item_config.description:
             prompt += f"""Description: "{item_config.description}", """
@@ -192,8 +192,8 @@ class AIBackend(Generic[TAIConfig]):
             "4 - Good match: Mostly meets criteria with clear, relevant details.\n"
             "5 - Great deal: Fully matches criteria, with excellent condition or price.\n"
             "Conclude with:\n"
-            '"Rating [1-5]: [summary]"\n'
-            "where [1-5] is the rating and [summary] is a brief recommendation (max 30 words)."
+            '"Rating <1-5>: <summary>"\n'
+            "where <1-5> is the rating and <summary> is a brief recommendation (max 30 words)."
         )
         if self.logger:
             self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
@@ -224,7 +224,7 @@ class OpenAIBackend(AIBackend):
 
     def evaluate(self: "OpenAIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
         # ask openai to confirm the item is correct
-        counter.increment(CounterItem.AI_QUERY)
+        counter.increment(CounterItem.AI_QUERY, item_config.name)
         prompt = self.get_prompt(listing, item_config)
         res: AIResponse | None = AIResponse.from_cache(listing, item_config)
         if res is not None:
@@ -275,7 +275,7 @@ class OpenAIBackend(AIBackend):
             or not answer.strip()
             or re.search(r"Rating[^1-5]*[1-5]", answer, re.DOTALL) is None
         ):
-            counter.increment(CounterItem.FAILED_AI_QUERY)
+            counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
         lines = answer.split("\n")
@@ -301,7 +301,7 @@ class OpenAIBackend(AIBackend):
         comment = " ".join([x for x in comment.split() if x.strip()]).strip()
         res = AIResponse(name=self.config.name, score=score, comment=comment)
         res.to_cache(listing, item_config)
-        counter.increment(CounterItem.NEW_AI_QUERY)
+        counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
         return res
 
 

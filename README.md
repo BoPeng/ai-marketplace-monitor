@@ -387,6 +387,12 @@ date_listed = ["all", "last 24 hours"]
 
 _ai-marketplace-monitor_ shows statistics such as the number of pages searched, number of listings examined and excluded, number of matching lists found and number of users notified when you exit the program. If you would like to see the statistics during monitoring, press `Esc` and wait till the current search to end.
 
+Counters are persistent across program runs. If you would like to reset the counters, use
+
+```
+ai-marketplace-monitor --clear-cache counters
+```
+
 ### Self-hosted Ollama Model
 
 If you have access to a decent machine and prefer not to pay for AI services from OpenAI or other vendors. You can opt to install Ollama locally and access it using the `provider = "ollama"`. If you have ollama on your local host, you can use
@@ -416,6 +422,7 @@ to clear the cache. The following cache types are supported
 - `listing-details`
 - `ai-inquiries`
 - `user-notification`
+- `counters`
 
 `--clear-cache all` is also possible but not recommended.
 
