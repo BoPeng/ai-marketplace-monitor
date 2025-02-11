@@ -103,7 +103,7 @@ One or more `item.item_name` where `item_name` is the name of the item.
 Marketplaces may return listings that are completely unrelated to search search_phrases, but can also
 return related items under different names. To select the right items, you can
 
-1. Use `keywords` to keep only items with certain words in the title. For example, you can set `include_search_phrases = ['gopro', 'go pro']` when you search for `search_phrases = 'gopro'`.
+1. Use `keywords` to keep only items with certain words in the title. For example, you can set `keywords = ['gopro', 'go pro']` when you search for `search_phrases = 'gopro'`.
 2. Use `antikeywords` to narrow down the search. For example, setting `antikeywords=['HERO 4']` will exclude items with `HERO 4` or `hero 4`in the title or description.
 3. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera. It is still a good idea to pre-filter listings using non-AI criteria to reduce the cost of AI services.
 
