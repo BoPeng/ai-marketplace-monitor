@@ -549,9 +549,9 @@ class MarketplaceMonitor:
                             )
 
                     # testing notification
-                    User(self.config.user[user], logger=self.logger).notify(
-                        [listing], [rating], item_config, force=True
-                    )
+                    # User(self.config.user[user], logger=self.logger).notify(
+                    #     [listing], [rating], item_config, force=True
+                    # )
 
     def evaluate_by_ai(
         self: "MarketplaceMonitor",

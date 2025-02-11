@@ -13,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import BaseConfig, NotificationStatus, fetch_with_retry, resize_image_data
+from .utils import BaseConfig, NotificationStatus, fetch_with_retry, resize_image_data, hilight
 
 
 @dataclass
@@ -287,7 +287,9 @@ class SMTPConfig(BaseConfig):
                     return False
                 smtp.send_message(msg)
             if logger:
-                logger.info(f"""Email with title {title} sent to {msg["To"]}""")
+                logger.info(
+                    f"""{hilight("[Notify]", "succ")} Sent {self.name} an email with title {hilight(title)}"""
+                )
             return True
         except KeyboardInterrupt:
             raise

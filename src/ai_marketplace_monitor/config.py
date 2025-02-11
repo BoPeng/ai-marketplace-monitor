@@ -199,7 +199,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 smtp_config = next(iter(self.smtp.values()))
             # add values of smtp_config to user config
             for key, value in smtp_config.__dict__.items():
-                setattr(config, key, value)
+                # name is the smtp name and should not override username
+                if key != "name":
+                    setattr(config, key, value)
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist

@@ -166,22 +166,5 @@ class User:
         ):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):
-                if self.logger:
-                    if ns == NotificationStatus.NOTIFIED:
-                        self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {self.name} was not notified for notified {hilight(listing.title)} {humanize.naturaltime(self.time_since_notification(listing))}"""
-                        )
-                    elif ns == NotificationStatus.EXPIRED:
-                        self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {self.name} was re-notified for listing {hilight(listing.title)} notified {humanize.naturaltime(self.time_since_notification(listing))}."""
-                        )
-                    elif ns == NotificationStatus.LISTING_CHANGED:
-                        self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {self.name} was re-notified for updated listing {hilight(listing.title)} notified {humanize.naturaltime(self.time_since_notification(listing))}."""
-                        )
-                    else:
-                        self.logger.info(
-                            f"""{hilight("[Notify]", "info")} {self.name} was just notified for new listing {hilight(listing.title)}."""
-                        )
-                if ns != NotificationStatus.NOTIFIED:
+                if force or ns != NotificationStatus.NOTIFIED:
                     self.to_cache(listing, local_cache=local_cache)

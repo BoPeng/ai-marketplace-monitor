@@ -71,10 +71,6 @@ class PushbulletConfig(BaseConfig):
                 title = f"Resend {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
 
             message = "\n\n".join([x[1] for x in listing_msg])
-            if logger:
-                logger.debug(
-                    f"""{hilight("[Notify]", "succ")} Sending {self.name} a message with title {hilight(title)} and message {hilight(message)}"""
-                )
             #
             if not self.send_pushbullet_message(title, message, logger=logger):
                 return False
@@ -100,6 +96,10 @@ class PushbulletConfig(BaseConfig):
                 pb.push_note(
                     title, message + "\n\nSent by https://github.com/BoPeng/ai-marketplace-monitor"
                 )
+                if logger:
+                    logger.info(
+                        f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)}"""
+                    )
                 return True
             except KeyboardInterrupt:
                 raise
