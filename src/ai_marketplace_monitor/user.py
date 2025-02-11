@@ -8,6 +8,7 @@ from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
+from .marketplace import TItemConfig
 from .pushbullet import PushbulletConfig
 from .smtp import SMTPConfig
 from .utils import (
@@ -153,6 +154,7 @@ class User:
         self: "User",
         listings: List[Listing],
         ratings: List[AIResponse],
+        item_config: TItemConfig,
         local_cache: Cache | None = None,
         force: bool = False,
     ) -> None:
@@ -162,7 +164,7 @@ class User:
         ) or self.config.notify_through_email(
             self.config.email, listings, ratings, statuses, force=force, logger=self.logger
         ):
-            counter.increment(CounterItem.NOTIFICATIONS_SENT)
+            counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):
                 if self.logger:
                     if ns == NotificationStatus.NOTIFIED:

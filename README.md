@@ -135,7 +135,7 @@ One or more configuration file in [TOML format](https://toml.io/en/) is needed. 
 search_city = 'houston'
 
 [item.name]
-keywords = 'Go Pro Hero 11'
+search_phrases = 'Go Pro Hero 11'
 
 [user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -160,7 +160,7 @@ seller_locations = [
 ]
 
 [item.name]
-keywords = 'Go Pro Hero 11'
+search_phrases = 'Go Pro Hero 11'
 description = '''A new or used Go Pro version 11, 12 or 13 in
     good condition. No other brand of camera is acceptable.
     Please exclude sellers who offers shipping or asks to
@@ -169,7 +169,7 @@ min_price = 100
 max_price = 200
 
 [item.name2]
-keywords = 'something rare'
+search_phrases = 'something rare'
 description = '''A rare item that has to be searched nationwide and be shipped.
     listings from any location are acceptable.'''
 search_region = 'usa'
@@ -362,15 +362,15 @@ seller_location = []
 delivery_method = 'shipping'
 
 [item.default_item]
-keywords = 'local item for default market "facebook"'
+search_phrases = 'local item for default market "facebook"'
 
 [item.rare_item1]
 marketplace = 'nationwide'
-keywords = 'rare item1'
+search_phrases = 'rare item1'
 
 [item.rare_item2]
 marketplace = 'nationwide'
-keywords = 'rare item2'
+search_phrases = 'rare item2'
 ```
 
 ### First and subsequent searches
@@ -386,6 +386,12 @@ date_listed = ["all", "last 24 hours"]
 ### Showing statistics
 
 _ai-marketplace-monitor_ shows statistics such as the number of pages searched, number of listings examined and excluded, number of matching lists found and number of users notified when you exit the program. If you would like to see the statistics during monitoring, press `Esc` and wait till the current search to end.
+
+Counters are persistent across program runs. If you would like to reset the counters, use
+
+```
+ai-marketplace-monitor --clear-cache counters
+```
 
 ### Self-hosted Ollama Model
 
@@ -416,6 +422,7 @@ to clear the cache. The following cache types are supported
 - `listing-details`
 - `ai-inquiries`
 - `user-notification`
+- `counters`
 
 `--clear-cache all` is also possible but not recommended.
 

@@ -53,6 +53,26 @@ class NotificationStatus(Enum):
     LISTING_CHANGED = 3
 
 
+class CacheType(Enum):
+    LISTING_DETAILS = "listing-details"
+    AI_INQUIRY = "ai-inquiries"
+    USER_NOTIFIED = "user-notifications"
+    COUNTERS = "counters"
+
+
+class CounterItem(Enum):
+    SEARCH_PERFORMED = "Search performed"
+    LISTING_EXAMINED = "Total listing examined"
+    LISTING_QUERY = "New listing fetched"
+    EXCLUDED_LISTING = "Listing excluded"
+    NEW_VALIDATED_LISTING = "New validated listing"
+    AI_QUERY = "Total AI Queries"
+    NEW_AI_QUERY = "New AI Queries"
+    FAILED_AI_QUERY = "Failed AI Queries)"
+    NOTIFICATIONS_SENT = "Notifications sent"
+    REMINDERS_SENT = "Reminders sent"
+
+
 class KeyboardMonitor:
     confirm_character = "c"
 
@@ -135,38 +155,46 @@ class KeyboardMonitor:
                 self._paused = True
 
 
-class CounterItem(Enum):
-    SEARCH_PERFORMED = "Search performed"
-    LISTING_EXAMINED = "Total listing examined"
-    LISTING_QUERY = "New listing fetched"
-    EXCLUDED_LISTING = "Listing excluded"
-    NEW_VALIDATED_LISTING = "New validated listing"
-    AI_QUERY = "Total AI Queries"
-    NEW_AI_QUERY = "New AI Queries"
-    FAILED_AI_QUERY = "Failed AI Queries)"
-    NOTIFICATIONS_SENT = "Notifications sent"
-    REMINDERS_SENT = "Reminders sent"
-
-
 class Counter:
 
-    def __init__(self: "Counter") -> None:
-        self.counters: Dict[str, int] = {}
-
-    def increment(self: "Counter", key: CounterItem, by: int = 1) -> None:
-        if key not in CounterItem:
-            raise ValueError(f"Invalid cunter key: {key}")
-
-        self.counters[key.value] = self.counters.get(key.value, 0) + by
+    def increment(self: "Counter", counter_key: CounterItem, item_name: str, by: int = 1) -> None:
+        key = (CacheType.COUNTERS.value, counter_key.value, item_name)
+        try:
+            cache.incr(key, by, default=None)
+        except KeyError:
+            # if key does not exist, set it to by, and set tag
+            cache.set(key, by, tag=CacheType.COUNTERS.value)
 
     def __str__(self: "Counter") -> str:
         """Return pretty form of all non-zero counters"""
-        cnt = {
-            x.value: self.counters.get(x.value, 0)
-            for x in CounterItem
-            if self.counters.get(x.value, 0)
+        # this is super inefficient. Thankfully we are not calling this often.
+        # See https://github.com/grantjenks/python-diskcache/issues/341
+        # for details
+        counters = {
+            key: cache.get(key) for key in cache.iterkeys() if key[0] == CacheType.COUNTERS.value
         }
-        return pretty_repr(cnt)
+        item_names = {x[2] for x in counters.keys()}
+        cnts = {}
+        for item_name in item_names:
+            # per-item statistics
+            cnts[item_name] = {
+                x.value: counters.get((CacheType.COUNTERS.value, x.value, item_name), 0)
+                for x in CounterItem
+                if counters.get((CacheType.COUNTERS.value, x.value, item_name), 0)
+            }
+        # total statistics
+        cnts["Total"] = {
+            x.value: sum(
+                counters.get((CacheType.COUNTERS.value, x.value, item_name), 0)
+                for item_name in item_names
+            )
+            for x in CounterItem
+            if sum(
+                counters.get((CacheType.COUNTERS.value, x.value, item_name), 0)
+                for item_name in item_names
+            )
+        }
+        return pretty_repr(cnts)
 
 
 counter = Counter()
@@ -192,12 +220,6 @@ class BaseConfig:
     @property
     def hash(self: "BaseConfig") -> str:
         return hash_dict(asdict(self))
-
-
-class CacheType(Enum):
-    LISTING_DETAILS = "listing-details"
-    AI_INQUIRY = "ai-inquiries"
-    USER_NOTIFIED = "user-notifications"
 
 
 def calculate_file_hash(file_paths: List[Path]) -> str:

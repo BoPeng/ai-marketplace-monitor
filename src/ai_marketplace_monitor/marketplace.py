@@ -237,15 +237,40 @@ class ItemConfig(MarketItemCommonConfig):
     searched_count: int = 0
 
     # keywords is required, all others are optional
-    keywords: List[str] = field(default_factory=list)
-    include_keywords: List[str] | None = None
-    exclude_keywords: List[str] | None = None
-    exclude_by_description: List[str] | None = None
+    search_phrases: List[str] = field(default_factory=list)
+    keywords: List[str] | None = None
+    antikeywords: List[str] | None = None
     description: str | None = None
     enabled: bool | None = None
     marketplace: str | None = None
 
+    def handle_search_phrases(self: "ItemConfig") -> None:
+        if isinstance(self.search_phrases, str):
+            self.search_phrases = [self.search_phrases]
+
+        if not isinstance(self.search_phrases, list) or not all(
+            isinstance(x, str) for x in self.search_phrases
+        ):
+            raise ValueError(f"Item {hilight(self.name)} search_phrases must be a list.")
+        if len(self.search_phrases) == 0:
+            raise ValueError(f"Item {hilight(self.name)} search_phrases list is empty.")
+
+    def handle_antikeywords(self: "ItemConfig") -> None:
+        if self.antikeywords is None:
+            return
+
+        if isinstance(self.antikeywords, str):
+            self.antikeywords = [self.antikeywords]
+
+        if not isinstance(self.antikeywords, list) or not all(
+            isinstance(x, str) for x in self.antikeywords
+        ):
+            raise ValueError(f"Item {hilight(self.name)} antikeywords must be a list of strings.")
+
     def handle_keywords(self: "ItemConfig") -> None:
+        if self.keywords is None:
+            return
+
         if isinstance(self.keywords, str):
             self.keywords = [self.keywords]
 
@@ -253,34 +278,6 @@ class ItemConfig(MarketItemCommonConfig):
             isinstance(x, str) for x in self.keywords
         ):
             raise ValueError(f"Item {hilight(self.name)} keywords must be a list.")
-        if len(self.keywords) == 0:
-            raise ValueError(f"Item {hilight(self.name)} keywords list is empty.")
-
-    def handle_exclude_keywords(self: "ItemConfig") -> None:
-        if self.exclude_keywords is None:
-            return
-
-        if isinstance(self.exclude_keywords, str):
-            self.exclude_keywords = [self.exclude_keywords]
-
-        if not isinstance(self.exclude_keywords, list) or not all(
-            isinstance(x, str) for x in self.exclude_keywords
-        ):
-            raise ValueError(
-                f"Item {hilight(self.name)} exclude_keywords must be a list of strings."
-            )
-
-    def handle_include_keywords(self: "ItemConfig") -> None:
-        if self.include_keywords is None:
-            return
-
-        if isinstance(self.include_keywords, str):
-            self.include_keywords = [self.include_keywords]
-
-        if not isinstance(self.include_keywords, list) or not all(
-            isinstance(x, str) for x in self.include_keywords
-        ):
-            raise ValueError(f"Item {hilight(self.name)} include_keywords must be a list.")
 
     def handle_description(self: "ItemConfig") -> None:
         if self.description is None:
@@ -293,16 +290,6 @@ class ItemConfig(MarketItemCommonConfig):
             return
         if not isinstance(self.enabled, bool):
             raise ValueError(f"Item {hilight(self.name)} enabled must be a boolean.")
-
-    def handle_exclude_by_description(self: "ItemConfig") -> None:
-        if self.exclude_by_description is None:
-            return
-        if isinstance(self.exclude_by_description, str):
-            self.exclude_by_description = [self.exclude_by_description]
-        if not isinstance(self.exclude_by_description, list) or not all(
-            isinstance(x, str) for x in self.exclude_by_description
-        ):
-            raise ValueError(f"Item {hilight(self.name)} exclude_by_description must be a list.")
 
 
 TMarketplaceConfig = TypeVar("TMarketplaceConfig", bound=MarketplaceConfig)

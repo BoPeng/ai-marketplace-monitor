@@ -42,10 +42,9 @@ def item_config() -> FacebookItemConfig:
         name="test",
         description="long description",
         enabled=True,
-        exclude_by_description=["some exclude1", "some exclude2"],
-        exclude_keywords=["exclude1", "exclude2"],
-        include_keywords=["exclude1", "exclude2"],
-        keywords=["search word one"],
+        antikeywords=["exclude1", "exclude2"],
+        keywords=["include1", "include2"],
+        search_phrases=["search word one"],
         marketplace="facebook",
         search_city=["houston"],
         # the following are common options
