@@ -1,9 +1,11 @@
 import smtplib
 import ssl
 from dataclasses import dataclass
+from email.header import Header
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
 from logging import Logger
 from pathlib import Path
 from typing import List, Tuple
@@ -13,7 +15,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import BaseConfig, NotificationStatus, fetch_with_retry, resize_image_data, hilight
+from .utils import BaseConfig, NotificationStatus, fetch_with_retry, hilight, resize_image_data
 
 
 @dataclass
@@ -237,8 +239,9 @@ class SMTPConfig(BaseConfig):
 
         # s.starttls()
         msg = MIMEMultipart("related")
-        msg["Subject"] = title
-        msg["From"] = sender
+        msg["Subject"] = Header(title, "utf-8")
+        # can use the humanized version of self.name as well
+        msg["From"] = formataddr(("AI Marketplace Monitor", sender))
         msg["To"] = ", ".join(recipients)
 
         # Create alternative part
