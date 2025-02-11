@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, List, Tuple, Type
 
-import humanize
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
