@@ -224,7 +224,7 @@ class MarketplaceMonitor:
                 marketplace.set_browser(disable_javascript=self.disable_javascript)
 
             for item_config in self.config.item.values():
-                if not (item_config.enabled or True):
+                if item_config.enabled is False:
                     continue
 
                 if (
