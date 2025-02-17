@@ -6,7 +6,7 @@ from .utils import BaseConfig
 
 @dataclass
 class RegionConfig(BaseConfig):
-    search_city: List[str]
+    search_city: List[str] = field(default_factory=list)
     full_name: str = ""
     radius: List[int] = field(default_factory=list)
     city_name: List[str] = field(default_factory=list)

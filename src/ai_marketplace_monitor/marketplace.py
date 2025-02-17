@@ -241,7 +241,6 @@ class ItemConfig(MarketItemCommonConfig):
     keywords: List[str] | None = None
     antikeywords: List[str] | None = None
     description: str | None = None
-    enabled: bool | None = None
     marketplace: str | None = None
 
     def handle_search_phrases(self: "ItemConfig") -> None:
@@ -284,12 +283,6 @@ class ItemConfig(MarketItemCommonConfig):
             return
         if not isinstance(self.description, str):
             raise ValueError(f"Item {hilight(self.name)} description must be a string.")
-
-    def handle_enabled(self: "ItemConfig") -> None:
-        if self.enabled is None:
-            return
-        if not isinstance(self.enabled, bool):
-            raise ValueError(f"Item {hilight(self.name)} enabled must be a boolean.")
 
 
 TMarketplaceConfig = TypeVar("TMarketplaceConfig", bound=MarketplaceConfig)

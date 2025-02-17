@@ -197,6 +197,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             else:
                 # otherwise use a random one (likely the only one)
                 smtp_config = next(iter(self.smtp.values()))
+            #
+            if smtp_config.enabled is False:
+                continue
             # add values of smtp_config to user config
             for key, value in smtp_config.__dict__.items():
                 # name is the smtp name and should not override username
@@ -217,6 +220,8 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     raise ValueError(
                         f"Region {hilight(region)} specified in {hilight(config.name)} does not exist."
                     )
+                if region_config.enabled is False:
+                    continue
                 # avoid duplicated addition of search_city
                 for search_city, radius in zip(region_config.search_city, region_config.radius):
                     if search_city not in config.search_city:

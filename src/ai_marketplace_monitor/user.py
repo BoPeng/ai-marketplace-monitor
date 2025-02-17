@@ -157,6 +157,12 @@ class User:
         local_cache: Cache | None = None,
         force: bool = False,
     ) -> None:
+        if self.config.enabled is False:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Notify]", "skip")} User {hilight(self.name)} is disabled."""
+                )
+            return
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
         if self.config.notify_through_pushbullet(
             listings, ratings, statuses, force=force, logger=self.logger

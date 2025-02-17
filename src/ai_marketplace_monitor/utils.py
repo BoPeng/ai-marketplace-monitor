@@ -209,6 +209,7 @@ def hash_dict(obj: Dict[str, Any]) -> str:
 @dataclass
 class BaseConfig:
     name: str
+    enabled: bool | None = None
 
     def __post_init__(self: "BaseConfig") -> None:
         """Handle all methods that start with 'handle_' in the dataclass."""
@@ -216,6 +217,12 @@ class BaseConfig:
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
                 handle_method()
+
+    def handle_enabled(self: "BaseConfig") -> None:
+        if self.enabled is None:
+            return
+        if not isinstance(self.enabled, bool):
+            raise ValueError(f"Item {hilight(self.name)} enabled must be a boolean.")
 
     @property
     def hash(self: "BaseConfig") -> str:

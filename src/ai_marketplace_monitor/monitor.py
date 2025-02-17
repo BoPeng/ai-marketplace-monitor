@@ -92,6 +92,8 @@ class MarketplaceMonitor:
         """Load the AI agent."""
         assert self.config is not None
         for ai_config in (self.config.ai or {}).values():
+            if ai_config.enabled is False:
+                continue
             if (
                 ai_config.provider is not None
                 and ai_config.provider.lower() in supported_ai_backends
@@ -209,6 +211,8 @@ class MarketplaceMonitor:
 
         assert self.config is not None
         for marketplace_config in self.config.marketplace.values():
+            if marketplace_config.enabled is False:
+                continue
             marketplace_class = supported_marketplaces[marketplace_config.name]
             if marketplace_config.name in self.active_marketplaces:
                 marketplace = self.active_marketplaces[marketplace_config.name]
@@ -465,6 +469,8 @@ class MarketplaceMonitor:
 
             # which marketplace to check it?
             for marketplace_config in self.config.marketplace.values():
+                if marketplace_config.enabled is False:
+                    continue
                 marketplace_class = supported_marketplaces[marketplace_config.name]
                 if marketplace_config.name in self.active_marketplaces:
                     marketplace = self.active_marketplaces[marketplace_config.name]

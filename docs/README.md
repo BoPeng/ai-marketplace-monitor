@@ -2,18 +2,20 @@
 
 ### Table of content:
 
-- [AI Agents](#ai-agents)
+- [Table of content:](#table-of-content)
+- [AI Services](#ai-services)
 - [Marketplaces](#marketplaces)
 - [Users](#users)
 - [Notification](#notification)
 - [Items to search](#items-to-search)
 - [Options that can be specified for both marketplaces and items](#options-that-can-be-specified-for-both-marketplaces-and-items)
 - [Regions](#regions)
+- [Additional options](#additional-options)
 
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
 an example with many of the options.
 
-### AI Agents
+### AI Services
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
 
@@ -46,13 +48,14 @@ api_key = 'sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 One or more sections `marketplace.name` show the options for interacting with various marketplaces.
 
-| Option             | Requirement | DataType | Description                                                                                                      |
-| ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `market_type`      | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                                              |
-| `username`         | Optional    | String   | Username can be entered manually or kept in the config file.                                                     |
-| `password`         | Optional    | String   | Password can be entered manually or kept in the config file.                                                     |
-| `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
-| **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
+| Option            | Requirement | DataType | Description                                                                                       |
+| ----------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `market_type`     | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                               |
+| `username`        | Optional    | String   | Username can be entered manually or kept in the config file.                                      |
+| `password`        | Optional    | String   | Password can be entered manually or kept in the config file.                                      |
+| `login_wait_time` | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60. |
+
+| **Common options** | | | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
 Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
 
@@ -96,7 +99,6 @@ One or more `item.item_name` where `item_name` is the name of the item.
 | ------------------ | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `search_phrases`   | Required    | String/List | One or more strings for searching the item.                                                                                                                                                    |
 | `description`      | Optional    | String      | A longer description of the item that better describes your requirements (e.g., manufacture, condition, location, seller reputation, shipping options). Only used if AI assistance is enabled. |
-| `enabled`          | Optional    | Boolean     | Stops searching this item if set to `false`.                                                                                                                                                   |
 | `keywords`         | Optional    | String/List | Excludes listings whose titles and description do not contain any of the keywords.                                                                                                             |
 | `antikeywords`     | Optional    | String/List | Excludes listings whose titles or descriptions contain any of the specified keywords.                                                                                                          |
 | `marketplace`      | Optional    | String      | Name of the marketplace, default to `facebook` that points to a `marketplace.facebook` sectiion.                                                                                               |
@@ -154,3 +156,13 @@ Note that
 
 1. `radius` has a default value of `500` (miles). You can specify different `radius` for different `search_city`.
 2. Options `full_name` and `city_name` are for documentation purposes only.
+
+### Additional options
+
+All sections, namely `ai`, `marketplace`, `user`, `smtp`, and `region`, accepts an option `enabled`, which, if set to `false` will disable the corresponding AI service,
+marketplace, SMTP server, and stop notifying corresponding user. This option works like a `comment` statement that comments out the entire sections, which allowing the
+sections to be referred from elsewhere (e.g. `notify` a disable user is allowed but notification will not be sent.)
+
+| Parameter | Required/Optional | Data Type | Description                                            |
+| --------- | ----------------- | --------- | ------------------------------------------------------ |
+| `enabled` | Optional          | Boolean   | Disable corresponding configuration if set to `false`. |
