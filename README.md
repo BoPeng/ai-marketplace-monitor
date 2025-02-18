@@ -165,8 +165,9 @@ seller_locations = [
 search_phrases = 'Go Pro Hero 11'
 description = '''A new or used Go Pro version 11, 12 or 13 in
     good condition. No other brand of camera is acceptable.
-    Please exclude sellers who offers shipping or asks to
+    Please exclude sellers who offer shipping or asks to
     purchase the item from his website.'''
+keywords = ["Go Pro", "gopro"]
 min_price = 100
 max_price = 200
 
@@ -218,7 +219,7 @@ email = 'user1@gmail.com'
 email = ['user2@gmail.com', 'user2@outlook.com']
 ```
 
-You then need a SMTP server that helps you to send the email, for which you will need a `smtp_server`, `smtp_port`, `smtp_username` and `smtp_password`. Generally speaking, you will need to create an `smtp` section with the information obtained from your email service provider.
+You then need a SMTP server that helps you to send the emails, for which you will need to know `smtp_server`, `smtp_port`, `smtp_username` and `smtp_password`. Generally speaking, you will need to create an `smtp` section with the information obtained from your email service provider.
 
 ```toml
 [smtp.myprovider]
@@ -294,16 +295,21 @@ keywords = 'drone'
 antikeywords = 'Parrot'
 ```
 
-will select all listings with `drone` in title or description, and `Parrot` not in title or description.
+will select all listings with `drone` in title or description, and `Parrot` not in title or description. You can use multiple keywords and operators `AND`, `OR`, and `NOT` in the parameter. For example
 
-If you have multiple keywords, they are assumed to be `OR`. That is to say,
+```toml
+keywords = 'DJI AND drone'
+···
+looks for listings with both `DJI` and `drone` in title or description.
+
+If you have multiple keywords specified in a list, they are by default joint by `OR`. That is to say,
 
 ```toml
 keywords = ['drone', 'DJI', 'Orqa']
 antikeywords = ['Parrot', 'Autel']
 ```
 
-is the same as
+is equivalent to
 
 ```toml
 keywords = 'drone OR DJI OR Orqa'
