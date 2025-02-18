@@ -1,7 +1,6 @@
 import hashlib
 import json
 import re
-import shlex
 import time
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
@@ -16,8 +15,8 @@ from diskcache import Cache  # type: ignore
 from pyparsing import (
     CharsNotIn,
     Keyword,
-    ParsedResult,
     ParserElement,
+    ParseResults,
     Word,
     alphanums,
     infix_notation,
@@ -324,7 +323,12 @@ def is_substring(
     var2: one or more strings for testing if strings in  "var1" is a substring.
     """
     if isinstance(var1, list):
-        var1 = " OR ".join(shlex.quote(x) for x in var1)
+        # this is actually the easy case since we assume that each one is a literal string
+        # and there is no complex logic.
+        if isinstance(var2, str):
+            return any(normalize_string(s) in normalize_string(var2) for s in var1)
+        return any(normalize_string(s1) in normalize_string(s2) for s1 in var1 for s2 in var2)
+
     # parse the expression
     try:
         parsed = expr.parseString(var1, parseAll=True)[0]
@@ -339,9 +343,10 @@ def is_substring(
             print(f"Error: {e}")
             print(f"Parsed: {parsed}")
             print(f"Var2: {var2}")
-        raise ValueError(f"Invalid expression: {var1}") from e
+        # treat var1 as literal string for searching.
+        return is_substring([var1], var2, logger)
 
-    def evaluate_expression(parsed_expression: str | ParsedResult) -> bool:
+    def evaluate_expression(parsed_expression: str | ParseResults) -> bool:
         if isinstance(parsed_expression, str):
             if isinstance(var2, str):
                 return normalize_string(parsed_expression) in normalize_string(var2)
