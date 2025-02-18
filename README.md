@@ -222,22 +222,26 @@ You then need a SMTP server that helps you to send the email, for which you will
 
 ```toml
 [smtp.myprovider]
-smtp_server = 'smtp.soho.com'
+# default to sender email
+smtp_username = 'username@EMAIL.COM'
+# default to smtp.EMAIL.COM
+smtp_server = 'smtp.EMAIL.COM'
 smtp_port = 587
-smtp_username = 'username'
 smtp_password = 'mypassword'
 ```
+
+`ai-marketplace-monitor` will try to determine `smtp_username` and `smtp_server` from the sender email address if they are unspecified.
 
 If you have a GMAIL account,
 
 - `smtp_username` is your gmail address, which is assumed to be the first `email` if left unspecified (assume that you are sending notification to yourself)
-- `smtp_server` and `smtp_port`: Assumed to be `smtp.gmail.com` and `587` if `smtp_username` ends with `gmail.com`, and `smtp.outlook.com` for `email@outlook.com` etc.
+- `smtp_server` and `smtp_port`: Assumed to be `smtp.gmail.com` and `587`.
 - `smtp_password`: You cannot use your gmail password. Instead, you will need to go to your Google `Account Manager`, select `Security`, search for `App passwords` (you may need to enable two-step authentication first), create an app (e.g. `ai-marketplace-monitor`), and copy the app password.
 
 That is to say, you `smtp` setting for your gmail account should look like
 
 ```toml
-[smtp.google]
+[smtp.gmail]
 smtp_username = 'myemail@gmail.com'
 smtp_password = 'abcdefghijklmnop'
 ```
@@ -308,7 +312,7 @@ antikeywords = 'Parrot OR Autel'
 
 which means selecting listings that contains `drone` or `DJI` or `Orga` in title or description, but exclude those listings with `Parrot` or `Autel` in title or description.
 
-These criteria will however, not exclude listings for a `DJI Camera`. If you would like to make sure that `drone` is selected, you can do
+These criteria will however, not exclude listings for a `DJI Camera`. If you would like to make sure that `drone` is selected, you can use
 
 ```toml
 keywords = 'drone AND (DJI OR Orqa)'

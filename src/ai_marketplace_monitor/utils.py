@@ -361,7 +361,7 @@ def is_substring(
                 parsed_expression[-1]
             )
 
-        if parsed_expression[1] == "OR":
+        if parsed_expression[-2] == "OR":
             return evaluate_expression(parsed_expression[:-2]) or evaluate_expression(
                 parsed_expression[-1]
             )
