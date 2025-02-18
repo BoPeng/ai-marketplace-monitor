@@ -337,12 +337,10 @@ def is_substring(
             logger.error(f"Invalid expression: {var1}")
             logger.error(f"Error: {e}")
             logger.error(f"Parsed: {parsed}")
-            logger.error(f"Var2: {var2}")
         else:
             print(f"Invalid expression: {var1}")
             print(f"Error: {e}")
             print(f"Parsed: {parsed}")
-            print(f"Var2: {var2}")
         # treat var1 as literal string for searching.
         return is_substring([var1], var2, logger)
 
@@ -351,18 +349,24 @@ def is_substring(
             if isinstance(var2, str):
                 return normalize_string(parsed_expression) in normalize_string(var2)
             return any(normalize_string(parsed_expression) in normalize_string(s) for s in var2)
-        elif len(parsed_expression) == 1:
+
+        if len(parsed_expression) == 1:
             return evaluate_expression(parsed_expression[0])
-        elif parsed_expression[0] == "NOT":
+
+        if parsed_expression[0] == "NOT":
             return not evaluate_expression(parsed_expression[1])
-        elif parsed_expression[1] == "AND":
-            return evaluate_expression(parsed_expression[0]) and evaluate_expression(
-                parsed_expression[2]
+
+        if parsed_expression[-2] == "AND":
+            return evaluate_expression(parsed_expression[:-2]) and evaluate_expression(
+                parsed_expression[-1]
             )
-        elif parsed_expression[1] == "OR":
-            return evaluate_expression(parsed_expression[0]) or evaluate_expression(
-                parsed_expression[2]
+
+        if parsed_expression[1] == "OR":
+            return evaluate_expression(parsed_expression[:-2]) or evaluate_expression(
+                parsed_expression[-1]
             )
+        if logger:
+            logger.error(f"Invalid expression: {parsed_expression}")
         return False
 
     return evaluate_expression(parsed)
