@@ -472,7 +472,7 @@ class FacebookMarketplace(Marketplace):
         ):
             if self.logger:
                 self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title."""
+                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title and description."""
                 )
             return False
 
