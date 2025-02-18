@@ -321,7 +321,10 @@ If you have special characters and spaces in your keywords, you will need to quo
 keywords = '("Go Pro" OR gopro) AND HERO'
 ```
 
-You can construct very complex logical operations using `AND`, `OR` and `NOT`, but it is usually recommended to use simple keyword-based filtering and let AI handle more subtle selection criteria.
+**NOTE**:
+
+1. If a list of strings are provided, all of them are treated as literal strings, so `keywords = ['drone AND DJI']` will match string `drone AND DJI`.
+2. You can construct very complex logical operations using `AND`, `OR` and `NOT`, but it is usually recommended to use simple keyword-based filtering and let AI handle more subtle selection criteria.
 
 ### Searching multiple cities and regions
 
