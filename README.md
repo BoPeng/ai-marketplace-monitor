@@ -31,6 +31,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## Table of content:
 
+- [Table of content:](#table-of-content)
 - [✨ Key Features](#-key-features)
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
@@ -44,6 +45,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Setting up email notification](#setting-up-email-notification)
   - [Multiple configuration files](#multiple-configuration-files)
   - [Adjust notification level](#adjust-notification-level)
+  - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
@@ -278,6 +280,48 @@ rating = 4
 ```
 
 to see only listings that match your criteria well. Note that all listings after non-AI-based filtering will be returned if no AI service is specified or non-functional.
+
+### Advanced Keyword-based filters
+
+Options `keywords` and `antikeywords` are used to filter listings according to specified keywords. In the simplest form, these options support a single string. For example,
+
+```toml
+keywords = 'drone'
+antikeywords = 'Parrot'
+```
+
+will select all listings with `drone` in title or description, and `Parrot` not in title or description.
+
+If you have multiple keywords, they are assumed to be `OR`. That is to say,
+
+```toml
+keywords = ['drone', 'DJI', 'Orqa']
+antikeywords = ['Parrot', 'Autel']
+```
+
+is the same as
+
+```toml
+keywords = 'drone OR DJI OR Orqa'
+antikeywords = 'Parrot OR Autel'
+```
+
+which means selecting listings that contains `drone` or `DJI` or `Orga` in title or description, but exclude those listings with `Parrot` or `Autel` in title or description.
+
+These criteria will however, not exclude listings for a `DJI Camera`. If you would like to make sure that `drone` is selected, you can do
+
+```toml
+keywords = 'drone AND (DJI OR Orqa)'
+antikeywords = 'Parrot OR Autel'
+```
+
+If you have special characters and spaces in your keywords, you will need to quote them, such as
+
+```toml
+keywords = '("Go Pro" OR gopro) AND HERO'
+```
+
+You can construct very complex logical operations using `AND`, `OR` and `NOT`, but it is usually recommended to use simple keyword-based filtering and let AI handle more subtle selection criteria.
 
 ### Searching multiple cities and regions
 

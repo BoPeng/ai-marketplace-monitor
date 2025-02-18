@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import shlex
 import time
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
@@ -12,6 +13,16 @@ import parsedatetime  # type: ignore
 import requests  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
+from pyparsing import (
+    CharsNotIn,
+    Keyword,
+    ParsedResult,
+    ParserElement,
+    Word,
+    alphanums,
+    infix_notation,
+    opAssoc,
+)
 from requests.exceptions import RequestException, Timeout  # type: ignore
 from rich.pretty import pretty_repr
 
@@ -274,15 +285,82 @@ def normalize_string(string: str) -> str:
     return re.sub(r"\s+", " ", string).lower()
 
 
-def is_substring(var1: str | List[str], var2: str | List[str]) -> bool:
-    """Check if var1 is a substring of var2, after normalizing both strings. One of them can be a list of strings."""
-    if isinstance(var1, str):
-        if isinstance(var2, str):
-            return normalize_string(var1) in normalize_string(var2)
-        return any(normalize_string(var1) in normalize_string(s) for s in var2)
-    # var1 is a list, var2 must be a string
-    assert isinstance(var2, str)
-    return any(normalize_string(s1) in normalize_string(var2) for s1 in var1)
+ParserElement.enable_packrat()
+double_quoted_string = ('"' + CharsNotIn('"').leaveWhitespace() + '"').setParseAction(
+    lambda t: t[1]
+)  # removes quotes, keeps only the content
+single_quoted_string = ("'" + CharsNotIn("'").leaveWhitespace() + "'").setParseAction(
+    lambda t: t[1]
+)  # removes quotes, keeps only the content
+
+special_chars = "!@#$%^&*-_=+[]{}|;:'\",.<>?/\\`~"
+unquoted_string = Word(alphanums + special_chars)
+
+operand = double_quoted_string | single_quoted_string | unquoted_string
+and_op = Keyword("AND")
+or_op = Keyword("OR")
+not_op = Keyword("NOT")
+
+# Define the grammar for parsing
+expr = infix_notation(
+    operand,
+    [
+        (not_op, 1, opAssoc.RIGHT),
+        (and_op, 2, opAssoc.LEFT),
+        (or_op, 2, opAssoc.LEFT),
+    ],
+)
+
+
+def is_substring(
+    var1: str | List[str], var2: str | List[str], logger: Logger | None = None
+) -> bool:
+    """Check if var1 is a substring of var2, after normalizing both strings. One of them can be a list of strings.
+
+    var1: can be a single string, or a list of string, for which a condition of OR is assumed.
+          this program will parse var11 for "AND", "OR" and "NOT", and return the results of the
+          logical expression.
+
+    var2: one or more strings for testing if strings in  "var1" is a substring.
+    """
+    if isinstance(var1, list):
+        var1 = " OR ".join(shlex.quote(x) for x in var1)
+    # parse the expression
+    try:
+        parsed = expr.parseString(var1, parseAll=True)[0]
+    except Exception as e:
+        if logger:
+            logger.error(f"Invalid expression: {var1}")
+            logger.error(f"Error: {e}")
+            logger.error(f"Parsed: {parsed}")
+            logger.error(f"Var2: {var2}")
+        else:
+            print(f"Invalid expression: {var1}")
+            print(f"Error: {e}")
+            print(f"Parsed: {parsed}")
+            print(f"Var2: {var2}")
+        raise ValueError(f"Invalid expression: {var1}") from e
+
+    def evaluate_expression(parsed_expression: str | ParsedResult) -> bool:
+        if isinstance(parsed_expression, str):
+            if isinstance(var2, str):
+                return normalize_string(parsed_expression) in normalize_string(var2)
+            return any(normalize_string(parsed_expression) in normalize_string(s) for s in var2)
+        elif len(parsed_expression) == 1:
+            return evaluate_expression(parsed_expression[0])
+        elif parsed_expression[0] == "NOT":
+            return not evaluate_expression(parsed_expression[1])
+        elif parsed_expression[1] == "AND":
+            return evaluate_expression(parsed_expression[0]) and evaluate_expression(
+                parsed_expression[2]
+            )
+        elif parsed_expression[1] == "OR":
+            return evaluate_expression(parsed_expression[0]) or evaluate_expression(
+                parsed_expression[2]
+            )
+        return False
+
+    return evaluate_expression(parsed)
 
 
 class ChangeHandler(FileSystemEventHandler):

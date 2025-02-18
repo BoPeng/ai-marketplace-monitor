@@ -457,7 +457,7 @@ class FacebookMarketplace(Marketplace):
         # get antikeywords from both item_config or config
         antikeywords = item_config.antikeywords
         if antikeywords and (
-            is_substring(antikeywords, item.title) or is_substring(antikeywords, item.description)
+            is_substring(antikeywords, item.title + " " + item.description, logger=self.logger)
         ):
             if self.logger:
                 self.logger.info(
@@ -468,7 +468,7 @@ class FacebookMarketplace(Marketplace):
         # if the return description does not contain any of the search keywords
         keywords = item_config.keywords
         if keywords and not (
-            is_substring(keywords, item.title) or is_substring(keywords, item.description)
+            is_substring(keywords, item.title + "  " + item.description, logger=self.logger)
         ):
             if self.logger:
                 self.logger.info(
@@ -481,7 +481,9 @@ class FacebookMarketplace(Marketplace):
             allowed_locations = item_config.seller_locations
         else:
             allowed_locations = self.config.seller_locations or []
-        if allowed_locations and not is_substring(allowed_locations, item.location):
+        if allowed_locations and not is_substring(
+            allowed_locations, item.location, logger=self.logger
+        ):
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
@@ -493,7 +495,11 @@ class FacebookMarketplace(Marketplace):
             exclude_sellers = item_config.exclude_sellers
         else:
             exclude_sellers = self.config.exclude_sellers or []
-        if item.seller and exclude_sellers and is_substring(exclude_sellers, item.seller):
+        if (
+            item.seller
+            and exclude_sellers
+            and is_substring(exclude_sellers, item.seller, logger=self.logger)
+        ):
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""

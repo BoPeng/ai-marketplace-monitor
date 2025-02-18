@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.6] - 2025-02-17
+## [0.7.7] - 2025-02-17
 
 - Expand the use of `enabled=False` to all sections
+- Allow complex `AND` `OR` and `NOT` operations for `keywords` and `antikeywords`.
 
 ## [0.7.4] - 2025-02-10
 
