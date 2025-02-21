@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.8] - 2025-02-21
+
+- Add options `prompt`, `extra_prompt` and `rating_prompt`
+
 ## [0.7.7] - 2025-02-17
 
 - Expand the use of `enabled=False` to all sections

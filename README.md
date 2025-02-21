@@ -44,7 +44,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
   - [Multiple configuration files](#multiple-configuration-files)
-  - [Adjust notification level](#adjust-notification-level)
+  - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
   - [Check individual listing](#check-individual-listing)
@@ -259,13 +259,33 @@ smtp_password = 'abcdefghijklmnop'
 
 You can use multiple configuration files. For example, you can add all credentials to `~/.ai-marketplace-monitor/config.yml` and use separate configuration files for items for different users.
 
-### Adjust notification level
+### Adjust prompt and notification level
 
-We ask AI services to evaluate listings against the criteria that you specify with the following prompt:
+_ai-marketplace-monitor_ asks AI services to evaluate listings against the criteria that you specify with prompts in four parts:
+
+Part 1: buyer intent
 
 ```
-Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year,
-condition, and seller's credibility. Rate from 1 to 5 based on the following:
+A user wants to buy a ... with search phrase ... description ..., price range ..., exclude ...
+```
+
+Part 2: listing details
+
+```
+The user found a listing titled ... priced at ..., located ...
+posted at ... with description ...
+```
+
+Part 3: instruction to AI
+
+```
+Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year, condition, and seller's credibility.
+```
+
+Part 4: rating instructions
+
+```
+Rate from 1 to 5 based on the following:
 
 1 - No match: Missing key details, wrong category/brand, or suspicious activity (e.g., external links).
 2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.
@@ -277,6 +297,27 @@ Conclude with:
 "Rating [1-5]: [summary]"
 where [1-5] is the rating and [summary] is a brief recommendation (max 30 words)."
 ```
+
+Depending on your specific needs, you can replace part 3 and part 4 of the prompt with options `prompt` and `rating_prompt`, and add an extra prompt before rating prompt with option `extra_prompt`. These options can be specified at the `marketplace` and `item` levels, with the latter overriding the former.
+
+For example, you can add
+
+```toml
+[marketplace.facebook]
+extra_prompt = '''Exclude any listing that recommend visiting an external website for purchase.'''
+```
+
+to describe suspicious listings in a marketplace, and
+
+```toml
+[item.ipadpro]
+prompt = """Find market value for listing on market places like Ebay \
+    or Facebook marketplace and compare the price of the listing, considering \
+    the description, selling price, model year, condition, and seller's \ credibility. Evaluate how well this listing matches the user's criteria.
+  """
+```
+
+The prompt for item `ipadpro` will be the specified `prompt`, with the marketplace `extra_prompt` and the system default `rating_prompt`.
 
 When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example
 
@@ -299,7 +340,8 @@ will select all listings with `drone` in title or description, and `Parrot` not 
 
 ```toml
 keywords = 'DJI AND drone'
-···
+```
+
 looks for listings with both `DJI` and `drone` in title or description.
 
 If you have multiple keywords specified in a list, they are by default joint by `OR`. That is to say,

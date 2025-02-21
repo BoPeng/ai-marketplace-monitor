@@ -576,7 +576,7 @@ class MarketplaceMonitor:
             if ai_agents is not None and agent.config.name not in ai_agents:
                 continue
             try:
-                return agent.evaluate(item, item_config)
+                return agent.evaluate(item, item_config, marketplace_config)
             except KeyboardInterrupt:
                 raise
             except Exception as e:

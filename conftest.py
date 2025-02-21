@@ -8,7 +8,7 @@ from pytest import TempPathFactory
 
 import ai_marketplace_monitor
 from ai_marketplace_monitor.ai import OllamaBackend, OllamaConfig
-from ai_marketplace_monitor.facebook import FacebookItemConfig
+from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.user import User, UserConfig
 
@@ -33,6 +33,28 @@ def listing() -> Listing:
         seller="some guy",
         condition="New",
         description="something good",
+    )
+
+
+@pytest.fixture
+def marketplace_config() -> FacebookMarketplaceConfig:
+    return FacebookMarketplaceConfig(
+        name="facebook",
+        username="XXXXXXXX",
+        password="XXXXXXXX",
+        login_wait_time=10,
+        seller_locations=["city"],
+        search_city=["houston"],
+        availability=["all"],
+        condition=["new", "used_good"],
+        date_listed=[7],
+        delivery_method=["local_pick_up"],
+        exclude_sellers=["seller"],
+        max_search_interval=1000,
+        search_interval=12,
+        notify=["user1"],
+        radius=[100],
+        search_region=["usa"],
     )
 
 

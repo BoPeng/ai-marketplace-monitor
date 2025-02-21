@@ -10,7 +10,7 @@ from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
-from .marketplace import TItemConfig
+from .marketplace import TItemConfig, TMarketplaceConfig
 from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
 
 
@@ -60,10 +60,11 @@ class AIResponse:
         cls: Type["AIResponse"],
         listing: Listing,
         item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
         local_cache: Cache | None = None,
     ) -> Optional["AIResponse"]:
         res = (cache if local_cache is None else local_cache).get(
-            (CacheType.AI_INQUIRY.value, item_config.hash, listing.hash)
+            (CacheType.AI_INQUIRY.value, item_config.hash, marketplace_config.hash, listing.hash)
         )
         if res is None:
             return None
@@ -73,10 +74,11 @@ class AIResponse:
         self: "AIResponse",
         listing: Listing,
         item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
         local_cache: Cache | None = None,
     ) -> None:
         (cache if local_cache is None else local_cache).set(
-            (CacheType.AI_INQUIRY.value, item_config.hash, listing.hash),
+            (CacheType.AI_INQUIRY.value, item_config.hash, marketplace_config.hash, listing.hash),
             asdict(self),
             tag=CacheType.AI_INQUIRY.value,
         )
@@ -160,7 +162,12 @@ class AIBackend(Generic[TAIConfig]):
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
 
-    def get_prompt(self: "AIBackend", listing: Listing, item_config: TItemConfig) -> str:
+    def get_prompt(
+        self: "AIBackend",
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+    ) -> str:
         prompt = (
             f"""A user wants to buy a {item_config.name} from Facebook Marketplace. """
             f"""Search phrases: "{'" and "'.join(item_config.search_phrases)}", """
@@ -184,22 +191,50 @@ class AIBackend(Generic[TAIConfig]):
             f"""\n\nThe user found a listing titled "{listing.title}" in {listing.condition} condition, """
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
-            "Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year, "
-            "condition, and seller's credibility. Rate from 1 to 5 based on the following: \n"
-            "1 - No match: Missing key details, wrong category/brand, or suspicious activity (e.g., external links).\n"
-            "2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.\n"
-            "3 - Poor match: Some mismatches or missing details; acceptable but not ideal.\n"
-            "4 - Good match: Mostly meets criteria with clear, relevant details.\n"
-            "5 - Great deal: Fully matches criteria, with excellent condition or price.\n"
-            "Conclude with:\n"
-            '"Rating <1-5>: <summary>"\n'
-            "where <1-5> is the rating and <summary> is a brief recommendation (max 30 words)."
         )
+        # prompt
+        if item_config.prompt is not None:
+            prompt += item_config.prompt
+        elif marketplace_config.prompt is not None:
+            prompt += marketplace_config.prompt
+        else:
+            prompt += (
+                "Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year, "
+                "condition, and seller's credibility."
+            )
+        # extra_prompt
+        prompt += "\n"
+        if item_config.extra_prompt is not None:
+            prompt += f"\n{item_config.extra_prompt.strip()}\n"
+        elif marketplace_config.extra_prompt is not None:
+            prompt += f"\n{marketplace_config.extra_prompt.strip()}\n"
+        # rating_prompt
+        if item_config.rating_prompt is not None:
+            prompt += f"\n{item_config.rating_prompt.strip()}\n"
+        elif marketplace_config.rating_prompt is not None:
+            prompt += f"\n{marketplace_config.rating_prompt.strip()}\n"
+        else:
+            prompt += (
+                "\nRate from 1 to 5 based on the following: \n"
+                "1 - No match: Missing key details, wrong category/brand, or suspicious activity (e.g., external links).\n"
+                "2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.\n"
+                "3 - Poor match: Some mismatches or missing details; acceptable but not ideal.\n"
+                "4 - Good match: Mostly meets criteria with clear, relevant details.\n"
+                "5 - Great deal: Fully matches criteria, with excellent condition or price.\n"
+                "Conclude with:\n"
+                '"Rating <1-5>: <summary>"\n'
+                "where <1-5> is the rating and <summary> is a brief recommendation (max 30 words)."
+            )
         if self.logger:
             self.logger.debug(f"""{hilight("[AI-Prompt]", "info")} {prompt}""")
         return prompt
 
-    def evaluate(self: "AIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
+    def evaluate(
+        self: "AIBackend",
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+    ) -> AIResponse:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
 
@@ -222,11 +257,16 @@ class OpenAIBackend(AIBackend):
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
 
-    def evaluate(self: "OpenAIBackend", listing: Listing, item_config: TItemConfig) -> AIResponse:
+    def evaluate(
+        self: "OpenAIBackend",
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+    ) -> AIResponse:
         # ask openai to confirm the item is correct
         counter.increment(CounterItem.AI_QUERY, item_config.name)
-        prompt = self.get_prompt(listing, item_config)
-        res: AIResponse | None = AIResponse.from_cache(listing, item_config)
+        prompt = self.get_prompt(listing, item_config, marketplace_config)
+        res: AIResponse | None = AIResponse.from_cache(listing, item_config, marketplace_config)
         if res is not None:
             if self.logger:
                 self.logger.info(
@@ -300,7 +340,7 @@ class OpenAIBackend(AIBackend):
         # remove multiple spaces, take first 30 words
         comment = " ".join([x for x in comment.split() if x.strip()]).strip()
         res = AIResponse(name=self.config.name, score=score, comment=comment)
-        res.to_cache(listing, item_config)
+        res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
         return res
 

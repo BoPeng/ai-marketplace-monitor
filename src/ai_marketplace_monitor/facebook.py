@@ -9,7 +9,6 @@ from typing import Any, Callable, Generator, List, Type, cast
 from urllib.parse import quote
 
 import humanize
-import rich
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 from rich.pretty import pretty_repr
 
@@ -63,7 +62,6 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     """
 
     seller_locations: List[str] | None = None
-    acceptable_locations: List[str] | None = None
     availability: List[str] | None = None
     condition: List[str] | None = None
     date_listed: List[int] | None = None
@@ -79,22 +77,6 @@ class FacebookMarketItemCommonConfig(BaseConfig):
             isinstance(x, str) for x in self.seller_locations
         ):
             raise ValueError(f"Item {hilight(self.name)} seller_locations must be a list.")
-
-    def handle_acceptable_locations(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.acceptable_locations is None:
-            return
-
-        rich.print(
-            hilight(
-                "Option acceptable_locations is renamed to seller_locations.",
-                "fail",
-            )
-        )
-        if self.seller_locations is None:
-            self.seller_locations = self.acceptable_locations
-            self.acceptable_locations = None
-
-        self.handle_seller_locations()
 
     def handle_availability(self: "FacebookMarketItemCommonConfig") -> None:
         if self.availability is None:
@@ -144,11 +126,11 @@ class FacebookMarketItemCommonConfig(BaseConfig):
                     new_values.append(DateListed.PAST_MONTH.value)
                 else:
                     raise ValueError(
-                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
                     )
             elif not isinstance(val, int) or val not in [x.value for x in DateListed]:
                 raise ValueError(
-                    f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days."""
+                    f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
                 )
         # new_values should have length 1 or 2
         if len(new_values) > 2:

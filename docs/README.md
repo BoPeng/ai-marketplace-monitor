@@ -116,31 +116,35 @@ return related items under different names. To select the right items, you can
 
 The following options that can specified for both `marketplace` sections and `item` sections. Values in the `item` section will override value in corresponding marketplace if specified in both places.
 
-| `Parameter`           | Required/Optional | Datatype            | Description                                                                                                                                                    |
-| --------------------- | ----------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `availability`        | Optional          | String/List         | Shows output with `in` (in stock), `out` (out of stock), or `all` (both).                                                                                      |
-| `condition`           | Optional          | String/List         | One or more of `new`, `used_like_new`, `used_good`, and `used_fair`.                                                                                           |
-| `date_listed`         | Optional          | String/Integer/List | One of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.                                                                      |
-| `delivery_method`     | Optional          | String/List         | One of `all`, `local_pick_up`, and `shipping`.                                                                                                                 |
-| `exclude_sellers`     | Optional          | String/List         | Exclude certain sellers by their names (not username).                                                                                                         |
-| `max_price`           | Optional          | Integer             | Maximum price.                                                                                                                                                 |
-| `max_search_interval` | Optional          | String              | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.                  |
-| `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                                 |
-| `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                                  |
-| `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                                |
-| `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                       |
-| `rating`              | Optional          | Integer/List        | Notify users with listings with rating at or higher than specified rating. See [Adjust notification level](../README.md#adjust-notification-level) for details |
-| `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                     |
-| `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`.                                                             |
-| `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file.    |
-| `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                                |
-| `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                         |
+| `Parameter`           | Required/Optional | Datatype            | Description                                                                                                                                                 |
+| --------------------- | ----------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `availability`        | Optional          | String/List         | Shows output with `in` (in stock), `out` (out of stock), or `all` (both).                                                                                   |
+| `condition`           | Optional          | String/List         | One or more of `new`, `used_like_new`, `used_good`, and `used_fair`.                                                                                        |
+| `date_listed`         | Optional          | String/Integer/List | One of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.                                                                   |
+| `delivery_method`     | Optional          | String/List         | One of `all`, `local_pick_up`, and `shipping`.                                                                                                              |
+| `exclude_sellers`     | Optional          | String/List         | Exclude certain sellers by their names (not username).                                                                                                      |
+| `max_price`           | Optional          | Integer             | Maximum price.                                                                                                                                              |
+| `max_search_interval` | Optional          | String              | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
+| `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
+| `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
+| `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
+| `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
+| `prompt`              | Optional          | String              | Prompt to AI service that will replace the default prompt                                                                                                   |
+| `extra_prompt`        | Optional          | String              | Additional prompt that will be inserted between regular and rating prompt                                                                                   |
+| `ranking_prompt`      | Optional          | String              | Ranking prompt that instruct how AI rates the listings                                                                                                      |
+| `rating`              | Optional          | Integer/List        | Notify users with listings with rating at or higher than specified rating.                                                                                  |
+| `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
+| `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`.                                                          |
+| `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
+| `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
+| `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                      |
 
 Note that
 
 1. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
-2. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
-3. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](../README.md#first-and-subsequent-searches) for details.
+2. `prompt`, `extra_prompt`, `rating_prompt`, and `rating` are used to adjust how to interact with an AI service. See [Adjust prompt and notification level](../README.md#adjust-prompt-and-notification-level) for details.
+3. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
+4. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](../README.md#first-and-subsequent-searches) for details.
 
 ### Regions
 

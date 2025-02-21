@@ -35,6 +35,9 @@ class MarketItemCommonConfig(BaseConfig):
     max_price: int | None = None
     min_price: int | None = None
     rating: List[int] | None = None
+    prompt: str | None = None
+    extra_prompt: str | None = None
+    rating_prompt: str | None = None
 
     def handle_ai(self: "MarketItemCommonConfig") -> None:
         if self.ai is None:
@@ -208,6 +211,28 @@ class MarketItemCommonConfig(BaseConfig):
         if not all(isinstance(x, int) and x >= 1 and x <= 5 for x in self.rating):
             raise ValueError(
                 f"Item {hilight(self.name)} rating must be one or a list of integers between 1 and 5 inclusive."
+            )
+
+    def handle_prompt(self: "MarketItemCommonConfig") -> None:
+        if self.prompt is None:
+            return
+        if not isinstance(self.prompt, str):
+            raise ValueError(f"Item {hilight(self.name)} requires a string prompt, if specified.")
+
+    def handle_extra_prompt(self: "MarketItemCommonConfig") -> None:
+        if self.extra_prompt is None:
+            return
+        if not isinstance(self.extra_prompt, str):
+            raise ValueError(
+                f"Item {hilight(self.name)} requires a string extra_prompt, if specified."
+            )
+
+    def handle_rating_prompt(self: "MarketItemCommonConfig") -> None:
+        if self.rating_prompt is None:
+            return
+        if not isinstance(self.rating_prompt, str):
+            raise ValueError(
+                f"Item {hilight(self.name)} requires a string rating_prompt, if specified."
             )
 
 

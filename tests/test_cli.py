@@ -156,7 +156,6 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     cfg = config_file(config_content)
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "seller_locations": (list, type(None)),
-        "acceptable_locations": (list, type(None)),
         "ai": (list, type(None)),
         "availability": (list, type(None)),
         "api_key": str,
@@ -178,6 +177,9 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "name": (str, type(None)),
         "notify": (list, type(None)),
         "password": (str, type(None)),
+        "prompt": (str, type(None)),
+        "extra_prompt": (str, type(None)),
+        "rating_prompt": (str, type(None)),
         "pushbullet_token": str,
         "radius": (list, type(None)),
         "rating": (list, type(None)),
