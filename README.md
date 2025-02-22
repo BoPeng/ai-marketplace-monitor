@@ -304,7 +304,7 @@ For example, you can add
 
 ```toml
 [marketplace.facebook]
-extra_prompt = '''Exclude any listing that recommend visiting an external website for purchase.'''
+extra_prompt = "Exclude any listing that recommend visiting an external website for purchase."
 ```
 
 to describe suspicious listings in a marketplace, and
@@ -313,7 +313,8 @@ to describe suspicious listings in a marketplace, and
 [item.ipadpro]
 prompt = """Find market value for listing on market places like Ebay \
     or Facebook marketplace and compare the price of the listing, considering \
-    the description, selling price, model year, condition, and seller's \ credibility. Evaluate how well this listing matches the user's criteria.
+    the description, selling price, model year, condition, and seller's \
+    credibility. Evaluate how well this listing matches the user's criteria.
   """
 ```
 
