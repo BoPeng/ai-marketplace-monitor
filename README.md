@@ -41,6 +41,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Configuration](#configuration)
   - [Run the program](#run-the-program)
   - [Updating search](#updating-search)
+  - [Cost of operations](#cost-of-operations)
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
   - [Multiple configuration files](#multiple-configuration-files)
@@ -205,6 +206,11 @@ Use `Ctrl-C` to terminate the program.
 
 It is recommended that you **check the log messages and make sure that it includes and excludes listings as expected**. Modify the configuration file to update search criteria if needed. The program will detect changes and restart the search automatically.
 
+### Cost of operations
+
+1. _AI Markplace Monitor_ is distributed under an MIT license. You are free to use, modify, and even use the program for commercial purposes.
+2. While the program itself is free, access to optional external services such as PushBullet, OpenAI, DeepSeek, or other AI services may incur costs.
+
 ## Advanced features
 
 ### Setting up email notification
@@ -266,20 +272,22 @@ _ai-marketplace-monitor_ asks AI services to evaluate listings against the crite
 Part 1: buyer intent
 
 ```
-A user wants to buy a ... with search phrase ... description ..., price range ..., exclude ...
+A user wants to buy a ... with search phrase ... description ..., price range ...,
+with keywords .... and exclude ...
 ```
 
 Part 2: listing details
 
 ```
-The user found a listing titled ... priced at ..., located ...
-posted at ... with description ...
+The user found a listing titled ... priced at ..., located ... posted at ...
+with description ...
 ```
 
 Part 3: instruction to AI
 
 ```
-Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year, condition, and seller's credibility.
+Evaluate how well this listing matches the user's criteria. Assess the description,
+MSRP, model year, condition, and seller's credibility.
 ```
 
 Part 4: rating instructions
@@ -304,7 +312,8 @@ For example, you can add
 
 ```toml
 [marketplace.facebook]
-extra_prompt = "Exclude any listing that recommend visiting an external website for purchase."
+extra_prompt = """Exclude any listing that recommend visiting an external website \
+   for purchase."""
 ```
 
 to describe suspicious listings in a marketplace, and
@@ -318,7 +327,8 @@ prompt = """Find market value for listing on market places like Ebay \
   """
 ```
 
-The prompt for item `ipadpro` will be the specified `prompt`, with the marketplace `extra_prompt` and the system default `rating_prompt`.
+With these settings, the part 3 of the prompt for item `ipadpro` will be replaced
+with `prompt` for `item.ipadpro` and the `extra_prompt` from `marketplace.facebook`.
 
 When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example
 
