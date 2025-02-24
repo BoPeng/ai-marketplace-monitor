@@ -381,7 +381,9 @@ keywords = '("Go Pro" OR gopro) AND HERO'
 
 ### Searching multiple cities and regions
 
-You can search an item from multiple cities and pick up from sellers from multiple locations using a list of `search_city`
+`search_city` is the name, sometimes numbers, used by Facebook marketplace to represent a city. To get the value of `search_city` for your region, visit facebook, marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
+
+Multiple searches will be performed if multiple cities are provided to option `search_city`. You can also specify `seller_locations` to limit the location of sellers. These locations are names of cities as displayed on the listing pages.
 
 ```toml
 [item.name]
@@ -389,7 +391,7 @@ search_city = ['city1', 'city2']
 seller_locations = ['city1', 'city2', 'city3', 'city4']
 ```
 
-and you can also increase the radius of search using
+You can also increase the radius of search using
 
 ```toml
 [item.name]
