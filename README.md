@@ -168,7 +168,7 @@ description = '''A new or used Go Pro version 11, 12 or 13 in
     good condition. No other brand of camera is acceptable.
     Please exclude sellers who offer shipping or asks to
     purchase the item from his website.'''
-keywords = ["Go Pro", "gopro"]
+keywords = "('Go Pro' OR gopro) AND (11 OR 12 OR 13)"
 min_price = 100
 max_price = 200
 

@@ -128,7 +128,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
 | `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
-| `city_name`           | Optional          | String/List         | Corresponding city names for bookkeeping purposes only.                                                                                                     |
+| `city_name`           | Optional          | String/List         | Corresponding name of `search_city`.                                                                                                                        |
 | `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
 | `prompt`              | Optional          | String              | Prompt to AI service that will replace the default prompt                                                                                                   |
 | `extra_prompt`        | Optional          | String              | Additional prompt that will be inserted between regular and rating prompt                                                                                   |
@@ -156,13 +156,13 @@ One or more sections of `[region.region_name]`, which defines regions to search.
 | ------------- | ----------------- | ------------ | --------------------------------------------------------------------------- |
 | `search_city` | Required          | String/List  | One or more cities with names used by Facebook.                             |
 | `full_name`   | Optional          | String       | A display name for the region.                                              |
-| `radius`      | Optional          | Integer/List | Recommended `805` for regions using miles, and `500` for regions using kms. |
-| `city_name`   | Optional          | String/List  | Corresponding city names for bookkeeping purposes only.                     |
+| `radius`      | Optional          | Integer/List | Recommended `805` for regions using kms, and `500` for regions using miles. |
+| `city_name`   | Optional          | String/List  | Corresponding names for `search_city`.                                      |
 
 Note that
 
 1. `radius` has a default value of `500` (miles). You can specify different `radius` for different `search_city`.
-2. Options `full_name` and `city_name` are for documentation purposes only.
+2. Options `full_name` and `city_name` are for documentation and logging purposes only.
 
 ### Additional options
 
