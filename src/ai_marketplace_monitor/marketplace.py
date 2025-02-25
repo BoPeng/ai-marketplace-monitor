@@ -40,12 +40,6 @@ class MarketItemCommonConfig(BaseConfig):
     extra_prompt: str | None = None
     rating_prompt: str | None = None
 
-    def get_city_name(self: "MarketItemCommonConfig", city: str) -> str:
-        # given a city name in search_city, return the corresponding city_name
-        if self.city_name is None or self.search_city is None:
-            return city
-        return self.city_name[self.search_city.index(city)]
-
     def handle_ai(self: "MarketItemCommonConfig") -> None:
         if self.ai is None:
             return

@@ -339,11 +339,14 @@ class FacebookMarketplace(Marketplace):
         # there is a small chance that search by different keywords and city will return the same items.
         found = {}
         search_city = item_config.search_city or self.config.search_city or []
+        city_name = item_config.city_name or self.config.city_name or []
         radiuses = item_config.radius or self.config.radius
 
         # increase the searched_count to differentiate first and subsequent searches
         item_config.searched_count += 1
-        for city, radius in zip(search_city, repeat(None) if radiuses is None else radiuses):
+        for city, cname, radius in zip(
+            search_city, city_name, repeat(None) if radiuses is None else radiuses
+        ):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
             if radius:
@@ -357,7 +360,7 @@ class FacebookMarketplace(Marketplace):
                     self.logger.info(
                         f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
                         f"""{hilight(item_config.name)} from{f" within {radius} of" if radius else ""} """
-                        f"""{hilight(item_config.get_city_name(city))}"""
+                        f"""{hilight(cname)}"""
                     )
                 self.goto_url(
                     marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
