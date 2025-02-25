@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from typing import Optional, Type
+from typing import Optional, Tuple, Type
 
 from diskcache import Cache  # type: ignore
 
@@ -20,6 +20,10 @@ class Listing:
     seller: str
     condition: str
     description: str
+
+    @property
+    def content(self: "Listing") -> Tuple[str, str, str]:
+        return (self.title, self.description, self.price)
 
     @property
     def hash(self: "Listing") -> str:

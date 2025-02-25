@@ -130,10 +130,6 @@ class MarketplaceMonitor:
         item_config: TItemConfig,
     ) -> None:
         """Search for an item on the marketplace."""
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[Search]", "info")} Searching {marketplace_config.name} for {hilight(item_config.name)}"""
-            )
         new_listings: List[Listing] = []
         listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
@@ -142,10 +138,13 @@ class MarketplaceMonitor:
             item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
         for listing in marketplace.search(item_config):
-            # duplicated? This should not happen but let us check anyway
-            if listing.id in [x.id for x in new_listings]:
+            # duplicated ID should not happen, but sellers could repost the same listing,
+            # potentially under different seller names
+            if listing.id in [x.id for x in new_listings] or listing.content in [
+                x.content for x in new_listings
+            ]:
                 if self.logger:
-                    self.logger.warning(f"Search function returns duplicated result for {listing}")
+                    self.logger.debug(f"Found duplicated result for {listing}")
                 continue
             # if everyone has been notified
             if all(
@@ -406,7 +405,12 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
                         )
 
-                res = doze(max(5, int(idle_seconds)), self.config_files, self.keyboard_monitor)
+                # sleep at most 1 hr, and print updated "next job" message
+                res = doze(
+                    min(max(5, int(idle_seconds)), 60 * 60),
+                    self.config_files,
+                    self.keyboard_monitor,
+                )
                 if res == SleepStatus.BY_FILE_CHANGE:
                     # if configuration file has been changed, clear all scheduled jobs and restart
                     new_file_hash = calculate_file_hash(self.config_files)

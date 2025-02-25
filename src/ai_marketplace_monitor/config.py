@@ -147,9 +147,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     "marketplace" not in item_config
                     or item_config["marketplace"] == marketplace_name
                 ):
+                    # use the first available marketplace
                     self.item[item_name] = marketplace_class.get_item_config(
-                        name=item_name, **item_config
+                        name=item_name,
+                        marketplace=marketplace_name,
+                        **{x: y for x, y in item_config.items() if x != "marketplace"},
                     )
+                    break
 
     def validate_sections(self: "Config", config: Dict[str, Any]) -> None:
         # check for required sections
@@ -211,6 +215,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for config in chain(self.marketplace.values(), self.item.values()):
             if config.search_region is None:
                 continue
+            config.city_name = []
             config.search_city = []
             config.radius = []
 
@@ -223,7 +228,12 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 if region_config.enabled is False:
                     continue
                 # avoid duplicated addition of search_city
-                for search_city, radius in zip(region_config.search_city, region_config.radius):
+                for search_city, city_name, radius in zip(
+                    region_config.search_city or [],
+                    region_config.city_name or [],
+                    region_config.radius or [],
+                ):
                     if search_city not in config.search_city:
                         config.search_city.append(search_city)
+                        config.city_name.append(city_name)
                         config.radius.append(radius)

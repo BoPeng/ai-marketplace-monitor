@@ -26,6 +26,7 @@ class MarketItemCommonConfig(BaseConfig):
     exclude_sellers: List[str] | None = None
     notify: List[str] | None = None
     search_city: List[str] | None = None
+    city_name: List[str] | None = None
     # radius must be processed after search_city
     radius: List[int] | None = None
     search_interval: int | None = None
@@ -114,11 +115,36 @@ class MarketItemCommonConfig(BaseConfig):
 
         if isinstance(self.search_city, str):
             self.search_city = [self.search_city]
+
         if not isinstance(self.search_city, list) or not all(
             isinstance(x, str) for x in self.search_city
         ):
             raise ValueError(
                 f"Item {hilight(self.name)} search_city must be a string or list of string."
+            )
+
+    def handle_city_name(self: "MarketItemCommonConfig") -> None:
+        if self.city_name is None:
+            if self.search_city is None:
+                return
+            self.city_name = [x.capitalize() for x in self.search_city]
+            return
+
+        if self.search_city is None:
+            raise ValueError(
+                f"Item {hilight(self.name)} city_name must be None if search_city is None."
+            )
+        if isinstance(self.city_name, str):
+            self.city_name = [self.city_name]
+        # check if city_name is a list of strings
+        if not isinstance(self.city_name, list) or not all(
+            isinstance(x, str) for x in self.city_name
+        ):
+            raise ValueError(f"Region {self.name} city_name must be a list of strings.")
+
+        if len(self.city_name) != len(self.search_city):
+            raise ValueError(
+                f"Region {self.name} city_name ({self.city_name}) must be the same length as search_city ({self.search_city})."
             )
 
     def handle_search_interval(self: "MarketItemCommonConfig") -> None:

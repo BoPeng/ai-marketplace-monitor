@@ -35,3 +35,23 @@ class RegionConfig(BaseConfig):
                     raise ValueError(
                         f"Region {self.name} radius must be an integer or a list of integers with the same length as search_city."
                     )
+
+    def handle_city_name(self: "RegionConfig") -> None:
+        if isinstance(self.city_name, str):
+            self.city_name = [self.city_name]
+        if not self.city_name:
+            if not self.search_city:
+                return
+            self.city_name = [x.capitalize() for x in self.search_city]
+            return
+
+        # check if city_name is a list of strings
+        if not isinstance(self.city_name, list) or not all(
+            isinstance(x, str) for x in self.city_name
+        ):
+            raise ValueError(f"Region {self.name} city_name must be a list of strings.")
+
+        if len(self.city_name) != len(self.search_city):
+            raise ValueError(
+                f"Region {self.name} city_name {self.city_name} must be the same length as search_city {self.search_city}."
+            )
