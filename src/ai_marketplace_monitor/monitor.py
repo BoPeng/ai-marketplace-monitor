@@ -138,10 +138,13 @@ class MarketplaceMonitor:
             item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
         for listing in marketplace.search(item_config):
-            # duplicated? This should not happen but let us check anyway
-            if listing.id in [x.id for x in new_listings]:
+            # duplicated ID should not happen, but sellers could repost the same listing,
+            # potentially under different seller names
+            if listing.id in [x.id for x in new_listings] or listing.content in [
+                x.content for x in new_listings
+            ]:
                 if self.logger:
-                    self.logger.warning(f"Search function returns duplicated result for {listing}")
+                    self.logger.debug(f"Found duplicated result for {listing}")
                 continue
             # if everyone has been notified
             if all(
