@@ -130,10 +130,6 @@ class MarketplaceMonitor:
         item_config: TItemConfig,
     ) -> None:
         """Search for an item on the marketplace."""
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[Search]", "info")} Searching {marketplace_config.name} for {hilight(item_config.name)}"""
-            )
         new_listings: List[Listing] = []
         listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
