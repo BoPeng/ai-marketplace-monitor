@@ -408,7 +408,7 @@ class MarketplaceMonitor:
 
                 # sleep at most 1 hr, and print updated "next job" message
                 res = doze(
-                    min(max(5, int(idle_seconds), 60 * 60)),
+                    min(max(5, int(idle_seconds)), 60 * 60),
                     self.config_files,
                     self.keyboard_monitor,
                 )
