@@ -9,7 +9,7 @@ class RegionConfig(BaseConfig):
     search_city: List[str] = field(default_factory=list)
     full_name: str = ""
     radius: List[int] = field(default_factory=list)
-    city_name: List[str] | None = field(default_factory=list)
+    city_name: List[str] = field(default_factory=list)
 
     def handle_search_city(self: "RegionConfig") -> None:
         if isinstance(self.search_city, str):
@@ -37,14 +37,14 @@ class RegionConfig(BaseConfig):
                     )
 
     def handle_city_name(self: "RegionConfig") -> None:
-        if self.city_name is None:
-            if self.search_city is None:
+        if isinstance(self.city_name, str):
+            self.city_name = [self.city_name]
+        if not self.city_name:
+            if not self.search_city:
                 return
             self.city_name = [x.capitalize() for x in self.search_city]
             return
 
-        if isinstance(self.city_name, str):
-            self.city_name = [self.city_name]
         # check if city_name is a list of strings
         if not isinstance(self.city_name, list) or not all(
             isinstance(x, str) for x in self.city_name

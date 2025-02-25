@@ -26,7 +26,7 @@ class MarketItemCommonConfig(BaseConfig):
     exclude_sellers: List[str] | None = None
     notify: List[str] | None = None
     search_city: List[str] | None = None
-    city_name: List[str] | None = field(default_factory=list)
+    city_name: List[str] | None = None
     # radius must be processed after search_city
     radius: List[int] | None = None
     search_interval: int | None = None
