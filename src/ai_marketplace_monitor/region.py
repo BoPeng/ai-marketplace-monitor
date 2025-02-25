@@ -53,5 +53,5 @@ class RegionConfig(BaseConfig):
 
         if len(self.city_name) != len(self.search_city):
             raise ValueError(
-                f"Region {self.name} city_name must be the same length as search_city."
+                f"Region {self.name} city_name {self.city_name} must be the same length as search_city {self.search_city}."
             )
