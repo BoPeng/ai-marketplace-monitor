@@ -359,8 +359,8 @@ class FacebookMarketplace(Marketplace):
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
-                        f"""{hilight(item_config.name)} from{f" within {radius} of" if radius else ""} """
-                        f"""{hilight(cname)}"""
+                        f"""{hilight(item_config.name)} from {hilight(cname)}"""
+                        + (f" with radius={radius}" if radius else " with default radius")
                     )
                 self.goto_url(
                     marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
