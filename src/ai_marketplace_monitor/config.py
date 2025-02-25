@@ -148,7 +148,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     or item_config["marketplace"] == marketplace_name
                 ):
                     self.item[item_name] = marketplace_class.get_item_config(
-                        name=item_name, **item_config
+                        name=item_name,
+                        marketplace=marketplace_name,
+                        **{x: y for x, y in item_config.items() if x != "marketplace"},
                     )
 
     def validate_sections(self: "Config", config: Dict[str, Any]) -> None:
