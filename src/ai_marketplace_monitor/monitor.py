@@ -406,7 +406,12 @@ class MarketplaceMonitor:
                             f"""{hilight("[Search]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
                         )
 
-                res = doze(max(5, int(idle_seconds)), self.config_files, self.keyboard_monitor)
+                # sleep at most 1 hr, and print updated "next job" message
+                res = doze(
+                    min(max(5, int(idle_seconds), 60 * 60)),
+                    self.config_files,
+                    self.keyboard_monitor,
+                )
                 if res == SleepStatus.BY_FILE_CHANGE:
                     # if configuration file has been changed, clear all scheduled jobs and restart
                     new_file_hash = calculate_file_hash(self.config_files)
