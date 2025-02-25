@@ -159,6 +159,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "ai": (list, type(None)),
         "availability": (list, type(None)),
         "api_key": str,
+        "city_name": (list, type(None)),
         "condition": (list, type(None)),
         "date_listed": (list, type(None)),
         "delivery_method": (list, type(None)),
@@ -234,7 +235,7 @@ def test_support_multiple_marketplaces(config_file: Callable) -> None:
     assert len(config.item) == 2
     assert len(config.user) == 1
 
-    assert config.item["name"].marketplace is None
+    assert config.item["name"].marketplace == "facebook"
     assert config.item["whatever"].marketplace == "houston"
     assert config.marketplace["facebook"].search_city == ["dallas"]
     assert config.marketplace["houston"].search_city == ["houston"]

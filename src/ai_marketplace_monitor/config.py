@@ -147,11 +147,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     "marketplace" not in item_config
                     or item_config["marketplace"] == marketplace_name
                 ):
+                    # use the first available marketplace
                     self.item[item_name] = marketplace_class.get_item_config(
                         name=item_name,
                         marketplace=marketplace_name,
                         **{x: y for x, y in item_config.items() if x != "marketplace"},
                     )
+                    break
 
     def validate_sections(self: "Config", config: Dict[str, Any]) -> None:
         # check for required sections

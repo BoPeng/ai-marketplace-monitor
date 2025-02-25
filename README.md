@@ -485,6 +485,8 @@ marketplace = 'nationwide'
 search_phrases = 'rare item2'
 ```
 
+If no `marketplace` is defined for an item, it will use the first defined marketplace, which is `houston` in this example.
+
 ### First and subsequent searches
 
 A list of two values can be specified for options `rating`, `availability`, `date_listed`, and `delivery_method`, with the first one used for the first search, and second one used for the rest of searches. This allows the use of different search strategies for first and subsequent searches. For example, an initial more lenient search for all listings followed by searches for only new listings can be specified as
