@@ -213,6 +213,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for config in chain(self.marketplace.values(), self.item.values()):
             if config.search_region is None:
                 continue
+            config.city_name = []
             config.search_city = []
             config.radius = []
 
@@ -225,7 +226,12 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 if region_config.enabled is False:
                     continue
                 # avoid duplicated addition of search_city
-                for search_city, radius in zip(region_config.search_city, region_config.radius):
+                for search_city, city_name, radius in zip(
+                    region_config.search_city or [],
+                    region_config.city_name or [],
+                    region_config.radius or [],
+                ):
                     if search_city not in config.search_city:
                         config.search_city.append(search_city)
+                        config.city_name.append(city_name)
                         config.radius.append(radius)
