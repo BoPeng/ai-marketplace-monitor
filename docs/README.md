@@ -1,19 +1,19 @@
-## Configuration Guide
+# Configuration Guide
 
-### Table of content:
+**Table of content:**
 
-- [Table of content:](#table-of-content)
 - [AI Services](#ai-services)
 - [Marketplaces](#marketplaces)
 - [Users](#users)
 - [Notification](#notification)
 - [Items to search](#items-to-search)
-- [Options that can be specified for both marketplaces and items](#options-that-can-be-specified-for-both-marketplaces-and-items)
+- [Common item and marketplace options](#common-item-and-marketplace-options)
 - [Regions](#regions)
 - [Additional options](#additional-options)
 
-Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides
-an example with many of the options.
+The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` option.
+
+Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides an example with many of the options.
 
 ### AI Services
 
@@ -112,7 +112,7 @@ return related items under different names. To select the right items, you can
 3. The `keywords` and `antikeywords` options allows the specification of multiple keywords with a `OR` relationship, but it also allows complex `AND`, `OR` and `NOT` logics. See [Advanced Keyword-based filters](../README.md#advanced-keyword-based-filters) for details.
 4. It is usually more effective to write a longer `description` and let the AI know what exactly you want. This will make sure that you will not get a drone when you are looking for a `DJI` camera. It is still a good idea to pre-filter listings using non-AI criteria to reduce the cost of AI services.
 
-### Options that can be specified for both marketplaces and items
+### Common item and marketplace options
 
 The following options that can specified for both `marketplace` sections and `item` sections. Values in the `item` section will override value in corresponding marketplace if specified in both places.
 

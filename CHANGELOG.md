@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.8] - 2025-02-21
+## [0.7.9] - 2025-02-21
 
 - Add options `prompt`, `extra_prompt` and `rating_prompt`
 

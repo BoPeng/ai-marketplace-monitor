@@ -29,9 +29,8 @@ https://facebook.com/marketplace/item/1234567890
 AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger.
 ```
 
-## Table of content:
+**Table of content:**
 
-- [Table of content:](#table-of-content)
 - [✨ Key Features](#-key-features)
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
@@ -44,7 +43,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Cost of operations](#cost-of-operations)
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
-  - [Multiple configuration files](#multiple-configuration-files)
   - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
@@ -260,10 +258,6 @@ If you use an gmail account and only notify yourself, you can simply do
 email = 'myemail@gmail.com'
 smtp_password = 'abcdefghijklmnop'
 ```
-
-### Multiple configuration files
-
-You can use multiple configuration files. For example, you can add all credentials to `~/.ai-marketplace-monitor/config.yml` and use separate configuration files for items for different users.
 
 ### Adjust prompt and notification level
 
