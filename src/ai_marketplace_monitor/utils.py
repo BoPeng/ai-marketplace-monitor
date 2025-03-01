@@ -323,26 +323,22 @@ def is_substring(
     var2: one or more strings for testing if strings in  "var1" is a substring.
     """
     if isinstance(var1, list):
-        # this is actually the easy case since we assume that each one is a literal string
-        # and there is no complex logic.
-        if isinstance(var2, str):
-            return any(normalize_string(s) in normalize_string(var2) for s in var1)
-        return any(normalize_string(s1) in normalize_string(s2) for s1 in var1 for s2 in var2)
+        return any(is_substring(x, var2, logger) for x in var1)
 
     # parse the expression
+    parsed = ""
     try:
         parsed = expr.parseString(var1, parseAll=True)[0]
-    except Exception as e:
-        if logger:
-            logger.error(f"Invalid expression: {var1}")
-            logger.error(f"Error: {e}")
-            logger.error(f"Parsed: {parsed}")
-        else:
-            print(f"Invalid expression: {var1}")
-            print(f"Error: {e}")
-            print(f"Parsed: {parsed}")
+    except Exception:
         # treat var1 as literal string for searching.
-        return is_substring([var1], var2, logger)
+        if any(x in var1 for x in (" AND ", " OR ", " NOT ", "(NOT ")) or var1.startswith("NOT "):
+            if logger:
+                logger.warning(
+                    f"Failed to parse {var1} as a logical expression. Treating it as literal string."
+                )
+        if isinstance(var2, str):
+            return normalize_string(var1) in normalize_string(var2)
+        return any(normalize_string(var1) in normalize_string(s2) for s2 in var2)
 
     def evaluate_expression(parsed_expression: str | ParseResults) -> bool:
         if isinstance(parsed_expression, str):

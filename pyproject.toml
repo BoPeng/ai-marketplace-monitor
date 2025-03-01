@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ai-marketplace-monitor"
-version = "0.7.10"
+version = "0.7.11"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = ["Bo Peng <ben.bob@gmail.com>"]
 readme = "README.md"
@@ -27,22 +27,22 @@ classifiers = [
 ai-marketplace-monitor = 'ai_marketplace_monitor.cli:app'
 
 [tool.poetry.dependencies]
-python = "<3.13,>=3.10"
+python = ">=3.10"
 typer = { extras = ["all"], version = "^0.15.1" }
-playwright = "^1.49.1"
-rich = "^13.9.4"
-"pushbullet.py" = "^0.12.0"
-diskcache = "^5.6.3"
-watchdog = "^6.0.0"
-openai = "^1.60.1"
-parsedatetime = "^2.6"
-humanize = "^4.11.0"
-schedule = "^1.2.2"
-inflect = "^7.5.0"
-pynput = "^1.7.7"
-pillow = "^11.1.0"
-jinja2 = "^3.1.5"
-pyparsing = "^3.2.1"
+playwright = ">=1.41.0"
+rich = ">=13.7.0"
+"pushbullet.py" = ">=0.12.0"
+diskcache = ">=5.6.3"
+watchdog = ">=4.0.0"
+openai = ">=1.24.0"
+parsedatetime = ">=2.5"
+humanize = ">=4.0.0"
+schedule = ">=1.2.2"
+inflect = ">=7.0.0"
+pynput = ">=1.7.0"
+pillow = ">=10.0.0"
+jinja2 = ">=3.0.0"
+pyparsing = ">=3.1.0"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
 
 [tool.poetry.group.dev.dependencies]

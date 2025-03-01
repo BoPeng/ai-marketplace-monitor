@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.10] - 2025-03-01
+## [0.7.11] - 2025-03-01
 
+- Fix a bug on the handling of logical expressions for `keywords` and `antikeywords`.
 - Add support for another auto layout page
 
 ## [0.8.9] - 2025-02-21

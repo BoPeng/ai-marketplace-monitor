@@ -380,7 +380,7 @@ keywords = '("Go Pro" OR gopro) AND HERO'
 
 **NOTE**:
 
-1. If a list of strings are provided, all of them are treated as literal strings, so `keywords = ['drone AND DJI']` will match string `drone AND DJI`.
+1. A list of logical operations are allowed, and they are assumed to be joint by `OR`. For example, `['gopro AND (11 or 12)', 'DJI AND OSMO']` searches for either a gopro version 11 oe 12, or a DJI COMO camera.
 2. You can construct very complex logical operations using `AND`, `OR` and `NOT`, but it is usually recommended to use simple keyword-based filtering and let AI handle more subtle selection criteria.
 
 ### Searching multiple cities and regions

@@ -16,6 +16,11 @@ from ai_marketplace_monitor.utils import is_substring
         (["go pro", "gopro"], "go pro", True),
         (["go pro", "gopro"], "gopro", True),
         (["go pro", "gopro"], "gopro hero", True),
+        # literal AND works
+        ("AND", " AND Camera", True),
+        ('AND OR "gopro', " AND Camera", True),
+        ('"gopro" OR "AND"', " AND Camera", True),
+        (['"go pro" AND 11', "gopro AND 12"], "gopro hero 12", True),
         ("DJI AND Drone AND NOT Camera", "dji drone", True),
         ("DJI AND Drone AND NOT Camera", "dji drone camera", False),
         ("DJI AND Drone AND NOT Camera", "dji  camera", False),
