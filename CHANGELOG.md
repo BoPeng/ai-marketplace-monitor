@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.9] - 2025-02-21
+## [0.7.10] - 2025-03-01
+
+- Add support for another auto layout page
+
+## [0.8.9] - 2025-02-21
 
 - Add options `prompt`, `extra_prompt` and `rating_prompt`
 
