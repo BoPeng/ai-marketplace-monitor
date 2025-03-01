@@ -2,7 +2,7 @@ import time
 from pathlib import Path
 
 import pytest
-from pytest_playwright.pytest_playwright import CreateContextCallback
+from pytest_playwright.pytest_playwright import CreateContextCallback  # type: ignore
 
 from ai_marketplace_monitor.facebook import FacebookSearchResultPage, parse_listing
 
