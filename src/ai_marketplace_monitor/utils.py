@@ -422,8 +422,13 @@ def doze(
 
 
 def extract_price(price: str) -> str:
-    if price.count("$") > 1:
-        match = re.search(r"\$\d+(?:\.\d{2})?", price)
+    currencies = [
+        x for x in ("$", "€", "£", "¥", "₹", "¥", "$", "$", "CHF", "₩") if price.startswith(x)
+    ]
+    currency = "$" if not currencies else currencies[0]
+
+    if price.count(currency) > 1:
+        match = re.search(currency + r"\d+(?:\.\d{2})?", price)
         price = match.group(0) if match else price
     if "\xa0" in price:
         price = price.split("\xa0")[0]

@@ -11,7 +11,7 @@ from ai_marketplace_monitor.utils import NotificationStatus
 
 def test_version(version: str) -> None:
     """Sample pytest test function with the pytest fixture as an argument."""
-    assert version == "0.7.9"
+    assert version == "0.7.10"
 
 
 def test_listing_cache(temp_cache: Cache, listing: Listing) -> None:
