@@ -941,7 +941,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
-    def get_condition(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
+    def get_condition(self: "FacebookAutoItemWithDescriptionPage") -> str:
         try:
             description_header = self.page.query_selector(
                 'h2:has(span:text("Seller\'s description"))'
@@ -971,7 +971,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
-    def get_price(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
+    def get_price(self: "FacebookAutoItemWithDescriptionPage") -> str:
         # for this page, price is after header
         try:
             h1_element = self.page.query_selector_all("h1")[-1]
