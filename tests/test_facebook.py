@@ -2,18 +2,17 @@ import time
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Page
+from pytest_playwright.pytest_playwright import CreateContextCallback
 
 from ai_marketplace_monitor.facebook import FacebookSearchResultPage, parse_listing
 
 
-@pytest.mark.xfail
-def test_search_page(page: Page, filename: str = "search_result_1.html") -> None:
+def test_search_page(
+    new_context: CreateContextCallback, filename: str = "search_result_1.html"
+) -> None:
     local_file_path = Path(__file__).parent / filename
+    page = new_context(java_script_enabled=False).new_page()
     page.goto(f"file://{local_file_path}")
-
-    # heading = page.locator('[aria-label="Collection of Marketplace items"]')
-    # assert heading is not None
 
     for _ in range(10):
         p = FacebookSearchResultPage(page)
@@ -43,26 +42,24 @@ def test_search_page(page: Page, filename: str = "search_result_1.html") -> None
     assert len(listings) == 21
 
 
-@pytest.mark.xfail
 @pytest.mark.parametrize(
     "filename,price,seller,location",
     [
         ("regular_listing.html", "$10", "Austin Ewing", "MS"),
         ("rental_listing.html", "$150 / Month", "Perry Burton", "Houston, TX"),
         ("auto_listing.html", "**unspecified**", "Lily Ortiz", "Houston, TX"),
+        ("auto1_listing.html", "€6,695", "Abdel Abdel", "Bergen op Zoom, NB"),
     ],
 )
-def test_listing_page(page: Page, filename: str, price: str, seller: str, location: str) -> None:
+def test_listing_page(
+    new_context: CreateContextCallback, filename: str, price: str, seller: str, location: str
+) -> None:
     local_file_path = Path(__file__).parent / filename
 
-    for _ in range(10):
-        page.goto(f"file://{local_file_path}")
-        page.wait_for_load_state("domcontentloaded")
-        listing = parse_listing(page, "post_url", None)
-
-        if listing is not None:
-            break
-        time.sleep(1)
+    page = new_context(java_script_enabled=False).new_page()
+    page.goto(f"file://{local_file_path}")
+    page.wait_for_load_state("domcontentloaded")
+    listing = parse_listing(page, "post_url", None)
 
     assert listing is not None, f"Should be able to parse {filename}"
     assert listing.title, f"Title of {filename} should be {listing.title}"

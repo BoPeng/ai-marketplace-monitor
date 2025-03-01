@@ -512,6 +512,11 @@ class WebPage:
         cond: Callable,
         ret: Callable | int,
     ) -> str:
+        """Finding a parent element
+
+        Starting from `element`, finding its parents, until `cond` matches, then return the `ret`th children,
+        or a callable.
+        """
         if element is None:
             return ""
         # get up at the DOM level, testing the children elements with cond,
@@ -640,7 +645,6 @@ class FacebookSearchResultPage(WebPage):
                         f'{hilight("[Retrieve]", "fail")} Failed to parse search results {idx + 1} listing: {e}'
                     )
                 continue
-
         # Append the parsed data to the list.
         return listings
 
@@ -829,24 +833,22 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
         return "unspecified"
 
 
-class FacebookAutoItemPage(FacebookRegularItemPage):
-    def verify_layout(self: "FacebookAutoItemPage") -> bool:
-        # there is a header h2 with text "About this vehicle"
+class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
+    def _has_about_this_vehicle(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
         return any(
             "About this vehicle" in (x.text_content() or "")
             for x in self.page.query_selector_all("h2")
         )
 
-    def get_description(self: "FacebookAutoItemPage") -> str:
-        #
-        # find a h2 with "Seller's description"
-        # then find the parent until it has two children and the first child is the heading
+    def _has_seller_description(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
+        return any(
+            "Seller's description" in (x.text_content() or "")
+            for x in self.page.query_selector_all("h2")
+        )
+
+    def _get_about_this_vehicle(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
         try:
-            # first get about this vehicle
             about_element = self.page.locator('h2:has(span:text("About this vehicle"))')
-            description_header = self.page.query_selector(
-                'h2:has(span:text("Seller\'s description"))'
-            )
             return self._parent_with_cond(
                 # start from About this vehicle
                 about_element,
@@ -854,7 +856,21 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
                 lambda x: len(x) > 1 and "About this vehicle" in (x[0].text_content() or ""),
                 # Extract all texts from the elements
                 lambda x: "\n".join([child.text_content() or "" for child in x]),
-            ) + self._parent_with_cond(
+            )
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def _get_seller_description(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
+        try:
+            description_header = self.page.query_selector(
+                'h2:has(span:text("Seller\'s description"))'
+            )
+
+            return self._parent_with_cond(
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
@@ -875,23 +891,113 @@ class FacebookAutoItemPage(FacebookRegularItemPage):
                 self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
             return ""
 
-    def get_price(self: "FacebookAutoItemPage") -> str:
+    def verify_layout(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
+        # there is a header h2 with text "About this vehicle"
+        return self._has_about_this_vehicle() and self._has_seller_description()
+
+    def get_description(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
+        return self._get_about_this_vehicle() + self._get_seller_description()
+
+    def get_price(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
         description = self.get_description()
         # using regular expression to find text that looks like price in the description
         price_pattern = r"\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:,\d{2})?"
         match = re.search(price_pattern, description)
         return match.group(0) if match else "**unspecified**"
 
-    def get_condition(self: "FacebookAutoItemPage") -> str:
+    def get_condition(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
         # no condition information for auto items
-        return "unspecified"
+        return "**unspecified**"
+
+
+class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptionPage):
+    def verify_layout(self: "FacebookAutoItemWithDescriptionPage") -> bool:
+        return self._has_seller_description() and not self._has_about_this_vehicle()
+
+    def get_description(self: "FacebookAutoItemWithDescriptionPage") -> str:
+        try:
+            description_header = self.page.query_selector(
+                'h2:has(span:text("Seller\'s description"))'
+            )
+
+            return self._parent_with_cond(
+                # start from the description header
+                description_header,
+                # find an array of elements with the first one being "Seller's description"
+                lambda x: len(x) > 1 and "Seller's description" in (x[0].text_content() or ""),
+                # then, drill down from the second child
+                lambda x: self._children_with_cond(
+                    x[1],
+                    # find the an array of elements
+                    lambda y: len(y) > 2,
+                    # and return the texts.
+                    lambda y: f"""\n\nSeller's description\n\n{y[1].text_content() or "**unspecified**"}""",
+                ),
+            )
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_condition(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
+        try:
+            description_header = self.page.query_selector(
+                'h2:has(span:text("Seller\'s description"))'
+            )
+
+            res = self._parent_with_cond(
+                # start from the description header
+                description_header,
+                # find an array of elements with the first one being "Seller's description"
+                lambda x: len(x) > 1 and "Seller's description" in (x[0].text_content() or ""),
+                # then, drill down from the second child
+                lambda x: self._children_with_cond(
+                    x[1],
+                    # find the an array of elements
+                    lambda y: len(y) > 2,
+                    # and return the texts after seller's description.
+                    lambda y: y[0].text_content() or "**unspecified**",
+                ),
+            )
+            if res.startswith("Condition"):
+                res = res[len("Condition") :]
+            return res.strip()
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
+
+    def get_price(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
+        # for this page, price is after header
+        try:
+            h1_element = self.page.query_selector_all("h1")[-1]
+            header = h1_element.text_content()
+            return self._parent_with_cond(
+                # start from the header
+                h1_element,
+                # find an array of elements with the first one being "Seller's description"
+                lambda x: len(x) > 1 and header in (x[0].text_content() or ""),
+                # then, find the element after header
+                1,
+            )
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+            return ""
 
 
 def parse_listing(page: Page, post_url: str, logger: Logger | None = None) -> Listing | None:
     supported_facebook_item_layouts = [
         FacebookRegularItemPage,
         FacebookRentalItemPage,
-        FacebookAutoItemPage,
+        FacebookAutoItemWithAboutAndDescriptionPage,
+        FacebookAutoItemWithDescriptionPage,
     ]
 
     for page_model in supported_facebook_item_layouts:
