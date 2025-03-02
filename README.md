@@ -237,18 +237,6 @@ smtp_port = 587
 smtp_password = 'mypassword'
 ```
 
-and add the settings to the `user` sections as
-
-```toml
-[user.user1]
-email = 'user1@gmail.com'
-notify_with = 'myprovider'
-
-[user.user2]
-email = ['user2@gmail.com', 'user2@outlook.com']
-notify_with = 'myprovider'
-```
-
 `ai-marketplace-monitor` will try to determine `smtp_username` and `smtp_server` from the sender email address if they are unspecified.
 
 If you have a GMAIL account,

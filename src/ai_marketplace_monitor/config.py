@@ -190,23 +190,23 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     )
 
     def expand_notifications(self: "Config") -> None:
-
         for config in self.user.values():
-            if config.notify_with:
-                for notification_name in config.notify_with:
-                    if notification_name not in self.notification:
-                        raise ValueError(
-                            f"User {hilight(config.name)} specifies an undefined notification method {notification_name}."
-                        )
-                    notification_config = self.notification[notification_name]
-                    #
-                    if notification_config.enabled is False:
-                        continue
-                    # add values of smtp_config to user config
-                    for key, value in notification_config.__dict__.items():
-                        # name is the notification name and should not override username
-                        if key not in ("type", "name"):
-                            setattr(config, key, value)
+            for notification_name in (
+                config.notify_with if config.notify_with is not None else self.notification.keys()
+            ):
+                if notification_name not in self.notification:
+                    raise ValueError(
+                        f"User {hilight(config.name)} specifies an undefined notification method {notification_name}."
+                    )
+                notification_config = self.notification[notification_name]
+                #
+                if notification_config.enabled is False:
+                    continue
+                # add values of smtp_config to user config
+                for key, value in notification_config.__dict__.items():
+                    # name is the notification name and should not override username
+                    if key not in ("type", "name"):
+                        setattr(config, key, value)
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist

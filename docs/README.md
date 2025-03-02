@@ -61,23 +61,26 @@ Multiple marketplaces with different `name`s can be specified for different `ite
 
 ### Users
 
-One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. The `user` settings accept the following options
+One or more `user.username` sections can be defined in the configuration. The `username` one of the usernames listed in the `notify` option of `marketplace` or `item`. Each `user` section accepts the following options
 
-| Option        | Requirement | DataType    | Description                                                                     |
-| ------------- | ----------- | ----------- | ------------------------------------------------------------------------------- |
-| `notify_with` | Optional    | String/List | name of one or more notification sections for notification                      |
-| `remind`      | Optional    | String      | Notify users again after a set time (e.g., 3 days) if a listing remains active. |
+| Option        | Requirement | DataType    | Description                                                                                                                                                  |
+| ------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `notify_with` | Optional    | String/List | Specifies one or more notification methods to be used for this user. If left unspecified, all available notification methods will be used.                   |
+| `remind`      | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
 
 Note that
 
-1. Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
-2. Settings for `notify_with` can be specified directly under the `user` setting, so any settings described in the following [Notification](#notification) section can be added to settings of a `user`.
+1. **Default Notification Behavior**: If the `notify_with` option is not specified, the system will use all available notification methods for the user.
+2. **Inline Notification Settings**: Notification settings can be defined directly under the user section. Any settings described in the [Notification](#notification) section can be applied to a user's configuration.
+3. **Repeated Notifications**: The `remind` option allows users to receive repeated notifications after a specified time interval. If not set, users will only be notified once about a listing.
 
 ### Notification
 
-_AI Marketplace Monitor_ supports a number of notification methods. You can add settings for these methods directly to the `user` sections, or specify details of each notification methods in their own sections and use `user.notify_with` to point to one or more notification methods. The notification sections need to be named `notification.NAME`.
+_AI Marketplace Monitor_ supports various notification methods, allowing you to configure notifications in a flexible way. You can define notification settings directly within the `user` sections or create dedicated `notification.NAME` sections and reference them using the `notify_with` option. This provides flexibility for single-user setups or shared configurations across multiple users.
 
-For example, you can either use
+#### Direct Notification Settings in User Sections
+
+Define notification details directly within the user section. This approach is ideal for single-user configurations.
 
 ```toml
 [user.me]
@@ -86,36 +89,30 @@ email = 'myemail@gmail.com'
 smtp_password = 'abcdefghijklmnop'
 ```
 
-or
+#### Shared Notification Settings in Dedicated Sections
+
+Define notification methods in their own `notification.NAME` sections and reference them using the notify_with option. This approach is better for sharing settings across multiple users.
 
 ```toml
 [user.me]
+email = 'myemail@gmail.com'
 notify_with = ['gmail', 'pushbullet']
 
+[user.other]
+email = 'other.email@gmail.com'
+notify_with = ['gmail']
+
 [notification.gmail]
-email = 'myemail@gmail.com'
 smtp_password = 'abcdefghijklmnop'
 
 [notification.pushbullet]
 pushbullet_token = "xxxxxxxxxxxxxxxx"
 ```
 
-The former is preferred for a single user, and the latter is preferred for sharing settings among multiple users. Under the hood, `AI Marketplace Monitor` simply merges all notification options to the `user` section so it is possible for you to share only part of the settings. For example
+Note that:
 
-```toml
-[user.me]
-email = 'email1@gmail.com'
-notify_by = 'gmail'
-
-[user.other]
-email = ['email2@gmail.com', 'email3@gmail.com']
-notify_by = 'gmail'
-
-[notification.gmail]
-smtp_password = 'abcdefghijklmnop'
-```
-
-will send emails to different email addresses using the same `smtp` settings provided by `notification.gmail`.
+1. Under the hood, _AI Marketplace Monitor_ merges all notification options into the user section. This allows you to share partial settings across users (e.g. `smtp_password`) while customizing specific details (e.g. `email`).
+2. If `notify_with` is not specified, the system will automatically include all notification settings for the user, so the `notify_with` option for `user.me` could be ignored.
 
 #### Pushbullet notification
 
