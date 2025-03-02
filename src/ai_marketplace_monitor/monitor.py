@@ -16,11 +16,11 @@ from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
+from .notification import NotificationStatus
 from .user import User
 from .utils import (
     CounterItem,
     KeyboardMonitor,
-    NotificationStatus,
     SleepStatus,
     amm_home,
     cache,
