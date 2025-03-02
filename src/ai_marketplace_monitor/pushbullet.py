@@ -10,7 +10,7 @@ from pushbullet import Pushbullet  # type: ignore
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .notification import NotificationConfig, NotificationStatus
-from .utils import hilight
+from .utils import hilight, value_from_environ
 
 
 @dataclass
@@ -22,8 +22,13 @@ class PushbulletNotificationConfig(NotificationConfig):
     def handle_pushbullet_token(self: "PushbulletNotificationConfig") -> None:
         if self.pushbullet_token is None:
             return
+
+        self.pushbullet_token = value_from_environ(self.pushbullet_token)
+
         if not isinstance(self.pushbullet_token, str) or not self.pushbullet_token:
-            raise ValueError("user requires an non-empty pushbullet_token.")
+            raise ValueError(
+                "An non-empty pushbullet_token should be specified in config file or through ab environment variable PUSHBULLET_TOKEN."
+            )
         self.pushbullet_token = self.pushbullet_token.strip()
 
     def handle_pushbullet_proxy_type(self: "PushbulletNotificationConfig") -> None:

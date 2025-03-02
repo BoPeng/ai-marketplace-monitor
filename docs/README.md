@@ -124,10 +124,10 @@ If you need to send notifications through multiple instances of the same type (e
 
 ```toml
 [user.me]
-notify_with = ['pushbullet1']
+notify_with = 'pushbullet1'
 
 [user.other]
-notify_with = ['pushbullet2']
+notify_with = 'pushbullet2'
 
 [notification.pushbullet1]
 pushbullet_token = "xxxxxxxxxxxxxxxx"
@@ -145,7 +145,8 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 | `pushbullet_proxy_type`   | Optional    | String   | HTTP proxy type, e.g. `https`         |
 | `pushbullet_proxy_server` | Optional    | String   | HTTP proxy server URL                 |
 
-Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
+1. If `pushbullet_token` is specified in the format of `${ENVRION_VAR}` (e.g. `${PUSHBULLET_TOKEN}`), `ai_marketplace_monitor` will try to load the value from the specified environment variable.
+2. Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
 
 #### Pushover notification
 
@@ -180,6 +181,7 @@ Note that
 
 1. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
 2. `smtp_username` is assumed to be the first `email`.
+3. If `smtp_password` is specified in the format of `${ENVRION_VAR}` (e.g. `${GMAIL_SMTP_PASSWORD}`), `ai_marketplace_monitor` will try to load the value from the specified environment variable.
 
 See [Setting up email notification](../README.md#setting-up-email-notification) for details on how to set up email notification.
 

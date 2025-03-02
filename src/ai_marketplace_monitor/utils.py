@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import asdict, dataclass, fields
@@ -54,13 +55,6 @@ class SleepStatus(Enum):
     NOT_DISRUPTED = 0
     BY_KEYBOARD = 1
     BY_FILE_CHANGE = 2
-
-
-class NotificationStatus(Enum):
-    NOT_NOTIFIED = 0
-    EXPIRED = 1
-    NOTIFIED = 2
-    LISTING_CHANGED = 3
 
 
 class CacheType(Enum):
@@ -525,3 +519,10 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
     buffer = io.BytesIO()
     resized_image.save(buffer, format=image.format)
     return buffer.getvalue()
+
+
+def value_from_environ(key: str) -> str:
+    """Replace key with value from an environment variable if it has a format of ${KEY}"""
+    if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
+        return key
+    return os.environ.get(key[2:-1], key)

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reorganize notification settings
 - Allow [pushover](https://pushover.net/) notification
 
+**BREAKING CHANGES**
+
+- Rename `smtp` sections to `notification`
+- Rename parameter `smtp` to `notify_with`
+
 ## [0.7.11] - 2025-03-01
 
 - Fix a bug on the handling of logical expressions for `keywords` and `antikeywords`.
