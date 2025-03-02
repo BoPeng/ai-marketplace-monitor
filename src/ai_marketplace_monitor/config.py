@@ -72,7 +72,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.get_item_config(config)
         self.validate_users()
         self.validate_ais()
-        self.expand_notifications()
+        self.expand_notifications(logger)
         self.expand_regions()
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -189,11 +189,12 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                         f"AI {hilight(config.ai)} specified in {hilight(config.name)} does not exist."
                     )
 
-    def expand_notifications(self: "Config") -> None:
+    def expand_notifications(self: "Config", logger: Logger | None = None) -> None:
         for config in self.user.values():
             for notification_name in (
                 config.notify_with if config.notify_with is not None else self.notification.keys()
             ):
+                notification_types = set()
                 if notification_name not in self.notification:
                     raise ValueError(
                         f"User {hilight(config.name)} specifies an undefined notification method {notification_name}."
@@ -202,7 +203,16 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 #
                 if notification_config.enabled is False:
                     continue
-                # add values of smtp_config to user config
+                # add values of notification_config to user config
+                if notification_config.type in notification_types:
+                    if logger:
+                        logger.warning(
+                            f"Ignore additional notification {hilight(notification_name)} with type {notification_config.type} for user {config.name}."
+                        )
+                    continue
+                else:
+                    notification_types.add(notification_config.type)
+
                 for key, value in notification_config.__dict__.items():
                     # name is the notification name and should not override username
                     if key not in ("type", "name"):

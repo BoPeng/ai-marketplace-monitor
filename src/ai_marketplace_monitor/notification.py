@@ -48,5 +48,7 @@ class NotificationConfig(BaseConfig):
                     raise ValueError("Invalid notification config for type {subclass_name}")
                 return subclass(**kwargs)
             if all(name in acceptable_keys for name in kwargs.keys()):
-                return subclass(**kwargs)
+                return subclass(
+                    type=subclass_name, **{k: v for k, v in kwargs.items() if k != "type"}
+                )
         raise ValueError("Invalid notification config")

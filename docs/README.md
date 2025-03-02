@@ -113,6 +113,28 @@ Note that:
 
 1. Under the hood, _AI Marketplace Monitor_ merges all notification options into the user section. This allows you to share partial settings across users (e.g. `smtp_password`) while customizing specific details (e.g. `email`).
 2. If `notify_with` is not specified, the system will automatically include all notification settings for the user, so the `notify_with` option for `user.me` could be ignored.
+3. AI Marketplace Monitor does not support multiple notifications of the same type for a single user. For example, the following configuration is not supported:
+
+```toml
+[user.me]
+notify_with = ['pushbullet1', 'pushbullet2']
+```
+
+If you need to send notifications through multiple instances of the same type (e.g., multiple Pushbullet tokens), you must create separate users for each instance. For example:
+
+```toml
+[user.me]
+notify_with = ['pushbullet1']
+
+[user.other]
+notify_with = ['pushbullet2']
+
+[notification.pushbullet1]
+pushbullet_token = "xxxxxxxxxxxxxxxx"
+
+[notification.pushbullet2]
+pushbullet_token = "yyyyyyyyyyyyyyyy"
+```
 
 #### Pushbullet notification
 
