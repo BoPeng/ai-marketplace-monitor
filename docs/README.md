@@ -61,33 +61,106 @@ Multiple marketplaces with different `name`s can be specified for different `ite
 
 ### Users
 
-One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. Currently emails and [PushBullet](https://www.pushbullet.com/) are supported methods of notification.
+One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. The `user` settings accept the following options
 
-| Option             | Requirement | DataType    | Description                                                                               |
-| ------------------ | ----------- | ----------- | ----------------------------------------------------------------------------------------- |
-| `pushbullet_token` | Optional    | String      | Token for user                                                                            |
-| `email`            | Optional    | String/List | One or more email addresses for email notificaitons                                       |
-| `remind`           | Optional    | String      | Notify users again after a set time (e.g., 3 days) if a listing remains active.           |
-| `smtp`             | optional    | String      | name of `SMTP` server to a separate SMTP section if there are more than one such sections |
-
-Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
-
-### Notification
-
-If an `email` is specified, we need to know how to connect to an SMTP server to send the email. An smtp section should be named like `smtp.gmail` and can have the following keys
-
-| Option          | Requirement | DataType | Description                                             |
-| --------------- | ----------- | -------- | ------------------------------------------------------- |
-| `smtp_username` | Optional    | String   | SMTP username.                                          |
-| `smtp_password` | Required    | String   | A password or passcode for the SMTP server.             |
-| `smtp_server`   | Optional    | String   | SMTP server, usually guessed from sender email address. |
-| `smtp_port`     | Optional    | Integer  | SMTP port, default to `587`                             |
+| Option        | Requirement | DataType    | Description                                                                     |
+| ------------- | ----------- | ----------- | ------------------------------------------------------------------------------- |
+| `notify_with` | Optional    | String/List | name of one or more notification sections for notification                      |
+| `remind`      | Optional    | String      | Notify users again after a set time (e.g., 3 days) if a listing remains active. |
 
 Note that
 
-1. You can add values of an `smtp` section directly into a `user` section, or keep them an separate section to be shared by multiple users.
-2. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
-3. `smtp_username` is assumed to be the first `email`.
+1. Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
+2. Settings for `notify_with` can be specified directly under the `user` setting, so any settings described in the following [Notification](#notification) section can be added to settings of a `user`.
+
+### Notification
+
+_AI Marketplace Monitor_ supports a number of notification methods. You can add settings for these methods directly to the `user` sections, or specify details of each notification methods in their own sections and use `user.notify_with` to point to one or more notification methods. The notification sections need to be named `notification.NAME`.
+
+For example, you can either use
+
+```toml
+[user.me]
+pushbullet_token = "xxxxxxxxxxxxxxxx"
+email = 'myemail@gmail.com'
+smtp_password = 'abcdefghijklmnop'
+```
+
+or
+
+```toml
+[user.me]
+notify_with = ['gmail', 'pushbullet']
+
+[notification.gmail]
+email = 'myemail@gmail.com'
+smtp_password = 'abcdefghijklmnop'
+
+[notification.pushbullet]
+pushbullet_token = "xxxxxxxxxxxxxxxx"
+```
+
+The former is preferred for a single user, and the latter is preferred for sharing settings among multiple users. Under the hood, `AI Marketplace Monitor` simply merges all notification options to the `user` section so it is possible for you to share only part of the settings. For example
+
+```toml
+[user.me]
+email = 'email1@gmail.com'
+notify_by = 'gmail'
+
+[user.other]
+email = ['email2@gmail.com', 'email3@gmail.com']
+notify_by = 'gmail'
+
+[notification.gmail]
+smtp_password = 'abcdefghijklmnop'
+```
+
+will send emails to different email addresses using the same `smtp` settings provided by `notification.gmail`.
+
+#### Pushbullet notification
+
+| Option                    | Requirement | DataType | Description                           |
+| ------------------------- | ----------- | -------- | ------------------------------------- |
+| `type`                    | Optional    | String   | Can only be `pushbullet` if specified |
+| `pushbullet_token`        | Optional    | String   | Token for user                        |
+| `pushbullet_proxy_type`   | Optional    | String   | HTTP proxy type, e.g. `https`         |
+| `pushbullet_proxy_server` | Optional    | String   | HTTP proxy server URL                 |
+
+Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
+
+#### Pushover notification
+
+| Option               | Requirement | DataType | Description                         |
+| -------------------- | ----------- | -------- | ----------------------------------- |
+| `type`               | Optional    | String   | Can only be `pushover` if specified |
+| `pushover_user_id`   | Optional    | String   | Token for user                      |
+| `pushover_api_token` | Optional    | String   | Token for user                      |
+
+The values of these values can be left blank, e.g.
+
+```toml
+[pushover.me]
+pushover_user_id = ''
+pushover_api_token = ''
+```
+
+in which case, `ai_marketplace_monitor` will try to load the values from environment variables `PUSHOVER_USER_ID` and `PUSHOVER_API_TOKEN` respectively.
+
+### Email notification
+
+| Option          | Requirement | DataType    | Description                                             |
+| --------------- | ----------- | ----------- | ------------------------------------------------------- |
+| `type`          | Optional    | String      | Can only be `email` if specified                        |
+| `email`         | Optional    | String/List | One or more email addresses for email notifications     |
+| `smtp_username` | Optional    | String      | SMTP username.                                          |
+| `smtp_password` | Required    | String      | A password or passcode for the SMTP server.             |
+| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address. |
+| `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                             |
+
+Note that
+
+1. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
+2. `smtp_username` is assumed to be the first `email`.
 
 See [Setting up email notification](../README.md#setting-up-email-notification) for details on how to set up email notification.
 

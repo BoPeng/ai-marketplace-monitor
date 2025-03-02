@@ -6,14 +6,14 @@ from typing import Any, List, Tuple, Type
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
+from .email_notify import EmailNotificationConfig
 from .listing import Listing
 from .marketplace import TItemConfig
-from .pushbullet import PushbulletConfig
-from .smtp import SMTPConfig
+from .notification import NotificationStatus
+from .pushbullet import PushbulletNotificationConfig
 from .utils import (
     CacheType,
     CounterItem,
-    NotificationStatus,
     cache,
     convert_to_seconds,
     counter,
@@ -22,18 +22,15 @@ from .utils import (
 
 
 @dataclass
-class UserConfig(SMTPConfig, PushbulletConfig):
-    # this argument is required
-    email: List[str] | None = None
-    smtp: str | None = None
-    remind: int | None = None
+class UserConfig(EmailNotificationConfig, PushbulletNotificationConfig):
+    """UserConfiguration
 
-    def handle_pushbullet_token(self: "UserConfig") -> None:
-        if self.pushbullet_token is None:
-            return
-        if not isinstance(self.pushbullet_token, str) or not self.pushbullet_token:
-            raise ValueError("user requires an non-empty pushbullet_token.")
-        self.pushbullet_token = self.pushbullet_token.strip()
+    subclass from the notification classes so that their keys can be specified
+    in the user config
+    """
+
+    notify_with: List[str] | None = None
+    remind: int | None = None
 
     def handle_remind(self: "UserConfig") -> None:
         if self.remind is None:
@@ -65,24 +62,18 @@ class UserConfig(SMTPConfig, PushbulletConfig):
                 f"Item {hilight(self.name)} remind must be an time (e.g. 1 day) or false."
             )
 
-    def handle_email(self: "UserConfig") -> None:
-        if self.email is None:
+    def handle_notify_with(self: "UserConfig") -> None:
+        if self.notify_with is None:
             return
-        if isinstance(self.email, str):
-            self.email = [self.email]
-        if not isinstance(self.email, list) or not all(
-            (isinstance(x, str) and "@" in x and "." in x.split("@")[1]) for x in self.email
+
+        if isinstance(self.notify_with, str):
+            self.notify_with = [self.notify_with]
+
+        if not isinstance(self.notify_with, list) or not all(
+            isinstance(x, str) for x in self.notify_with
         ):
             raise ValueError(
-                f"Item {hilight(self.name)} email must be a string or list of string."
-            )
-
-    def handle_smtp(self: "UserConfig") -> None:
-        if self.smtp is None:
-            return
-        if not isinstance(self.smtp, str):
-            raise ValueError(
-                f"Item {hilight(self.name)} smtp must be a valid smtp server configuration name."
+                f"Item {hilight(self.name)} notify_with must be a list of notification section values."
             )
 
 
@@ -167,7 +158,7 @@ class User:
         if self.config.notify_through_pushbullet(
             listings, ratings, statuses, force=force, logger=self.logger
         ) or self.config.notify_through_email(
-            self.config.email, listings, ratings, statuses, force=force, logger=self.logger
+            listings, ratings, statuses, force=force, logger=self.logger
         ):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):

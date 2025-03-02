@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-03-02
+
+- Reorganize notification settings
+- Allow [pushover](https://pushover.net/) notification
+
 ## [0.7.11] - 2025-03-01
 
 - Fix a bug on the handling of logical expressions for `keywords` and `antikeywords`.

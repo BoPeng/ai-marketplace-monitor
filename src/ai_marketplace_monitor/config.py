@@ -14,8 +14,8 @@ else:
 from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
+from .notification import NotificationConfig
 from .region import RegionConfig
-from .smtp import SMTPConfig
 from .user import User, UserConfig
 from .utils import hilight, merge_dicts
 
@@ -33,14 +33,14 @@ class ConfigItem(Enum):
     ITEM = "item"
     AI = "ai"
     REGION = "region"
-    SMTP = "smtp"
+    NOTIFICATION = "notification"
 
 
 @dataclass
 class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     ai: Dict[str, TAIConfig] = field(init=False)
     user: Dict[str, UserConfig] = field(init=False)
-    smtp: Dict[str, SMTPConfig] = field(init=False)
+    notification: Dict[str, NotificationConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
     item: Dict[str, TItemConfig] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
@@ -65,14 +65,14 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
         self.validate_sections(config)
         self.get_ai_config(config)
-        self.get_smtp_config(config)
+        self.get_notification_config(config)
         self.get_marketplace_config(config)
         self.get_user_config(config)
         self.get_region_config(config)
         self.get_item_config(config)
         self.validate_users()
         self.validate_ais()
-        self.expand_emails()
+        self.expand_notifications()
         self.expand_regions()
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -92,14 +92,18 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 ) from e
             self.ai[key] = backend_class.get_config(name=key, **value)
 
-    def get_smtp_config(self: "Config", config: Dict[str, Any]) -> None:
-        # convert ai config to AIConfig objects
-        if not isinstance(config.get("smtp", {}), dict):
-            raise ValueError("smtp section must be a dictionary.")
+    def get_notification_config(self: "Config", config: Dict[str, Any]) -> None:
+        if not isinstance(config.get("notification", {}), dict):
+            raise ValueError("notification section must be a dictionary.")
 
-        self.smtp = {}
-        for key, value in config.get("smtp", {}).items():
-            self.smtp[key] = SMTPConfig(name=key, **value)
+        self.notification: Dict[str, NotificationConfig] = {}
+        for key, value in config.get("notification", {}).items():
+            try:
+                self.notification[key] = NotificationConfig.get_config(name=key, **value)
+            except ValueError as e:
+                raise ValueError(
+                    f"Unable to determine notification type for notification section {key}"
+                ) from e
 
     def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each marketplace
@@ -185,30 +189,24 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                         f"AI {hilight(config.ai)} specified in {hilight(config.name)} does not exist."
                     )
 
-    def expand_emails(self: "Config") -> None:
-        # if ai is specified in other section, they must exist
-        if not self.smtp:
-            return
+    def expand_notifications(self: "Config") -> None:
+
         for config in self.user.values():
-            # if smtp is specified, it must exist
-            if config.smtp:
-                if config.smtp not in self.smtp:
-                    raise ValueError(
-                        f"User {hilight(config.name)} specifies an undefined smtp server {config.name}."
-                    )
-                else:
-                    smtp_config = self.smtp[config.smtp]
-            else:
-                # otherwise use a random one (likely the only one)
-                smtp_config = next(iter(self.smtp.values()))
-            #
-            if smtp_config.enabled is False:
-                continue
-            # add values of smtp_config to user config
-            for key, value in smtp_config.__dict__.items():
-                # name is the smtp name and should not override username
-                if key != "name":
-                    setattr(config, key, value)
+            if config.notify_with:
+                for notification_name in config.notify_with:
+                    if notification_name not in self.notification:
+                        raise ValueError(
+                            f"User {hilight(config.name)} specifies an undefined notification method {notification_name}."
+                        )
+                    notification_config = self.notification[notification_name]
+                    #
+                    if notification_config.enabled is False:
+                        continue
+                    # add values of smtp_config to user config
+                    for key, value in notification_config.__dict__.items():
+                        # name is the notification name and should not override username
+                        if key not in ("type", "name"):
+                            setattr(config, key, value)
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist
