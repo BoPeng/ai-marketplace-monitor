@@ -5,8 +5,8 @@ import time
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.notification import NotificationStatus
 from ai_marketplace_monitor.user import User
-from ai_marketplace_monitor.utils import NotificationStatus
 
 
 def test_version(version: str) -> None:

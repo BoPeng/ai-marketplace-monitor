@@ -24,6 +24,7 @@ from .utils import (
     extract_price,
     hilight,
     is_substring,
+    value_from_environ,
 )
 
 
@@ -174,12 +175,18 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
     def handle_username(self: "FacebookMarketplaceConfig") -> None:
         if self.username is None:
             return
+
+        self.username = value_from_environ(self.username)
+
         if not isinstance(self.username, str):
             raise ValueError(f"Marketplace {self.name} username must be a string.")
 
     def handle_password(self: "FacebookMarketplaceConfig") -> None:
         if self.password is None:
             return
+
+        self.password = value_from_environ(self.password)
+
         if not isinstance(self.password, str):
             raise ValueError(f"Marketplace {self.name} password must be a string.")
 

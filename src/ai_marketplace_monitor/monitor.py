@@ -16,11 +16,11 @@ from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
+from .notification import NotificationStatus
 from .user import User
 from .utils import (
     CounterItem,
     KeyboardMonitor,
-    NotificationStatus,
     SleepStatus,
     amm_home,
     cache,
@@ -245,14 +245,14 @@ class MarketplaceMonitor:
                                 # '*:*:12' to ':12'
                                 if self.logger:
                                     self.logger.info(
-                                        f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
+                                        f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
                                     )
                                 scheduled = schedule.every().minute.at(start_at[3:])
                             elif start_at.startswith("*:"):
                                 # '*:12:12' or  '*:12'
                                 if self.logger:
                                     self.logger.info(
-                                        f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
+                                        f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
                                     )
                                 scheduled = schedule.every().hour.at(
                                     start_at[1:] if start_at.count(":") == 1 else start_at[2:]
@@ -261,7 +261,7 @@ class MarketplaceMonitor:
                                 # '12:12:12' or '12:12'
                                 if self.logger:
                                     self.logger.info(
-                                        f"""{hilight("[Search]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
+                                        f"""{hilight("[Schedule]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
                                     )
                                 scheduled = schedule.every().day.at(start_at)
                     else:
@@ -341,7 +341,11 @@ class MarketplaceMonitor:
         self.keyboard_monitor.start()
 
         # Open a new browser page.
-        self.browser = self.playwright.chromium.launch(headless=self.headless)
+        self.load_config_file()
+        assert self.config is not None
+        self.browser = self.playwright.chromium.launch(
+            headless=self.headless, proxy=self.config.monitor.get_proxy_options()
+        )
         #
         assert self.browser is not None
         while True:
@@ -494,7 +498,9 @@ class MarketplaceMonitor:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                        self.browser = self.playwright.chromium.launch(headless=self.headless)
+                        self.browser = self.playwright.chromium.launch(
+                            headless=self.headless, proxy=self.config.monitor.get_proxy_options()
+                        )
                         marketplace.set_browser(self.browser)
 
                 # ignore enabled

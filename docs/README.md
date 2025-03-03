@@ -13,7 +13,22 @@
 
 The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` option.
 
+To avoid including sensitive information directly in the configuration file, certain options can be specified using the `${ENV_VAR}` format (e.g., `${FACEBOOK_PASSWORD}`). _AI Marketplace Monitor_ will then retrieve the value from the corresponding environment variable if available.
+
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides an example with many of the options.
+
+### Monitor Configuration
+
+The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It currently supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
+
+| Option           | Requirement | DataType    | Description                                                |
+| ---------------- | ----------- | ----------- | ---------------------------------------------------------- |
+| `proxy_server`   | Optional    | String/List | URL for one or more proxy servers.                         |
+| `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy.                   |
+| `proxy_username` | Optional    | String      | username for the proxy. Can be specified via `${ENV_VAR}`. |
+| `proxy_password` | Optional    | String      | password for the proxy. Can be specified via `${ENV_VAR}`. |
+
+If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
 
 ### AI Services
 
@@ -51,8 +66,8 @@ One or more sections `marketplace.name` show the options for interacting with va
 | Option            | Requirement | DataType | Description                                                                                       |
 | ----------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `market_type`     | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                               |
-| `username`        | Optional    | String   | Username can be entered manually or kept in the config file.                                      |
-| `password`        | Optional    | String   | Password can be entered manually or kept in the config file.                                      |
+| `username`        | Optional    | String   | Username can be entered manually or kept in the config file. Can be specified via `${ENV_VAR}`.   |
+| `password`        | Optional    | String   | Password can be entered manually or kept in the config file. Can be specified via `${ENV_VAR}`.   |
 | `login_wait_time` | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60. |
 
 | **Common options** | | | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
@@ -61,33 +76,105 @@ Multiple marketplaces with different `name`s can be specified for different `ite
 
 ### Users
 
-One or more `user.username` sections are allowed. The `username` need to match what are listed by option `notify` of marketplace or items. Currently emails and [PushBullet](https://www.pushbullet.com/) are supported methods of notification.
+One or more `user.username` sections can be defined in the configuration. The `username` one of the usernames listed in the `notify` option of `marketplace` or `item`. Each `user` section accepts the following options
 
-| Option             | Requirement | DataType    | Description                                                                               |
-| ------------------ | ----------- | ----------- | ----------------------------------------------------------------------------------------- |
-| `pushbullet_token` | Optional    | String      | Token for user                                                                            |
-| `email`            | Optional    | String/List | One or more email addresses for email notificaitons                                       |
-| `remind`           | Optional    | String      | Notify users again after a set time (e.g., 3 days) if a listing remains active.           |
-| `smtp`             | optional    | String      | name of `SMTP` server to a separate SMTP section if there are more than one such sections |
-
-Option `remind` defines if a user want to receive repeated notification. By default users will be notified only once.
-
-### Notification
-
-If an `email` is specified, we need to know how to connect to an SMTP server to send the email. An smtp section should be named like `smtp.gmail` and can have the following keys
-
-| Option          | Requirement | DataType | Description                                             |
-| --------------- | ----------- | -------- | ------------------------------------------------------- |
-| `smtp_username` | Optional    | String   | SMTP username.                                          |
-| `smtp_password` | Required    | String   | A password or passcode for the SMTP server.             |
-| `smtp_server`   | Optional    | String   | SMTP server, usually guessed from sender email address. |
-| `smtp_port`     | Optional    | Integer  | SMTP port, default to `587`                             |
+| Option        | Requirement | DataType    | Description                                                                                                                                                  |
+| ------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `notify_with` | Optional    | String/List | Specifies one or more notification methods to be used for this user. If left unspecified, all available notification methods will be used.                   |
+| `remind`      | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
 
 Note that
 
-1. You can add values of an `smtp` section directly into a `user` section, or keep them an separate section to be shared by multiple users.
-2. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
-3. `smtp_username` is assumed to be the first `email`.
+1. **Default Notification Behavior**: If the `notify_with` option is not specified, the system will use all available notification methods for the user.
+2. **Inline Notification Settings**: Notification settings can be defined directly under the user section. Any settings described in the [Notification](#notification) section can be applied to a user's configuration.
+3. **Repeated Notifications**: The `remind` option allows users to receive repeated notifications after a specified time interval. If not set, users will only be notified once about a listing.
+
+### Notification
+
+_AI Marketplace Monitor_ supports various notification methods, allowing you to configure notifications in a flexible way. You can define notification settings directly within the `user` sections or create dedicated `notification.NAME` sections and reference them using the `notify_with` option. This provides flexibility for single-user setups or shared configurations across multiple users.
+
+#### Direct Notification Settings in User Sections
+
+Define notification details directly within the user section. This approach is ideal for single-user configurations.
+
+```toml
+[user.me]
+pushbullet_token = "xxxxxxxxxxxxxxxx"
+email = 'myemail@gmail.com'
+smtp_password = 'abcdefghijklmnop'
+```
+
+#### Shared Notification Settings in Dedicated Sections
+
+Define notification methods in their own `notification.NAME` sections and reference them using the notify_with option. This approach is better for sharing settings across multiple users.
+
+```toml
+[user.me]
+email = 'myemail@gmail.com'
+notify_with = ['gmail', 'pushbullet']
+
+[user.other]
+email = 'other.email@gmail.com'
+notify_with = ['gmail']
+
+[notification.gmail]
+smtp_password = 'abcdefghijklmnop'
+
+[notification.pushbullet]
+pushbullet_token = "xxxxxxxxxxxxxxxx"
+```
+
+Note that:
+
+1. Under the hood, _AI Marketplace Monitor_ merges all notification options into the user section. This allows you to share partial settings across users (e.g. `smtp_password`) while customizing specific details (e.g. `email`).
+2. If `notify_with` is not specified, the system will automatically include all notification settings for the user, so the `notify_with` option for `user.me` could be ignored.
+3. AI Marketplace Monitor does not support multiple notifications of the same type for a single user. For example, the following configuration is not supported:
+
+```toml
+[user.me]
+notify_with = ['pushbullet1', 'pushbullet2']
+```
+
+If you need to send notifications through multiple instances of the same type (e.g., multiple Pushbullet tokens), you must create separate users for each instance. For example:
+
+```toml
+[user.me]
+notify_with = 'pushbullet1'
+
+[user.other]
+notify_with = 'pushbullet2'
+
+[notification.pushbullet1]
+pushbullet_token = "xxxxxxxxxxxxxxxx"
+
+[notification.pushbullet2]
+pushbullet_token = "yyyyyyyyyyyyyyyy"
+```
+
+#### Pushbullet notification
+
+| Option                    | Requirement | DataType | Description                                        |
+| ------------------------- | ----------- | -------- | -------------------------------------------------- |
+| `pushbullet_token`        | Optional    | String   | Token for user. Can be specified via `${ENV_VAR}`. |
+| `pushbullet_proxy_type`   | Optional    | String   | HTTP proxy type, e.g. `https`                      |
+| `pushbullet_proxy_server` | Optional    | String   | HTTP proxy server URL                              |
+
+Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
+
+### Email notification
+
+| Option          | Requirement | DataType    | Description                                                                    |
+| --------------- | ----------- | ----------- | ------------------------------------------------------------------------------ |
+| `email`         | Optional    | String/List | One or more email addresses for email notifications                            |
+| `smtp_username` | Optional    | String      | SMTP username. Can be specified via `${ENV_VAR}`.                              |
+| `smtp_password` | Required    | String      | A password or passcode for the SMTP server. Can be specified via `${ENV_VAR}`. |
+| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address.                        |
+| `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                                                    |
+
+Note that
+
+1. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
+2. `smtp_username` is assumed to be the first `email`.
 
 See [Setting up email notification](../README.md#setting-up-email-notification) for details on how to set up email notification.
 

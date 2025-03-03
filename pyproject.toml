@@ -108,6 +108,8 @@ extend-exclude = ["docs/*"]
 ignore = [
   "ANN202", # **kwargs: Any
   "ANN401",
+  "ANN002",
+  "ANN003",
   "E722",
   "G004",
   "S311",

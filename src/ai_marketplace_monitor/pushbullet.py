@@ -9,19 +9,53 @@ from pushbullet import Pushbullet  # type: ignore
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import (
-    BaseConfig,
-    NotificationStatus,
-    hilight,
-)
+from .notification import NotificationConfig, NotificationStatus
+from .utils import hilight, value_from_environ
 
 
 @dataclass
-class PushbulletConfig(BaseConfig):
+class PushbulletNotificationConfig(NotificationConfig):
     pushbullet_token: str | None = None
+    pushbullet_proxy_type: str | None = None
+    pushbullet_proxy_server: str | None = None
 
-    def notify_through_pushbullet(
-        self: "PushbulletConfig",
+    def handle_pushbullet_token(self: "PushbulletNotificationConfig") -> None:
+        if self.pushbullet_token is None:
+            return
+
+        self.pushbullet_token = value_from_environ(self.pushbullet_token)
+
+        if not isinstance(self.pushbullet_token, str) or not self.pushbullet_token:
+            raise ValueError("An non-empty pushbullet_token is needed.")
+        self.pushbullet_token = self.pushbullet_token.strip()
+
+    def handle_pushbullet_proxy_type(self: "PushbulletNotificationConfig") -> None:
+        if self.pushbullet_proxy_type is None:
+            return
+        if not isinstance(self.pushbullet_proxy_type, str) or not self.pushbullet_proxy_type:
+            raise ValueError("user requires an non-empty pushbullet_proxy_type.")
+        self.pushbullet_proxy_type = self.pushbullet_proxy_type.strip()
+
+    def handle_pushbullet_proxy_server(self: "PushbulletNotificationConfig") -> None:
+        # pushbullet_proxy_server and pushbullet_proxy_type are both required to be set
+        # if either of them is set, then both of them must be set
+        if self.pushbullet_proxy_type is None and self.pushbullet_proxy_server is not None:
+            raise ValueError(
+                "user requires an non-empty pushbullet_proxy_type when pushbullet_proxy_server is set."
+            )
+        # if pushbullet_proxy_type is set, then pushbullet_proxy_server must be set
+        if self.pushbullet_proxy_type is not None and self.pushbullet_proxy_server is None:
+            raise ValueError(
+                "user requires an non-empty pushbullet_proxy_server when pushbullet_proxy_type is set."
+            )
+        if self.pushbullet_proxy_server is None:
+            return
+        if not isinstance(self.pushbullet_proxy_server, str) or not self.pushbullet_proxy_server:
+            raise ValueError("user requires an non-empty pushbullet_proxy_server.")
+        self.pushbullet_proxy_server = self.pushbullet_proxy_server.strip()
+
+    def notify(
+        self: "PushbulletNotificationConfig",
         listings: List[Listing],
         ratings: List[AIResponse],
         notification_status: List[NotificationStatus],
@@ -77,7 +111,7 @@ class PushbulletConfig(BaseConfig):
         return True
 
     def send_pushbullet_message(
-        self: "PushbulletConfig",
+        self: "PushbulletNotificationConfig",
         title: str,
         message: str,
         max_retries: int = 6,
@@ -89,7 +123,13 @@ class PushbulletConfig(BaseConfig):
                 logger.debug("No pushbullet_token specified.")
             return False
 
-        pb = Pushbullet(self.pushbullet_token)
+        if self.pushbullet_proxy_server and self.pushbullet_proxy_type:
+            pb = Pushbullet(
+                self.pushbullet_token,
+                proxy={self.pushbullet_proxy_type: self.pushbullet_proxy_server},
+            )
+        else:
+            pb = Pushbullet(self.pushbullet_token)
 
         for attempt in range(max_retries):
             try:

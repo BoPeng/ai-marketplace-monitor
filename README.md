@@ -35,7 +35,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [Set up PushBullet (optional)](#set-up-pushbullet-optional)
+  - [Set up a notification method (optional)](#set-up-a-notification-method-optional)
   - [Sign up with an AI service or build your own (optional)](#sign-up-with-an-ai-service-or-build-your-own-optional)
   - [Configuration](#configuration)
   - [Run the program](#run-the-program)
@@ -110,13 +110,15 @@ Install a browser for Playwright using the command:
 playwright install
 ```
 
-### Set up PushBullet (optional)
+### Set up a notification method (optional)
 
-If you would like to receive notification through phone notification
+If you would like to receive notification from your phone via PushBullet
 
 - Sign up for [PushBullet](https://www.pushbullet.com/)
 - Install the app on your phone
-- Go to the PushBullet website and obtain a token
+- Go to the PushBullet website and obtain necessary token(s)
+
+If you would like to receive email notification, obtain relevant SMTP settings from your email provider. See [Setting up email notification](#setting-up-email-notification) for details.
 
 ### Sign up with an AI service or build your own (optional)
 
@@ -213,7 +215,7 @@ It is recommended that you **check the log messages and make sure that it includ
 
 ### Setting up email notification
 
-Sending email notifications requires recipient email addresses, which are specified in `email` of `user`. For example, you can send email notifications to multiple users with multiple email addresses as
+Sending email notifications requires recipient email addresses, which are specified in `email` of `user` or a notification setting. For example, you can send email notifications to multiple users with multiple email addresses as
 
 ```toml
 [user.user1]
@@ -223,10 +225,10 @@ email = 'user1@gmail.com'
 email = ['user2@gmail.com', 'user2@outlook.com']
 ```
 
-You then need a SMTP server that helps you to send the emails, for which you will need to know `smtp_server`, `smtp_port`, `smtp_username` and `smtp_password`. Generally speaking, you will need to create an `smtp` section with the information obtained from your email service provider.
+You then need a SMTP server that helps you to send the emails, for which you will need to know `smtp_server`, `smtp_port`, `smtp_username` and `smtp_password`. Generally speaking, you will need to create a notification section with the information obtained from your email service provider.
 
 ```toml
-[smtp.myprovider]
+[notification.myprovider]
 # default to sender email
 smtp_username = 'username@EMAIL.COM'
 # default to smtp.EMAIL.COM
@@ -246,7 +248,7 @@ If you have a GMAIL account,
 That is to say, you `smtp` setting for your gmail account should look like
 
 ```toml
-[smtp.gmail]
+[notification.gmail]
 smtp_username = 'myemail@gmail.com'
 smtp_password = 'abcdefghijklmnop'
 ```

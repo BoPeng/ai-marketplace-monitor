@@ -129,6 +129,21 @@ api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 model = 'gpt'
 """
 
+base_pushbullet_cfg = """
+[notification.pushbullet1]
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+"""
+
+base_email_cfg = """
+[notification.gmail]
+smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+"""
+
+notify_user_cfg = """
+[user.user1]
+notify_with = ['pushbullet1', 'gmail']
+"""
+
 
 @pytest.mark.parametrize(
     "config_content,acceptable",
@@ -140,6 +155,27 @@ model = 'gpt'
         (base_marketplace_cfg + base_item_cfg + base_user_cfg + base_ai_cfg, True),
         (full_marketplace_cfg + full_item_cfg + full_user_cfg + full_ai_cfg, True),
         (base_marketplace_cfg + full_item_cfg + base_user_cfg + base_ai_cfg, True),
+        # notification should match
+        (
+            base_marketplace_cfg + full_item_cfg + notify_user_cfg,
+            False,
+        ),
+        (
+            base_marketplace_cfg
+            + base_item_cfg
+            + notify_user_cfg
+            + base_pushbullet_cfg
+            + base_email_cfg,
+            True,
+        ),
+        (
+            base_marketplace_cfg
+            + base_item_cfg
+            + notify_user_cfg
+            + base_pushbullet_cfg.replace("pushbullet1", "somethingelse")
+            + base_email_cfg,
+            False,
+        ),
         # user should match
         (
             base_marketplace_cfg + full_item_cfg.replace("user1", "unknown_user") + base_user_cfg,
