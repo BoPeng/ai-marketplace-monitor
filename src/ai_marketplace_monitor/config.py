@@ -204,14 +204,14 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 if notification_config.enabled is False:
                     continue
                 # add values of notification_config to user config
-                if notification_config.type in notification_types:
+                if notification_config.__class__.__name__ in notification_types:
                     if logger:
                         logger.warning(
-                            f"Ignore additional notification {hilight(notification_name)} with type {notification_config.type} for user {config.name}."
+                            f"Ignore additional notification {hilight(notification_name)} with type {notification_config.__class__.__name__} for user {config.name}."
                         )
                     continue
                 else:
-                    notification_types.add(notification_config.type)
+                    notification_types.add(notification_config.__class__.__name__)
 
                 for key, value in notification_config.__dict__.items():
                     # name is the notification name and should not override username

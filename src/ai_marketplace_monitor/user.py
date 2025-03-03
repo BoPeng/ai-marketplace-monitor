@@ -9,24 +9,21 @@ from .ai import AIResponse  # type: ignore
 from .email_notify import EmailNotificationConfig
 from .listing import Listing
 from .marketplace import TItemConfig
-from .notification import NotificationStatus
+from .notification import NotificationConfig, NotificationStatus
 from .pushbullet import PushbulletNotificationConfig
-from .utils import (
-    CacheType,
-    CounterItem,
-    cache,
-    convert_to_seconds,
-    counter,
-    hilight,
-)
+from .utils import CacheType, CounterItem, cache, convert_to_seconds, counter, hilight
 
 
 @dataclass
 class UserConfig(EmailNotificationConfig, PushbulletNotificationConfig):
     """UserConfiguration
 
-    subclass from the notification classes so that their keys can be specified
-    in the user config
+    Derive from EmailNotificationConfig, PushbulletNotificationConfig allows
+    the user config class to use settings from both classes.
+
+    It is possible to dynamically added these classes as parent class
+    of UserConfig, but it is troublesome to make sure that these classes
+    are imported.
     """
 
     notify_with: List[str] | None = None
@@ -155,7 +152,13 @@ class User:
                 )
             return
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
-        if self.config.notify_all(listings, ratings, statuses, force=force, logger=self.logger):
+
+        notify_all = [
+            class_.notify(self, listings, ratings, statuses, force=force, logger=self.logger)
+            for class_ in NotificationConfig.__subclasses__()
+            if hasattr(class_, "notify")
+        ]
+        if any(notify_all):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:

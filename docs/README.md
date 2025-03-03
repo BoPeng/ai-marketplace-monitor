@@ -142,7 +142,6 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 
 | Option                    | Requirement | DataType | Description                                        |
 | ------------------------- | ----------- | -------- | -------------------------------------------------- |
-| `type`                    | Optional    | String   | Can only be `pushbullet` if specified              |
 | `pushbullet_token`        | Optional    | String   | Token for user. Can be specified via `${ENV_VAR}`. |
 | `pushbullet_proxy_type`   | Optional    | String   | HTTP proxy type, e.g. `https`                      |
 | `pushbullet_proxy_server` | Optional    | String   | HTTP proxy server URL                              |
@@ -153,7 +152,6 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 
 | Option          | Requirement | DataType    | Description                                                                    |
 | --------------- | ----------- | ----------- | ------------------------------------------------------------------------------ |
-| `type`          | Optional    | String      | Can only be `email` if specified                                               |
 | `email`         | Optional    | String/List | One or more email addresses for email notifications                            |
 | `smtp_username` | Optional    | String      | SMTP username. Can be specified via `${ENV_VAR}`.                              |
 | `smtp_password` | Required    | String      | A password or passcode for the SMTP server. Can be specified via `${ENV_VAR}`. |
