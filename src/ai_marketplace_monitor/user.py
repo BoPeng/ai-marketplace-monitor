@@ -154,7 +154,9 @@ class User:
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
 
         notify_all = [
-            class_.notify(self, listings, ratings, statuses, force=force, logger=self.logger)
+            class_.notify(
+                self.config, listings, ratings, statuses, force=force, logger=self.logger
+            )
             for class_ in NotificationConfig.__subclasses__()
             if hasattr(class_, "notify")
         ]
