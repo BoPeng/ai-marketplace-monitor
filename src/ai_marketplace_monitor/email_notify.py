@@ -207,7 +207,7 @@ class EmailNotificationConfig(NotificationConfig):
         )
         return html, images
 
-    def notify_through_email(
+    def notify(
         self: "EmailNotificationConfig",
         listings: List[Listing],
         ratings: List[AIResponse],

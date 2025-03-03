@@ -153,14 +153,9 @@ class User:
             return
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
 
-        notify_all = [
-            class_.notify(
-                self.config, listings, ratings, statuses, force=force, logger=self.logger
-            )
-            for class_ in NotificationConfig.__subclasses__()
-            if hasattr(class_, "notify")
-        ]
-        if any(notify_all):
+        if NotificationConfig.notify_all(
+            listings, ratings, statuses, force=force, logger=self.logger
+        ):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:

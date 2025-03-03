@@ -98,12 +98,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
         self.notification: Dict[str, NotificationConfig] = {}
         for key, value in config.get("notification", {}).items():
-            try:
-                self.notification[key] = NotificationConfig.get_config(name=key, **value)
-            except ValueError as e:
+            cfg = NotificationConfig.get_config(name=key, **value)
+            if cfg is None:
                 raise ValueError(
                     f"Unable to determine notification type for notification section {key}"
-                ) from e
+                )
+            else:
+                self.notification[key] = cfg
 
     def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each marketplace
