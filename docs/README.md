@@ -17,6 +17,19 @@ To avoid including sensitive information directly in the configuration file, cer
 
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides an example with many of the options.
 
+### Monitor Configuration
+
+An option `monitor` section can be used to define system configurations for _AI Marketplace Monitor_. It currently supports options to sending your queries through a Proxy server, which can hide your IP address and reduce the chances of your IP being blocked.
+
+| Option           | Requirement | DataType    | Description                                                |
+| ---------------- | ----------- | ----------- | ---------------------------------------------------------- |
+| `proxy_server`   | Optional    | String/List | URL for one or more proxy servers                          |
+| `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy                    |
+| `proxy_username` | Optional    | String      | username for the proxy. Can be specified via `${ENV_VAR}`. |
+| `proxy_password` | Optional    | String      | password for the proxy. Can be specified via `${ENV_VAR}`. |
+
+If multiple `proxy_server` is specified as a list, a random one will be chosen each time, but the proxy will not be changed while _AI Marketplace Monitor_ is running.
+
 ### AI Services
 
 One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:

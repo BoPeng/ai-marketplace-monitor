@@ -1,5 +1,7 @@
+import random
 import sys
 import time
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 from typing import ClassVar, List
@@ -8,7 +10,7 @@ import humanize
 import inflect
 import rich
 import schedule  # type: ignore
-from playwright.sync_api import Browser, Playwright, sync_playwright
+from playwright.sync_api import Browser, Playwright, ProxySettings, sync_playwright
 from rich.pretty import pretty_repr
 from rich.prompt import Prompt
 
@@ -19,6 +21,7 @@ from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .notification import NotificationStatus
 from .user import User
 from .utils import (
+    BaseConfig,
     CounterItem,
     KeyboardMonitor,
     SleepStatus,
@@ -28,7 +31,64 @@ from .utils import (
     counter,
     doze,
     hilight,
+    value_from_environ,
 )
+
+
+@dataclass
+class MonitorConfig(BaseConfig):
+    proxy_server: List[str] | None = None
+    proxy_bypass: str | None = None
+    proxy_username: str | None = None
+    proxy_password: str | None = None
+
+    def handle_proxy_server(self: "MonitorConfig") -> None:
+        if self.proxy_server is None:
+            return
+        if isinstance(self.proxy_server, str):
+            self.proxy_server = [self.proxy_server]
+
+        if not all(isinstance(x, str) for x in self.proxy_server):
+            raise ValueError(f"Item {hilight(self.name)} proxy_server must be a string.")
+        if not all(x.startswith("http://") or x.startswith("https://") for x in self.proxy_server):
+            raise ValueError(
+                f"Item {hilight(self.name)} proxy_server must start with http:// or https://"
+            )
+
+    def handle_proxy_bypass(self: "MonitorConfig") -> None:
+        if self.proxy_bypass is None:
+            return
+        if not isinstance(self.proxy_bypass, str):
+            raise ValueError(f"Item {hilight(self.name)} proxy_bypass must be a string.")
+
+    def handle_proxy_username(self: "MonitorConfig") -> None:
+        if self.proxy_username is None:
+            return
+
+        self.proxy_username = value_from_environ(self.proxy_username)
+
+        if not isinstance(self.proxy_username, str):
+            raise ValueError(f"Item {hilight(self.name)} proxy_username must be a string.")
+
+    def handle_proxy_password(self: "MonitorConfig") -> None:
+        if self.proxy_password is None:
+            return
+
+        self.proxy_password = value_from_environ(self.proxy_password)
+
+        if not isinstance(self.proxy_password, str):
+            raise ValueError(f"Item {hilight(self.name)} proxy_password must be a string.")
+
+    def get_proxy_options(self: "MonitorConfig") -> ProxySettings | None:
+        if not self.proxy_server:
+            return None
+        res = ProxySettings(server=random.choice(self.proxy_server))
+        if self.proxy_username and self.proxy_password:
+            res["username"] = self.proxy_username
+            res["password"] = self.proxy_password
+        if self.proxy_bypass:
+            res["bypass"] = self.proxy_bypass
+        return res
 
 
 class MarketplaceMonitor:
@@ -341,7 +401,10 @@ class MarketplaceMonitor:
         self.keyboard_monitor.start()
 
         # Open a new browser page.
-        self.browser = self.playwright.chromium.launch(headless=self.headless)
+        assert self.config is not None
+        self.browser = self.playwright.chromium.launch(
+            headless=self.headless, proxy=self.config.monitor.get_proxy_options()
+        )
         #
         assert self.browser is not None
         while True:
@@ -494,7 +557,9 @@ class MarketplaceMonitor:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                        self.browser = self.playwright.chromium.launch(headless=self.headless)
+                        self.browser = self.playwright.chromium.launch(
+                            headless=self.headless, proxy=self.config.monitor.get_proxy_options()
+                        )
                         marketplace.set_browser(self.browser)
 
                 # ignore enabled

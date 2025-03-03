@@ -14,6 +14,7 @@ else:
 from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
+from .monitor import MonitorConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
@@ -28,6 +29,7 @@ supported_ai_backends = {
 
 
 class ConfigItem(Enum):
+    MONITOR = "monitor"
     MARKETPLACE = "marketplace"
     USER = "user"
     ITEM = "item"
@@ -38,6 +40,7 @@ class ConfigItem(Enum):
 
 @dataclass
 class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
+    monitor: MonitorConfig = field(init=False)
     ai: Dict[str, TAIConfig] = field(init=False)
     user: Dict[str, UserConfig] = field(init=False)
     notification: Dict[str, NotificationConfig] = field(init=False)
@@ -64,6 +67,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         config = merge_dicts(configs)
 
         self.validate_sections(config)
+        self.get_monitor_config(config)
         self.get_ai_config(config)
         self.get_notification_config(config)
         self.get_marketplace_config(config)
@@ -74,6 +78,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.validate_ais()
         self.expand_notifications(logger)
         self.expand_regions()
+
+    def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
+        self.monitor = MonitorConfig(**config.get("global", {}))
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
         # convert ai config to AIConfig objects
