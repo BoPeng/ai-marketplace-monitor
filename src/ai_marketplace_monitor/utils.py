@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import random
 import re
 import time
 from dataclasses import asdict, dataclass, fields
@@ -13,6 +14,7 @@ import parsedatetime  # type: ignore
 import requests  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
+from playwright.sync_api import ProxySettings
 from pyparsing import (
     CharsNotIn,
     Keyword,
@@ -231,6 +233,62 @@ class BaseConfig:
     @property
     def hash(self: "BaseConfig") -> str:
         return hash_dict(asdict(self))
+
+
+@dataclass
+class MonitorConfig(BaseConfig):
+    proxy_server: List[str] | None = None
+    proxy_bypass: str | None = None
+    proxy_username: str | None = None
+    proxy_password: str | None = None
+
+    def handle_proxy_server(self: "MonitorConfig") -> None:
+        if self.proxy_server is None:
+            return
+        if isinstance(self.proxy_server, str):
+            self.proxy_server = [self.proxy_server]
+
+        if not all(isinstance(x, str) for x in self.proxy_server):
+            raise ValueError(f"Item {hilight(self.name)} proxy_server must be a string.")
+        if not all(x.startswith("http://") or x.startswith("https://") for x in self.proxy_server):
+            raise ValueError(
+                f"Item {hilight(self.name)} proxy_server must start with http:// or https://"
+            )
+
+    def handle_proxy_bypass(self: "MonitorConfig") -> None:
+        if self.proxy_bypass is None:
+            return
+        if not isinstance(self.proxy_bypass, str):
+            raise ValueError(f"Item {hilight(self.name)} proxy_bypass must be a string.")
+
+    def handle_proxy_username(self: "MonitorConfig") -> None:
+        if self.proxy_username is None:
+            return
+
+        self.proxy_username = value_from_environ(self.proxy_username)
+
+        if not isinstance(self.proxy_username, str):
+            raise ValueError(f"Item {hilight(self.name)} proxy_username must be a string.")
+
+    def handle_proxy_password(self: "MonitorConfig") -> None:
+        if self.proxy_password is None:
+            return
+
+        self.proxy_password = value_from_environ(self.proxy_password)
+
+        if not isinstance(self.proxy_password, str):
+            raise ValueError(f"Item {hilight(self.name)} proxy_password must be a string.")
+
+    def get_proxy_options(self: "MonitorConfig") -> ProxySettings | None:
+        if not self.proxy_server:
+            return None
+        res = ProxySettings(server=random.choice(self.proxy_server))
+        if self.proxy_username and self.proxy_password:
+            res["username"] = self.proxy_username
+            res["password"] = self.proxy_password
+        if self.proxy_bypass:
+            res["bypass"] = self.proxy_bypass
+        return res
 
 
 def calculate_file_hash(file_paths: List[Path]) -> str:

@@ -152,6 +152,7 @@ def main(
         sys.exit(0)
     except Exception as e:
         logger.error(f"""{hilight("[Monitor]", "fail")} {e}""")
+        raise
         sys.exit(1)
     finally:
         monitor.stop_monitor()

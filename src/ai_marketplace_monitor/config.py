@@ -14,11 +14,10 @@ else:
 from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
-from .monitor import MonitorConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import hilight, merge_dicts
+from .utils import MonitorConfig, hilight, merge_dicts
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
@@ -80,7 +79,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.expand_regions()
 
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
-        self.monitor = MonitorConfig(**config.get("global", {}))
+        self.monitor = MonitorConfig(name="monitor", **config.get("global", {}))
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
         # convert ai config to AIConfig objects
