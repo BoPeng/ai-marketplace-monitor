@@ -59,9 +59,12 @@ class EmailNotificationConfig(NotificationConfig):
     def handle_smtp_username(self: "EmailNotificationConfig") -> None:
         if self.smtp_username is None:
             return
+
+        self.smtp_username = value_from_environ(self.smtp_username)
+
         # smtp_username should be a string
-        if not isinstance(self.smtp_username, str):
-            raise ValueError("user requires a string smtp_username.")
+        if not isinstance(self.smtp_username, str) or not self.smtp_username:
+            raise ValueError("A non-empty value is requires for option smtp_username.")
         self.smtp_username = self.smtp_username.strip()
 
     def handle_smtp_password(self: "EmailNotificationConfig") -> None:
@@ -72,9 +75,7 @@ class EmailNotificationConfig(NotificationConfig):
 
         # smtp_password should be a string
         if not isinstance(self.smtp_password, str) or not self.smtp_password:
-            raise ValueError(
-                "A non-empty value or environment variable SMTP_PASSWORD is needed for option smtp_password."
-            )
+            raise ValueError("A non-empty value is is required for option smtp_password.")
         self.smtp_password = self.smtp_password.strip()
 
     def handle_smtp_from(self: "EmailNotificationConfig") -> None:

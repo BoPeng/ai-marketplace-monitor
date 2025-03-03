@@ -525,4 +525,6 @@ def value_from_environ(key: str) -> str:
     """Replace key with value from an environment variable if it has a format of ${KEY}"""
     if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
         return key
-    return os.environ.get(key[2:-1], key)
+    if key[2:-1] not in os.environ:
+        raise ValueError(f"Environment variable {key[2:-1]} not set")
+    return os.environ[key[2:-1]]

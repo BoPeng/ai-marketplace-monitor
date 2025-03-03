@@ -26,9 +26,7 @@ class PushbulletNotificationConfig(NotificationConfig):
         self.pushbullet_token = value_from_environ(self.pushbullet_token)
 
         if not isinstance(self.pushbullet_token, str) or not self.pushbullet_token:
-            raise ValueError(
-                "An non-empty pushbullet_token should be specified in config file or through ab environment variable PUSHBULLET_TOKEN."
-            )
+            raise ValueError("An non-empty pushbullet_token is needed.")
         self.pushbullet_token = self.pushbullet_token.strip()
 
     def handle_pushbullet_proxy_type(self: "PushbulletNotificationConfig") -> None:

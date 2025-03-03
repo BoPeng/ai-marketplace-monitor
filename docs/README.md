@@ -13,6 +13,8 @@
 
 The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` option.
 
+To avoid including sensitive information directly in the configuration file, certain options can be specified using the `${ENV_VAR}` format (e.g., `${FACEBOOK_PASSWORD}`). _AI Marketplace Monitor_ will then retrieve the value from the corresponding environment variable if available.
+
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides an example with many of the options.
 
 ### AI Services
@@ -51,8 +53,8 @@ One or more sections `marketplace.name` show the options for interacting with va
 | Option            | Requirement | DataType | Description                                                                                       |
 | ----------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `market_type`     | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                               |
-| `username`        | Optional    | String   | Username can be entered manually or kept in the config file.                                      |
-| `password`        | Optional    | String   | Password can be entered manually or kept in the config file.                                      |
+| `username`        | Optional    | String   | Username can be entered manually or kept in the config file. Can be specified via `${ENV_VAR}`.   |
+| `password`        | Optional    | String   | Password can be entered manually or kept in the config file. Can be specified via `${ENV_VAR}`.   |
 | `login_wait_time` | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60. |
 
 | **Common options** | | | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
@@ -138,32 +140,30 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 
 #### Pushbullet notification
 
-| Option                    | Requirement | DataType | Description                           |
-| ------------------------- | ----------- | -------- | ------------------------------------- |
-| `type`                    | Optional    | String   | Can only be `pushbullet` if specified |
-| `pushbullet_token`        | Optional    | String   | Token for user                        |
-| `pushbullet_proxy_type`   | Optional    | String   | HTTP proxy type, e.g. `https`         |
-| `pushbullet_proxy_server` | Optional    | String   | HTTP proxy server URL                 |
+| Option                    | Requirement | DataType | Description                                        |
+| ------------------------- | ----------- | -------- | -------------------------------------------------- |
+| `type`                    | Optional    | String   | Can only be `pushbullet` if specified              |
+| `pushbullet_token`        | Optional    | String   | Token for user. Can be specified via `${ENV_VAR}`. |
+| `pushbullet_proxy_type`   | Optional    | String   | HTTP proxy type, e.g. `https`                      |
+| `pushbullet_proxy_server` | Optional    | String   | HTTP proxy server URL                              |
 
-1. If `pushbullet_token` is specified in the format of `${ENVRION_VAR}` (e.g. `${PUSHBULLET_TOKEN}`), `ai_marketplace_monitor` will try to load the value from the specified environment variable.
-2. Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
+Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
 
 ### Email notification
 
-| Option          | Requirement | DataType    | Description                                             |
-| --------------- | ----------- | ----------- | ------------------------------------------------------- |
-| `type`          | Optional    | String      | Can only be `email` if specified                        |
-| `email`         | Optional    | String/List | One or more email addresses for email notifications     |
-| `smtp_username` | Optional    | String      | SMTP username.                                          |
-| `smtp_password` | Required    | String      | A password or passcode for the SMTP server.             |
-| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address. |
-| `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                             |
+| Option          | Requirement | DataType    | Description                                                                    |
+| --------------- | ----------- | ----------- | ------------------------------------------------------------------------------ |
+| `type`          | Optional    | String      | Can only be `email` if specified                                               |
+| `email`         | Optional    | String/List | One or more email addresses for email notifications                            |
+| `smtp_username` | Optional    | String      | SMTP username. Can be specified via `${ENV_VAR}`.                              |
+| `smtp_password` | Required    | String      | A password or passcode for the SMTP server. Can be specified via `${ENV_VAR}`. |
+| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address.                        |
+| `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                                                    |
 
 Note that
 
 1. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
 2. `smtp_username` is assumed to be the first `email`.
-3. If `smtp_password` is specified in the format of `${ENVRION_VAR}` (e.g. `${GMAIL_SMTP_PASSWORD}`), `ai_marketplace_monitor` will try to load the value from the specified environment variable.
 
 See [Setting up email notification](../README.md#setting-up-email-notification) for details on how to set up email notification.
 
