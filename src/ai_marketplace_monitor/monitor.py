@@ -245,14 +245,14 @@ class MarketplaceMonitor:
                                 # '*:*:12' to ':12'
                                 if self.logger:
                                     self.logger.info(
-                                        f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
+                                        f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
                                     )
                                 scheduled = schedule.every().minute.at(start_at[3:])
                             elif start_at.startswith("*:"):
                                 # '*:12:12' or  '*:12'
                                 if self.logger:
                                     self.logger.info(
-                                        f"""{hilight("[Search]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
+                                        f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
                                     )
                                 scheduled = schedule.every().hour.at(
                                     start_at[1:] if start_at.count(":") == 1 else start_at[2:]
@@ -261,7 +261,7 @@ class MarketplaceMonitor:
                                 # '12:12:12' or '12:12'
                                 if self.logger:
                                     self.logger.info(
-                                        f"""{hilight("[Search]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
+                                        f"""{hilight("[Schedule]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
                                     )
                                 scheduled = schedule.every().day.at(start_at)
                     else:
