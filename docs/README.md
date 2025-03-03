@@ -19,16 +19,16 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### Monitor Configuration
 
-An option `monitor` section can be used to define system configurations for _AI Marketplace Monitor_. It currently supports options to sending your queries through a Proxy server, which can hide your IP address and reduce the chances of your IP being blocked.
+The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It currently supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
 
 | Option           | Requirement | DataType    | Description                                                |
 | ---------------- | ----------- | ----------- | ---------------------------------------------------------- |
-| `proxy_server`   | Optional    | String/List | URL for one or more proxy servers                          |
-| `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy                    |
+| `proxy_server`   | Optional    | String/List | URL for one or more proxy servers.                         |
+| `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy.                   |
 | `proxy_username` | Optional    | String      | username for the proxy. Can be specified via `${ENV_VAR}`. |
 | `proxy_password` | Optional    | String      | password for the proxy. Can be specified via `${ENV_VAR}`. |
 
-If multiple `proxy_server` is specified as a list, a random one will be chosen each time, but the proxy will not be changed while _AI Marketplace Monitor_ is running.
+If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
 
 ### AI Services
 
