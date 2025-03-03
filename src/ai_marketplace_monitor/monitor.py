@@ -394,7 +394,7 @@ class MarketplaceMonitor:
                     # no more job
                     if self.logger:
                         self.logger.warning(
-                            f"""{hilight("[Search]", "fail")} No more active search job."""
+                            f"""{hilight("[Schedule]", "fail")} No more active search job."""
                         )
                     sys.exit(0)
                 # assert next_job is not None
@@ -406,7 +406,7 @@ class MarketplaceMonitor:
                     # to reduce the frequency of this message.
                     if self.logger:
                         self.logger.info(
-                            f"""{hilight("[Search]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
+                            f"""{hilight("[Schedule]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
                         )
 
                 # sleep at most 1 hr, and print updated "next job" message
