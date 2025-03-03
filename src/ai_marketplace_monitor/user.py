@@ -155,11 +155,7 @@ class User:
                 )
             return
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
-        if self.config.notify_through_pushbullet(
-            listings, ratings, statuses, force=force, logger=self.logger
-        ) or self.config.notify_through_email(
-            listings, ratings, statuses, force=force, logger=self.logger
-        ):
+        if self.config.notify_all(listings, ratings, statuses, force=force, logger=self.logger):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:

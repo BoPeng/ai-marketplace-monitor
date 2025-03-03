@@ -54,7 +54,7 @@ class PushbulletNotificationConfig(NotificationConfig):
             raise ValueError("user requires an non-empty pushbullet_proxy_server.")
         self.pushbullet_proxy_server = self.pushbullet_proxy_server.strip()
 
-    def notify_through_pushbullet(
+    def notify(
         self: "PushbulletNotificationConfig",
         listings: List[Listing],
         ratings: List[AIResponse],
