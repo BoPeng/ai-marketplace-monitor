@@ -11,7 +11,6 @@ import typer
 from rich.logging import RichHandler
 
 from . import __version__
-from .monitor import MarketplaceMonitor
 from .utils import CacheType, amm_home, cache, counter, hilight
 
 app = typer.Typer()
@@ -129,6 +128,9 @@ def main(
             sys.exit(1)
         logger.info(f"""{hilight("[Clear Cache]", "succ")} Cache cleared.""")
         sys.exit(0)
+
+    # make --version a bit faster by lazy loading of MarketplaceMonitor
+    from .monitor import MarketplaceMonitor
 
     if items is not None:
         try:
