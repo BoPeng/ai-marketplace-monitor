@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reorganize notification settings
 - Support the use of environment variables for passwords
+- Support browser proxy
 
 **BREAKING CHANGES**
 
