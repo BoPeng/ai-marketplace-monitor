@@ -114,7 +114,7 @@ playwright install
 
 If you would like to receive notification from your phone via PushBullet or PushOver
 
-- Sign up for [PushBullet](https://www.pushbullet.com/) or [PushOver](https://pushover.net/)
+- Sign up for [PushBullet](https://www.pushbullet.com/)
 - Install the app on your phone
 - Go to the PushBullet or PushOver website and obtain necessary token(s)
 

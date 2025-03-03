@@ -148,24 +148,6 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 1. If `pushbullet_token` is specified in the format of `${ENVRION_VAR}` (e.g. `${PUSHBULLET_TOKEN}`), `ai_marketplace_monitor` will try to load the value from the specified environment variable.
 2. Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
 
-#### Pushover notification
-
-| Option               | Requirement | DataType | Description                         |
-| -------------------- | ----------- | -------- | ----------------------------------- |
-| `type`               | Optional    | String   | Can only be `pushover` if specified |
-| `pushover_user_id`   | Optional    | String   | Token for user                      |
-| `pushover_api_token` | Optional    | String   | Token for user                      |
-
-The values of these values can be left blank, e.g.
-
-```toml
-[pushover.me]
-pushover_user_id = ''
-pushover_api_token = ''
-```
-
-in which case, `ai_marketplace_monitor` will try to load the values from environment variables `PUSHOVER_USER_ID` and `PUSHOVER_API_TOKEN` respectively.
-
 ### Email notification
 
 | Option          | Requirement | DataType    | Description                                             |

@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.0] - 2025-03-02
 
 - Reorganize notification settings
-- Allow [pushover](https://pushover.net/) notification
 
 **BREAKING CHANGES**
 

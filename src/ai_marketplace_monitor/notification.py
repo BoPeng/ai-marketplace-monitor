@@ -15,7 +15,6 @@ class NotificationStatus(Enum):
 class NotificationType(Enum):
     EMAIL = "email"
     PUSHBULLET = "pushbullet"
-    pushover = "pushover"
 
 
 @dataclass
