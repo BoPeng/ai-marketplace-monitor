@@ -4,6 +4,8 @@ import time
 
 from diskcache import Cache  # type: ignore
 
+from ai_marketplace_monitor.ai import AIResponse  # type: ignore
+from ai_marketplace_monitor.facebook import FacebookItemConfig
 from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.notification import NotificationStatus
 from ai_marketplace_monitor.user import User
@@ -11,7 +13,7 @@ from ai_marketplace_monitor.user import User
 
 def test_version(version: str) -> None:
     """Sample pytest test function with the pytest fixture as an argument."""
-    assert version == "0.8.0"
+    assert version == "0.8.1"
 
 
 def test_listing_cache(temp_cache: Cache, listing: Listing) -> None:
@@ -35,7 +37,6 @@ def test_listing_cache(temp_cache: Cache, listing: Listing) -> None:
 
 
 def test_notification_cache(temp_cache: Cache, user: User, listing: Listing) -> None:
-    print(temp_cache)
     assert (
         user.notification_status(listing, local_cache=temp_cache)
         == NotificationStatus.NOT_NOTIFIED
@@ -60,3 +61,9 @@ def test_notification_cache(temp_cache: Cache, user: User, listing: Listing) -> 
         user.notification_status(listing, local_cache=temp_cache)
         == NotificationStatus.LISTING_CHANGED
     )
+
+
+def test_notify_all(
+    user: User, item_config: FacebookItemConfig, listing: Listing, ai_response: AIResponse
+) -> None:
+    user.notify([listing], [ai_response], item_config)

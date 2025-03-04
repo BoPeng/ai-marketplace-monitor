@@ -154,7 +154,7 @@ class User:
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
 
         if NotificationConfig.notify_all(
-            listings, ratings, statuses, force=force, logger=self.logger
+            self.config, listings, ratings, statuses, force=force, logger=self.logger
         ):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, ns in zip(listings, statuses):

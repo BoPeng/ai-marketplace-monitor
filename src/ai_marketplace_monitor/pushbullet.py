@@ -123,13 +123,21 @@ class PushbulletNotificationConfig(NotificationConfig):
                 logger.debug("No pushbullet_token specified.")
             return False
 
-        if self.pushbullet_proxy_server and self.pushbullet_proxy_type:
+        try:
             pb = Pushbullet(
                 self.pushbullet_token,
-                proxy={self.pushbullet_proxy_type: self.pushbullet_proxy_server},
+                proxy=(
+                    {self.pushbullet_proxy_type: self.pushbullet_proxy_server}
+                    if self.pushbullet_proxy_server and self.pushbullet_proxy_type
+                    else None
+                ),
             )
-        else:
-            pb = Pushbullet(self.pushbullet_token)
+        except Exception as e:
+            if logger:
+                logger.error(
+                    f"""{hilight("[Notify]", "fail")} Failed to create Pushbullet instance: {e}"""
+                )
+            return False
 
         for attempt in range(max_retries):
             try:

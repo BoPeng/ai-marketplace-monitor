@@ -30,12 +30,14 @@ class NotificationConfig(BaseConfig):
         return None
 
     @classmethod
-    def notify_all(cls: Type["NotificationConfig"], *args, **kwargs: Any) -> bool:
+    def notify_all(
+        cls: type["NotificationConfig"], config: "NotificationConfig", *args, **kwargs: Any
+    ) -> bool:
         """Call the notify method of all subclasses"""
         succ = []
         for subclass in cls.__subclasses__():
-            if hasattr(subclass, "notify"):
-                succ.append(subclass.notify(*args, **kwargs))
+            if hasattr(subclass, "notify") and subclass.__name__ != "UserConfig":
+                succ.append(subclass.notify(config, *args, **kwargs))
             # subclases
-            succ.append(subclass.notify_all(*args, **kwargs))
+            succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
