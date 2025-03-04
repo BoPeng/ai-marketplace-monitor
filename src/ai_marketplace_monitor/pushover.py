@@ -105,7 +105,14 @@ class PushoverNotificationConfig(NotificationConfig):
                 logger.debug("No pushover_user_id or pushover_api_token specified.")
             return False
 
-        client = Client(self.pushover_user_id, self.pushover_api_token)
+        try:
+            client = Client(self.pushover_user_id, self.pushover_api_token)
+        except Exception as e:
+            if logger:
+                logger.error(
+                    f"""{hilight("[Notify]", "fail")} Failed to create Pushover instance: {e}"""
+                )
+            return False
 
         for attempt in range(max_retries):
             try:
