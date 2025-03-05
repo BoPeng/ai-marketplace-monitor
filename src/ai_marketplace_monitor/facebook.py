@@ -239,9 +239,7 @@ class FacebookMarketplace(Marketplace):
 
     def login(self: "FacebookMarketplace") -> None:
         assert self.browser is not None
-        context = self.browser.new_context(
-            java_script_enabled=not self.disable_javascript
-        )  # create a new incognite window
+        context = self.browser.new_context()
         self.page = context.new_page()
         assert self.page is not None
         # Navigate to the URL, no timeout

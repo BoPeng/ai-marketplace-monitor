@@ -45,13 +45,6 @@ def main(
         Optional[bool],
         typer.Option("--headless", help="If set to true, will not show the browser window."),
     ] = False,
-    disable_javascript: Annotated[
-        Optional[bool],
-        typer.Option(
-            "--disable-javascript",
-            help="Disable javascript of the browser.",
-        ),
-    ] = None,
     clear_cache: Annotated[
         Optional[str],
         typer.Option(
@@ -134,7 +127,7 @@ def main(
 
     if items is not None:
         try:
-            monitor = MarketplaceMonitor(config_files, headless, disable_javascript, logger)
+            monitor = MarketplaceMonitor(config_files, headless, logger)
             monitor.check_items(items, for_item)
         except Exception as e:
             logger.error(f"""{hilight("[Check]", "fail")} {e}""")
@@ -145,7 +138,7 @@ def main(
         sys.exit(0)
 
     try:
-        monitor = MarketplaceMonitor(config_files, headless, disable_javascript, logger)
+        monitor = MarketplaceMonitor(config_files, headless, logger)
         monitor.start_monitor()
     except KeyboardInterrupt:
         rich.print("Exiting...")
