@@ -38,7 +38,6 @@ class MarketplaceMonitor:
         self: "MarketplaceMonitor",
         config_files: List[Path] | None,
         headless: bool | None,
-        disable_javascript: bool | None,
         logger: Logger | None,
     ) -> None:
         for file_path in config_files or []:
@@ -52,7 +51,6 @@ class MarketplaceMonitor:
         self.config: Config | None = None
         self.config_hash: str | None = None
         self.headless = headless
-        self.disable_javascript = disable_javascript
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
@@ -223,9 +221,6 @@ class MarketplaceMonitor:
 
             # Configure might have been changed
             marketplace.configure(marketplace_config)
-            if self.disable_javascript is not None:
-                marketplace.set_browser(disable_javascript=self.disable_javascript)
-
             for item_config in self.config.item.values():
                 if item_config.enabled is False:
                     continue

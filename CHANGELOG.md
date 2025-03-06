@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.1] - 2025-03-02
+## [0.8.3] - 2025-03-03
+
+- Allow [pushover](https://pushover.net/) notification
+
+## [0.8.2] - 2025-03-02
 
 - Reorganize notification settings
 - Support the use of environment variables for passwords

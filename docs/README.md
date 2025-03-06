@@ -161,6 +161,13 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 
 Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
 
+#### Pushover notification
+
+| Option               | Requirement | DataType | Description                                            |
+| -------------------- | ----------- | -------- | ------------------------------------------------------ |
+| `pushover_user_id`   | Optional    | String   | Pushover user key. Can be specified via `${ENV_VAR}`.  |
+| `pushover_api_token` | Optional    | String   | Pushover API Token. Can be specified via `${ENV_VAR}`. |
+
 ### Email notification
 
 | Option          | Requirement | DataType    | Description                                                                    |

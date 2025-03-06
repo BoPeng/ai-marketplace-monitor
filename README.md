@@ -77,7 +77,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 📱 **Notifications**
 
-- PushBullet notifications
+- PushBullet and PushOver notifications
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
@@ -114,7 +114,7 @@ playwright install
 
 If you would like to receive notification from your phone via PushBullet
 
-- Sign up for [PushBullet](https://www.pushbullet.com/)
+- Sign up for [PushBullet](https://www.pushbullet.com/) or [PushOver](https://pushover.net/)
 - Install the app on your phone
 - Go to the PushBullet website and obtain necessary token(s)
 
@@ -209,7 +209,7 @@ It is recommended that you **check the log messages and make sure that it includ
 ### Cost of operations
 
 1. _AI Markplace Monitor_ is distributed under an MIT license. You are free to use, modify, and even use the program for commercial purposes.
-2. While the program itself is free, access to optional external services such as PushBullet, OpenAI, DeepSeek, or other AI services may incur costs.
+2. While the program itself is free, access to optional external services such as PushBullet, PushOver, OpenAI, DeepSeek, or other AI services may incur costs.
 
 ## Advanced features
 
@@ -554,7 +554,7 @@ Although I certainly do not have the bandwidth to support all possible layouts, 
 
    - Check `rating` level if receiving too many/few alerts
    - For email issues, verify SMTP settings and credentials
-   - For PushBullet, verify token is correct
+   - For PushBullet or PushOver, verify token is correct
 
 3. **AI Services**
    - Ensure API keys are valid

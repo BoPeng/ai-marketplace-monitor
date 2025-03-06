@@ -11,11 +11,14 @@ from .listing import Listing
 from .marketplace import TItemConfig
 from .notification import NotificationConfig, NotificationStatus
 from .pushbullet import PushbulletNotificationConfig
+from .pushover import PushoverNotificationConfig
 from .utils import CacheType, CounterItem, cache, convert_to_seconds, counter, hilight
 
 
 @dataclass
-class UserConfig(EmailNotificationConfig, PushbulletNotificationConfig):
+class UserConfig(
+    EmailNotificationConfig, PushbulletNotificationConfig, PushoverNotificationConfig
+):
     """UserConfiguration
 
     Derive from EmailNotificationConfig, PushbulletNotificationConfig allows
