@@ -1,10 +1,12 @@
+import http.client
+import json
 import time
+import urllib
 from collections import defaultdict
 from logging import Logger
 from typing import DefaultDict, List, Tuple
 
 import inflect
-from pushover import Client  # type: ignore
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
@@ -105,26 +107,33 @@ class PushoverNotificationConfig(NotificationConfig):
                 logger.debug("No pushover_user_id or pushover_api_token specified.")
             return False
 
-        try:
-            client = Client(self.pushover_user_id, self.pushover_api_token)
-        except Exception as e:
-            if logger:
-                logger.error(
-                    f"""{hilight("[Notify]", "fail")} Failed to create Pushover instance: {e}"""
-                )
-            return False
-
+        msg = f"{title}\n\n{message}\n\nSent by https://github.com/BoPeng/ai-marketplace-monitor"
         for attempt in range(max_retries):
             try:
-                client.send_message(
-                    message + "\n\nSent by https://github.com/BoPeng/ai-marketplace-monitor",
-                    title=title,
+                conn = http.client.HTTPSConnection("api.pushover.net:443")
+                conn.request(
+                    "POST",
+                    "/1/messages.json",
+                    urllib.parse.urlencode(
+                        {
+                            "token": self.pushover_api_token,
+                            "user": self.pushover_user_id,
+                            "message": msg,
+                        }
+                    ),
+                    {"Content-type": "application/x-www-form-urlencoded"},
                 )
-                if logger:
-                    logger.info(
-                        f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)}"""
-                    )
-                return True
+
+                output = conn.getresponse().read().decode("utf-8")
+                data = json.loads(output)
+                if data["status"] != 1:
+                    raise RuntimeError(output)
+                else:
+                    if logger:
+                        logger.info(
+                            f"""{hilight("[Notify]", "succ")} Sent {self.name} a message {hilight(msg)}"""
+                        )
+                    return True
             except KeyboardInterrupt:
                 raise
             except Exception as e:

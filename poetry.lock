@@ -2338,20 +2338,6 @@ files = [
 ]
 
 [[package]]
-name = "softxperience-pushover"
-version = "1.0"
-description = "Comprehensive bindings and command line utility for the Pushover notification service"
-optional = false
-python-versions = "*"
-files = [
-    {file = "softxperience-pushover-1.0.tar.gz", hash = "sha256:1fe7ccb96249f2073b4a3e99325878c6bfb14c27f77dfbf0b781957620b01fd9"},
-    {file = "softxperience_pushover-1.0-py3-none-any.whl", hash = "sha256:53fa43e9f1fa9706c9dc0d73c46e0fe6da1f02d27416722fc196b2a8d97421d8"},
-]
-
-[package.dependencies]
-requests = ">=1.0"
-
-[[package]]
 name = "sphinx"
 version = "8.1.3"
 description = "Python documentation generator"
@@ -2727,4 +2713,4 @@ tests-strict = ["pytest (==4.6.0)", "pytest (==6.2.5)", "pytest-cov (==3.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10"
-content-hash = "33bf07c8bb48094e512b00bfe8d7353497834401d1fad9877790035353aecae5"
+content-hash = "8208fd41ffbb85cec3643b9e5db3c3d1b8642b4fe14bba8fa40df04c89c06a7f"
