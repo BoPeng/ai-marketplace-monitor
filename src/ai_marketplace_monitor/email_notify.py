@@ -95,12 +95,17 @@ class EmailNotificationConfig(NotificationConfig):
         n_updated = len(
             [x for x in notification_status if x == NotificationStatus.LISTING_CHANGED]
         )
+        n_discounted = len(
+            [x for x in notification_status if x == NotificationStatus.LISTING_DISCOUNTED]
+        )
         title = "Found "
         cnts = []
         if n_new > 0:
             cnts.append(f"{n_new} new ")
         if n_updated > 0:
             cnts.append(f"{n_updated} updated ")
+        if n_discounted > 0:
+            cnts.append(f"{n_discounted} discounted ")
         if n_expired > 0 or (force and n_notified > 0):
             cnts.append(f"{n_expired + (n_notified if force else 0)} revisitable ")
         if len(cnts) > 1:
@@ -133,6 +138,8 @@ class EmailNotificationConfig(NotificationConfig):
                 prefix = "[REMINDER] "
             elif ns == NotificationStatus.LISTING_CHANGED:
                 prefix = "[lISTING UPDATED] "
+            elif ns == NotificationStatus.LISTING_DISCOUNTED:
+                prefix = "[lISTING DISCOUNTED] "
 
             messages.append(
                 (

@@ -99,6 +99,8 @@ class PushbulletNotificationConfig(NotificationConfig):
                 title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             elif ns == NotificationStatus.LISTING_CHANGED:
                 title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
+            elif ns == NotificationStatus.LISTING_DISCOUNTED:
+                title = f"Found {len(listing_msg)} discounted {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             else:
                 title = f"Resend {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
 

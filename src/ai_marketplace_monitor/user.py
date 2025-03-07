@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
@@ -94,9 +95,25 @@ class User:
     def to_cache(self: "User", listing: Listing, local_cache: Cache | None = None) -> None:
         (cache if local_cache is None else local_cache).set(
             self.notified_key(listing),
-            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), listing.hash),
+            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), listing.hash, listing.price),
             tag=CacheType.USER_NOTIFIED.value,
         )
+
+    def _is_discounted(self: "User", old_price: str | None, new_price: str | None) -> bool:
+        def to_price(price_str: str | None):
+            if not price_str or price_str == "**unspecified**":
+                # invalid price is "very expensive", the new one might be cheaper.
+                return 999999999
+            matched = re.match(r"(\D*)\d+", price_str)
+            if matched:
+                currency = matched.group(1).strip()
+                price_str = price_str.replace(currency, "")
+            try:
+                return float(price_str.replace(",", "").replace(" ", ""))
+            except:
+                return 999999999
+
+        return to_price(old_price) > to_price(new_price)
 
     def notification_status(
         self: "User", listing: Listing, local_cache: Cache | None = None
@@ -108,9 +125,14 @@ class User:
 
         if isinstance(notified, str):
             # old style cache
-            notification_date, listing_hash = notified, None
+            notification_date, listing_hash, listing_price = notified, None, None
+        elif len(notified) == 2:
+            notification_date, listing_hash, listing_price = (*notified, None)
         else:
-            notification_date, listing_hash = notified
+            notification_date, listing_hash, listing_price = notified
+
+        if listing_price is not None and self._is_discounted(listing_price, listing.price):
+            return NotificationStatus.LISTING_DISCOUNTED
 
         # if listing_hash is not None, we need to check if the listing is still valid
         if listing_hash is not None and listing_hash != listing.hash:

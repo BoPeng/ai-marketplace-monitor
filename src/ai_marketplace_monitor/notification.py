@@ -10,6 +10,7 @@ class NotificationStatus(Enum):
     EXPIRED = 1
     NOTIFIED = 2
     LISTING_CHANGED = 3
+    LISTING_DISCOUNTED = 4
 
 
 @dataclass

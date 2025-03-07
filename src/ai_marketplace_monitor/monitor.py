@@ -574,6 +574,10 @@ class MarketplaceMonitor:
                             self.logger.info(
                                 f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now changed."""
                             )
+                        elif ns == NotificationStatus.LISTING_DISCOUNTED:
+                            self.logger.info(
+                                f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now discounted."""
+                            )
                         else:
                             self.logger.info(
                                 f"""{hilight("[Notify]", "info")} Not notified {user} about {post_url} yet."""
