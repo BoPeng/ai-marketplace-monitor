@@ -507,6 +507,7 @@ def hilight(text: str, style: str = "name") -> str:
         "fail": "red",
         "info": "blue",
         "succ": "green",
+        "dim": "gray",
     }.get(style, "blue")
     return f"[{color}]{text}[/{color}]"
 

@@ -40,6 +40,8 @@ class AIResponse:
 
     @property
     def style(self: "AIResponse") -> str:
+        if self.comment == self.NOT_EVALUATED:
+            return "dim"
         if self.score < 3:
             return "fail"
         if self.score > 3:

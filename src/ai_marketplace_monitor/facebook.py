@@ -365,13 +365,33 @@ class FacebookMarketplace(Marketplace):
                         f"""{hilight(item_config.name)} from {hilight(cname)}"""
                         + (f" with radius={radius}" if radius else " with default radius")
                     )
-                self.goto_url(
-                    marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
-                )
+                retries = 0
+                while True:
+                    self.goto_url(
+                        marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
+                    )
+
+                    found_listings = FacebookSearchResultPage(
+                        self.page, self.logger
+                    ).get_listings()
+                    time.sleep(5)
+                    if found_listings:
+                        break
+                    if retries > 5:
+                        if self.logger:
+                            self.logger.error(
+                                f"""{hilight("[Search]", "fail")} Failed to get search results for {search_phrase}"""
+                            )
+                        break
+                    else:
+                        retries += 1
+                        if self.logger:
+                            self.logger.debug(
+                                f"""{hilight("[Search]", "info")} Retrying to get search results for {search_phrase}"""
+                            )
+
                 counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
 
-                found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
-                time.sleep(5)
                 # go to each item and get the description
                 # if we have not done that before
                 for listing in found_listings:
