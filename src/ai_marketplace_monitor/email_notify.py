@@ -15,7 +15,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .notification import NotificationConfig, NotificationStatus
-from .utils import fetch_with_retry, hilight, resize_image_data, value_from_environ
+from .utils import fetch_with_retry, hilight, resize_image_data
 
 
 @dataclass
@@ -60,8 +60,6 @@ class EmailNotificationConfig(NotificationConfig):
         if self.smtp_username is None:
             return
 
-        self.smtp_username = value_from_environ(self.smtp_username)
-
         # smtp_username should be a string
         if not isinstance(self.smtp_username, str) or not self.smtp_username:
             raise ValueError("A non-empty value is requires for option smtp_username.")
@@ -70,8 +68,6 @@ class EmailNotificationConfig(NotificationConfig):
     def handle_smtp_password(self: "EmailNotificationConfig") -> None:
         if self.smtp_password is None:
             return
-
-        self.smtp_password = value_from_environ(self.smtp_password)
 
         # smtp_password should be a string
         if not isinstance(self.smtp_password, str) or not self.smtp_password:

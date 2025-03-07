@@ -223,6 +223,22 @@ class BaseConfig:
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
                 handle_method()
+            # test the type of field f, if it is a string or a list of string
+            # try to expand the string with environment variables
+            fvalue = getattr(self, f.name)
+            if isinstance(fvalue, str):
+                setattr(self, f.name, self._value_from_environ(fvalue))
+            elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
+                for x in fvalue:
+                    setattr(self, f.name, self._value_from_environ(x))
+
+    def _value_from_environ(self: "BaseConfig", key: str) -> str:
+        """Replace key with value from an environment variable if it has a format of ${KEY}"""
+        if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
+            return key
+        if key[2:-1] not in os.environ:
+            raise ValueError(f"Environment variable {key[2:-1]} not set")
+        return os.environ[key[2:-1]]
 
     def handle_enabled(self: "BaseConfig") -> None:
         if self.enabled is None:
@@ -265,16 +281,12 @@ class MonitorConfig(BaseConfig):
         if self.proxy_username is None:
             return
 
-        self.proxy_username = value_from_environ(self.proxy_username)
-
         if not isinstance(self.proxy_username, str):
             raise ValueError(f"Item {hilight(self.name)} proxy_username must be a string.")
 
     def handle_proxy_password(self: "MonitorConfig") -> None:
         if self.proxy_password is None:
             return
-
-        self.proxy_password = value_from_environ(self.proxy_password)
 
         if not isinstance(self.proxy_password, str):
             raise ValueError(f"Item {hilight(self.name)} proxy_password must be a string.")
@@ -577,12 +589,3 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
     buffer = io.BytesIO()
     resized_image.save(buffer, format=image.format)
     return buffer.getvalue()
-
-
-def value_from_environ(key: str) -> str:
-    """Replace key with value from an environment variable if it has a format of ${KEY}"""
-    if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
-        return key
-    if key[2:-1] not in os.environ:
-        raise ValueError(f"Environment variable {key[2:-1]} not set")
-    return os.environ[key[2:-1]]
