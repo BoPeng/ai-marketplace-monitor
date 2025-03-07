@@ -236,7 +236,7 @@ The following options that can specified for both `marketplace` sections and `it
 
 Note that
 
-1. `search_city` can be found from the URL that facebook uses from your region. For example, if the URL for your facebook search is `https://www.facebook.com/marketplace/sanfrancisco/search?query=go%20pro%2011%20deal%20site`, the `search_city` is `sanfrancisco`. This name is not necessarily the name of your city, especially for non-US cities, and you can search multiple cities or an entire region. See [Searching multiple cities and regions](../README.md#searching-multiple-cities-and-regions) for details.
+1. `search_city` can be found from the URL that facebook uses to search your region. For example, if the URL for your facebook search is `https://www.facebook.com/marketplace/sanfrancisco/search?query=go%20pro%2011%20deal%20site`, the `search_city` is `sanfrancisco`. This name is not necessarily the name of your city, especially for non-US cities, and you can search multiple cities or an entire region. See [Searching multiple cities and regions](../README.md#searching-multiple-cities-and-regions) for details.
 2. If `notify` is not specified for both `item` and `marketplace`, all listed users will be notified.
 3. `prompt`, `extra_prompt`, `rating_prompt`, and `rating` are used to adjust how to interact with an AI service. See [Adjust prompt and notification level](../README.md#adjust-prompt-and-notification-level) for details.
 4. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
