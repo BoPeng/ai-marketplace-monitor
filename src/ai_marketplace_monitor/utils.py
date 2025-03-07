@@ -488,12 +488,12 @@ def extract_price(price: str) -> str:
     matched = re.match(r"(\D*)\d+", price)
     if matched:
         currency = matched.group(1).strip()
+    else:
+        currency = "$"
 
-    if price.count(currency) > 1:
-        match = re.search(currency + r"\d+(?:\.\d{2})?", price)
-        price = match.group(0) if match else price
-    if "\xa0" in price:
-        price = price.split("\xa0")[0]
+    matches = re.findall(currency.replace("$", r"\$") + r"\d+(?:\.\d{2})?", price)
+    if matches:
+        return " | ".join(matches[:2])
     return price
 
 
