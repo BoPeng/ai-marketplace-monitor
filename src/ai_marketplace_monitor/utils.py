@@ -229,8 +229,7 @@ class BaseConfig:
             if isinstance(fvalue, str):
                 setattr(self, f.name, self._value_from_environ(fvalue))
             elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
-                for x in fvalue:
-                    setattr(self, f.name, self._value_from_environ(x))
+                setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
 
     def _value_from_environ(self: "BaseConfig", key: str) -> str:
         """Replace key with value from an environment variable if it has a format of ${KEY}"""
