@@ -175,6 +175,12 @@
                                         <em>{{ rating.comment }}</em>
                                     </div>
                                 </div>
+                                {% else %}
+                                <div style="background-color: #F8F9FA; padding: 12px; border-radius: 4px; margin: 15px 0;">
+                                    <div style="color: #666666;">
+                                        <em>This listing has not been evaluated by AI service for relevance.</em>
+                                    </div>
+                                </div>
                                 {% endif %}
 
                                 <!-- Image -->
