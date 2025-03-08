@@ -233,10 +233,9 @@ class FacebookMarketplace(Marketplace):
         return FacebookItemConfig(**kwargs)
 
     def login(self: "FacebookMarketplace") -> None:
-        assert self.page is not None
-
-        if not self.config.username:
-            return
+        assert self.browser is not None
+        context = self.browser.new_context()
+        self.page = context.new_page()
 
         # Navigate to the URL, no timeout
         self.page.goto(self.initial_url, timeout=0)
@@ -282,9 +281,7 @@ class FacebookMarketplace(Marketplace):
         self: "FacebookMarketplace", item_config: FacebookItemConfig
     ) -> Generator[Listing, None, None]:
         if not self.page:
-            assert self.browser is not None
-            context = self.browser.new_context()
-            self.page = context.new_page()
+            self.login()
             assert self.page is not None
 
         options = []
