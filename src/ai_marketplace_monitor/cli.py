@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from logging import FileHandler
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Annotated, List, Optional
 
@@ -90,7 +90,12 @@ def main(
                 show_path=False if verbose is None else verbose,
                 level="DEBUG" if verbose else "INFO",
             ),
-            FileHandler(amm_home / "ai-marketplace-monitor.log", encoding="utf-8"),
+            RotatingFileHandler(
+                amm_home / "ai-marketplace-monitor.log",
+                encoding="utf-8",
+                maxBytes=1024 * 1024,
+                backupCount=5,
+            ),
         ],
     )
 

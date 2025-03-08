@@ -160,9 +160,19 @@ class MarketplaceMonitor:
                 listing, item_config=item_config, marketplace_config=marketplace_config
             )
             if self.logger:
-                self.logger.info(
-                    f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
-                )
+                if res.comment == AIResponse.NOT_EVALUATED:
+                    if res.name:
+                        self.logger.info(
+                            f"""{hilight("[AI]", res.style)} {res.name or "AI"} did not evaluate {hilight(listing.title)}."""
+                        )
+                    else:
+                        self.logger.info(
+                            f"""{hilight("[AI]", res.style)} No AI available to evaluate {hilight(listing.title)}."""
+                        )
+                else:
+                    self.logger.info(
+                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                    )
             if item_config.rating:
                 acceptable_rating = item_config.rating[
                     0 if item_config.searched_count == 0 else -1
@@ -528,9 +538,19 @@ class MarketplaceMonitor:
                     listing, item_config=item_config, marketplace_config=marketplace_config
                 )
                 if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[AI]", rating.style)} {rating.name or "AI"} concludes {hilight(f"{rating.conclusion} ({rating.score}): {rating.comment}", rating.style)} for listing {hilight(listing.title)}."""
-                    )
+                    if rating.comment == AIResponse.NOT_EVALUATED:
+                        if rating.name:
+                            self.logger.info(
+                                f"""{hilight("[AI]", rating.style)} {rating.name or "AI"} did not evaluate {hilight(listing.title)}."""
+                            )
+                        else:
+                            self.logger.info(
+                                f"""{hilight("[AI]", rating.style)} No AI available to evaluate {hilight(listing.title)}."""
+                            )
+                    else:
+                        self.logger.info(
+                            f"""{hilight("[AI]", rating.style)} {rating.name or "AI"} concludes {hilight(f"{rating.conclusion} ({rating.score}): {rating.comment}", rating.style)} for listing {hilight(listing.title)}."""
+                        )
                 # notification status?
                 users_to_notify = (
                     item_config.notify
@@ -553,6 +573,10 @@ class MarketplaceMonitor:
                         elif ns == NotificationStatus.LISTING_CHANGED:
                             self.logger.info(
                                 f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now changed."""
+                            )
+                        elif ns == NotificationStatus.LISTING_DISCOUNTED:
+                            self.logger.info(
+                                f"""{hilight("[Notify]", "info")} Already notified {user} about {post_url}, but the listing is now discounted."""
                             )
                         else:
                             self.logger.info(

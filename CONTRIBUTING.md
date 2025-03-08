@@ -34,6 +34,34 @@ We use [invoke](http://www.pyinvoke.org/) to wrap up some useful tasks like form
 
 Execute `inv[oke] --list` to see the list of available commands.
 
+## Running _AI Marketplace Monitor_ from source code
+
+If you would like to run the latest version of _AI Marketplace Monitor_ or test a branch, please checkout the repository
+
+```sh
+git clone https://github.com/BoPeng/ai-marketplace-monitor
+cd ai-marketplace-monitor
+```
+
+or updating a local copy with commands
+
+```sh
+cd ai-marketplace-monitor
+git pull
+```
+
+switch to a branch, e.g. `dev`, if needed,
+
+```sh
+git checkout dev
+```
+
+Then install the tool from source code with command
+
+```sh
+poetry install
+```
+
 ## Contributing
 
 ### Issues
@@ -42,8 +70,8 @@ We use GitHub issues to track public bugs/enhancements. Report a new one by [ope
 
 In this repository, we provide a couple of templates for you to fill in for:
 
-* Bugs
-* Feature Requests/Enhancements
+- Bugs
+- Feature Requests/Enhancements
 
 Please read each section in the templates and provide as much information as you can. Please do not put any sensitive information,
 such as personally identifiable information, connection strings or cloud credentials. The more information you can provide, the better we can help you.

@@ -15,7 +15,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .notification import NotificationConfig, NotificationStatus
-from .utils import fetch_with_retry, hilight, resize_image_data, value_from_environ
+from .utils import fetch_with_retry, hilight, resize_image_data
 
 
 @dataclass
@@ -60,8 +60,6 @@ class EmailNotificationConfig(NotificationConfig):
         if self.smtp_username is None:
             return
 
-        self.smtp_username = value_from_environ(self.smtp_username)
-
         # smtp_username should be a string
         if not isinstance(self.smtp_username, str) or not self.smtp_username:
             raise ValueError("A non-empty value is requires for option smtp_username.")
@@ -70,8 +68,6 @@ class EmailNotificationConfig(NotificationConfig):
     def handle_smtp_password(self: "EmailNotificationConfig") -> None:
         if self.smtp_password is None:
             return
-
-        self.smtp_password = value_from_environ(self.smtp_password)
 
         # smtp_password should be a string
         if not isinstance(self.smtp_password, str) or not self.smtp_password:
@@ -99,12 +95,17 @@ class EmailNotificationConfig(NotificationConfig):
         n_updated = len(
             [x for x in notification_status if x == NotificationStatus.LISTING_CHANGED]
         )
+        n_discounted = len(
+            [x for x in notification_status if x == NotificationStatus.LISTING_DISCOUNTED]
+        )
         title = "Found "
         cnts = []
         if n_new > 0:
             cnts.append(f"{n_new} new ")
         if n_updated > 0:
             cnts.append(f"{n_updated} updated ")
+        if n_discounted > 0:
+            cnts.append(f"{n_discounted} discounted ")
         if n_expired > 0 or (force and n_notified > 0):
             cnts.append(f"{n_expired + (n_notified if force else 0)} revisitable ")
         if len(cnts) > 1:
@@ -137,6 +138,8 @@ class EmailNotificationConfig(NotificationConfig):
                 prefix = "[REMINDER] "
             elif ns == NotificationStatus.LISTING_CHANGED:
                 prefix = "[lISTING UPDATED] "
+            elif ns == NotificationStatus.LISTING_DISCOUNTED:
+                prefix = "[lISTING DISCOUNTED] "
 
             messages.append(
                 (

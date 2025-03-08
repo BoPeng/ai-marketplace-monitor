@@ -201,6 +201,7 @@ Use `Ctrl-C` to terminate the program.
 
 1. You need to keep the terminal running to allow the program to run indefinitely.
 2. You will see a browser firing up. **You may need to manually enter username and/or password (if unspecified in config file), and answer any prompt (e.g. CAPTCHA) to login**. You may want to click "OK" to save the password, etc.
+3. If you fail to login to facebook, _AI Marketplace Monitor_ will continue to operate. However, Facebook will not be able to provide results related to your user profile and will display a login screen over all search pages.
 
 ### Updating search
 

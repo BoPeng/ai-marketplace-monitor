@@ -11,7 +11,7 @@ import inflect
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .notification import NotificationConfig, NotificationStatus
-from .utils import hilight, value_from_environ
+from .utils import hilight
 
 
 class PushoverNotificationConfig(NotificationConfig):
@@ -22,8 +22,6 @@ class PushoverNotificationConfig(NotificationConfig):
         if self.pushover_user_id is None:
             return
 
-        self.pushover_user_id = value_from_environ(self.pushover_user_id)
-
         if not isinstance(self.pushover_user_id, str) or not self.pushover_user_id:
             raise ValueError("An non-empty pushover_user_id is needed.")
         self.pushover_user_id = self.pushover_user_id.strip()
@@ -31,8 +29,6 @@ class PushoverNotificationConfig(NotificationConfig):
     def handle_pushover_api_token(self: "PushoverNotificationConfig") -> None:
         if self.pushover_api_token is None:
             return
-
-        self.pushover_api_token = value_from_environ(self.pushover_api_token)
 
         if not isinstance(self.pushover_api_token, str) or not self.pushover_api_token:
             raise ValueError("user requires an non-empty pushover_api_token.")
@@ -85,6 +81,8 @@ class PushoverNotificationConfig(NotificationConfig):
                 title = f"Another look at {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             elif ns == NotificationStatus.LISTING_CHANGED:
                 title = f"Found {len(listing_msg)} updated {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
+            elif ns == NotificationStatus.LISTING_DISCOUNTED:
+                title = f"Found {len(listing_msg)} discounted {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
             else:
                 title = f"Resend {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
 

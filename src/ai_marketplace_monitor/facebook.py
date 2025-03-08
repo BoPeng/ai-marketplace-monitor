@@ -24,7 +24,6 @@ from .utils import (
     extract_price,
     hilight,
     is_substring,
-    value_from_environ,
 )
 
 
@@ -176,16 +175,12 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
         if self.username is None:
             return
 
-        self.username = value_from_environ(self.username)
-
         if not isinstance(self.username, str):
             raise ValueError(f"Marketplace {self.name} username must be a string.")
 
     def handle_password(self: "FacebookMarketplaceConfig") -> None:
         if self.password is None:
             return
-
-        self.password = value_from_environ(self.password)
 
         if not isinstance(self.password, str):
             raise ValueError(f"Marketplace {self.name} password must be a string.")
@@ -238,14 +233,12 @@ class FacebookMarketplace(Marketplace):
         return FacebookItemConfig(**kwargs)
 
     def login(self: "FacebookMarketplace") -> None:
-        assert self.page is not None
-
-        if not self.config.username:
-            return
+        assert self.browser is not None
+        context = self.browser.new_context()
+        self.page = context.new_page()
 
         # Navigate to the URL, no timeout
-        self.page.goto(self.initial_url, timeout=0)
-        self.page.wait_for_load_state("domcontentloaded")
+        self.goto_url(self.initial_url)
 
         self.config: FacebookMarketplaceConfig
         try:
@@ -287,9 +280,7 @@ class FacebookMarketplace(Marketplace):
         self: "FacebookMarketplace", item_config: FacebookItemConfig
     ) -> Generator[Listing, None, None]:
         if not self.page:
-            assert self.browser is not None
-            context = self.browser.new_context()
-            self.page = context.new_page()
+            self.login()
             assert self.page is not None
 
         options = []
@@ -350,10 +341,18 @@ class FacebookMarketplace(Marketplace):
         city_name = item_config.city_name or self.config.city_name or []
         radiuses = item_config.radius or self.config.radius
 
+        # this should not happen because `Config.validate_items` has checked this
+        if not search_city:
+            if self.logger:
+                self.logger.error(
+                    f"""{hilight("[Search]", "fail")} No search city provided for {item_config.name}"""
+                )
         # increase the searched_count to differentiate first and subsequent searches
         item_config.searched_count += 1
         for city, cname, radius in zip(
-            search_city, city_name, repeat(None) if radiuses is None else radiuses
+            search_city,
+            repeat(None) if city_name is None else city_name,
+            repeat(None) if radiuses is None else radiuses,
         ):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
@@ -363,20 +362,40 @@ class FacebookMarketplace(Marketplace):
                     options.pop()
                 options.append(f"radius={radius}")
 
-            for search_phrase in item_config.search_phrases or []:
+            for search_phrase in item_config.search_phrases:
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
-                        f"""{hilight(item_config.name)} from {hilight(cname)}"""
+                        f"""{hilight(item_config.name)} from {hilight(cname or city)}"""
                         + (f" with radius={radius}" if radius else " with default radius")
                     )
-                self.goto_url(
-                    marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
-                )
+                retries = 0
+                while True:
+                    self.goto_url(
+                        marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
+                    )
+
+                    found_listings = FacebookSearchResultPage(
+                        self.page, self.logger
+                    ).get_listings()
+                    time.sleep(5)
+                    if found_listings:
+                        break
+                    if retries > 5:
+                        if self.logger:
+                            self.logger.error(
+                                f"""{hilight("[Search]", "fail")} Failed to get search results for {search_phrase}"""
+                            )
+                        break
+                    else:
+                        retries += 1
+                        if self.logger:
+                            self.logger.debug(
+                                f"""{hilight("[Search]", "info")} Retrying to get search results for {search_phrase}"""
+                            )
+
                 counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
 
-                found_listings = FacebookSearchResultPage(self.page, self.logger).get_listings()
-                time.sleep(5)
                 # go to each item and get the description
                 # if we have not done that before
                 for listing in found_listings:

@@ -83,8 +83,23 @@
             font-weight: bold;
         }
 
+        .current-price {
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .original-price {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .original-price del {
+            text-decoration: line-through;
+        }
+
         .status-new { background-color: #4CAF50; color: white; }
         .status-updated { background-color: #2196F3; color: white; }
+        .status-discounted { background-color: #FF9800; color: white; }
         .status-expired { background-color: #F44336; color: white; }
         .status-sent { background-color: #9E9E9E; color: white; }
     </style>
@@ -118,6 +133,8 @@
                                         <span class="status-tag status-new">NEW</span>
                                     {% elif ns == NotificationStatus.LISTING_CHANGED %}
                                         <span class="status-tag status-updated">UPDATED</span>
+                                    {% elif ns == NotificationStatus.LISTING_DISCOUNTED %}
+                                        <span class="status-tag status-discounted">DISCOUNTED</span>
                                     {% elif ns == NotificationStatus.EXPIRED %}
                                         <span class="status-tag status-expired">REVISITABLE</span>
                                     {% elif ns == NotificationStatus.NOTIFIED and force %}
@@ -127,7 +144,14 @@
 
                                 <!-- Info rows -->
                                 <div style="color: #666666; margin-bottom: 10px;">
-                                    <span style="font-weight: bold; color: #333333;">Price:</span> {{ listing.price }}
+                                    <span style="font-weight: bold; color: #333333;">Price:</span>
+                                    {% if '|' in listing.price %}
+                                        {% set prices = listing.price.split('|') %}
+                                        <span class="current-price">{{ prices[0].strip() }}</span>
+                                        <span class="original-price"><del>{{ prices[1].strip() }}</del></span>
+                                    {% else %}
+                                        {{ listing.price }}
+                                    {% endif %}
                                 </div>
                                 <div style="color: #666666; margin-bottom: 15px;">
                                     <span style="font-weight: bold; color: #333333;">Location:</span> {{ listing.location }}

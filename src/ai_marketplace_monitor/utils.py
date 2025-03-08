@@ -220,9 +220,25 @@ class BaseConfig:
     def __post_init__(self: "BaseConfig") -> None:
         """Handle all methods that start with 'handle_' in the dataclass."""
         for f in fields(self):
+            # test the type of field f, if it is a string or a list of string
+            # try to expand the string with environment variables
+            fvalue = getattr(self, f.name)
+            if isinstance(fvalue, str):
+                setattr(self, f.name, self._value_from_environ(fvalue))
+            elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
+                setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
+
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
                 handle_method()
+
+    def _value_from_environ(self: "BaseConfig", key: str) -> str:
+        """Replace key with value from an environment variable if it has a format of ${KEY}"""
+        if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
+            return key
+        if key[2:-1] not in os.environ:
+            raise ValueError(f"Environment variable {key[2:-1]} not set")
+        return os.environ[key[2:-1]]
 
     def handle_enabled(self: "BaseConfig") -> None:
         if self.enabled is None:
@@ -265,16 +281,12 @@ class MonitorConfig(BaseConfig):
         if self.proxy_username is None:
             return
 
-        self.proxy_username = value_from_environ(self.proxy_username)
-
         if not isinstance(self.proxy_username, str):
             raise ValueError(f"Item {hilight(self.name)} proxy_username must be a string.")
 
     def handle_proxy_password(self: "MonitorConfig") -> None:
         if self.proxy_password is None:
             return
-
-        self.proxy_password = value_from_environ(self.proxy_password)
 
         if not isinstance(self.proxy_password, str):
             raise ValueError(f"Item {hilight(self.name)} proxy_password must be a string.")
@@ -470,16 +482,19 @@ def doze(
 
 
 def extract_price(price: str) -> str:
-    currencies = [
-        x for x in ("$", "€", "£", "¥", "₹", "¥", "$", "$", "CHF", "₩") if price.startswith(x)
-    ]
-    currency = "$" if not currencies else currencies[0]
+    if not price or price == "**unspecified**":
+        return price
 
-    if price.count(currency) > 1:
-        match = re.search(currency + r"\d+(?:\.\d{2})?", price)
-        price = match.group(0) if match else price
-    if "\xa0" in price:
-        price = price.split("\xa0")[0]
+    # extract leading non-numeric characters as currency symbol
+    matched = re.match(r"(\D*)\d+", price)
+    if matched:
+        currency = matched.group(1).strip()
+    else:
+        currency = "$"
+
+    matches = re.findall(currency.replace("$", r"\$") + r"[\d,]+(?:\.\d{2})?", price)
+    if matches:
+        return " | ".join(matches[:2])
     return price
 
 
@@ -496,6 +511,7 @@ def hilight(text: str, style: str = "name") -> str:
         "fail": "red",
         "info": "blue",
         "succ": "green",
+        "dim": "gray",
     }.get(style, "blue")
     return f"[{color}]{text}[/{color}]"
 
@@ -577,12 +593,3 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
     buffer = io.BytesIO()
     resized_image.save(buffer, format=image.format)
     return buffer.getvalue()
-
-
-def value_from_environ(key: str) -> str:
-    """Replace key with value from an environment variable if it has a format of ${KEY}"""
-    if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
-        return key
-    if key[2:-1] not in os.environ:
-        raise ValueError(f"Environment variable {key[2:-1]} not set")
-    return os.environ[key[2:-1]]
