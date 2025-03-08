@@ -77,6 +77,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.validate_ais()
         self.expand_notifications(logger)
         self.expand_regions()
+        self.validate_items()
 
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
         self.monitor = MonitorConfig(name="monitor", **config.get("global", {}))
@@ -257,3 +258,9 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                         config.search_city.append(search_city)
                         config.city_name.append(city_name)
                         config.radius.append(radius)
+
+    def validate_items(self: "Config") -> None:
+        # if item is specified in other section, they must exist
+        for item_name, item_config in self.item.items():
+            if not item_config.search_city:
+                raise ValueError(f"No search_city or search_region is spcified for {item_name}")

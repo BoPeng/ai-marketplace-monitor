@@ -238,8 +238,7 @@ class FacebookMarketplace(Marketplace):
         self.page = context.new_page()
 
         # Navigate to the URL, no timeout
-        self.page.goto(self.initial_url, timeout=0)
-        self.page.wait_for_load_state("domcontentloaded")
+        self.goto_url(self.initial_url)
 
         self.config: FacebookMarketplaceConfig
         try:
@@ -342,10 +341,17 @@ class FacebookMarketplace(Marketplace):
         city_name = item_config.city_name or self.config.city_name or []
         radiuses = item_config.radius or self.config.radius
 
+        if not search_city:
+            if self.logger:
+                self.logger.error(
+                    f"""{hilight("[Search]", "fail")} No search city provided for {item_config.name}"""
+                )
         # increase the searched_count to differentiate first and subsequent searches
         item_config.searched_count += 1
         for city, cname, radius in zip(
-            search_city, city_name, repeat(None) if radiuses is None else radiuses
+            search_city,
+            repeat(None) if city_name is None else city_name,
+            repeat(None) if radiuses is None else radiuses,
         ):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
@@ -355,11 +361,11 @@ class FacebookMarketplace(Marketplace):
                     options.pop()
                 options.append(f"radius={radius}")
 
-            for search_phrase in item_config.search_phrases or []:
+            for search_phrase in item_config.search_phrases:
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
-                        f"""{hilight(item_config.name)} from {hilight(cname)}"""
+                        f"""{hilight(item_config.name)} from {hilight(cname or city)}"""
                         + (f" with radius={radius}" if radius else " with default radius")
                     )
                 retries = 0
