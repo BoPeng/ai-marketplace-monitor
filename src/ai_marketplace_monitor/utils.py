@@ -220,9 +220,6 @@ class BaseConfig:
     def __post_init__(self: "BaseConfig") -> None:
         """Handle all methods that start with 'handle_' in the dataclass."""
         for f in fields(self):
-            handle_method = getattr(self, f"handle_{f.name}", None)
-            if handle_method:
-                handle_method()
             # test the type of field f, if it is a string or a list of string
             # try to expand the string with environment variables
             fvalue = getattr(self, f.name)
@@ -230,6 +227,10 @@ class BaseConfig:
                 setattr(self, f.name, self._value_from_environ(fvalue))
             elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
                 setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
+
+            handle_method = getattr(self, f"handle_{f.name}", None)
+            if handle_method:
+                handle_method()
 
     def _value_from_environ(self: "BaseConfig", key: str) -> str:
         """Replace key with value from an environment variable if it has a format of ${KEY}"""
