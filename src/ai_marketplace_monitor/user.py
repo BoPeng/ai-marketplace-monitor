@@ -126,10 +126,12 @@ class User:
         if isinstance(notified, str):
             # old style cache
             notification_date, listing_hash, listing_price = notified, None, None
-        elif len(notified) == 2:
-            notification_date, listing_hash, listing_price = (*notified, None)
         else:
-            notification_date, listing_hash, listing_price = notified
+            assert isinstance(notified, tuple)
+            if len(notified) == 2:
+                notification_date, listing_hash, listing_price = (*notified, None)
+            else:
+                notification_date, listing_hash, listing_price = notified
 
         if listing_price is not None and self._is_discounted(listing_price, listing.price):
             return NotificationStatus.LISTING_DISCOUNTED
