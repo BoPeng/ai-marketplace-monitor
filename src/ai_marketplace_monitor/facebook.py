@@ -341,6 +341,7 @@ class FacebookMarketplace(Marketplace):
         city_name = item_config.city_name or self.config.city_name or []
         radiuses = item_config.radius or self.config.radius
 
+        # this should not happen because `Config.validate_items` has checked this
         if not search_city:
             if self.logger:
                 self.logger.error(

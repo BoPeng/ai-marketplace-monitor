@@ -261,6 +261,17 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def validate_items(self: "Config") -> None:
         # if item is specified in other section, they must exist
-        for item_name, item_config in self.item.items():
-            if not item_config.search_city:
-                raise ValueError(f"No search_city or search_region is spcified for {item_name}")
+        for marketplace_config in self.marketplace.values():
+            if marketplace_config.enabled is False:
+                continue
+            for item_config in self.item.values():
+                if item_config.enabled is False:
+                    continue
+                if (
+                    item_config.marketplace is None
+                    or item_config.marketplace == marketplace_config.name
+                ):
+                    if not item_config.search_city and not marketplace_config.search_city:
+                        raise ValueError(
+                            f"No search_city or search_region is specified for {item_config.name} or market {marketplace_config.name}"
+                        )
