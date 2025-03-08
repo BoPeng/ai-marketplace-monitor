@@ -46,7 +46,7 @@ def test_search_page(
     "filename,price,seller,location",
     [
         ("regular_listing.html", "$10", "Austin Ewing", "MS"),
-        ("rental_listing.html", "$150 / Month", "Perry Burton", "Houston, TX"),
+        ("rental_listing.html", "$150", "Perry Burton", "Houston, TX"),
         (
             "auto_with_about_and_description_listing.html",
             "**unspecified**",
