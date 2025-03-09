@@ -30,7 +30,7 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### Monitor Configuration
 
-The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It currently supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
+The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
 
 | Option           | Requirement | DataType    | Description                              |
 | ---------------- | ----------- | ----------- | ---------------------------------------- |
@@ -39,7 +39,7 @@ The optional `monitor` section allows you to define system configurations for th
 | `proxy_username` | Optional    | String      | username for the proxy.                  |
 | `proxy_password` | Optional    | String      | password for the proxy.                  |
 
-If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
+- If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
 
 ### AI Services
 
@@ -74,16 +74,17 @@ api_key = 'sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 One or more sections `marketplace.name` show the options for interacting with various marketplaces.
 
-| Option            | Requirement | DataType | Description                                                                                       |
-| ----------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `market_type`     | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                               |
-| `username`        | Optional    | String   | Username can be entered manually or kept in the config file.                                      |
-| `password`        | Optional    | String   | Password can be entered manually or kept in the config file.                                      |
-| `login_wait_time` | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60. |
+| Option             | Requirement | DataType | Description                                                                                                      |
+| ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `market_type`      | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                                              |
+| `username`         | Optional    | String   | Username can be entered manually or kept in the config file.                                                     |
+| `password`         | Optional    | String   | Password can be entered manually or kept in the config file.                                                     |
+| `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
+| `language`         | Optional    | String   | Language for webpages                                                                                            |
+| **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
-| **Common options** | | | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
-
-Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
+1. Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
+2. If `language="LAN"` is specified, it must correspond to a `translation.LAN` section, defined by yourself or in the system configuration file. Please see [Support for non-English languages](../README.md#support-for-non-english-languages)
 
 ### Users
 

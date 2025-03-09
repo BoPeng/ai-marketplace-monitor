@@ -57,7 +57,11 @@ def test_search_page(
     ],
 )
 def test_listing_page(
-    new_context: CreateContextCallback, filename: str, price: str, seller: str, location: str
+    new_context: CreateContextCallback,
+    filename: str,
+    price: str,
+    seller: str,
+    location: str,
 ) -> None:
     local_file_path = Path(__file__).parent / filename
 

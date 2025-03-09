@@ -295,3 +295,25 @@ full_name = "Spain"
 radius = 805
 city_name = ["Plasencia", "Valencia"]
 search_city = ["108336475863182", "2404588816444858"]
+
+
+#
+# Translation for different languages
+#
+[translation.es_CO]
+'Collection of Marketplace items' = 'Colección de artículos de Marketplace'
+'Condition' = 'Estado'
+'Description' = 'Descripción'
+'Details' = 'Detalles'
+'Location is approximate' = 'La ubicación es aproximada'
+"About this vehicle" = 'Descripción del vendedor'
+"Seller's description" = 'Información sobre este vehículo'
+
+[translation.zh_CN]
+'Collection of Marketplace items' = 'Marketplace 商品收藏夹'
+'Condition' = '商品状况'
+'Description' = '描述'
+'Details' = '详细信息'
+'Location is approximate' = '我们只提供大概位置'
+"About this vehicle" = "车辆信息"
+"Seller's description" = "卖家描述"

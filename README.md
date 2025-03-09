@@ -46,6 +46,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
+  - [Support for non-English languages](#support-for-non-english-languages)
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
   - [First and subsequent searches](#first-and-subsequent-searches)
@@ -435,6 +436,49 @@ delivery_method = 'shipping'
 ```
 
 Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` with corresponding pre-defined `search_city` and `radius`. Note that `seller_locations` does not make sense and need to be set to empty for region-based search, and it makes sense to limit the search to listings that offer shipping.
+
+### Support for non-English languages
+
+_AI Marketplace Monitor_ relies on specific keywords from webpages to extract relevant information. For example, it looks for words following `Condition` to determine the condition of an item. If your account is set to another language, _AI Marketplace Monitor_ will be unable to extract the relevant information. Additionally, _AI Marketplace Monitor_ uses English for log messages and notifications, which can potentially be translated.
+
+That is to say, if you see rampant error messages like
+
+```
+[Retrieve] Failed to get item details: Failed to get item details from
+https://www.facebook.com/marketplace/item/12121212121212121212
+```
+
+you will need to check `Setting -> Language` settings of your facebook account,
+and let _AI Marketplace Monitor_ use the same language.
+
+_AI Marketplace Monitor_ uses configuration files to define translations. Specifically, a few `translation.LOCALE` sections are defined in system [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml), to map English words and sentences to other languages. For example,
+
+```toml
+[translation.es_CO]
+"About this vehicle" = "Descripción del vendedor"
+"Seller's description" = "Información sobre este vehículo"
+"Collection of Marketplace items" = "Colección de artículos de Marketplace"
+"Condition" = "Estado"
+"Details" = "Detalles"
+"Location is approximate" = "La ubicación es aproximada"
+"Description" = "Descripción"
+```
+
+```toml
+[translation.LAN]
+"Condition" = "Condition in your LAN"
+"Details" = "Details in your LAN"
+...
+```
+
+in your configuration file, then add `language="LAN"` to the `marketplace` section as follows:
+
+```toml
+[marketplace.facebook]
+language = "LAN"
+```
+
+It would be very helpful for other users of _AI Marketplace Monitor_ if you could contribute your dictionary to this project by creating a pull request or simply creating a ticket with your definition. Note that the `en_US` version will be used if some words are not translated.
 
 ### Check individual listing
 

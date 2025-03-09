@@ -165,7 +165,7 @@
                                 {% endif %}
 
                                 <!-- AI Rating -->
-                                {% if rating.comment != 'NOT_EVALUATED' %}
+                                {% if rating.comment != rating.NOT_EVALUATED %}
                                 <div style="background-color: #F8F9FA; padding: 12px; border-radius: 4px; margin: 15px 0;">
                                     <div style="margin-bottom: 5px;">
                                         <span style="font-weight: bold; color: #333333;">AI Rating:</span>
@@ -173,6 +173,12 @@
                                     </div>
                                     <div style="color: #666666;">
                                         <em>{{ rating.comment }}</em>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div style="background-color: #F8F9FA; padding: 12px; border-radius: 4px; margin: 15px 0;">
+                                    <div style="color: #666666;">
+                                        <em>This listing has not been evaluated by AI service for relevance.</em>
                                     </div>
                                 </div>
                                 {% endif %}

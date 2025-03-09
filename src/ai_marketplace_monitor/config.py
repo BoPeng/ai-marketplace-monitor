@@ -17,7 +17,7 @@ from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import MonitorConfig, hilight, merge_dicts
+from .utils import MonitorConfig, hilight, merge_dicts, trans
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
@@ -35,6 +35,7 @@ class ConfigItem(Enum):
     AI = "ai"
     REGION = "region"
     NOTIFICATION = "notification"
+    TRANSLATION = "translation"
 
 
 @dataclass
@@ -126,6 +127,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             self.marketplace[marketplace_name] = marketplace_class.get_config(
                 name=marketplace_name, **marketplace_config
             )
+            lan = self.marketplace[marketplace_name].language
+            if lan is None:
+                continue
+            if lan not in config[ConfigItem.TRANSLATION.value]:
+                raise ValueError(f"Translation for language {lan} is not supported.")
+            for key, word in config[ConfigItem.TRANSLATION.value][lan].items():
+                trans.add_word(key, word)
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user

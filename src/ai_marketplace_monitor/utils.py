@@ -492,7 +492,7 @@ def extract_price(price: str) -> str:
     else:
         currency = "$"
 
-    matches = re.findall(currency.replace("$", r"\$") + r"[\d,]+(?:\.\d{2})?", price)
+    matches = re.findall(currency.replace("$", r"\$") + r"[\d,]+(?:\.\d+)?", price)
     if matches:
         return " | ".join(matches[:2])
     return price
@@ -593,3 +593,18 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
     buffer = io.BytesIO()
     resized_image.save(buffer, format=image.format)
     return buffer.getvalue()
+
+
+class Translator:
+    def __init__(self: "Translator") -> None:
+        self._dictionary: Dict[str, str] = {}
+
+    def add_word(self: "Translator", word: str, translation: str) -> None:
+        self._dictionary[word] = translation
+
+    def __call__(self: "Translator", word: str) -> str:
+        """Return translated version"""
+        return self._dictionary.get(word, word)
+
+
+trans = Translator()
