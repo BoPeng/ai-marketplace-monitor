@@ -466,7 +466,11 @@ class FacebookMarketplace(Marketplace):
         counter.increment(CounterItem.LISTING_QUERY, item_config.name)
         details = parse_listing(self.page, post_url, self.translator, self.logger)
         if details is None:
-            raise ValueError(f"Failed to get item details from {post_url}")
+            raise ValueError(
+                f"Failed to get item details of listing {post_url}. "
+                "The listing might be missing key information (e.g. seller) or not in English."
+                "Please add option language to your marketplace configuration is the latter is the case. See https://github.com/BoPeng/ai-marketplace-monitor?tab=readme-ov-file#support-for-non-english-languages for details."
+            )
         details.to_cache(post_url)
         return details
 

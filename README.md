@@ -442,8 +442,10 @@ Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` wit
 _AI Marketplace Monitor_ relies on specific keywords from webpages to extract relevant information. For example, it looks for words following `Condition` to determine the condition of an item. If your account is set to another language, _AI Marketplace Monitor_ will be unable to extract the relevant information. That is to say, if you see rampant error messages like
 
 ```
-[Retrieve] Failed to get item details: Failed to get item details from
-https://www.facebook.com/marketplace/item/12121212121212121212
+Failed to get details of listing https://www.facebook.com/marketplace/item/12121212121212121212
+The listing might be missing key information (e.g. seller) or not in English.
+Please add option language to your marketplace configuration is the latter is the case.
+See https://github.com/BoPeng/ai-marketplace-monitor?tab=readme-ov-file#support-for-non-english-languages for details.
 ```
 
 you will need to check `Setting -> Language` settings of your facebook account,

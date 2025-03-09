@@ -361,6 +361,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         self.name = name
         self.browser = browser
         self.keyboard_monitor = keyboard_monitor
+        self.translator = Translator()
         self.logger = logger
         self.page: Page | None = None
 
