@@ -230,7 +230,11 @@ class MarketplaceMonitor:
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
             # Configure might have been changed
-            marketplace.configure(marketplace_config)
+            marketplace.configure(
+                marketplace_config,
+                translator=self.config.translator.get(marketplace_config.language, None),
+            )
+
             for item_config in self.config.item.values():
                 if item_config.enabled is False:
                     continue
@@ -494,7 +498,10 @@ class MarketplaceMonitor:
                     self.active_marketplaces[marketplace_config.name] = marketplace
 
                 # Configure might have been changed
-                marketplace.configure(marketplace_config)
+                marketplace.configure(
+                    marketplace_config,
+                    translator=self.config.translator.get(marketplace_config.language, None),
+                )
 
                 # do we need a browser?
                 if Listing.from_cache(post_url) is None:

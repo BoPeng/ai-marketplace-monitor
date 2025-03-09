@@ -7,7 +7,7 @@ from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
 from .listing import Listing
-from .utils import BaseConfig, KeyboardMonitor, convert_to_seconds, hilight, trans
+from .utils import BaseConfig, KeyboardMonitor, Translator, convert_to_seconds, hilight
 
 
 class MarketPlace(Enum):
@@ -372,8 +372,12 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def get_item_config(cls: Type["Marketplace"], **kwargs: Any) -> TItemConfig:
         raise NotImplementedError("get_config method must be implemented by subclasses.")
 
-    def configure(self: "Marketplace", config: TMarketplaceConfig) -> None:
+    def configure(
+        self: "Marketplace", config: TMarketplaceConfig, translator: Translator | None = None
+    ) -> None:
         self.config = config
+        if translator is not None:
+            self.translator = translator
 
     def set_browser(self: "Marketplace", browser: Browser | None = None) -> None:
         if browser is not None:
@@ -410,8 +414,14 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
 class WebPage:
 
-    def __init__(self: "WebPage", page: Page, logger: Logger | None = None) -> None:
+    def __init__(
+        self: "WebPage",
+        page: Page,
+        translator: Translator | None = None,
+        logger: Logger | None = None,
+    ) -> None:
         self.page = page
+        self.translator: Translator = Translator() if translator is None else translator
         self.logger = logger
 
     def _parent_with_cond(
@@ -437,7 +447,7 @@ class WebPage:
             children = parent.query_selector_all(":scope > *")
             if cond(children):
                 if isinstance(ret, int):
-                    return children[ret].text_content() or trans("**unspecified**")
+                    return children[ret].text_content() or self.translator("**unspecified**")
                 else:
                     return ret(children)
             parent = parent.query_selector("xpath=..")
@@ -461,7 +471,7 @@ class WebPage:
             children = child.query_selector_all(":scope > *")
             if cond(children):
                 if isinstance(ret, int):
-                    return children[ret].text_content() or trans("**unspecified**")
+                    return children[ret].text_content() or self.translator("**unspecified**")
                 return ret(children)
             if not children:
                 raise ValueError("Could not find child element with condition.")
