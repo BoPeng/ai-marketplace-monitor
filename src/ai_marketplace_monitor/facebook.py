@@ -1024,7 +1024,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
     def get_condition(self: "FacebookAutoItemWithDescriptionPage") -> str:
         try:
             description_header = self.page.query_selector(
-                f'h2:has(span:text("{trans("Seller's description")}"))'
+                f"""h2:has(span:text("{trans("Seller's description")}"))"""
             )
 
             res = self._parent_with_cond(
