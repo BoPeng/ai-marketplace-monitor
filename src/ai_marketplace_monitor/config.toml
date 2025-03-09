@@ -301,23 +301,33 @@ search_city = ["108336475863182", "2404588816444858"]
 # Translation for different languages
 #
 [translation.en_US]
-ITEM_CONDITION = 'Condition'
-ITEM_DETAILS = 'Details'
-ITEM_COLLECTION = 'Collection of Marketplace items'
-ITEM_LOCATION_APPROXIMATE = 'Location is approximate'
-ITEM_DESCRIPTION = 'Description'
-ITEM_ABOUT_VEHICLE = "About this vehicle"
-ITEM_SELLER_DESCRIPTION = "Seller's description"
-
+# see sample auto listing from #29
+AUTO_ABOUT_VEHICLE = "About this vehicle"
+AUTO_SELLER_DESCRIPTION = "Seller's description"
+# see regular listing from #29
+LISTING_COLLECTION = 'Collection of Marketplace items'
+LISTING_CONDITION = 'Condition'
+LISTING_DETAILS = 'Details'
+LISTING_LOCATION_APPROXIMATE = 'Location is approximate'
+# see ssample rental listing from #29
+RENTAL_DESCRIPTION = 'Description'
 # output
 UNSPECIFIED = "**unspecified**"
 
 [translation.es_CO]
-ITEM_CONDITION = 'Estado'
-ITEM_DETAILS = 'Detalles'
-ITEM_LOCATION_APPROXIMATE = 'La ubicación es aproximada'
-
+AUTO_ABOUT_VEHICLE = 'Descripción del vendedor'
+AUTO_SELLER_DESCRIPTION = 'Información sobre este vehículo'
+LISTING_COLLECTION = 'Colección de artículos de Marketplace'
+LISTING_CONDITION = 'Estado'
+LISTING_DETAILS = 'Detalles'
+LISTING_LOCATION_APPROXIMATE = 'La ubicación es aproximada'
+RENTAL_DESCRIPTION = 'Descripción'
 
 [translation.zh_CN]
-ITEM_CONDITION = '商品状况'
-ITEM_DETAILS = '详细信息'
+AUTO_ABOUT_VEHICLE = "车辆信息"
+AUTO_SELLER_DESCRIPTION = "卖家描述"
+LISTING_COLLECTION = 'Marketplace 商品收藏夹'
+LISTING_CONDITION = '商品状况'
+LISTING_DETAILS = '详细信息'
+LISTING_LOCATION_APPROXIMATE = '我们只提供大概位置'
+RENTAL_DESCRIPTION = '描述'
