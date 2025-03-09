@@ -591,27 +591,60 @@ class WebPage:
 
 class FacebookSearchResultPage(WebPage):
 
-    def get_listings(self: "FacebookSearchResultPage") -> List[Listing]:
-        heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
+    def _get_listings_elements_by_children_counts(self: "FacebookSearchResultPage"):
+        parent: ElementHandle | None = self.page.locator("img").first.element_handle()
+        # look for parent of parent until it has more than 10 children
+        children = []
+        while parent:
+            children = parent.query_selector_all(":scope > *")
+            if len(children) > 10:
+                break
+            parent = parent.query_selector("xpath=..")
+        # find each listing
+        valid_listings = []
+        try:
+            for listing in children:
+                if not listing.text_content():
+                    continue
+                valid_listings.append(listing)
+        except Exception as e:
+            # this error should be tolerated
+            if self.logger:
+                self.logger.debug(
+                    f'{hilight("[Retrieve]", "fail")} Some grid item cannot be read: {e}'
+                )
+        return valid_listings
 
+    def _get_listing_elements_by_traversing_header(self: "FacebookSearchResultPage"):
+        heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
+        if not heading:
+            return []
+
+        grid_items = heading.locator(
+            ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2) > div"
+        )
+        # find each listing
+        valid_listings = []
+        try:
+            for listing in grid_items.all():
+                if not listing.text_content():
+                    continue
+                valid_listings.append(listing.element_handle())
+        except Exception as e:
+            # this error should be tolerated
+            if self.logger:
+                self.logger.debug(
+                    f'{hilight("[Retrieve]", "fail")} Some grid item cannot be read: {e}'
+                )
+        return valid_listings
+
+    def get_listings(self: "FacebookSearchResultPage") -> List[Listing]:
         # find the grid box
         try:
-            grid_items = heading.locator(
-                ":scope > :first-child > :first-child > :nth-child(3) > :first-child > :nth-child(2) > div"
+            valid_listings = (
+                self._get_listing_elements_by_traversing_header()
+                or self._get_listings_elements_by_children_counts()
             )
-            # find each listing
-            valid_listings = []
-            try:
-                for listing in grid_items.all():
-                    if not listing.text_content():
-                        continue
-                    valid_listings.append(listing)
-            except Exception as e:
-                # this error should be tolerated
-                if self.logger:
-                    self.logger.debug(
-                        f'{hilight("[Retrieve]", "fail")} Some grid item cannot be readt: {e}'
-                    )
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -627,17 +660,25 @@ class FacebookSearchResultPage(WebPage):
         listings: List[Listing] = []
         for idx, listing in enumerate(valid_listings):
             try:
-                atag = listing.locator(
+                atag = listing.query_selector(
                     ":scope > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child > :first-child"
                 )
+                if not atag:
+                    continue
                 post_url = atag.get_attribute("href") or ""
-                details = atag.locator(":scope > :first-child > div").nth(1)
-                divs = details.locator(":scope > div").all()
+                details_divs = atag.query_selector_all(":scope > :first-child > div")
+                if not details_divs:
+                    continue
+                details = details_divs[1]
+                divs = details.query_selector_all(":scope > div")
                 raw_price = "" if len(divs) < 1 else divs[0].text_content() or ""
                 title = "" if len(divs) < 2 else divs[1].text_content() or ""
                 # location can be empty in some rare cases
                 location = "" if len(divs) < 3 else (divs[2].text_content() or "")
-                image = listing.locator("img").get_attribute("src") or ""
+
+                # get image
+                img = listing.query_selector("img")
+                image = img.get_attribute("src") if img else ""
                 price = extract_price(raw_price)
 
                 if post_url.startswith("/"):
@@ -672,7 +713,6 @@ class FacebookSearchResultPage(WebPage):
                         f'{hilight("[Retrieve]", "fail")} Failed to parse search results {idx + 1} listing: {e}'
                     )
                 continue
-        # Append the parsed data to the list.
         return listings
 
 
