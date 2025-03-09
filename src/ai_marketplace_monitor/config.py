@@ -17,7 +17,7 @@ from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import MonitorConfig, hilight, merge_dicts
+from .utils import MonitorConfig, hilight, merge_dicts, translator
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
@@ -81,6 +81,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
         self.monitor = MonitorConfig(name="monitor", **config.get("global", {}))
+        if "translation" not in config or self.monitor.language not in config["language"]:
+            raise ValueError(f"Translation for language {self.monitor.language} is not supported.")
+
+        for word, trans in config["translation"][self.monitor.language].items():
+            translator.add_word(word, trans, overwrite=True)
+        for word, trans in config["translation"]["English"].items():
+            translator.add_word(word, trans, overwrite=False)
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
         # convert ai config to AIConfig objects

@@ -30,7 +30,7 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### Monitor Configuration
 
-The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It currently supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
+The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
 
 | Option           | Requirement | DataType    | Description                              |
 | ---------------- | ----------- | ----------- | ---------------------------------------- |
@@ -38,8 +38,10 @@ The optional `monitor` section allows you to define system configurations for th
 | `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy. |
 | `proxy_username` | Optional    | String      | username for the proxy.                  |
 | `proxy_password` | Optional    | String      | password for the proxy.                  |
+| `language`       | Optional    | String      | Language for webpages                    |
 
-If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
+- If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
+- If `language` is specified, it must correspond to a `translation.LAN` section, defined by yourself or in the system configuration file.
 
 ### AI Services
 

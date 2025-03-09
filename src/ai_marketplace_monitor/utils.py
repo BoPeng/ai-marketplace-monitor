@@ -257,6 +257,7 @@ class MonitorConfig(BaseConfig):
     proxy_bypass: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
+    language: str = "English"
 
     def handle_proxy_server(self: "MonitorConfig") -> None:
         if self.proxy_server is None:
@@ -593,3 +594,25 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
     buffer = io.BytesIO()
     resized_image.save(buffer, format=image.format)
     return buffer.getvalue()
+
+
+class Translator:
+    def __init__(self: "Translator") -> None:
+        self._dictionary = {}
+
+    def add(self: "Translator", word: str, translation: str, overwrite: bool = False) -> None:
+        if not overwrite and word in self._dictionary:
+            return
+        self._dictionary[word] = translation
+
+    def get(self: "Translator", word: str) -> str:
+        if word not in self._dictionary:
+            raise RuntimeError(f"No translation for word {word}")
+        return self._dictionary[word]
+
+
+translator = Translator()
+
+
+def _(word: str) -> str:
+    return translator.get(word, word)

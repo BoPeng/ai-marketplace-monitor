@@ -436,6 +436,35 @@ delivery_method = 'shipping'
 
 Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` with corresponding pre-defined `search_city` and `radius`. Note that `seller_locations` does not make sense and need to be set to empty for region-based search, and it makes sense to limit the search to listings that offer shipping.
 
+### Support for non-English languages
+
+_AI Marketplace Monitor_ relies on specific keywords from webpages to extract relevant information. For example, it looks for words following `Condition` to determine the condition of an item. If your account is set to another language, _AI Marketplace Monitor_ will be unable to extract the relevant information. Additionally, _AI Marketplace Monitor_ uses English for log messages and notifications, which can also be translated.
+
+_AI Marketplace Monitor_ uses configuration files to define translations. Specifically, a `translation.English` section is defined in system [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml), with keys like
+
+```toml
+[translation.English]
+CONDITION = 'Condition'
+DETAILS = 'Details'
+```
+
+This section defines all the translatable words used for page extraction and log output. To add support for your own language, simply define:
+
+```toml
+[translation.LAN]
+CONDITION = 'Condition in your LAN'
+DETAILS = 'Details in your LAN'
+```
+
+Then, add `language="LAN"` to the `monitor` section as follows:
+
+```toml
+[monitor]
+language = 'LAN'
+```
+
+It would be very helpful for other users of _AI Marketplace Monitor_ if you could contribute your dictionary to this project by creating a pull request or simply creating a ticket with your definition. Note that the `English` version will be used if some words are not translated.
+
 ### Check individual listing
 
 If you ever wonder why a listing was excluded, or just want to check a listing against your configuration, you can get the URL (or the item ID) of the listing, and run

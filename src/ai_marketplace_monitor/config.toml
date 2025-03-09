@@ -295,3 +295,19 @@ full_name = "Spain"
 radius = 805
 city_name = ["Plasencia", "Valencia"]
 search_city = ["108336475863182", "2404588816444858"]
+
+
+#
+# Translation for different languages
+#
+[translation.English]
+CONDITION = 'Condition'
+DETAILS = 'Details'
+
+[translation.Spanish]
+CONDITION = 'Estado'
+DETAILS = 'Detalles'
+
+[translation.Chinese]
+CONDITION = '商品状况'
+DETAILS = '详细信息'
