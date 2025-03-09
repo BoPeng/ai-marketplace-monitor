@@ -2,13 +2,16 @@
 
 **Table of content:**
 
+- [Monitor Configuration](#monitor-configuration)
 - [AI Services](#ai-services)
 - [Marketplaces](#marketplaces)
 - [Users](#users)
 - [Notification](#notification)
+- [Email notification](#email-notification)
 - [Items to search](#items-to-search)
 - [Common item and marketplace options](#common-item-and-marketplace-options)
 - [Regions](#regions)
+- [Translators](#translators)
 - [Additional options](#additional-options)
 
 The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` option.
@@ -84,7 +87,8 @@ One or more sections `marketplace.name` show the options for interacting with va
 | **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
 1. Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
-2. If `language="LAN"` is specified, it must correspond to a `translation.LAN` section, defined by yourself or in the system configuration file. Please see [Support for non-English languages](../README.md#support-for-non-english-languages)
+2. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
+3. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
 
 ### Users
 
@@ -269,6 +273,27 @@ Note that
 
 1. `radius` has a default value of `500` (miles). You can specify different `radius` for different `search_city`.
 2. Options `full_name` and `city_name` are for documentation and logging purposes only.
+
+### Translators
+
+A translator contains a list of word mappings that translate English words to corresponding words in another language. They are used by _AI Marketplace Monitor_ to extract information from webpages in non-English languages.
+
+This section currently accept the following values for Facebook Marketplace.
+
+| Parameter                         | Required/Optional | Data Type | Description                                                |
+| --------------------------------- | ----------------- | --------- | ---------------------------------------------------------- |
+| `locale`                          | Required          | String    | locale of the translation                                  |
+| `Collection of Marketplace items` | Optional          | String    | The "arial-label" for search results.                      |
+| `Condition`                       | Optional          | String    | Subtitle "condition" of an listing item.                   |
+| `Description`                     | Optional          | String    | Title "description" for a rental item.                     |
+| `Details`                         | Optional          | String    | Subtitle "Details" of an listing item.                     |
+| `Location is approximate`         | Optional          | String    | The word below listing location.                           |
+| `About this vehicle`              | Optional          | String    | The "About this vehicle" section of an automobile listing. |
+| `Seller's description`            | Optional          | String    | The "Seller's description" of an automobile listing.       |
+
+Note that not all words needs to be translated (the English version will be used if unspecified), and _AI Marketplace Monitor_ may be able to extract information using language-independent methods.
+
+Please see [Support for non-English languages](../README.md#support-for-non-english-languages)
 
 ### Additional options
 

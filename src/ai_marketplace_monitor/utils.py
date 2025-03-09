@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -596,15 +597,12 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
 
 
 class Translator:
-    def __init__(self: "Translator") -> None:
-        self._dictionary: Dict[str, str] = {}
-
-    def add_word(self: "Translator", word: str, translation: str) -> None:
-        self._dictionary[word] = translation
+    def __init__(
+        self: "Translator", locale: str | None = None, dictionary: Dict[str, str] | None = None
+    ) -> None:
+        self.locale = locale
+        self._dictionary: Dict[str, str] = copy.deepcopy(dictionary or {})
 
     def __call__(self: "Translator", word: str) -> str:
         """Return translated version"""
         return self._dictionary.get(word, word)
-
-
-trans = Translator()

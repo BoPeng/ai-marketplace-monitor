@@ -22,6 +22,7 @@ from .utils import (
     CounterItem,
     KeyboardMonitor,
     SleepStatus,
+    Translator,
     amm_home,
     cache,
     calculate_file_hash,
@@ -209,6 +210,47 @@ class MarketplaceMonitor:
                 )
         time.sleep(5)
 
+    def _select_translator(
+        self: "MarketplaceMonitor", language: str | None = None
+    ) -> Translator | None:
+        """Select the language for the marketplace."""
+        # self.config.translator.get(marketplace_config.language, None)
+        assert self.config is not None
+        if not language:
+            return None
+        if language in self.config.translator:
+            return self.config.translator[language]
+        # if there is no exact match, we are going to match the language code
+        # e.g. 'en' to 'en_US'
+        if "_" in language:
+            # if a more general languge exists?
+            if language.split("_")[0] in self.config.translator:
+                translator = self.config.translator[language.split("_")[0]]
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Translator]", "info")} Using language {language.split("_")[0]} (locale {translator.locale}) for {language} translation."""
+                    )
+                return translator
+            # if not, we are going to match the language code
+            # e.g. 'en' to 'en_US'
+            for name, translator in self.config.translator.items():
+                if name.startswith(language.split("_")[0] + "_"):
+                    if self.logger:
+                        self.logger.info(
+                            f"""{hilight("[Translator]", "info")} Using language {name} (locale {translator.locale}) for {language} translation."""
+                        )
+                    return translator
+        # if there is no match, we are going to match the language code
+        # e.g. 'en' to 'en_US'
+        for name, translator in self.config.translator.items():
+            if name.startswith(language + "_"):
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Translator]", "info")} Using language {name} (locale {translator.locale}) for {language} translation."""
+                    )
+                return translator
+        raise RuntimeError(f"Cannot find translator for language {language}.")
+
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
         """Schedule jobs to run periodically."""
         # we reload the config file each time when a scan action is completed
@@ -230,7 +272,11 @@ class MarketplaceMonitor:
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
             # Configure might have been changed
-            marketplace.configure(marketplace_config)
+            marketplace.configure(
+                marketplace_config,
+                translator=self._select_translator(marketplace_config.language),
+            )
+
             for item_config in self.config.item.values():
                 if item_config.enabled is False:
                     continue
@@ -494,7 +540,10 @@ class MarketplaceMonitor:
                     self.active_marketplaces[marketplace_config.name] = marketplace
 
                 # Configure might have been changed
-                marketplace.configure(marketplace_config)
+                marketplace.configure(
+                    marketplace_config,
+                    translator=self._select_translator(marketplace_config.language),
+                )
 
                 # do we need a browser?
                 if Listing.from_cache(post_url) is None:

@@ -17,7 +17,7 @@ from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import MonitorConfig, hilight, merge_dicts, trans
+from .utils import MonitorConfig, Translator, hilight, merge_dicts
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
@@ -46,6 +46,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     notification: Dict[str, NotificationConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
     item: Dict[str, TItemConfig] = field(init=False)
+    translator: Dict[str, Translator] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
 
     def __init__(self: "Config", config_files: List[Path], logger: Logger | None = None) -> None:
@@ -67,6 +68,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         config = merge_dicts(configs)
 
         self.validate_sections(config)
+        self.get_translator_config(config)
         self.get_monitor_config(config)
         self.get_ai_config(config)
         self.get_notification_config(config)
@@ -79,6 +81,19 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.expand_notifications(logger)
         self.expand_regions()
         self.validate_items()
+
+    def get_translator_config(self: "Config", config: Dict[str, Any]) -> None:
+        if not isinstance(config.get("translation", {}), dict):
+            raise ValueError("translation section must be a dictionary.")
+
+        self.translator = {}
+        for key, value in config.get("translation", {}).items():
+            if "locale" not in value:
+                raise ValueError(f"Translation section {hilight(key)} must contain a locale.")
+            self.translator[key] = Translator(
+                locale=value["locale"],
+                dictionary={k: v for k, v in value.items() if k != "locale"},
+            )
 
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
         self.monitor = MonitorConfig(name="monitor", **config.get("global", {}))
@@ -130,10 +145,11 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             lan = self.marketplace[marketplace_name].language
             if lan is None:
                 continue
-            if lan not in config[ConfigItem.TRANSLATION.value]:
+            # no exact match is required
+            if lan.split("_")[0] not in {
+                x.split("_")[0] for x in config[ConfigItem.TRANSLATION.value].keys()
+            }:
                 raise ValueError(f"Translation for language {lan} is not supported.")
-            for key, word in config[ConfigItem.TRANSLATION.value][lan].items():
-                trans.add_word(key, word)
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user

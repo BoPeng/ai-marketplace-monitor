@@ -300,7 +300,8 @@ search_city = ["108336475863182", "2404588816444858"]
 #
 # Translation for different languages
 #
-[translation.es_CO]
+[translation.es]
+locale = "Spanish"
 'Collection of Marketplace items' = 'Colección de artículos de Marketplace'
 'Condition' = 'Estado'
 'Description' = 'Descripción'
@@ -309,7 +310,8 @@ search_city = ["108336475863182", "2404588816444858"]
 "About this vehicle" = 'Descripción del vendedor'
 "Seller's description" = 'Información sobre este vehículo'
 
-[translation.zh_CN]
+[translation.zh]
+locale = "Chinese"
 'Collection of Marketplace items' = 'Marketplace 商品收藏夹'
 'Condition' = '商品状况'
 'Description' = '描述'
