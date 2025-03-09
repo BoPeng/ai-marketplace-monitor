@@ -43,6 +43,18 @@ def config_file(tmp_path_factory: TempPathFactory) -> Callable:
     return generate_config_file
 
 
+lan_cfg = """
+[translation.en_US]
+AUTO_ABOUT_VEHICLE = "About this vehicle"
+AUTO_SELLER_DESCRIPTION = "Seller's description"
+LISTING_COLLECTION = 'Collection of Marketplace items'
+LISTING_CONDITION = 'Condition'
+LISTING_DETAILS = 'Details'
+LISTING_LOCATION_APPROXIMATE = 'Location is approximate'
+RENTAL_DESCRIPTION = 'Description'
+UNSPECIFIED = "**unspecified**"
+"""
+
 base_marketplace_cfg = """
 [marketplace.facebook]
 search_city = 'dallas'
@@ -189,7 +201,7 @@ notify_with = ['pushbullet1', 'gmail']
 )
 def test_config(config_file: Callable, config_content: str, acceptable: bool) -> None:
     """Test the config command."""
-    cfg = config_file(config_content)
+    cfg = config_file(lan_cfg + config_content)
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "seller_locations": (list, type(None)),
         "ai": (list, type(None)),
@@ -204,6 +216,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "antikeywords": (list, type(None)),
         "exclude_sellers": (list, type(None)),
         "keywords": (list, type(None)),
+        "language": str,
         "login_wait_time": (int, type(None)),
         "marketplace": (str, type(None)),
         "max_price": (int, type(None)),
@@ -263,7 +276,12 @@ search_phrases = "search word two"
 def test_support_multiple_marketplaces(config_file: Callable) -> None:
     """Test the config command."""
     cfg = config_file(
-        base_marketplace_cfg + alt_marketplace_cfg + alt_item_cfg + base_item_cfg + base_user_cfg
+        lan_cfg
+        + base_marketplace_cfg
+        + alt_marketplace_cfg
+        + alt_item_cfg
+        + base_item_cfg
+        + base_user_cfg
     )
     config = Config([cfg])
 
@@ -289,7 +307,7 @@ base_url = 'http://someother.com'
 def test_multiplace_ai_agent(config_file: Callable) -> None:
     """Test the config command."""
     cfg = config_file(
-        base_marketplace_cfg + base_ai_cfg + base_item_cfg + alt_ai_cfg + base_user_cfg
+        lan_cfg + base_marketplace_cfg + base_ai_cfg + base_item_cfg + alt_ai_cfg + base_user_cfg
     )
     config = Config([cfg])
 
