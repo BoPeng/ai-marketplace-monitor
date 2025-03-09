@@ -642,7 +642,12 @@ Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a P
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is dual-licensed under the MIT License and a commercial license.
+
+- For open-source use, see LICENSE.
+- For commercial use, see COMMERCIAL_LICENSE.
+
+Please contact us for more information about commercial licensing.
 
 ## Credits
 
