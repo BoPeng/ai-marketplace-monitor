@@ -2,12 +2,12 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, Generator, Generic, List, Type, TypeVar
+from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
 
-from playwright.sync_api import Browser, Page
+from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
 from .listing import Listing
-from .utils import BaseConfig, KeyboardMonitor, convert_to_seconds, hilight
+from .utils import BaseConfig, KeyboardMonitor, convert_to_seconds, hilight, trans
 
 
 class MarketPlace(Enum):
@@ -406,3 +406,65 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
     def search(self: "Marketplace", item: TItemConfig) -> Generator[Listing, None, None]:
         raise NotImplementedError("Search method must be implemented by subclasses.")
+
+
+class WebPage:
+
+    def __init__(self: "WebPage", page: Page, logger: Logger | None = None) -> None:
+        self.page = page
+        self.logger = logger
+
+    def _parent_with_cond(
+        self: "WebPage",
+        element: Locator | ElementHandle | None,
+        cond: Callable,
+        ret: Callable | int,
+    ) -> str:
+        """Finding a parent element
+
+        Starting from `element`, finding its parents, until `cond` matches, then return the `ret`th children,
+        or a callable.
+        """
+        if element is None:
+            return ""
+        # get up at the DOM level, testing the children elements with cond,
+        # apply the res callable to return a string
+        parent: ElementHandle | None = (
+            element.element_handle() if isinstance(element, Locator) else element
+        )
+        # look for parent of approximate_element until it has two children and the first child is the heading
+        while parent:
+            children = parent.query_selector_all(":scope > *")
+            if cond(children):
+                if isinstance(ret, int):
+                    return children[ret].text_content() or trans("**unspecified**")
+                else:
+                    return ret(children)
+            parent = parent.query_selector("xpath=..")
+        raise ValueError("Could not find parent element with condition.")
+
+    def _children_with_cond(
+        self: "WebPage",
+        element: Locator | ElementHandle | None,
+        cond: Callable,
+        ret: Callable | int,
+    ) -> str:
+        if element is None:
+            return ""
+        # Getting the children of an element, test condition, return the `index` or apply res
+        # on the children element if the condition is met. Otherwise locate the first child and repeat the process.
+        child: ElementHandle | None = (
+            element.element_handle() if isinstance(element, Locator) else element
+        )
+        # look for parent of approximate_element until it has two children and the first child is the heading
+        while child:
+            children = child.query_selector_all(":scope > *")
+            if cond(children):
+                if isinstance(ret, int):
+                    return children[ret].text_content() or trans("**unspecified**")
+                return ret(children)
+            if not children:
+                raise ValueError("Could not find child element with condition.")
+            # or we could use query_selector("./*[1]")
+            child = children[0]
+        raise ValueError("Could not find child element with condition.")
