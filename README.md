@@ -451,25 +451,23 @@ https://www.facebook.com/marketplace/item/12121212121212121212
 you will need to check `Setting -> Language` settings of your facebook account,
 and let _AI Marketplace Monitor_ use the same language.
 
-_AI Marketplace Monitor_ uses configuration files to define translations. Specifically, a `translation.English` section is defined in system [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml), with keys like
+_AI Marketplace Monitor_ uses configuration files to define translations. Specifically, a few `translation.LOCALE` sections are defined in system [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml), to map English words and sentences to other languages. For example,
 
 ```toml
-[translation.en_US]
-AUTO_ABOUT_VEHICLE = "About this vehicle"
-AUTO_SELLER_DESCRIPTION = "Seller's description"
-LISTING_COLLECTION = 'Collection of Marketplace items'
-LISTING_CONDITION = 'Condition'
-LISTING_DETAILS = 'Details'
-LISTING_LOCATION_APPROXIMATE = 'Location is approximate'
-RENTAL_DESCRIPTION = 'Description'
+[translation.es_CO]
+"About this vehicle" = 'Descripción del vendedor'
+"Seller's description" = 'Información sobre este vehículo'
+'Collection of Marketplace items' = 'Colección de artículos de Marketplace'
+'Condition' = 'Estado'
+'Details' = 'Detalles'
+'Location is approximate' = 'La ubicación es aproximada'
+'Description' = 'Descripción'
 ```
-
-This section defines all the translatable words used for page extraction and log output. To add support for your own language, simply define:
 
 ```toml
 [translation.LAN]
-CONDITION = 'Condition in your LAN'
-DETAILS = 'Details in your LAN'
+'Condition' = 'Condition in your LAN'
+'Details' = 'Details in your LAN'
 ...
 ```
 

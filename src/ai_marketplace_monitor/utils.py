@@ -599,16 +599,12 @@ class Translator:
     def __init__(self: "Translator") -> None:
         self._dictionary: Dict[str, str] = {}
 
-    def add_word(self: "Translator", word: str, translation: str, overwrite: bool = False) -> None:
-        if not overwrite and word in self._dictionary:
-            return
+    def add_word(self: "Translator", word: str, translation: str) -> None:
         self._dictionary[word] = translation
 
-    def __getattr__(self: "Translator", word: str) -> str:
+    def __call__(self: "Translator", word: str) -> str:
         """Return translated version"""
-        if word not in self._dictionary:
-            raise RuntimeError(f"No translation for word {word}")
-        return self._dictionary[word]
+        return self._dictionary.get(word, word)
 
 
 trans = Translator()

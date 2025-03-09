@@ -128,13 +128,12 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 name=marketplace_name, **marketplace_config
             )
             lan = self.marketplace[marketplace_name].language
+            if lan is None:
+                continue
             if lan not in config[ConfigItem.TRANSLATION.value]:
                 raise ValueError(f"Translation for language {lan} is not supported.")
-
             for key, word in config[ConfigItem.TRANSLATION.value][lan].items():
-                trans.add_word(key, word, overwrite=True)
-            for key, word in config[ConfigItem.TRANSLATION.value]["en_US"].items():
-                trans.add_word(key, word, overwrite=False)
+                trans.add_word(key, word)
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user
