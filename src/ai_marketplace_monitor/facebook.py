@@ -996,7 +996,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
     def get_description(self: "FacebookAutoItemWithDescriptionPage") -> str:
         try:
             description_header = self.page.query_selector(
-                f"h2:has(span:text({trans("Seller's description")}))"
+                f"""h2:has(span:text("{trans("Seller's description")}"))"""
             )
 
             return self._parent_with_cond(
@@ -1075,10 +1075,10 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
 
 def parse_listing(page: Page, post_url: str, logger: Logger | None = None) -> Listing | None:
     supported_facebook_item_layouts = [
-        FacebookRegularItemPage,
         FacebookRentalItemPage,
         FacebookAutoItemWithAboutAndDescriptionPage,
         FacebookAutoItemWithDescriptionPage,
+        FacebookRegularItemPage,
     ]
 
     for page_model in supported_facebook_item_layouts:

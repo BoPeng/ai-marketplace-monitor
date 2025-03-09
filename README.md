@@ -455,19 +455,19 @@ _AI Marketplace Monitor_ uses configuration files to define translations. Specif
 
 ```toml
 [translation.es_CO]
-"About this vehicle" = 'Descripción del vendedor'
-"Seller's description" = 'Información sobre este vehículo'
-'Collection of Marketplace items' = 'Colección de artículos de Marketplace'
-'Condition' = 'Estado'
-'Details' = 'Detalles'
-'Location is approximate' = 'La ubicación es aproximada'
-'Description' = 'Descripción'
+"About this vehicle" = "Descripción del vendedor"
+"Seller's description" = "Información sobre este vehículo"
+"Collection of Marketplace items" = "Colección de artículos de Marketplace"
+"Condition" = "Estado"
+"Details" = "Detalles"
+"Location is approximate" = "La ubicación es aproximada"
+"Description" = "Descripción"
 ```
 
 ```toml
 [translation.LAN]
-'Condition' = 'Condition in your LAN'
-'Details' = 'Details in your LAN'
+"Condition" = "Condition in your LAN"
+"Details" = "Details in your LAN"
 ...
 ```
 
@@ -475,7 +475,7 @@ in your configuration file, then add `language="LAN"` to the `marketplace` secti
 
 ```toml
 [marketplace.facebook]
-language = 'LAN'
+language = "LAN"
 ```
 
 It would be very helpful for other users of _AI Marketplace Monitor_ if you could contribute your dictionary to this project by creating a pull request or simply creating a ticket with your definition. Note that the `en_US` version will be used if some words are not translated.
