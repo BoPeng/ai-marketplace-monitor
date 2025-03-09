@@ -24,6 +24,7 @@ from .utils import (
     extract_price,
     hilight,
     is_substring,
+    trans,
 )
 
 
@@ -556,7 +557,7 @@ class WebPage:
             children = parent.query_selector_all(":scope > *")
             if cond(children):
                 if isinstance(ret, int):
-                    return children[ret].text_content() or "**unspecified**"
+                    return children[ret].text_content() or trans.UNSPECIFIED
                 else:
                     return ret(children)
             parent = parent.query_selector("xpath=..")
@@ -580,7 +581,7 @@ class WebPage:
             children = child.query_selector_all(":scope > *")
             if cond(children):
                 if isinstance(ret, int):
-                    return children[ret].text_content() or "**unspecified**"
+                    return children[ret].text_content() or trans.UNSPECIFIED
                 return ret(children)
             if not children:
                 raise ValueError("Could not find child element with condition.")
@@ -616,7 +617,7 @@ class FacebookSearchResultPage(WebPage):
         return valid_listings
 
     def _get_listing_elements_by_traversing_header(self: "FacebookSearchResultPage"):
-        heading = self.page.locator('[aria-label="Collection of Marketplace items"]')
+        heading = self.page.locator(f'[aria-label="{trans.ITEM_COLLECTION}"]')
         if not heading:
             return []
 
@@ -777,13 +778,14 @@ class FacebookItemPage(WebPage):
 class FacebookRegularItemPage(FacebookItemPage):
     def verify_layout(self: "FacebookRegularItemPage") -> bool:
         return any(
-            "Condition" in (x.text_content() or "") for x in self.page.query_selector_all("li")
+            trans.ITEM_CONDITION in (x.text_content() or "")
+            for x in self.page.query_selector_all("li")
         )
 
     def get_title(self: "FacebookRegularItemPage") -> str:
         try:
             h1_element = self.page.query_selector_all("h1")[-1]
-            return h1_element.text_content() or "**unspecified**"
+            return h1_element.text_content() or trans.UNSPECIFIED
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -794,7 +796,7 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_price(self: "FacebookRegularItemPage") -> str:
         try:
             price_element = self.page.locator("h1 + *")
-            return price_element.text_content() or "**unspecified**"
+            return price_element.text_content() or trans.UNSPECIFIED
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -816,7 +818,7 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
             seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
-            return seller_link.text_content() or "**unspecified**"
+            return seller_link.text_content() or trans.UNSPECIFIED
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -828,9 +830,9 @@ class FacebookRegularItemPage(FacebookItemPage):
         try:
             # Find the span with text "condition", then parent, then next...
             description_element = self.page.locator(
-                'span:text("condition") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
+                f'span:text("{trans.ITEM_CONDITION}") >> xpath=ancestor::ul[1] >> xpath=following-sibling::*[1]'
             )
-            return description_element.text_content() or "**unspecified**"
+            return description_element.text_content() or trans.UNSPECIFIED
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -841,10 +843,10 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_condition(self: "FacebookRegularItemPage") -> str:
         try:
             # Find the span with text "condition", then parent, then next...
-            condition_element = self.page.locator('span:text("Condition")')
+            condition_element = self.page.locator(f'span:text("{trans.ITEM_CONDITION}")')
             return self._parent_with_cond(
                 condition_element,
-                lambda x: len(x) >= 2 and "Condition" in (x[0].text_content() or ""),
+                lambda x: len(x) >= 2 and trans.ITEM_CONDITION in (x[0].text_content() or ""),
                 1,
             )
         except KeyboardInterrupt:
@@ -857,10 +859,13 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_location(self: "FacebookRegularItemPage") -> str:
         try:
             # look for "Location is approximate", then find its neighbor
-            approximate_element = self.page.locator('span:text("Location is approximate")')
+            approximate_element = self.page.locator(
+                f'span:text("{trans.ITEM_LOCATION_APPROXIMATE}")'
+            )
             return self._parent_with_cond(
                 approximate_element,
-                lambda x: len(x) == 2 and "Location is approximate" in (x[1].text_content() or ""),
+                lambda x: len(x) == 2
+                and trans.ITEM_LOCATION_APPROXIMATE in (x[1].text_content() or ""),
                 0,
             )
         except KeyboardInterrupt:
@@ -875,17 +880,20 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
     def verify_layout(self: "FacebookRentalItemPage") -> bool:
         # there is a header h2 with text Description
         return any(
-            "Description" in (x.text_content() or "") for x in self.page.query_selector_all("h2")
+            trans.ITEM_DESCRIPTION in (x.text_content() or "")
+            for x in self.page.query_selector_all("h2")
         )
 
     def get_description(self: "FacebookRentalItemPage") -> str:
         # some pages do not have a condition box and appears to have a "Description" header
         # See https://github.com/BoPeng/ai-marketplace-monitor/issues/29 for details.
         try:
-            description_header = self.page.query_selector('h2:has(span:text("Description"))')
+            description_header = self.page.query_selector(
+                f'h2:has(span:text("{trans.ITEM_DESCRIPTION}"))'
+            )
             return self._parent_with_cond(
                 description_header,
-                lambda x: len(x) > 1 and x[0].text_content() == "Description",
+                lambda x: len(x) > 1 and x[0].text_content() == trans.ITEM_DESCRIPTION,
                 1,
             )
         except KeyboardInterrupt:
@@ -897,30 +905,30 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
 
     def get_condition(self: "FacebookRentalItemPage") -> str:
         # no condition information for rental items
-        return "unspecified"
+        return trans.UNSPECIFIED
 
 
 class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
     def _has_about_this_vehicle(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
         return any(
-            "About this vehicle" in (x.text_content() or "")
+            trans.ITEM_ABOUT_VEHICLE in (x.text_content() or "")
             for x in self.page.query_selector_all("h2")
         )
 
     def _has_seller_description(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
         return any(
-            "Seller's description" in (x.text_content() or "")
+            trans.ITEM_SELLER_DESCRIPTION in (x.text_content() or "")
             for x in self.page.query_selector_all("h2")
         )
 
     def _get_about_this_vehicle(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
         try:
-            about_element = self.page.locator('h2:has(span:text("About this vehicle"))')
+            about_element = self.page.locator(f'h2:has(span:text("{trans.ITEM_ABOUT_VEHICLE}"))')
             return self._parent_with_cond(
                 # start from About this vehicle
                 about_element,
                 # find an array of elements with the first one being "About this vehicle"
-                lambda x: len(x) > 1 and "About this vehicle" in (x[0].text_content() or ""),
+                lambda x: len(x) > 1 and trans.ITEM_ABOUT_VEHICLE in (x[0].text_content() or ""),
                 # Extract all texts from the elements
                 lambda x: "\n".join([child.text_content() or "" for child in x]),
             )
@@ -934,21 +942,22 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
     def _get_seller_description(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
         try:
             description_header = self.page.query_selector(
-                'h2:has(span:text("Seller\'s description"))'
+                f'h2:has(span:text("{trans.ITEM_SELLER_DESCRIPTION}"))'
             )
 
             return self._parent_with_cond(
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
-                lambda x: len(x) > 1 and "Seller's description" in (x[0].text_content() or ""),
+                lambda x: len(x) > 1
+                and trans.ITEM_SELLER_DESCRIPTION in (x[0].text_content() or ""),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
                     # find the an array of elements
                     lambda y: len(y) > 1,
                     # and return the texts.
-                    lambda y: f"""\n\nSeller's description\n\n{y[0].text_content() or "**unspecified**"}""",
+                    lambda y: f"""\n\n{trans.ITEM_SELLER_DESCRIPTION}\n\n{y[0].text_content() or trans.UNSPECIFIED}""",
                 ),
             )
         except KeyboardInterrupt:
@@ -970,11 +979,11 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
         # using regular expression to find text that looks like price in the description
         price_pattern = r"\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:,\d{2})?"
         match = re.search(price_pattern, description)
-        return match.group(0) if match else "**unspecified**"
+        return match.group(0) if match else trans.UNSPECIFIED
 
     def get_condition(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
         # no condition information for auto items
-        return "**unspecified**"
+        return trans.UNSPECIFIED
 
 
 class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptionPage):
@@ -984,21 +993,22 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
     def get_description(self: "FacebookAutoItemWithDescriptionPage") -> str:
         try:
             description_header = self.page.query_selector(
-                'h2:has(span:text("Seller\'s description"))'
+                f"h2:has(span:text({trans.ITEM_SELLER_DESCRIPTION}))"
             )
 
             return self._parent_with_cond(
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
-                lambda x: len(x) > 1 and "Seller's description" in (x[0].text_content() or ""),
+                lambda x: len(x) > 1
+                and trans.ITEM_SELLER_DESCRIPTION in (x[0].text_content() or ""),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
                     # find the an array of elements
                     lambda y: len(y) > 2,
                     # and return the texts.
-                    lambda y: f"""\n\nSeller's description\n\n{y[1].text_content() or "**unspecified**"}""",
+                    lambda y: f"""\n\n{trans.ITEM_SELLER_DESCRIPTION}\n\n{y[1].text_content() or trans.UNSPECIFIED}""",
                 ),
             )
         except KeyboardInterrupt:
@@ -1011,25 +1021,26 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
     def get_condition(self: "FacebookAutoItemWithDescriptionPage") -> str:
         try:
             description_header = self.page.query_selector(
-                'h2:has(span:text("Seller\'s description"))'
+                f'h2:has(span:text("{trans.ITEM_SELLER_DESCRIPTION}"))'
             )
 
             res = self._parent_with_cond(
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
-                lambda x: len(x) > 1 and "Seller's description" in (x[0].text_content() or ""),
+                lambda x: len(x) > 1
+                and trans.ITEM_SELLER_DESCRIPTION in (x[0].text_content() or ""),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
                     # find the an array of elements
                     lambda y: len(y) > 2,
                     # and return the texts after seller's description.
-                    lambda y: y[0].text_content() or "**unspecified**",
+                    lambda y: y[0].text_content() or trans.UNSPECIFIED,
                 ),
             )
-            if res.startswith("Condition"):
-                res = res[len("Condition") :]
+            if res.startswith(trans.ITEM_CONDITION):
+                res = res[len(trans.ITEM_CONDITION) :]
             return res.strip()
         except KeyboardInterrupt:
             raise

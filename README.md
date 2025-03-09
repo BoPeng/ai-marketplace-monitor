@@ -456,10 +456,10 @@ CONDITION = 'Condition in your LAN'
 DETAILS = 'Details in your LAN'
 ```
 
-Then, add `language="LAN"` to the `monitor` section as follows:
+Then, add `language="LAN"` to the `marketplace` section as follows:
 
 ```toml
-[monitor]
+[marketplace.facebook]
 language = 'LAN'
 ```
 

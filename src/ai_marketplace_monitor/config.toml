@@ -300,14 +300,24 @@ search_city = ["108336475863182", "2404588816444858"]
 #
 # Translation for different languages
 #
-[translation.English]
-CONDITION = 'Condition'
-DETAILS = 'Details'
+[translation.en_US]
+ITEM_CONDITION = 'Condition'
+ITEM_DETAILS = 'Details'
+ITEM_COLLECTION = 'Collection of Marketplace items'
+ITEM_LOCATION_APPROXIMATE = 'Location is approximate'
+ITEM_DESCRIPTION = 'Description'
+ITEM_ABOUT_VEHICLE = "About this vehicle"
+ITEM_SELLER_DESCRIPTION = "Seller's description"
 
-[translation.Spanish]
-CONDITION = 'Estado'
-DETAILS = 'Detalles'
+# output
+UNSPECIFIED = "**unspecified**"
 
-[translation.Chinese]
-CONDITION = '商品状况'
-DETAILS = '详细信息'
+[translation.es_CO]
+ITEM_CONDITION = 'Estado'
+ITEM_DETAILS = 'Detalles'
+ITEM_LOCATION_APPROXIMATE = 'La ubicación es aproximada'
+
+
+[translation.zh_CN]
+ITEM_CONDITION = '商品状况'
+ITEM_DETAILS = '详细信息'

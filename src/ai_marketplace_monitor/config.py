@@ -17,7 +17,7 @@ from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import MonitorConfig, hilight, merge_dicts, translator
+from .utils import MonitorConfig, hilight, merge_dicts, trans
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
@@ -35,6 +35,7 @@ class ConfigItem(Enum):
     AI = "ai"
     REGION = "region"
     NOTIFICATION = "notification"
+    TRANSLATION = "translation"
 
 
 @dataclass
@@ -81,13 +82,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
         self.monitor = MonitorConfig(name="monitor", **config.get("global", {}))
-        if "translation" not in config or self.monitor.language not in config["language"]:
-            raise ValueError(f"Translation for language {self.monitor.language} is not supported.")
-
-        for word, trans in config["translation"][self.monitor.language].items():
-            translator.add_word(word, trans, overwrite=True)
-        for word, trans in config["translation"]["English"].items():
-            translator.add_word(word, trans, overwrite=False)
 
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
         # convert ai config to AIConfig objects
@@ -133,6 +127,14 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             self.marketplace[marketplace_name] = marketplace_class.get_config(
                 name=marketplace_name, **marketplace_config
             )
+            lan = self.marketplace[marketplace_name].language
+            if lan not in config[ConfigItem.TRANSLATION.value]:
+                raise ValueError(f"Translation for language {lan} is not supported.")
+
+            for key, word in config[ConfigItem.TRANSLATION.value][lan].items():
+                trans.add_word(key, word, overwrite=True)
+            for key, word in config[ConfigItem.TRANSLATION.value]["en_US"].items():
+                trans.add_word(key, word, overwrite=False)
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user

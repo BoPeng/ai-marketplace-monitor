@@ -268,6 +268,7 @@ class MarketplaceConfig(MarketItemCommonConfig):
 
     # name of market, right now facebook is the only supported one
     market_type: str | None = MarketPlace.FACEBOOK.value
+    language: str = "en_US"
 
     def handle_market_type(self: "MarketplaceConfig") -> None:
         if self.market_type is None:
@@ -278,6 +279,10 @@ class MarketplaceConfig(MarketItemCommonConfig):
             raise ValueError(
                 f"Marketplace {hilight(self.market_type)} market must be {MarketPlace.FACEBOOK.value}."
             )
+
+    def handle_language(self: "MarketplaceConfig") -> None:
+        if not isinstance(self.language, str):
+            raise ValueError(f"Marketplace {hilight(self.market_type)} language must be a string.")
 
 
 @dataclass

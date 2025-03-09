@@ -257,7 +257,6 @@ class MonitorConfig(BaseConfig):
     proxy_bypass: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
-    language: str = "English"
 
     def handle_proxy_server(self: "MonitorConfig") -> None:
         if self.proxy_server is None:
@@ -493,7 +492,7 @@ def extract_price(price: str) -> str:
     else:
         currency = "$"
 
-    matches = re.findall(currency.replace("$", r"\$") + r"[\d,]+(?:\.\d{2})?", price)
+    matches = re.findall(currency.replace("$", r"\$") + r"[\d,]+(?:\.\d+)?", price)
     if matches:
         return " | ".join(matches[:2])
     return price
@@ -598,21 +597,18 @@ def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int =
 
 class Translator:
     def __init__(self: "Translator") -> None:
-        self._dictionary = {}
+        self._dictionary: Dict[str, str] = {}
 
-    def add(self: "Translator", word: str, translation: str, overwrite: bool = False) -> None:
+    def add_word(self: "Translator", word: str, translation: str, overwrite: bool = False) -> None:
         if not overwrite and word in self._dictionary:
             return
         self._dictionary[word] = translation
 
-    def get(self: "Translator", word: str) -> str:
+    def __getattr__(self: "Translator", word: str) -> str:
+        """Return translated version"""
         if word not in self._dictionary:
             raise RuntimeError(f"No translation for word {word}")
         return self._dictionary[word]
 
 
-translator = Translator()
-
-
-def _(word: str) -> str:
-    return translator.get(word, word)
+trans = Translator()
