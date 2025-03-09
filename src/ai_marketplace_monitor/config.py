@@ -145,7 +145,10 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             lan = self.marketplace[marketplace_name].language
             if lan is None:
                 continue
-            if lan not in config[ConfigItem.TRANSLATION.value]:
+            # no exact match is required
+            if lan.split("_")[0] not in {
+                x.split("_")[0] for x in config[ConfigItem.TRANSLATION.value].keys()
+            }:
                 raise ValueError(f"Translation for language {lan} is not supported.")
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:

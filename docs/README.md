@@ -87,7 +87,8 @@ One or more sections `marketplace.name` show the options for interacting with va
 | **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
 1. Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
-2. If `language="LAN"` is specified, it must correspond to a `translation.LAN` section, defined by yourself or in the system configuration file. Please see [Support for non-English languages](../README.md#support-for-non-english-languages)
+2. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
+3. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
 
 ### Users
 

@@ -453,8 +453,8 @@ and let _AI Marketplace Monitor_ use the same language.
 
 Currently, _AI Marketplace Monitor_ supports the following languages
 
-- `es_CO`: Spanish - COLOMBIA
-- `zh_CN`: Simplified Chinese
+- `es`: Spanish
+- `zh`: Chinese
 
 If your language is not defined, you will need to define your own [`translation` section](docs/README.md#translators) in your configuration file, following a format used by existing translators defined in [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml). This can be done by
 
