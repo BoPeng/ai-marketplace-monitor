@@ -659,13 +659,13 @@ For full details, please review the [LICENSE.md](LICENSE.md).
 
 For commercial use, a **Commercial License** is required. This license allows you to use _AI Marketplace Monitor_ in revenue-generating applications, ensuring compliance and access to advanced features. Choose from the following options:
 
-1.  **Single-User Commercial License**: [Buy it now](https://py.pl/1aJgZA)
+1.  **Single-User Commercial License**: [Subscribe now](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-1J3979510Y350500LM7HXGAQ)
 
     - **Unlimited searches** and **unlimited users** for running a single instance of _AI Marketplace Monitor_.
     - GitHub-based support.
     - Ideal for individual professionals or small teams.
 
-2.  **Multi-User Commercial License**: [Buy it now](https://py.pl/1j8Mgy)
+2.  **Multi-User Commercial License**: [Subscribe now](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-05U59100290341445M7HWRVY)
     - **Unlimited searches** and **unlimited users** for running **unlimited instances** of _AI Marketplace Monitor_ by multiple employees from your organization.
     - Priority [**email-based support**](email:bo.peng@bioworkflows.com)
     - Perfect for organizations or businesses requiring broader deployment.
