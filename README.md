@@ -211,7 +211,7 @@ It is recommended that you **check the log messages and make sure that it includ
 ### Cost of operations
 
 1. _AI Markplace Monitor_ is distributed under an MIT license for non-commercial use. You are free to use, modify, and even use the program for personal transaction.
-2. A commercial license is required for running _AI Markplace Monitor_ for profit. Please see [Section License](#license) for details.
+2. A commercial license is required for running _AI Markplace Monitor_ for profit. Please see [License](#license) for details.
 3. This program makes use of several external services such as PushBullet, PushOver, OpenAI, DeepSeek, or other AI services. These services may incur costs.
 
 ## Advanced features
@@ -651,9 +651,9 @@ This project is dual-licensed under the **MIT License** and a **commercial licen
 Under the **MIT License**, you are free to use, modify, and distribute AI Marketplace Monitor for **non-commercial, personal applications**, subject to the following conditions:
 
 1. **Dual-License Continuity**: Any derived work must remain under the dual-license structure (MIT License and Commercial License).
-2. **Retain License Files**: The [LICENSE](LICENSE.md] and [COMMERCIAL_LICENSE](COMMERCIAL_LICENSE.md) files must be included in any derived work based on this project.
+2. **Retain License Files**: The [LICENSE.md](LICENSE.md) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) files must be included in any derived work based on this project.
 
-For full details, please review the [MIT LICENSE](LICENSE.md).
+For full details, please review the [LICENSE.md](LICENSE.md).
 
 ### Commercial License
 
@@ -667,7 +667,7 @@ For commercial use, a **Commercial License** is required. This license allows yo
 
 2.  **Multi-User Commercial License**: [Buy it now](https://py.pl/1j8Mgy)
     - **Unlimited searches** and **unlimited users** for running **unlimited instances** of _AI Marketplace Monitor_ by multiple employees from your organization.
-    - Priority [email-based support](email:bo.peng@bioworkflows.com)
+    - Priority [**email-based support**](email:bo.peng@bioworkflows.com)
     - Perfect for organizations or businesses requiring broader deployment.
 
 Key Restrictions for Commercial Use:
@@ -675,7 +675,7 @@ Key Restrictions for Commercial Use:
 - **No Source Code Modification**: The commercial license does not permit changes to the source code.
 - **No Integration**: You may not integrate this project into other platforms or software.
 
-For complete terms and conditions, please review the [COMMERCIAL_LICENSE](COMMERCIAL_LICENSE.md).
+For complete terms and conditions, please review the [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
 
 ## Credits
 
