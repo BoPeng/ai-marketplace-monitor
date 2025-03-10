@@ -210,9 +210,25 @@ It is recommended that you **check the log messages and make sure that it includ
 
 ### Cost of operations
 
-1. _AI Markplace Monitor_ is distributed under an MIT license for non-commercial use. You are free to use, modify, and even use the program for personal transaction.
-2. A commercial license is required for running _AI Markplace Monitor_ for profit. Please see [License](#license) for details.
-3. This program makes use of several external services such as PushBullet, PushOver, OpenAI, DeepSeek, or other AI services. These services may incur costs.
+1. **Licensing Costs**
+
+   - **Non-Commercial Use**: The program is free to use under the MIT license for non-commercial purposes.
+   - **Commercial Use**: If you intend to use the program for profit, you must purchase a commercial license, which costs up to **$50 per instance per month**. For detailed pricing and terms, please refer to the [License section](#license).
+
+2. **External Service Costs**
+   The program relies on several external services, which may incur costs based on usage. These include:
+
+   - **Notification Services**: PushBullet, PushOver, or an SMTP service provider.
+   - **AI Services**: OpenAI, DeepSeek, Gemini, or other AI platforms.
+
+   Costs for these services vary depending on usage. For detailed pricing, please refer to the individual service providers.
+
+3. **Infrastructure Costs**
+   To run the program 24/7, you will need a PC or server with a stable network connection. Alternatively, you can host the program on a cloud platform. For example, running the program on a small AWS virtual machine (VM) (e.g., t3.micro instance) costs approximately $10 per month.
+
+4. **Maintenance and Support Costs**
+   - **Open-Source Support**: The project is actively maintained through the GitHub issue tracker. Users can report issues, request features, or contribute to the project.
+   * **Commercial Support**: Commercial users with active subscriptions receive priority email-based support, including faster response times and personalized assistance.
 
 ## Advanced features
 
