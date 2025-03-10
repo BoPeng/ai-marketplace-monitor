@@ -210,8 +210,9 @@ It is recommended that you **check the log messages and make sure that it includ
 
 ### Cost of operations
 
-1. _AI Markplace Monitor_ is distributed under an MIT license. You are free to use, modify, and even use the program for commercial purposes.
-2. While the program itself is free, access to optional external services such as PushBullet, PushOver, OpenAI, DeepSeek, or other AI services may incur costs.
+1. _AI Markplace Monitor_ is distributed under an MIT license for non-commercial use. You are free to use, modify, and even use the program for personal transaction.
+2. A commercial license is required for running _AI Markplace Monitor_ for profit. Please see [Section License](#license) for details.
+3. This program makes use of several external services such as PushBullet, PushOver, OpenAI, DeepSeek, or other AI services. These services may incur costs.
 
 ## Advanced features
 
@@ -643,12 +644,38 @@ Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a P
 
 ## License
 
-This project is dual-licensed under the MIT License and a commercial license.
+This project is dual-licensed under the **MIT License** and a **commercial license**, providing flexibility for both non-commercial and commercial use. Choose the license that best suits your needs.
 
-- For open-source use, see LICENSE.
-- For commercial use, see COMMERCIAL_LICENSE.
+### Non-commercial MIT license
 
-Please contact us for more information about commercial licensing.
+Under the **MIT License**, you are free to use, modify, and distribute AI Marketplace Monitor for **non-commercial, personal applications**, subject to the following conditions:
+
+1. **Dual-License Continuity**: Any derived work must remain under the dual-license structure (MIT License and Commercial License).
+2. **Retain License Files**: The [LICENSE](LICENSE.md] and [COMMERCIAL_LICENSE](COMMERCIAL_LICENSE.md) files must be included in any derived work based on this project.
+
+For full details, please review the [MIT LICENSE](LICENSE.md).
+
+### Commercial License
+
+For commercial use, a **Commercial License** is required. This license allows you to use _AI Marketplace Monitor_ in revenue-generating applications, ensuring compliance and access to advanced features. Choose from the following options:
+
+1.  **Single-User Commercial License**: [Buy it now](https://py.pl/1aJgZA)
+
+    - **Unlimited searches** and **unlimited users** for running a single instance of _AI Marketplace Monitor_.
+    - GitHub-based support.
+    - Ideal for individual professionals or small teams.
+
+2.  **Multi-User Commercial License**: [Buy it now](https://py.pl/1j8Mgy)
+    - **Unlimited searches** and **unlimited users** for running **unlimited instances** of _AI Marketplace Monitor_ by multiple employees from your organization.
+    - Priority [email-based support](email:bo.peng@bioworkflows.com)
+    - Perfect for organizations or businesses requiring broader deployment.
+
+Key Restrictions for Commercial Use:
+
+- **No Source Code Modification**: The commercial license does not permit changes to the source code.
+- **No Integration**: You may not integrate this project into other platforms or software.
+
+For complete terms and conditions, please review the [COMMERCIAL_LICENSE](COMMERCIAL_LICENSE.md).
 
 ## Credits
 

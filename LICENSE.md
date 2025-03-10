@@ -1,4 +1,4 @@
-## MIT License
+## MIT LICENSE for NON-COMMERCIAL APPLICATIONS
 
 Copyright (c) 2025, Bo Peng
 
