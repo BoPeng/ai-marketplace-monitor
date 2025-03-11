@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.7] - 2025-03-03
+
+- Fix importing pushover #91
+
 ## [0.8.6] - 2025-03-03
 
 - Allow support for multiple languages.
