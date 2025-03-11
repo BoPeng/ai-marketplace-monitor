@@ -3,6 +3,7 @@ import json
 import time
 import urllib
 from collections import defaultdict
+from dataclasses import dataclass
 from logging import Logger
 from typing import DefaultDict, List, Tuple
 
@@ -14,6 +15,7 @@ from .notification import NotificationConfig, NotificationStatus
 from .utils import hilight
 
 
+@dataclass
 class PushoverNotificationConfig(NotificationConfig):
     pushover_user_id: str | None = None
     pushover_api_token: str | None = None

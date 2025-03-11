@@ -134,6 +134,12 @@ base_pushbullet_cfg = """
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 """
 
+base_pushover_cfg = """
+[notification.pushover]
+pushover_user_id = "xxxxxx"
+pushover_api_token = "dfafdafd"
+"""
+
 base_email_cfg = """
 [notification.gmail]
 smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -142,6 +148,11 @@ smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 notify_user_cfg = """
 [user.user1]
 notify_with = ['pushbullet1', 'gmail']
+"""
+
+notify_user_pushover_cfg = """
+[user.user1]
+notify_with = 'pushover'
 """
 
 
@@ -160,6 +171,7 @@ notify_with = ['pushbullet1', 'gmail']
             base_marketplace_cfg + full_item_cfg + notify_user_cfg,
             False,
         ),
+        # pushbullet
         (
             base_marketplace_cfg
             + base_item_cfg
@@ -174,6 +186,18 @@ notify_with = ['pushbullet1', 'gmail']
             + notify_user_cfg
             + base_pushbullet_cfg.replace("pushbullet1", "somethingelse")
             + base_email_cfg,
+            False,
+        ),
+        # pushover
+        (
+            base_marketplace_cfg + base_item_cfg + notify_user_pushover_cfg + base_pushover_cfg,
+            True,
+        ),
+        (
+            base_marketplace_cfg
+            + base_item_cfg
+            + notify_user_pushover_cfg
+            + base_pushover_cfg.replace("pushover", "somethingelse"),
             False,
         ),
         # user should match
