@@ -1,4 +1,5 @@
-# AI Marketplace Monitor
+
+![AI Marketplace Monitor](docs/AIMM_dark.png)
 
 <div align="center">
 
