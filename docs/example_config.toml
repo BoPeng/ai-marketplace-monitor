@@ -1,7 +1,13 @@
+#
+# AI
+#
 [ai.openai]
 api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 model = "gpt-4o"
 
+#
+# Marketplace
+#
 [marketplace.facebook]
 search_city = 'city'
 username = 'username'
@@ -13,18 +19,29 @@ seller_locations = ['city', 'surrounding city']
 notify = 'user1'
 exclude_sellers = []
 
-[notify.user1]
+#
+# Users and Notifications
+#
+[user.user1]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 email = 'myself@gmail.com'
+notify_with = ['gmail', 'pushover']
 
-[notify.user2]
-pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-email = 'someone@gmail.com'
+[user.user2]
+email = 'user2@gmail.com'
+notify_with = 'gmail'
 
-[smtp.gmail]
+[notification.pushover]
+pushover_user_id = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+pushover_api_token = 'someone@gmail.com'
+
+[notification.gmail]
 smtp_username = 'myself@gmail.com'
 smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
+#
+# Items to search
+#
 [item.name1]
 search_phrases = 'search word one'
 search_region = 'usa'
