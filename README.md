@@ -388,12 +388,12 @@ keywords = '("Go Pro" OR gopro) AND HERO'
 
 **NOTE**:
 
-1. A list of logical operations are allowed, and they are assumed to be joint by `OR`. For example, `['gopro AND (11 or 12)', 'DJI AND OSMO']` searches for either a gopro version 11 oe 12, or a DJI COMO camera.
+1. A list of logical operations are allowed, and they are assumed to be joint by `OR`. For example, `['gopro AND (11 or 12)', 'DJI AND OSMO']` searches for either a gopro version 11 or 12, or a DJI COMO camera.
 2. You can construct very complex logical operations using `AND`, `OR` and `NOT`, but it is usually recommended to use simple keyword-based filtering and let AI handle more subtle selection criteria.
 
 ### Searching multiple cities and regions
 
-`search_city` is the name, sometimes numbers, used by Facebook marketplace to represent a city. To get the value of `search_city` for your region, visit facebook, marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
+`search_city` is the name, sometimes numbers, used by Facebook marketplace to represent a city. To get the value of `search_city` for your region, visit facebook marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
 
 Multiple searches will be performed if multiple cities are provided to option `search_city`. You can also specify `seller_locations` to limit the location of sellers. These locations are names of cities as displayed on the listing pages.
 
