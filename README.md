@@ -616,11 +616,11 @@ _AI Marketplace Monitor_ does support searching anonymously.
 1. **Disable login**:
    - Do not provide a `username` or `password` in the `facebook` section
    - (optional) Set `login_wait_time = 0` to stop waiting for login
-   - (optional) Use the `--headless` command line option to run `ai-marketplace-monitor` without a browser window.)
+   - (optional) Use the `--headless` command line option to run `ai-marketplace-monitor` without a browser window.
 2. **Use a Proxy Server**:
 
-   - Sign up for a VPN or proxy services.
-   - Configure the proxy settings in your `monitor` configuration file as follows
+   - Sign up for a VPN or proxy service.
+   - Configure the proxy settings in the `monitor` section of your configuration file as follows
 
    ```toml
    [monitor]
@@ -639,7 +639,8 @@ Contributions are welcome! Here are some ways you can contribute:
 - 💡 Suggest new features
 - 🔧 Submit pull requests
 - 📚 Improve documentation
-- 🌍 Add support for new regions
+- 🏪 Add support for new marketplaces
+- 🌍 Add support for new regions and languages
 - 🤖 Add support for new AI providers
 - 📱 Add new notification methods
 
@@ -658,7 +659,7 @@ This project is dual-licensed under the **MIT License** and a **commercial licen
 
 ### Non-commercial MIT license
 
-Under the **MIT License**, you are free to use, modify, and distribute AI Marketplace Monitor for **non-commercial, personal applications**, subject to the following conditions:
+Under the **MIT License**, you are free to use, modify, and distribute _AI Marketplace Monitor_ for **non-commercial, personal applications**, subject to the following conditions:
 
 1. **Dual-License Continuity**: Any derived work must remain under the dual-license structure (MIT License and Commercial License).
 2. **Retain License Files**: The [LICENSE.md](LICENSE.md) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) files must be included in any derived work based on this project.
