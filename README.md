@@ -476,9 +476,9 @@ locale = "Your REGION"
 "Description" = "Descripción"
 ```
 
-2. Find example listings (from for example ]here](https://github.com/BoPeng/ai-marketplace-monitor/issues/29#issuecomment-2632057196)), locate the relevant words, and update the section. You can switch between different langauges (Facebook -> Settings -> Language) and see the location of the English version.
+2. Find example listings (from for example [here](https://github.com/BoPeng/ai-marketplace-monitor/issues/29#issuecomment-2632057196)), locate the relevant words, and update the section. You can switch between different langauges (Facebook -> Settings -> Language) and see the location of the English version.
 
-3. # After you have completed the translation, add `language="LAN"` to the `marketplace` section as follows:
+3. After you have completed the translation, add `language="LAN"` to the `marketplace` section as follows:
 
 ```toml
 [translation.LAN]
