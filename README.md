@@ -54,10 +54,12 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Self-hosted Ollama Model](#self-hosted-ollama-model)
   - [Cache Management](#cache-management)
   - [Support for different layouts of facebook listings](#support-for-different-layouts-of-facebook-listings)
-- [Troubleshooting](#troubleshooting)
+  - [Searching Anonymously with a Proxy Server](#searching-anonymously-with-a-proxy-server)
 - [Contributing](#contributing)
 - [Support](#support)
 - [License](#license)
+  - [Non-commercial MIT license](#non-commercial-mit-license)
+  - [Commercial License](#commercial-license)
 - [Credits](#credits)
 
 ## ✨ Key Features
@@ -210,25 +212,10 @@ It is recommended that you **check the log messages and make sure that it includ
 
 ### Cost of operations
 
-1. **Licensing Costs**
-
-   - **Non-Commercial Use**: The program is free to use under the MIT license for non-commercial purposes.
-   - **Commercial Use**: If you intend to use the program for profit, you must purchase a commercial license, which costs up to **$50 per instance per month**. For detailed pricing and terms, please refer to the [License section](#license).
-
-2. **External Service Costs**
-   The program relies on several external services, which may incur costs based on usage. These include:
-
-   - **Notification Services**: PushBullet, PushOver, or an SMTP service provider.
-   - **AI Services**: OpenAI, DeepSeek, Gemini, or other AI platforms.
-
-   Costs for these services vary depending on usage. For detailed pricing, please refer to the individual service providers.
-
-3. **Infrastructure Costs**
-   To run the program 24/7, you will need a PC or server with a stable network connection. Alternatively, you can host the program on a cloud platform. For example, running the program on a small AWS virtual machine (VM) (e.g., t3.micro instance) costs approximately $10 per month.
-
-4. **Maintenance and Support Costs**
-   - **Open-Source Support**: The project is actively maintained through the GitHub issue tracker. Users can report issues, request features, or contribute to the project.
-   * **Commercial Support**: Commercial users with active subscriptions receive priority email-based support, including faster response times and personalized assistance.
+1. **Licensing Costs**: Free for non-commercial use under the MIT license; commercial use requires a license costing up to $50 per instance per month.
+2. **External Service Costs**: Usage-dependent costs for notification services (e.g., PushBullet, SMTP) and AI platforms (e.g., OpenAI, DeepSeek).
+3. **Infrastructure Costs**: Requires a PC, server, or cloud hosting (e.g., AWS t3.micro at ~$10/month) for 24/7 operation.
+4. **Maintenance and Support**: Open-source support via GitHub; commercial users get priority email support with active subscriptions.
 
 ## Advanced features
 
@@ -616,26 +603,33 @@ Facebook marketplace supports a wide variety of products and use different layou
 
 Although I certainly do not have the bandwidth to support all possible layouts, I have listed detailed steps on how to debug and resolve the issue on [issue 29](https://github.com/BoPeng/ai-marketplace-monitor/issues/29).
 
-## Troubleshooting
+### Searching Anonymously with a Proxy Server
 
-1. **Browser Login**
+AI Marketplace Monitor allows you to search marketplaces on your behalf. However, it’s important to note that **Facebook's [EULA](https://www.facebook.com/terms/)** explicitly prohibits the use of automated tools to search or collect data without prior permission:
 
-   - You may need to manually enter credentials on first run
-   - Answer any CAPTCHA prompts if presented
-   - Consider saving password in browser if prompted
+> You may not access or collect data from our Products using automated means (without our prior permission) or attempt to access data you do not have permission to access, regardless of whether such automated access or collection is undertaken while logged-in to a Facebook account.
 
-2. **Notifications**
+Therefore, it is **your responsibility** to obtain proper permissions from service providers before using _AI Marketplace Monitor_. Misuse of the tool may result in account bans or other penalties. The creators of _AI Marketplace Monitor_ are not liable for any consequences arising from improper use.
 
-   - Check `rating` level if receiving too many/few alerts
-   - For email issues, verify SMTP settings and credentials
-   - For PushBullet or PushOver, verify token is correct
+_AI Marketplace Monitor_ does support searching anonymously.
 
-3. **AI Services**
-   - Ensure API keys are valid
-   - Check network connectivity
-   - Verify model names if using custom models
+1. **Disable login**:
+   - Do not provide a `username` or `password` in the `facebook` section
+   - (optional) Set `login_wait_time = 0` to stop waiting for login
+   - (optional) Use the `--headless` command line option to run `ai-marketplace-monitor` without a browser window.)
+2. **Use a Proxy Server**:
 
-For more issues, please check our [Issues](https://github.com/BoPeng/ai-marketplace-monitor/issues) page.
+   - Sign up for a VPN or proxy services.
+   - Configure the proxy settings in your `monitor` configuration file as follows
+
+   ```toml
+   [monitor]
+   proxy_server = '${PROXY_SERVER}'
+   proxy_username = '${PROXY_USERNAME}'
+   proxy_password = '${PROXY_PASSWORD}'
+   ```
+
+   Replace `${PROXY_SERVER}`, `${PROXY_USERNAME}`, and `${PROXY_PASSWORD}` with your proxy service details, or setting the corresponding environment variables.
 
 ## Contributing
 
