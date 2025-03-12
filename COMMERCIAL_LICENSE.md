@@ -26,6 +26,7 @@ By using this software, you acknowledge that you have read, understood, and agre
 
 1. This Commercial License grants the Licensee a non-transferable, non-exclusive right to use the Product for revenue-generating operations, product distribution, service offerings, and other commercial activities.
 2. The Licensee is authorized to use the Product solely within the scope of this license.
+3. This license does not ensure legal protection or guarantee compliance with marketplace regulations. Users remain responsible for adhering to the End User License Agreement (EULA) of each respective marketplace.
 
 ### Restrictions
 
@@ -40,6 +41,7 @@ By using this software, you acknowledge that you have read, understood, and agre
 
 1. All intellectual property rights, title, and interest in the Product remain the exclusive property of the Licensor.
 2. No ownership rights in the Product are transferred or assigned under this license.
+3. Any derivative works must adhere to the dual-license structure (MIT License and Commercial License), with the Licensor retaining sole ownership of the Product and being the exclusive beneficiary of the commercial license program.
 
 ### Term and Termination
 

@@ -668,7 +668,7 @@ For full details, please review the [LICENSE.md](LICENSE.md).
 
 ### Commercial License
 
-For commercial use, a **Commercial License** is required. This license allows you to use _AI Marketplace Monitor_ in revenue-generating applications, ensuring compliance and access to advanced features. Choose from the following options:
+For commercial use, a **Commercial License** is required. This license allows you to use _AI Marketplace Monitor_ in revenue-generating applications, ensuring priority support and access to advanced features. Choose from the following options:
 
 1.  **Single-User Commercial License**: [Subscribe now](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-1J3979510Y350500LM7HXGAQ)
 
@@ -683,6 +683,7 @@ For commercial use, a **Commercial License** is required. This license allows yo
 
 Key Restrictions for Commercial Use:
 
+- **No Guarantee of Compliance**: This license does not ensure legal protection or guarantee compliance with marketplace regulations. Users remain responsible for adhering to the End User License Agreement (EULA) of each respective marketplace.
 - **No Source Code Modification**: The commercial license does not permit changes to the source code.
 - **No Integration**: You may not integrate this project into other platforms or software.
 
