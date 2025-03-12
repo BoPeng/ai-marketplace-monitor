@@ -98,6 +98,10 @@ All Python code is linted with [Ruff](https://github.com/astral-sh/ruff) and for
 [Isort](https://github.com/PyCQA/isort) and [Black](https://github.com/psf/black). You can
 execute `inv[oke] lint` and `inv[oke] format`.
 
+## License Agreement
+
+By contributing to the AI Marketplace Monitor project, you agree that your contributions will be governed by the terms outlined in [LICENSE.md](LICENSE.md) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). This agreement applies regardless of whether the project is hosted on its original GitHub repository or on a derived project hosted elsewhere.
+
 ## Additional Notes
 
 If you have any question feel free to contact us at email.
