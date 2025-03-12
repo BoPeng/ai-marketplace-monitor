@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.7] - 2025-03-03
+## [0.8.8] - 2025-03-12
 
+- Allow option date_listed to accept numeric value #96
 - Fix importing pushover #91
 
 ## [0.8.6] - 2025-03-03
