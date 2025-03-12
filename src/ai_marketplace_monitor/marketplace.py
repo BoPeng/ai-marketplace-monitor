@@ -399,6 +399,8 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def goto_url(self: "Marketplace", url: str, attempt: int = 0) -> None:
         try:
             assert self.page is not None
+            if self.logger:
+                self.logger.debug(f'{hilight("[Retrieve]", "info")} Navigating to {url}')
             self.page.goto(url, timeout=0)
             self.page.wait_for_load_state("domcontentloaded")
         except KeyboardInterrupt:

@@ -129,6 +129,12 @@ class FacebookMarketItemCommonConfig(BaseConfig):
                     raise ValueError(
                         f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
                     )
+            elif isinstance(val, (int, float)):
+                if int(val) not in [x.value for x in DateListed]:
+                    raise ValueError(
+                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
+                    )
+                new_values.append(int(val))
             elif not isinstance(val, int) or val not in [x.value for x in DateListed]:
                 raise ValueError(
                     f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
@@ -301,7 +307,7 @@ class FacebookMarketplace(Marketplace):
         if condition:
             options.append(f"itemCondition={'%2C'.join(condition)}")
 
-            # availability can take values from item_config, or marketplace config and will
+        # availability can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
         if item_config.date_listed:
             date_listed = item_config.date_listed[0 if item_config.searched_count == 0 else -1]
