@@ -605,7 +605,7 @@ Although I certainly do not have the bandwidth to support all possible layouts, 
 
 ### Searching Anonymously with a Proxy Server
 
-AI Marketplace Monitor allows you to search marketplaces on your behalf. However, it’s important to note that **Facebook's [EULA](https://www.facebook.com/terms/)** explicitly prohibits the use of automated tools to search or collect data without prior permission:
+_AI Marketplace Monitor_ searches marketplaces on your behalf. However, it’s important to note that **Facebook's [EULA](https://www.facebook.com/terms/)** explicitly prohibits the use of automated tools to search or collect data without prior permission:
 
 > You may not access or collect data from our Products using automated means (without our prior permission) or attempt to access data you do not have permission to access, regardless of whether such automated access or collection is undertaken while logged-in to a Facebook account.
 

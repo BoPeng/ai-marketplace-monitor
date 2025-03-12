@@ -198,9 +198,9 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
                 raise ValueError(
                     f"Marketplace {self.name} login_wait_time {self.login_wait_time} is not recognized."
                 ) from e
-        if not isinstance(self.login_wait_time, int) or self.login_wait_time < 10:
+        if not isinstance(self.login_wait_time, int) or self.login_wait_time < 0:
             raise ValueError(
-                f"Marketplace {self.name} login_wait_time must be at least 10 second."
+                f"Marketplace {self.name} login_wait_time should be a non-negative number."
             )
 
 
@@ -265,17 +265,20 @@ class FacebookMarketplace(Marketplace):
                 self.logger.error(f"""{hilight("[Login]", "fail")} {e}""")
 
         # in case there is a need to enter additional information
-        login_wait_time = self.config.login_wait_time or 60
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)}"""
-                + (
-                    f""" or press {hilight("Esc")} when you are ready."""
-                    if self.keyboard_monitor is not None
-                    else ""
+        login_wait_time = (
+            60 if self.config.login_wait_time is None else self.config.login_wait_time
+        )
+        if login_wait_time > 0:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)}"""
+                    + (
+                        f""" or press {hilight("Esc")} when you are ready."""
+                        if self.keyboard_monitor is not None
+                        else ""
+                    )
                 )
-            )
-        doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
+            doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
