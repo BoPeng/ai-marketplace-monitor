@@ -135,7 +135,7 @@ class FacebookMarketItemCommonConfig(BaseConfig):
                         f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
                     )
                 new_values.append(int(val))
-            elif not isinstance(val, int) or val not in [x.value for x in DateListed]:
+            else:
                 raise ValueError(
                     f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
                 )
