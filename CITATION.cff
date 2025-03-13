@@ -1,0 +1,24 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: AI Marketplace Monitor
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Bo
+    family-names: Peng
+    alias: fedejaure
+identifiers:
+  - type: url
+    value: >-
+      https://github.com/BoPeng/ai-marketplace-monitor/releases/tag/v0.1.0
+    description: The Software Heritage link for version 0.1.0.
+repository-code: 'https://github.com/BoPeng/ai-marketplace-monitor'
+abstract: An AI-based tool for monitoring facebook marketplace
+keywords:
+  - ai-marketplace-monitor
+license: MIT
+version: 0.1.0

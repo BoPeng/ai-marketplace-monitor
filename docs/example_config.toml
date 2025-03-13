@@ -1,0 +1,60 @@
+#
+# AI
+#
+[ai.openai]
+api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+model = "gpt-4o"
+
+#
+# Marketplace
+#
+[marketplace.facebook]
+search_city = 'city'
+username = 'username'
+password = 'password'
+login_wait_time = 60
+search_interval = '30m'
+max_search_interval = '1h'
+seller_locations = ['city', 'surrounding city']
+notify = 'user1'
+exclude_sellers = []
+
+#
+# Users and Notifications
+#
+[user.user1]
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+email = 'myself@gmail.com'
+notify_with = ['gmail', 'pushover']
+
+[user.user2]
+email = 'user2@gmail.com'
+notify_with = 'gmail'
+
+[notification.pushover]
+pushover_user_id = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+pushover_api_token = 'someone@gmail.com'
+
+[notification.gmail]
+smtp_username = 'myself@gmail.com'
+smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+#
+# Items to search
+#
+[item.name1]
+search_phrases = 'search word one'
+search_region = 'usa'
+search_interval = '1d'
+delivery_method = 'shipping'
+seller_locations = []
+
+[item.name2]
+search_phrases = ['search word one', 'search word two']
+description = "it should be from manufacture, the seller should not offer shipping."
+keywords = ['search word']
+antikeywords = ['exclude word one', 'exclude word two']
+notify = 'user2'
+search_city = 'another city'
+seller_locations = ['another city', 'surrounding city']
+exclude_sellers = []
