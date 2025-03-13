@@ -651,6 +651,7 @@ Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a P
 - 📖 Read the [Documentation](https://ai-marketplace-monitor.readthedocs.io/)
 - 🤝 Join our [Discussions](https://github.com/BoPeng/ai-marketplace-monitor/discussions)
 - 🐛 Report [Issues](https://github.com/BoPeng/ai-marketplace-monitor/issues)
+- 💖 [Become a sponsor](https://github.com/sponsors/BoPeng) to Bo Peng
 - 💰 [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=3WT5JPQ2793BN) for personalized support, feature requests, or to show your appreciation.
 
 ## License
