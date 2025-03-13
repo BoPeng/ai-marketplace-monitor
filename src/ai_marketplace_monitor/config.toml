@@ -1,0 +1,321 @@
+#
+# Region definitions.
+# - full_name and city_name are for readability/booktracking purpose only
+# - different radius can be used for different search_city. In this case
+#   radius should an array with the same length as search_city
+#
+# Usage：
+# - ·search_city` will be ignored if `search_region` is specified.
+# - under the hood search_city is replaced by `search_city` of the regions
+#
+
+[region.usa]
+full_name = "USA (without AK or HI)"
+radius = 500
+city_name = [
+    "Portland, OR",
+    "Los Angeles, CA",
+    "Durango, CO",
+    "Broadus, MT",
+    "Fort Worth, TX",
+    "Boscobel, WI",
+    "Fitzgerald, GA",
+    "Oneonta, NY",
+]
+search_city = [
+    "portland",
+    "la",
+    "108129565875623",
+    "109613652398861",
+    "114148045261892",
+    "106171882747436",
+    "112442175434378",
+    "113333232014461",
+]
+
+
+[region.usa_full]
+full_name = "USA"
+radius = 500
+city_name = [
+    "Portland, OR",
+    "Los Angeles, CA",
+    "Durango, CO",
+    "Broadus, MT",
+    "Fort Worth, TX",
+    "Boscobel, WI",
+    "Fitzgerald, GA",
+    "Oneonta, NY",
+    "McGrath, AK",
+    "Prudhoe Bay, AK",
+    "Unalaska, AK",
+    "Elfin Cove, AK",
+    "Honolulu, HI",
+]
+search_city = [
+    "portland",
+    "la",
+    "108129565875623",
+    "109613652398861",
+    "114148045261892",
+    "106171882747436",
+    "112442175434378",
+    "113333232014461",
+    "108203532540672",
+    "171705676191734",
+    "103760199662259",
+    "196626670491979",
+    "110444738976181",
+]
+
+
+[region.can]
+full_name = "Canada"
+radius = 805
+city_name = [
+    "Saint Quentin, NB",
+    "Baysville, ON",
+    "Compeer, AB",
+    "One Hundred Mile House, BC",
+    "Moosehorn, MB",
+    "Skibi Lake, ON",
+    "Yellowknife, NT",
+    "White Horse, YK",
+    "Channel-Port aux Basques, NL",
+]
+search_city = [
+    "108562712499750",
+    "183509305085293",
+    "112682018747951",
+    "111922062167097",
+    "112583085425676",
+    "362073744288039",
+    "114459998571182",
+    "115392538472860",
+    "115477851802820",
+]
+
+
+[region.mex]
+full_name = "Mexico"
+radius = 805
+city_name = [
+    "Irapuato,Guanajuato ",
+    "Chapala, Jalisco",
+    "Creel, Chihuahua",
+    "Monclova, Coahuila",
+    "Campeche, Campeche",
+    "Cabo San Lucas, Baja California",
+    "Tehuantepec, Oaxaca",
+]
+search_city = [
+    "108476082510080",
+    "106142666084683",
+    "110176719011514",
+    "110799538947338",
+    "619367721515573",
+    "154130198035072",
+    "116186601728289",
+]
+
+
+[region.bra]
+full_name = "Brazil"
+radius = 805
+city_name = [
+    "Betim, Minas Gerais",
+    "Ibaiti, Paraná",
+    "Montes Claros de Goiás, Goiás",
+    "Alto Da Várzea, Ceara",
+    "Várzea Nova, Bahia",
+    "Salinas, Minas Gerais",
+    "Piquiá, Amazonas",
+    "Bom Jardim, Para",
+    "Salto do Jacuí, Rio Grande Do Sud",
+    "Altamira do Maranhão, Maranhão",
+    "Brasnorte, Mato Grosso",
+    "Corguinho, Mato Grosso Do Sul",
+    "Dianópolis, Tocantins",
+    "Japurá, Amazonas",
+    "Barraca Da Bôca, Amapa",
+    "Pôrto Velho, Rondônia",
+    "Feijó, Acre",
+    "Vista Alegre, Roraima",
+]
+search_city = [
+    "241025963776891",
+    "107813919248792",
+    "182609075084572",
+    "115057491845194",
+    "400163803477498",
+    "630835887017960",
+    "111605828861709",
+    "112619282090096",
+    "110549925683118",
+    "112596635420890",
+    "173196699369921",
+    "108281459194195",
+    "113373648672696",
+    "107544435935385",
+    "117344181609620",
+    "108549759176811",
+    "103727253000065",
+    "117248258288799",
+]
+
+
+[region.arg]
+full_name = "Argentina"
+radius = 805
+city_name = [
+    "Pehuajó, Buenos Aires",
+    "Ulapes, La Rioja",
+    "Mburucuyá, Corrientes",
+    "Rosario de la Frontera, Salta",
+    "La Reforma, La Pampa",
+    "Paso de Indios, Chubut",
+    "Rio Gallegos, Santa Cruz",
+]
+search_city = [
+    "112089622140241",
+    "107413102628881",
+    "103767409662395",
+    "108630072495327",
+    "106494259383808",
+    "105646196135882",
+    "300807386607332",
+]
+
+
+[region.aus]
+full_name = "Australia"
+radius = 805
+city_name = [
+    "Tamworth, NSW",
+    "Deniliquin, NSW",
+    "Oakden Hills, SA",
+    "Warralakin, WA",
+    "Yeppoon, QLD",
+    "Hobart, TAS",
+    "Darwin, NT",
+    "Carnarvon, WA",
+    "Port Hedland, WA",
+    "Port Douglas, QLD",
+    "Cloncurry, QLD",
+    "Alice Springs, NT",
+    "Quilpie, QLD",
+]
+search_city = [
+    "112577755420955",
+    "104020242968596",
+    "277036799317188",
+    "106555549377269",
+    "108131009215930",
+    "111652435519898",
+    "109437725742749",
+    "103825936322408",
+    "248019175333793",
+    "106373139394499",
+    "112359378775421",
+    "107929299235881",
+    "109465839072367",
+]
+
+
+[region.aus_miles]
+full_name = "Australia"
+radius = 500
+city_name = [
+    "Warburton, Western Australia",
+    "Mount Magnet, Western Australia",
+    "Coober Pedy, South Australia",
+    "Melbourne, Victoria, Australia",
+    "Tooraweenah",
+    "Clermont, Queensland",
+    "Daly Waters, Northern Territory",
+    "Broome, Western Australia",
+]
+search_city = [
+    "112262705457494",
+    "105508376148373",
+    "107723845924377",
+    "melbourne",
+    "107928752568747",
+    "105632482805073",
+    "108276829196663",
+    "112099285474124",
+]
+
+[region.nzl]
+full_name = "New Zealand"
+radius = 805
+city_name = ["Hamilton", "Lake Tekapo"]
+search_city = ["104080336295923", "106528236047934"]
+
+
+[region.ind]
+full_name = "India"
+radius = 805
+city_name = [
+    "Sanquelim, Goa",
+    "Sangrur, Punjab",
+    "Kolkata, West Bengal",
+    "Himatnagar, Gujarat",
+    "Allahabad, Uttar Pradesh",
+    "Bhamragarh, Maharashtra",
+    "Salem, Tamil Nadu",
+]
+search_city = [
+    "104029036299831",
+    "109148435777996",
+    "108212225873404",
+    "112269678784935",
+    "2099665383411187",
+    "115852108431709",
+    "1410397895862431",
+]
+
+
+[region.gbr]
+full_name = "United Kingdom"
+radius = 805
+city_name = ["Manchester", "Kirkwall"]
+search_city = ["114629675219759", "107972512564724"]
+
+
+[region.fra]
+full_name = "France"
+radius = 805
+city_name = ["Chartres", "Montpellier"]
+search_city = ["115700691777803", "115100621840245"]
+
+
+[region.spa]
+full_name = "Spain"
+radius = 805
+city_name = ["Plasencia", "Valencia"]
+search_city = ["108336475863182", "2404588816444858"]
+
+
+#
+# Translation for different languages
+#
+[translation.es]
+locale = "Spanish"
+'Collection of Marketplace items' = 'Colección de artículos de Marketplace'
+'Condition' = 'Estado'
+'Description' = 'Descripción'
+'Details' = 'Detalles'
+'Location is approximate' = 'La ubicación es aproximada'
+"About this vehicle" = 'Descripción del vendedor'
+"Seller's description" = 'Información sobre este vehículo'
+
+[translation.zh]
+locale = "Chinese"
+'Collection of Marketplace items' = 'Marketplace 商品收藏夹'
+'Condition' = '商品状况'
+'Description' = '描述'
+'Details' = '详细信息'
+'Location is approximate' = '我们只提供大概位置'
+"About this vehicle" = "车辆信息"
+"Seller's description" = "卖家描述"

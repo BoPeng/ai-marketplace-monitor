@@ -1,0 +1,23 @@
+name: Close Stale Issues
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Runs daily at midnight UTC
+
+permissions:
+  issues: write
+
+jobs:
+  close-stale-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close inactive issues
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: "This issue has been inactive for a while. If there’s no response, it will be closed automatically."
+          close-issue-message: "Closing this issue due to inactivity. Feel free to reopen if needed!"
+          days-before-stale: 7 # Days before marking the issue as stale
+          days-before-close: 3 # Days after being marked stale before closing
+          only-labels: "resolved" # Only apply to issues with this label
+          exempt-issue-creator: true # Do not auto-close issues created by the repo owner
