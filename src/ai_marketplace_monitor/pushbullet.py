@@ -49,7 +49,7 @@ class PushbulletNotificationConfig(PushNotificationConfig):
             raise ValueError("user requires an non-empty pushbullet_proxy_server.")
         self.pushbullet_proxy_server = self.pushbullet_proxy_server.strip()
 
-    def send_push_message(
+    def send_message(
         self: "PushbulletNotificationConfig",
         title: str,
         message: str,

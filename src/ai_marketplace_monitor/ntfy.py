@@ -36,7 +36,7 @@ class NtfyNotificationConfig(PushNotificationConfig):
 
         self.ntfy_topic = self.ntfy_topic.strip()
 
-    def send_push_message(
+    def send_message(
         self: "NtfyNotificationConfig",
         title: str,
         message: str,

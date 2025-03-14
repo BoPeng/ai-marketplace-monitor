@@ -1,5 +1,6 @@
 import smtplib
 import ssl
+import time
 from dataclasses import dataclass
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -7,7 +8,7 @@ from email.mime.text import MIMEText
 from email.utils import formataddr
 from logging import Logger
 from pathlib import Path
-from typing import List, Tuple
+from typing import ClassVar, List, Tuple
 
 import inflect
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -20,6 +21,8 @@ from .utils import fetch_with_retry, hilight, resize_image_data
 
 @dataclass
 class EmailNotificationConfig(NotificationConfig):
+    required_fields: ClassVar[List[str]] = ["email", "smtp_password"]
+
     email: List[str] | None = None
     smtp_server: str | None = None
     smtp_port: int | None = None
@@ -218,9 +221,7 @@ class EmailNotificationConfig(NotificationConfig):
         force: bool = False,
         logger: Logger | None = None,
     ) -> bool:
-        if not self.email:
-            if logger:
-                logger.debug("No recipients specified. No email sent.")
+        if not self._has_required_fields():
             return False
 
         title = self.get_title(listings, notification_status, force=force)
@@ -277,45 +278,60 @@ class EmailNotificationConfig(NotificationConfig):
             image.add_header("Content-Disposition", "inline")
             msg.attach(image)
 
-        try:
-            smtp_port = self.smtp_port or 587
-            smtp_username = self.smtp_username or sender
-            if not smtp_username:
-                if logger:
-                    logger.error("No smtp username.")
-                return False
+        for attempt in range(self.max_retries):
+            try:
+                smtp_port = self.smtp_port or 587
+                smtp_username = self.smtp_username or sender
+                if not smtp_username:
+                    if logger:
+                        logger.error("No smtp username.")
+                    return False
 
-            smtp_password = self.smtp_password
-            if not smtp_password:
-                if logger:
-                    logger.error("No smtp password.")
-                return False
+                smtp_password = self.smtp_password
+                if not smtp_password:
+                    if logger:
+                        logger.error("No smtp password.")
+                    return False
 
-            context = ssl.create_default_context()
-            with smtplib.SMTP(smtp_server, smtp_port) as smtp:
-                # smtp.set_debuglevel(1)
-                smtp.ehlo()  # Can be omitted
-                smtp.starttls(context=context)
-                smtp.ehlo()  # Can be omitted
-                try:
-                    smtp.login(smtp_username, smtp_password)
-                except KeyboardInterrupt:
-                    raise
-                except Exception as e:
+                context = ssl.create_default_context()
+                with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+                    # smtp.set_debuglevel(1)
+                    smtp.ehlo()  # Can be omitted
+                    smtp.starttls(context=context)
+                    smtp.ehlo()  # Can be omitted
+                    try:
+                        smtp.login(smtp_username, smtp_password)
+                    except KeyboardInterrupt:
+                        raise
+                    except Exception as e:
+                        if logger:
+                            logger.error(
+                                f"Failed to login to smtp server {smtp_server}:{smtp_port} with username {smtp_username}: {e}"
+                            )
+                        return False
+                    smtp.send_message(msg)
+                if logger:
+                    logger.info(
+                        f"""{hilight("[Notify]", "succ")} Sent {self.name} an email with title {hilight(title)}"""
+                    )
+                return True
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if logger:
+                    logger.debug(
+                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
+                    )
+                if attempt < self.max_retries - 1:
+                    if logger:
+                        logger.debug(
+                            f"""{hilight("[Notify]", "fail")} Retrying in {self.retry_delay} seconds..."""
+                        )
+                    time.sleep(self.retry_delay)
+                else:
                     if logger:
                         logger.error(
-                            f"Failed to login to smtp server {smtp_server}:{smtp_port} with username {smtp_username}: {e}"
+                            f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
                         )
                     return False
-                smtp.send_message(msg)
-            if logger:
-                logger.info(
-                    f"""{hilight("[Notify]", "succ")} Sent {self.name} an email with title {hilight(title)}"""
-                )
-            return True
-        except KeyboardInterrupt:
-            raise
-        except Exception as e:
-            if logger:
-                logger.error(f"Failed to send email: {e}")
-            return False
+        return False

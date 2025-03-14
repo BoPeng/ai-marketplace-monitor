@@ -22,6 +22,21 @@ class NotificationStatus(Enum):
 
 @dataclass
 class NotificationConfig(BaseConfig):
+    required_fields: ClassVar[List[str]] = []
+
+    max_retries: int = 5
+    retry_delay: int = 60
+
+    def handle_max_retries(self: "NotificationConfig") -> None:
+        if not isinstance(self.max_retries, int):
+            raise ValueError("max_retries must be an integer.")
+
+    def handle_retry_delay(self: "NotificationConfig") -> None:
+        if not isinstance(self.retry_delay, int):
+            raise ValueError("retry_delay must be an integer.")
+
+    def _has_required_fields(self: "NotificationConfig") -> bool:
+        return all(getattr(self, field, None) is not None for field in self.required_fields)
 
     @classmethod
     def get_config(
@@ -53,25 +68,55 @@ class NotificationConfig(BaseConfig):
             succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
 
+    def send_message_with_retry(
+        self: "NotificationConfig",
+        title: str,
+        message: str,
+        logger: Logger | None = None,
+    ) -> bool:
+        if not self._has_required_fields():
+            return False
+
+        for attempt in range(self.max_retries):
+            try:
+                res = self.send_message(title=title, message=message, logger=logger)
+                if logger:
+                    logger.info(
+                        f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)}"""
+                    )
+                return res
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if logger:
+                    logger.debug(
+                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
+                    )
+                if attempt < self.max_retries - 1:
+                    if logger:
+                        logger.debug(
+                            f"""{hilight("[Notify]", "fail")} Retrying in {self.retry_delay} seconds..."""
+                        )
+                    time.sleep(self.retry_delay)
+                else:
+                    if logger:
+                        logger.error(
+                            f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
+                        )
+                    return False
+        return False
+
+    def send_message(
+        self: "NotificationConfig",
+        title: str,
+        message: str,
+        logger: Logger | None = None,
+    ) -> bool:
+        raise NotImplementedError("send_message needs to be defined.")
+
 
 @dataclass
 class PushNotificationConfig(NotificationConfig):
-    required_fields: ClassVar[List[str]] = []
-
-    max_retries: int | None = None
-    retry_delay: int | None = None
-
-    def handle_max_retries(self: "PushNotificationConfig") -> None:
-        if self.max_retries is None:
-            return
-        if not isinstance(self.max_retries, int):
-            raise ValueError("max_retries must be an integer.")
-
-    def handle_retry_delay(self: "PushNotificationConfig") -> None:
-        if self.retry_delay is None:
-            return
-        if not isinstance(self.retry_delay, int):
-            raise ValueError("retry_delay must be an integer.")
 
     def notify(
         self: "PushNotificationConfig",
@@ -81,11 +126,8 @@ class PushNotificationConfig(NotificationConfig):
         force: bool = False,
         logger: Logger | None = None,
     ) -> bool:
-        for field in self.required_fields:
-            if not getattr(self, field, None):
-                if logger:
-                    logger.debug(f"No {hilight(field)} specified.")
-                return False
+        if not self._has_required_fields():
+            return False
         #
         # we send listings with different status with different messages
         msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
@@ -127,58 +169,6 @@ class PushNotificationConfig(NotificationConfig):
 
             message = "\n\n".join([x[1] for x in listing_msg])
             #
-            if not self.send_push_message_with_retry(title, message, logger=logger):
+            if not self.send_message_with_retry(title, message, logger=logger):
                 return False
         return True
-
-    def send_push_message_with_retry(
-        self: "PushNotificationConfig",
-        title: str,
-        message: str,
-        logger: Logger | None = None,
-    ) -> bool:
-        for field in self.required_fields:
-            if not getattr(self, field, None):
-                if logger:
-                    logger.debug(f"No {hilight(field)} specified.")
-                return False
-
-        max_retries = self.max_retries or 5
-        retry_delay = self.retry_delay or 60
-
-        for attempt in range(max_retries):
-            try:
-                res = self.send_push_message(title=title, message=message, logger=logger)
-                if logger:
-                    logger.info(
-                        f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)}"""
-                    )
-                return res
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if logger:
-                    logger.debug(
-                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
-                    )
-                if attempt < max_retries - 1:
-                    if logger:
-                        logger.debug(
-                            f"""{hilight("[Notify]", "fail")} Retrying in {retry_delay} seconds..."""
-                        )
-                    time.sleep(retry_delay)
-                else:
-                    if logger:
-                        logger.error(
-                            f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
-                        )
-                    return False
-        return False
-
-    def send_push_message(
-        self: "PushNotificationConfig",
-        title: str,
-        message: str,
-        logger: Logger | None = None,
-    ) -> bool:
-        raise NotImplementedError("send_push_message needs to be defined.")
