@@ -117,6 +117,14 @@ class NotificationConfig(BaseConfig):
 
 @dataclass
 class PushNotificationConfig(NotificationConfig):
+    message_format: str | None = None
+
+    def handle_message_format(self: "PushNotificationConfig") -> None:
+        if self.message_format is None:
+            self.message_format = "plain_text"
+
+        if self.message_format not in ["plain_text", "markdown"]:
+            raise ValueError("message_format must be 'plain_text' or 'markdown'.")
 
     def notify(
         self: "PushNotificationConfig",
@@ -137,15 +145,33 @@ class PushNotificationConfig(NotificationConfig):
                 continue
             msg = (
                 (
-                    f"{listing.title}\n{listing.price}, {listing.location}\n"
-                    f"{listing.post_url.split('?')[0]}"
+                    (
+                        f"{listing.title}\n{listing.price}, {listing.location}\n"
+                        f"{listing.post_url.split('?')[0]}"
+                    )
+                    if rating.comment == AIResponse.NOT_EVALUATED
+                    else (
+                        f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
+                        f"{listing.price}, {listing.location}\n"
+                        f"{listing.post_url.split('?')[0]}\n"
+                        f"AI: {rating.comment}"
+                    )
                 )
-                if rating.comment == AIResponse.NOT_EVALUATED
+                if self.message_format == "plain_text"
                 else (
-                    f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
-                    f"{listing.price}, {listing.location}\n"
-                    f"{listing.post_url.split('?')[0]}\n"
-                    f"AI: {rating.comment}"
+                    (
+                        f"[**{listing.title}**]({listing.post_url.split('?')[0]})\n"
+                        f"{listing.price}, {listing.location}\n"
+                        f"{listing.description}"
+                    )
+                    if rating.comment == AIResponse.NOT_EVALUATED
+                    else (
+                        f"[{rating.conclusion} ({rating.score})] "
+                        f"[**{listing.title}**]({listing.post_url.split('?')[0]})\n"
+                        f"{listing.price}, {listing.location}\n"
+                        f"{listing.description}\n"
+                        f"**AI**: {rating.comment}"
+                    )
                 )
             )
             msgs[ns].append((listing, msg))

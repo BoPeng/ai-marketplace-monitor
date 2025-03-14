@@ -182,10 +182,13 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 
 #### Pushover notification
 
-| Option        | Requirement | DataType | Description                                  |
-| ------------- | ----------- | -------- | -------------------------------------------- |
-| `ntfy_server` | Optional    | String   | ntfy server, default to `https://ntfy.sh`    |
-| `ntfy_topic`  | Optional    | String   | A unique topic to receive your notification. |
+| Option           | Requirement | DataType | Description                                       |
+| ---------------- | ----------- | -------- | ------------------------------------------------- |
+| `ntfy_server`    | Optional    | String   | ntfy server, default to `https://ntfy.sh`         |
+| `ntfy_topic`     | Optional    | String   | A unique topic to receive your notification.      |
+| `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` |
+
+- According to [ntfy documentation](https://docs.ntfy.sh/publish/#markdown-formatting), markdown format is supported only by web app. Therefore, `message_format` is by default set to `plain_text`.
 
 ### Email notification
 

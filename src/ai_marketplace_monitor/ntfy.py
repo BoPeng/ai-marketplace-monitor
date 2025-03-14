@@ -11,8 +11,8 @@ from .utils import hilight
 @dataclass
 class NtfyNotificationConfig(PushNotificationConfig):
     required_fields: ClassVar[List[str]] = ["ntfy_server", "ntfy_topic"]
-    message_format: ClassVar[str] = "markdown"
 
+    message_format: str | None = None
     ntfy_server: str | None = None
     ntfy_topic: str | None = None
 
