@@ -171,6 +171,13 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | `pushover_user_id`   | Optional    | String   | Pushover user key.  |
 | `pushover_api_token` | Optional    | String   | Pushover API Token. |
 
+#### Pushover notification
+
+| Option        | Requirement | DataType | Description                                  |
+| ------------- | ----------- | -------- | -------------------------------------------- |
+| `ntfy_server` | Optional    | String   | ntfy server, default to `https://ntfy.sh`    |
+| `ntfy_topic`  | Optional    | String   | A unique topic to receive your notification. |
+
 ### Email notification
 
 | Option          | Requirement | DataType    | Description                                             |

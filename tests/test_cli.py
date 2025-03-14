@@ -140,6 +140,13 @@ pushover_user_id = "xxxxxx"
 pushover_api_token = "dfafdafd"
 """
 
+
+base_ntfy_cfg = """
+[notification.ntfy]
+ntfy_server = "https://xxxxxx"
+ntfy_topic = "dfafdafd"
+"""
+
 base_email_cfg = """
 [notification.gmail]
 smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -153,6 +160,11 @@ notify_with = ['pushbullet1', 'gmail']
 notify_user_pushover_cfg = """
 [user.user1]
 notify_with = 'pushover'
+"""
+
+notify_user_ntfy_cfg = """
+[user.user1]
+notify_with = 'ntfy'
 """
 
 monitor_cfg = """
@@ -221,6 +233,18 @@ proxy_password = 'fadfadf'
             + base_item_cfg
             + notify_user_pushover_cfg
             + base_pushover_cfg.replace("pushover", "somethingelse"),
+            False,
+        ),
+        # ntfy
+        (
+            base_marketplace_cfg + base_item_cfg + notify_user_ntfy_cfg + base_ntfy_cfg,
+            True,
+        ),
+        (
+            base_marketplace_cfg
+            + base_item_cfg
+            + notify_user_ntfy_cfg
+            + base_ntfy_cfg.replace("ntfy", "somethingelse"),
             False,
         ),
         # user should match

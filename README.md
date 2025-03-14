@@ -81,7 +81,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 📱 **Notifications**
 
-- PushBullet and PushOver notifications
+- PushBullet, PushOver, or Ntfy notifications
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
@@ -118,9 +118,9 @@ playwright install
 
 If you would like to receive notification from your phone via PushBullet
 
-- Sign up for [PushBullet](https://www.pushbullet.com/) or [PushOver](https://pushover.net/)
+- Sign up for [PushBullet](https://www.pushbullet.com/), [PushOver](https://pushover.net/) or [Ntfy](https://ntfy.sh/)
 - Install the app on your phone
-- Go to the PushBullet website and obtain necessary token(s)
+- Go to the respective website and obtain necessary token(s)
 
 If you would like to receive email notification, obtain relevant SMTP settings from your email provider. See [Setting up email notification](#setting-up-email-notification) for details.
 
@@ -684,9 +684,7 @@ I greatly appreciate your understanding. To help expedite responses, please reme
 
 ## Subscription Plans
 
-
 _AI Marketplace Monitor_ is distributed under a **AGPL License**, giving you the freedom to use it as you wish. However, it is your responsibility to configure all external AI and notification services.
-
 
 ### Pro Plan
 

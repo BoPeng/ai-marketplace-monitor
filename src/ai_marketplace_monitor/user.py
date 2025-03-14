@@ -13,12 +13,16 @@ from .marketplace import TItemConfig
 from .notification import NotificationConfig, NotificationStatus
 from .pushbullet import PushbulletNotificationConfig
 from .pushover import PushoverNotificationConfig
+from .ntfy import NtfyNotificationConfig
 from .utils import CacheType, CounterItem, cache, convert_to_seconds, counter, hilight
 
 
 @dataclass
 class UserConfig(
-    EmailNotificationConfig, PushbulletNotificationConfig, PushoverNotificationConfig
+    EmailNotificationConfig,
+    PushbulletNotificationConfig,
+    PushoverNotificationConfig,
+    NtfyNotificationConfig,
 ):
     """UserConfiguration
 

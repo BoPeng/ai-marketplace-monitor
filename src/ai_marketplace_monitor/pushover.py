@@ -31,7 +31,7 @@ class PushoverNotificationConfig(PushNotificationConfig):
             raise ValueError("user requires an non-empty pushover_api_token.")
         self.pushover_api_token = self.pushover_api_token.strip()
 
-    def send_pus_message(
+    def send_push_message(
         self: "PushoverNotificationConfig",
         title: str,
         message: str,
