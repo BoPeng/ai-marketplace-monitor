@@ -44,7 +44,10 @@ class NotificationConfig(BaseConfig):
         """Call the notify method of all subclasses"""
         succ = []
         for subclass in cls.__subclasses__():
-            if hasattr(subclass, "notify") and subclass.__name__ != "UserConfig":
+            if hasattr(subclass, "notify") and subclass.__name__ not in [
+                "UserConfig",
+                "PushNotificationConfig",
+            ]:
                 succ.append(subclass.notify(config, *args, **kwargs))
             # subclases
             succ.append(subclass.notify_all(config, *args, **kwargs))
@@ -54,6 +57,21 @@ class NotificationConfig(BaseConfig):
 @dataclass
 class PushNotificationConfig(NotificationConfig):
     required_fields: ClassVar[List[str]] = []
+
+    max_retries: int | None = None
+    retry_delay: int | None = None
+
+    def handle_max_retries(self: "PushNotificationConfig") -> None:
+        if self.max_retries is None:
+            return
+        if not isinstance(self.max_retries, int):
+            raise ValueError("max_retries must be an integer.")
+
+    def handle_retry_delay(self: "PushNotificationConfig") -> None:
+        if self.retry_delay is None:
+            return
+        if not isinstance(self.retry_delay, int):
+            raise ValueError("retry_delay must be an integer.")
 
     def notify(
         self: "PushNotificationConfig",
@@ -68,7 +86,6 @@ class PushNotificationConfig(NotificationConfig):
                 if logger:
                     logger.debug(f"No {hilight(field)} specified.")
                 return False
-
         #
         # we send listings with different status with different messages
         msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
@@ -118,8 +135,6 @@ class PushNotificationConfig(NotificationConfig):
         self: "PushNotificationConfig",
         title: str,
         message: str,
-        max_retries: int = 6,
-        delay: int = 10,
         logger: Logger | None = None,
     ) -> bool:
         for field in self.required_fields:
@@ -127,6 +142,9 @@ class PushNotificationConfig(NotificationConfig):
                 if logger:
                     logger.debug(f"No {hilight(field)} specified.")
                 return False
+
+        max_retries = self.max_retries or 5
+        retry_delay = self.retry_delay or 60
 
         for attempt in range(max_retries):
             try:
@@ -146,9 +164,9 @@ class PushNotificationConfig(NotificationConfig):
                 if attempt < max_retries - 1:
                     if logger:
                         logger.debug(
-                            f"""{hilight("[Notify]", "fail")} Retrying in {delay} seconds..."""
+                            f"""{hilight("[Notify]", "fail")} Retrying in {retry_delay} seconds..."""
                         )
-                    time.sleep(delay)
+                    time.sleep(retry_delay)
                 else:
                     if logger:
                         logger.error(

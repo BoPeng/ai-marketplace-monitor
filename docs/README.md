@@ -154,6 +154,15 @@ pushbullet_token = "xxxxxxxxxxxxxxxx"
 pushbullet_token = "yyyyyyyyyyyyyyyy"
 ```
 
+#### Common Notification settings
+
+| Option        | Requirement | DataType | Description                                                       |
+| ------------- | ----------- | -------- | ----------------------------------------------------------------- |
+| `max_retries` | Optional    | Integer  | Number of attempts to retry a notification. Defaults to `5`.      |
+| `retry_delay` | Optional    | Integer  | Time in seconds to wait between retry attempts. Defaults to `60`. |
+
+These settings are shared across all notification methods. For example, if you are notifying with `notify_with=['gmail', 'pushbullet']`, the same `max_retries` and `retry_delay` will apply to both methods.
+
 #### Pushbullet notification
 
 | Option                    | Requirement | DataType | Description                   |

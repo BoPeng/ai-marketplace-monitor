@@ -129,6 +129,8 @@ def user_config() -> UserConfig:
     return UserConfig(
         name="test",
         pushbullet_token="whatever",
+        max_retries=1,
+        retry_delay=1,
         remind=True,
     )
 
