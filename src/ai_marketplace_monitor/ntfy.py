@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import ClassVar, List
 
-import requests
+import requests  # type: ignore
 
 from .notification import PushNotificationConfig
 from .utils import hilight
@@ -43,6 +43,8 @@ class NtfyNotificationConfig(PushNotificationConfig):
         logger: Logger | None = None,
     ) -> bool:
         msg = f"{message}\n\nSent by https://github.com/BoPeng/ai-marketplace-monitor"
+        assert self.ntfy_server is not None
+        assert self.ntfy_topic is not None
         requests.post(
             f'{self.ntfy_server.rstrip("/")}/{self.ntfy_topic}',
             msg,
