@@ -422,19 +422,19 @@ However, if you would like to search for a larger region (e.g. the USA), it is m
 _ai-marketplace-monitor_ defines the following regions in its system
 [config.toml](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/src/ai_marketplace_monitor/config.toml):
 
-- `usa` for USA (without AK or HI)
-- `usa_full` for USA
-- `can` for Canada
-- `mex` for Mexico
-- `bra` for Brazil
-- `arg` for Argentina
-- `aus` for Australia
-- `aus_miles` for Australia using 500 miles radius
-- `nzl` for New Zealand
-- `ind` for India
-- `gbr` for United Kingdom
-- `fra` for France
-- `spa` for Spain
+- `usa` for USA (without AK or HI), with currency `USD`
+- `usa_full` for USA, with currency `USD`
+- `can` for Canada, with currency `CAD`
+- `mex` for Mexico, with currency `MXN`
+- `bra` for Brazil, with currency `BRL`
+- `arg` for Argentina, with currency `ARS`
+- `aus` for Australia, with currency `AUD`
+- `aus_miles` for Australia using 500 miles radius, with currency `AUD`
+- `nzl` for New Zealand, with currency `NZD`
+- `ind` for India, with currency `INR`
+- `gbr` for United Kingdom, with currency `GBP`
+- `fra` for France, with currency `EUR`
+- `spa` for Spain, with currency `EUR`
 
 Now, if you would like to search an item across the US, you can
 
@@ -445,7 +445,7 @@ seller_locations = []
 delivery_method = 'shipping'
 ```
 
-Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` with corresponding pre-defined `search_city` and `radius`. Note that `seller_locations` does not make sense and need to be set to empty for region-based search, and it makes sense to limit the search to listings that offer shipping.
+Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` with corresponding pre-defined `search_city`, `radius`, and `currency`. Note that `seller_locations` does not make sense and need to be set to empty for region-based search, and it makes sense to limit the search to listings that offer shipping.
 
 ### Searching across regions with different currencies
 
@@ -475,6 +475,16 @@ currency = ['EUR', 'USD']
 ```
 
 In this example, the system will perform two searches and convert the `min_price` of `100` `USD` into the equivalent amount in `EUR` when searching `item1` around Paris, using historical exchange rates provided by the [Currency Converter](https://pypi.org/project/CurrencyConverter/) package.
+
+All pre-defined regions has a defined `currency` (see [Searching multiple cities and regions](#searching-multiple-cities-and-regions) for details). If you would like to search across regions with different currencies, you can
+
+```toml
+[item.item1]
+min_price = '100 EUR'
+search_region = ['fra', 'gbr']
+```
+
+and _AI Marketplace Monitor_ will automatically convert `100 EUR` to `GBP` when searching United Kingdom.
 
 Note:
 
