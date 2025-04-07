@@ -373,7 +373,7 @@ class FacebookMarketplace(Marketplace):
                     options.append(f"maxPrice={max_price}")
                 else:
                     price, cur = max_price.split(" ", 1)
-                    if cur != currency:
+                    if currency and cur != currency:
                         c = CurrencyConverter()
                         price = str(int(c.convert(int(price), cur, currency)))
                         if self.logger:
@@ -388,7 +388,7 @@ class FacebookMarketplace(Marketplace):
                     options.append(f"minPrice={min_price}")
                 else:
                     price, cur = min_price.split(" ", 1)
-                    if cur != currency:
+                    if currency and cur != currency:
                         c = CurrencyConverter()
                         price = str(int(c.convert(int(price), cur, currency)))
                         if self.logger:
