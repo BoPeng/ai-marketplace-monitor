@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from .utils import BaseConfig, hilight, Currency
+from .utils import BaseConfig, Currency, hilight
 
 
 @dataclass

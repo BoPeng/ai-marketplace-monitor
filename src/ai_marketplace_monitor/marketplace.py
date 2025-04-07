@@ -7,7 +7,7 @@ from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
 from .listing import Listing
-from .utils import BaseConfig, KeyboardMonitor, Translator, convert_to_seconds, hilight, Currency
+from .utils import BaseConfig, Currency, KeyboardMonitor, Translator, convert_to_seconds, hilight
 
 
 class MarketPlace(Enum):

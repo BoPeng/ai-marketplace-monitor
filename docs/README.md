@@ -264,6 +264,7 @@ Note that
 3. `prompt`, `extra_prompt`, `rating_prompt`, and `rating` are used to adjust how to interact with an AI service. See [Adjust prompt and notification level](../README.md#adjust-prompt-and-notification-level) for details.
 4. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
 5. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](../README.md#first-and-subsequent-searches) for details.
+6. `min_price` and `max_price` can be specified as a number (e.g. `min_price=100`) or a number followed by a currency name (e.g. `min_price='100 USD'`). If different currencies are specified for both `min_price/max_price` and `search_city` (or `region`), the `min_price` and `max_price` will be adjusted to use currency for the `search_city`. See [Searching across regions with different currencies](../README.md#searching-across-regions-with-different-currencies) for details.
 
 ### Regions
 

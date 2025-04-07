@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2025-04-07
+
+- [issue 122](https://github.com/BoPeng/ai-marketplace-monitor/issues/122) Support searching across regions with different currencies
+
 ## [0.9.1] - 2025-03-13
 
 - Re-release AI Marketplace Monitor under a AGPL license

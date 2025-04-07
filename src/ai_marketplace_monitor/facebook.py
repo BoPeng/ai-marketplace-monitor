@@ -9,9 +9,9 @@ from typing import Any, Generator, List, Type, cast
 from urllib.parse import quote
 
 import humanize
+from currency_converter import CurrencyConverter  # type: ignore
 from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
-from currency_converter import CurrencyConverter
 
 from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage
@@ -375,7 +375,7 @@ class FacebookMarketplace(Marketplace):
                     price, cur = max_price.split(" ", 1)
                     if cur != currency:
                         c = CurrencyConverter()
-                        price = int(c.convert(int(price), cur, currency))
+                        price = str(int(c.convert(int(price), cur, currency)))
                         if self.logger:
                             self.logger.debug(
                                 f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""
@@ -390,7 +390,7 @@ class FacebookMarketplace(Marketplace):
                     price, cur = min_price.split(" ", 1)
                     if cur != currency:
                         c = CurrencyConverter()
-                        price = int(c.convert(int(price), cur, currency))
+                        price = str(int(c.convert(int(price), cur, currency)))
                         if self.logger:
                             self.logger.debug(
                                 f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""

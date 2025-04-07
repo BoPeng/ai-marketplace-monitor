@@ -47,6 +47,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
+  - [Searching across regions with different currencies](#searching-across-regions-with-different-currencies)
   - [Support for non-English languages](#support-for-non-english-languages)
   - [Check individual listing](#check-individual-listing)
   - [Multiple marketplaces](#multiple-marketplaces)
@@ -446,20 +447,20 @@ delivery_method = 'shipping'
 
 Under the hood, _ai-marketplace-monitor_ will simply replace `search_region` with corresponding pre-defined `search_city` and `radius`. Note that `seller_locations` does not make sense and need to be set to empty for region-based search, and it makes sense to limit the search to listings that offer shipping.
 
-### Support for multiple currency
+### Searching across regions with different currencies
 
-_AI Marketplace Monitor_ does not enforce any specific currency format for price filters. It assumes that the `min_price` and `m`ax_price`values are provided in the currency commonly used in the specified`search_city`. For example, in the configurations below:
+_AI Marketplace Monitor_ does not enforce any specific currency format for price filters. It assumes that the `min_price` and `max_price` values are provided in the currency commonly used in the specified `search_city`. For example, in the configurations below:
 
 ```toml
 [item.item1]
 min_price = 100
-search_city = 'newyork'
+search_city = 'newyork' # for demonstration only, city name for newyork might differ
 ```
 
 ```toml
 [item.item1]
 min_price = 100
-search_city = 'paris'
+search_city = 'paris' # for demonstration only, city name for paris might differ
 ```
 
 The `min_price` is interpreted as 100 `USD` for New York and 100 `EUR` for Paris, based on the typical local currency of each city.
@@ -467,21 +468,22 @@ The `min_price` is interpreted as 100 `USD` for New York and 100 `EUR` for Paris
 If you perform a search across cities that use different currencies, you can explicitly define the currencies using the `currency` option:
 
 ```toml
-[item]
+[item.item1]
 min_price = '100 USD'
 search_city = ['paris', 'newyork']
 currency = ['EUR', 'USD']
 ```
 
-In this example, the system will convert the `min_price` of 100 `USD` into the equivalent amount in `EUR` for Paris, using historical exchange rates provided by the [Currency Converter](https://pypi.org/project/CurrencyConverter/) package.
+In this example, the system will perform two searches and convert the `min_price` of `100` `USD` into the equivalent amount in `EUR` when searching `item1` around Paris, using historical exchange rates provided by the [Currency Converter](https://pypi.org/project/CurrencyConverter/) package.
 
 Note:
 
-1. Supported currencies include: `USD`, `JPY`, `BGN`, `CYP`, `EUR`, `CZK`, `DKK`, `EEK`, `GBP`, `HUF`, `LTL`, `LVL`, `MTL`, `PLN`, `ROL`, `RON`, `SEK`, `SIT`, `SKK`, `CHF`, `ISK`, `NOK`, `HRK`, `RUB`, `TRL`, `TRY`, `AUD`, `BRL`, `CAD`, `CNY`, `HKD`, `IDR`, `ILS`, `INR`, `KRW`, `MXN`, `MYR`, `NZD`, `PHP`, `SGD`, `THB`, and `ZAR`.
+1. The following currency codes are supported: `USD`, `JPY`, `BGN`, `CYP`, `EUR`, `CZK`, `DKK`, `EEK`, `GBP`, `HUF`, `LTL`, `LVL`, `MTL`, `PLN`, `ROL`, `RON`, `SEK`, `SIT`, `SKK`, `CHF`, `ISK`, `NOK`, `HRK`, `RUB`, `TRL`, `TRY`, `AUD`, `BRL`, `CAD`, `CNY`, `HKD`, `IDR`, `ILS`, `INR`, `KRW`, `MXN`, `MYR`, `NZD`, `PHP`, `SGD`, `THB`, `ZAR`, and `ARS`.
+   Note: `ARS` (Argentine Peso) is included for completeness, but conversion support is not currently available.
 2. Currency conversion only occurs if:
    - `currency` values are explicitly defined.
    - The currencies differ between cities or differ from the currency used in `min_price` / `max_price`.
-3. Conversion rates may not reflect current market values but are sufficient for general filtering purposes.
+3. Conversion rates are intended for basic filtering and may not reflect real-time market values. In some cases, converted `min_price` and `max_price` values may round down to zero (e.g. converting `100 JPY` to `USD`).
 
 ### Support for non-English languages
 
