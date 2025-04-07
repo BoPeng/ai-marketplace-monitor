@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from .utils import BaseConfig
+from .utils import BaseConfig, hilight, Currency
 
 
 @dataclass
@@ -10,6 +10,7 @@ class RegionConfig(BaseConfig):
     full_name: str = ""
     radius: List[int] = field(default_factory=list)
     city_name: List[str] = field(default_factory=list)
+    currency: List[str] = field(default_factory=list)
 
     def handle_search_city(self: "RegionConfig") -> None:
         if isinstance(self.search_city, str):
@@ -54,4 +55,34 @@ class RegionConfig(BaseConfig):
         if len(self.city_name) != len(self.search_city):
             raise ValueError(
                 f"Region {self.name} city_name {self.city_name} must be the same length as search_city {self.search_city}."
+            )
+
+    def handle_currency(self: "RegionConfig") -> None:
+        if self.currency is None:
+            return
+
+        if self.search_city is None:
+            raise ValueError(
+                f"Item {hilight(self.name)} currency must be None if search_city is None."
+            )
+
+        if isinstance(self.currency, str):
+            self.currency = [self.currency] * len(self.search_city)
+
+        if not all(isinstance(x, str) for x in self.currency):
+            raise ValueError(
+                f"Item {hilight(self.name)} currency must be one or a list of strings."
+            )
+
+        for currency in self.currency:
+            try:
+                Currency(currency)
+            except ValueError as e:
+                raise ValueError(
+                    f"Item {hilight(self.name)} currency {currency} is not recognized."
+                ) from e
+
+        if len(self.currency) != len(self.search_city):
+            raise ValueError(
+                f"Region {self.name} city_name ({self.city_name}) must be the same length as search_city ({self.search_city})."
             )

@@ -263,6 +263,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             config.city_name = []
             config.search_city = []
             config.radius = []
+            config.currency = []
 
             for region in config.search_region:
                 region_config: RegionConfig = self.region[region]
@@ -273,15 +274,17 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 if region_config.enabled is False:
                     continue
                 # avoid duplicated addition of search_city
-                for search_city, city_name, radius in zip(
+                for search_city, city_name, radius, currency in zip(
                     region_config.search_city or [],
                     region_config.city_name or [],
                     region_config.radius or [],
+                    region_config.currency or [],
                 ):
                     if search_city not in config.search_city:
                         config.search_city.append(search_city)
                         config.city_name.append(city_name)
                         config.radius.append(radius)
+                        config.currency.append(currency)
 
     def validate_items(self: "Config") -> None:
         # if item is specified in other section, they must exist

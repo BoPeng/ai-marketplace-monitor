@@ -61,7 +61,8 @@ date_listed = 7
 delivery_method = 'local_pick_up'
 exclude_sellers = "seller"
 ai = []
-max_price = 300
+currency = 'USD'
+max_price = '300 EUR'
 min_price = 200
 rating = 4
 max_search_interval = 40
@@ -261,6 +262,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "api_key": str,
         "city_name": (list, type(None)),
         "condition": (list, type(None)),
+        "currency": (list, type(None)),
         "date_listed": (list, type(None)),
         "delivery_method": (list, type(None)),
         "description": (str, type(None)),
@@ -271,10 +273,10 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "language": (str, type(None)),
         "login_wait_time": (int, type(None)),
         "marketplace": (str, type(None)),
-        "max_price": (int, type(None)),
+        "max_price": (str, type(None)),
         "max_search_interval": (int, type(None)),
         "market_type": (str, type(None)),
-        "min_price": (int, type(None)),
+        "min_price": (str, type(None)),
         "model": (str, type(None)),
         "name": (str, type(None)),
         "notify": (list, type(None)),
@@ -363,3 +365,21 @@ def test_multiplace_ai_agent(config_file: Callable) -> None:
 
     assert config.ai["openai"].api_key == "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     assert config.ai["some_ai"].model == "gpt_none"
+
+
+currency_item_cfg = """
+[item.name]
+search_phrases = 'search word one'
+max_price = '300 USD'
+search_city = 'paris'
+currency = 'EUR'
+"""
+
+
+def test_price_conversion(config_file: Callable) -> None:
+    """Test the config command."""
+    cfg = config_file(base_marketplace_cfg + base_ai_cfg + currency_item_cfg + base_user_cfg)
+    config = Config([cfg])
+
+    assert config.item["name"].max_price == "300 USD"
+    assert config.item["name"].currency == ["EUR"]

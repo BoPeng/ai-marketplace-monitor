@@ -32,6 +32,7 @@ search_city = [
     "112442175434378",
     "113333232014461",
 ]
+currency = 'USD'
 
 
 [region.usa_full]
@@ -67,7 +68,7 @@ search_city = [
     "196626670491979",
     "110444738976181",
 ]
-
+currency = 'USD'
 
 [region.can]
 full_name = "Canada"
@@ -94,7 +95,7 @@ search_city = [
     "115392538472860",
     "115477851802820",
 ]
-
+currency = 'CAD'
 
 [region.mex]
 full_name = "Mexico"
@@ -117,6 +118,7 @@ search_city = [
     "154130198035072",
     "116186601728289",
 ]
+currency = 'MXN'
 
 
 [region.bra]
@@ -162,6 +164,7 @@ search_city = [
     "103727253000065",
     "117248258288799",
 ]
+currency = 'BRL'
 
 
 [region.arg]
@@ -185,6 +188,7 @@ search_city = [
     "105646196135882",
     "300807386607332",
 ]
+currency = 'ARS'
 
 
 [region.aus]
@@ -220,6 +224,7 @@ search_city = [
     "107929299235881",
     "109465839072367",
 ]
+currency = 'AUD'
 
 
 [region.aus_miles]
@@ -245,12 +250,15 @@ search_city = [
     "108276829196663",
     "112099285474124",
 ]
+currency = 'AUD'
+
 
 [region.nzl]
 full_name = "New Zealand"
 radius = 805
 city_name = ["Hamilton", "Lake Tekapo"]
 search_city = ["104080336295923", "106528236047934"]
+currency = 'NZD'
 
 
 [region.ind]
@@ -274,6 +282,7 @@ search_city = [
     "115852108431709",
     "1410397895862431",
 ]
+currency = 'INR'
 
 
 [region.gbr]
@@ -281,6 +290,7 @@ full_name = "United Kingdom"
 radius = 805
 city_name = ["Manchester", "Kirkwall"]
 search_city = ["114629675219759", "107972512564724"]
+currency = 'GBP'
 
 
 [region.fra]
@@ -288,6 +298,7 @@ full_name = "France"
 radius = 805
 city_name = ["Chartres", "Montpellier"]
 search_city = ["115700691777803", "115100621840245"]
+currency = 'EUR'
 
 
 [region.spa]
@@ -295,6 +306,7 @@ full_name = "Spain"
 radius = 805
 city_name = ["Plasencia", "Valencia"]
 search_city = ["108336475863182", "2404588816444858"]
+currency = 'EUR'
 
 
 #

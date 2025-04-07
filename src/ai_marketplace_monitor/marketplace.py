@@ -7,7 +7,7 @@ from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
 from .listing import Listing
-from .utils import BaseConfig, KeyboardMonitor, Translator, convert_to_seconds, hilight
+from .utils import BaseConfig, KeyboardMonitor, Translator, convert_to_seconds, hilight, Currency
 
 
 class MarketPlace(Enum):
@@ -29,12 +29,13 @@ class MarketItemCommonConfig(BaseConfig):
     city_name: List[str] | None = None
     # radius must be processed after search_city
     radius: List[int] | None = None
+    currency: List[str] | None = None
     search_interval: int | None = None
     max_search_interval: int | None = None
     start_at: List[str] | None = None
     search_region: List[str] | None = None
-    max_price: int | None = None
-    min_price: int | None = None
+    max_price: str | None = None
+    min_price: str | None = None
     rating: List[int] | None = None
     prompt: str | None = None
     extra_prompt: str | None = None
@@ -147,6 +148,36 @@ class MarketItemCommonConfig(BaseConfig):
                 f"Region {self.name} city_name ({self.city_name}) must be the same length as search_city ({self.search_city})."
             )
 
+    def handle_currency(self: "MarketItemCommonConfig") -> None:
+        if self.currency is None:
+            return
+
+        if self.search_city is None:
+            raise ValueError(
+                f"Item {hilight(self.name)} currency must be None if search_city is None."
+            )
+
+        if isinstance(self.currency, str):
+            self.currency = [self.currency] * len(self.search_city)
+
+        if not all(isinstance(x, str) for x in self.currency):
+            raise ValueError(
+                f"Item {hilight(self.name)} currency must be one or a list of strings."
+            )
+
+        for currency in self.currency:
+            try:
+                Currency(currency)
+            except ValueError as e:
+                raise ValueError(
+                    f"Item {hilight(self.name)} currency {currency} is not recognized."
+                ) from e
+
+        if len(self.currency) != len(self.search_city):
+            raise ValueError(
+                f"Region {self.name} city_name ({self.city_name}) must be the same length as search_city ({self.search_city})."
+            )
+
     def handle_search_interval(self: "MarketItemCommonConfig") -> None:
         if self.search_interval is None:
             return
@@ -180,15 +211,58 @@ class MarketItemCommonConfig(BaseConfig):
     def handle_max_price(self: "MarketItemCommonConfig") -> None:
         if self.max_price is None:
             return
-        if not isinstance(self.max_price, int):
-            raise ValueError(f"Item {hilight(self.name)} max_price must be an integer.")
+
+        if isinstance(self.max_price, int):
+            self.max_price = str(self.max_price)
+
+        # the price should be a number followed by currency name (e.g. 100 USD)
+        if not isinstance(self.max_price, str):
+            raise ValueError(f"Item {hilight(self.name)} max_price must be a string.")
+
+        if " " in self.max_price:
+            price, currency = self.max_price.split(" ", 1)
+            if not price.isdigit():
+                raise ValueError(
+                    f"Item {hilight(self.name)} max_price must be a number followed by currency name."
+                )
+            try:
+                Currency(currency)
+            except ValueError as e:
+                raise ValueError(
+                    f"Item {hilight(self.name)} max_price currency {currency} is not recognized."
+                ) from e
+        elif not self.max_price.isdigit():
+            raise ValueError(
+                f"Item {hilight(self.name)} max_price must be a number followed by currency name."
+            )
 
     def handle_min_price(self: "MarketItemCommonConfig") -> None:
         if self.min_price is None:
             return
 
-        if not isinstance(self.min_price, int):
-            raise ValueError(f"Item {hilight(self.name)} min_price must be an integer.")
+        if isinstance(self.min_price, int):
+            self.min_price = str(self.min_price)
+
+        # the price should be a number followed by currency name (e.g. 100 USD)
+        if not isinstance(self.min_price, str):
+            raise ValueError(f"Item {hilight(self.name)} min_price must be a string.")
+
+        if " " in self.min_price:
+            price, currency = self.min_price.split(" ", 1)
+            if not price.isdigit():
+                raise ValueError(
+                    f"Item {hilight(self.name)} min_price must be a number followed by currency name."
+                )
+            try:
+                Currency(currency)
+            except ValueError as e:
+                raise ValueError(
+                    f"Item {hilight(self.name)} min_price currency {currency} is not recognized."
+                ) from e
+        elif not self.min_price.isdigit():
+            raise ValueError(
+                f"Item {hilight(self.name)} min_price must be a number followed by currency name."
+            )
 
     def handle_start_at(self: "MarketItemCommonConfig") -> None:
         if self.start_at is None:

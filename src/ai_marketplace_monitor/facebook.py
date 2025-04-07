@@ -11,6 +11,7 @@ from urllib.parse import quote
 import humanize
 from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
+from currency_converter import CurrencyConverter
 
 from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage
@@ -295,14 +296,6 @@ class FacebookMarketplace(Marketplace):
 
         options = []
 
-        max_price = item_config.max_price or self.config.max_price
-        if max_price:
-            options.append(f"maxPrice={max_price}")
-
-        min_price = item_config.min_price or self.config.min_price
-        if min_price:
-            options.append(f"minPrice={min_price}")
-
         condition = item_config.condition or self.config.condition
         if condition:
             options.append(f"itemCondition={'%2C'.join(condition)}")
@@ -350,6 +343,7 @@ class FacebookMarketplace(Marketplace):
         search_city = item_config.search_city or self.config.search_city or []
         city_name = item_config.city_name or self.config.city_name or []
         radiuses = item_config.radius or self.config.radius
+        currencies = item_config.currency or self.config.currency
 
         # this should not happen because `Config.validate_items` has checked this
         if not search_city:
@@ -359,10 +353,11 @@ class FacebookMarketplace(Marketplace):
                 )
         # increase the searched_count to differentiate first and subsequent searches
         item_config.searched_count += 1
-        for city, cname, radius in zip(
+        for city, cname, radius, currency in zip(
             search_city,
             repeat(None) if city_name is None else city_name,
             repeat(None) if radiuses is None else radiuses,
+            repeat(None) if currencies is None else currencies,
         ):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
 
@@ -371,6 +366,36 @@ class FacebookMarketplace(Marketplace):
                 if options and options[-1].startswith("radius"):
                     options.pop()
                 options.append(f"radius={radius}")
+
+            max_price = item_config.max_price or self.config.max_price
+            if max_price:
+                if max_price.isdigit():
+                    options.append(f"maxPrice={max_price}")
+                else:
+                    price, cur = max_price.split(" ", 1)
+                    if cur != currency:
+                        c = CurrencyConverter()
+                        price = c.convert(int(price), cur, currency)
+                        if self.logger:
+                            self.logger.debug(
+                                f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""
+                            )
+                    options.append(f"maxPrice={price}")
+
+            min_price = item_config.min_price or self.config.min_price
+            if min_price:
+                if min_price.isdigit():
+                    options.append(f"minPrice={min_price}")
+                else:
+                    price, cur = min_price.split(" ", 1)
+                    if cur != currency:
+                        c = CurrencyConverter()
+                        price = c.convert(int(price), cur, currency)
+                        if self.logger:
+                            self.logger.debug(
+                                f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""
+                            )
+                    options.append(f"minPrice={price}")
 
             for search_phrase in item_config.search_phrases:
                 if self.logger:

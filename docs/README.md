@@ -239,13 +239,14 @@ The following options that can specified for both `marketplace` sections and `it
 | `date_listed`         | Optional          | String/Integer/List | One of `all`, `last 24 hours`, `last 7 days`, `last 30 days`, or `0`, `1`, `7`, and `30`.                                                                   |
 | `delivery_method`     | Optional          | String/List         | One of `all`, `local_pick_up`, and `shipping`.                                                                                                              |
 | `exclude_sellers`     | Optional          | String/List         | Exclude certain sellers by their names (not username).                                                                                                      |
-| `max_price`           | Optional          | Integer             | Maximum price.                                                                                                                                              |
+| `max_price`           | Optional          | Integer/String      | Maximum price, can be followed by a currency name.                                                                                                          |
 | `max_search_interval` | Optional          | String              | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
-| `min_price`           | Optional          | Integer             | Minimum price.                                                                                                                                              |
+| `min_price`           | Optional          | Integer/String      | Minimum price, can be followed by a currency name.                                                                                                          |
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
 | `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
 | `city_name`           | Optional          | String/List         | Corresponding name of `search_city`.                                                                                                                        |
 | `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
+| `currency`            | Optional          | Integer/List        | Currency used for the search city, can be a list if multiple `search_city` are specified.                                                                   |
 | `prompt`              | Optional          | String              | Prompt to AI service that will replace the default prompt                                                                                                   |
 | `extra_prompt`        | Optional          | String              | Additional prompt that will be inserted between regular and rating prompt                                                                                   |
 | `ranking_prompt`      | Optional          | String              | Ranking prompt that instruct how AI rates the listings                                                                                                      |
@@ -273,6 +274,7 @@ One or more sections of `[region.region_name]`, which defines regions to search.
 | `search_city` | Required          | String/List  | One or more cities with names used by Facebook.                             |
 | `full_name`   | Optional          | String       | A display name for the region.                                              |
 | `radius`      | Optional          | Integer/List | Recommended `805` for regions using kms, and `500` for regions using miles. |
+| `currency`    | Optional          | Integer/List | Currency used for the region.                                               |
 | `city_name`   | Optional          | String/List  | Corresponding names for `search_city`.                                      |
 
 Note that
