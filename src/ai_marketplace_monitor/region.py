@@ -58,7 +58,7 @@ class RegionConfig(BaseConfig):
             )
 
     def handle_currency(self: "RegionConfig") -> None:
-        if self.currency is None:
+        if not self.currency:
             return
 
         if self.search_city is None:
@@ -84,5 +84,5 @@ class RegionConfig(BaseConfig):
 
         if len(self.currency) != len(self.search_city):
             raise ValueError(
-                f"Region {self.name} city_name ({self.city_name}) must be the same length as search_city ({self.search_city})."
+                f"Region {self.name} currency ({self.currency}) must be the same length as search_city ({self.search_city})."
             )
