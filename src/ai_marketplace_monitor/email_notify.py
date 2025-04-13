@@ -21,6 +21,7 @@ from .utils import fetch_with_retry, hilight, resize_image_data
 
 @dataclass
 class EmailNotificationConfig(NotificationConfig):
+    notify_method = "email"
     required_fields: ClassVar[List[str]] = ["email", "smtp_password"]
 
     email: List[str] | None = None
@@ -222,6 +223,10 @@ class EmailNotificationConfig(NotificationConfig):
         logger: Logger | None = None,
     ) -> bool:
         if not self._has_required_fields():
+            if logger:
+                logger.debug(
+                    f"Missing required fields {', '.join(self.required_fields)}. No {self.notify_method} notification sent."
+                )
             return False
 
         title = self.get_title(listings, notification_status, force=force)

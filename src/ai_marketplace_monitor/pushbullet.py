@@ -10,6 +10,7 @@ from .utils import hilight
 
 @dataclass
 class PushbulletNotificationConfig(PushNotificationConfig):
+    notify_method = "pushbullet"
     required_fields: ClassVar[List[str]] = ["pushbullet_token"]
 
     pushbullet_token: str | None = None

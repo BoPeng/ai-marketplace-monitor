@@ -59,13 +59,17 @@ class NotificationConfig(BaseConfig):
         """Call the notify method of all subclasses"""
         succ = []
         for subclass in cls.__subclasses__():
-            if hasattr(subclass, "notify") and subclass.__name__ not in [
+            flds = {f.name for f in fields(subclass)}
+            subclass_obj = subclass(**{k: getattr(config, k) for k in flds})
+            if hasattr(subclass_obj, "notify") and subclass.__name__ not in [
                 "UserConfig",
                 "PushNotificationConfig",
             ]:
-                succ.append(subclass.notify(config, *args, **kwargs))
+                assert hasattr(subclass_obj, "notify")
+                succ.append(subclass_obj.notify(*args, **kwargs))
             # subclases
-            succ.append(subclass.notify_all(config, *args, **kwargs))
+            if hasattr(subclass_obj, "notify_all"):
+                succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
 
     def send_message_with_retry(
@@ -117,6 +121,7 @@ class NotificationConfig(BaseConfig):
 
 @dataclass
 class PushNotificationConfig(NotificationConfig):
+    notify_method = "push_notification"
     message_format: str | None = None
 
     def handle_message_format(self: "PushNotificationConfig") -> None:
@@ -135,6 +140,10 @@ class PushNotificationConfig(NotificationConfig):
         logger: Logger | None = None,
     ) -> bool:
         if not self._has_required_fields():
+            if logger:
+                logger.debug(
+                    f"Missing required fields  {', '.join(self.required_fields)}. No {self.notify_method} notification sent."
+                )
             return False
         #
         # we send listings with different status with different messages

@@ -11,6 +11,7 @@ from .utils import hilight
 
 @dataclass
 class PushoverNotificationConfig(PushNotificationConfig):
+    notify_method = "pushover"
     required_fields: ClassVar[List[str]] = ["pushover_user_id", "pushover_api_token"]
 
     pushover_user_id: str | None = None

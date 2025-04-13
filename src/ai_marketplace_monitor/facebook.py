@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import Any, Generator, List, Type, cast
+from typing import Any, Generator, List, Type, cast, Tuple
 from urllib.parse import quote
 
 import humanize
@@ -445,13 +445,14 @@ class FacebookMarketplace(Marketplace):
                         counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                         continue
                     try:
-                        details = self.get_listing_details(
+                        details, from_cache = self.get_listing_details(
                             listing.post_url,
                             item_config,
                             price=listing.price,
                             title=listing.title,
                         )
-                        time.sleep(5)
+                        if not from_cache:
+                            time.sleep(5)
                     except KeyboardInterrupt:
                         raise
                     except Exception as e:
@@ -481,7 +482,7 @@ class FacebookMarketplace(Marketplace):
         item_config: ItemConfig,
         price: str | None = None,
         title: str | None = None,
-    ) -> Listing:
+    ) -> Tuple[Listing, bool]:
         assert post_url.startswith("https://www.facebook.com")
         details = Listing.from_cache(post_url)
         if (
@@ -490,7 +491,7 @@ class FacebookMarketplace(Marketplace):
             and (title is None or details.title == title)
         ):
             # if the price and title are the same, we assume everything else is unchanged.
-            return details
+            return details, True
 
         if not self.page:
             self.login()
@@ -506,7 +507,7 @@ class FacebookMarketplace(Marketplace):
                 "Please add option language to your marketplace configuration is the latter is the case. See https://github.com/BoPeng/ai-marketplace-monitor?tab=readme-ov-file#support-for-non-english-languages for details."
             )
         details.to_cache(post_url)
-        return details
+        return details, False
 
     def check_listing(
         self: "FacebookMarketplace", item: Listing, item_config: FacebookItemConfig

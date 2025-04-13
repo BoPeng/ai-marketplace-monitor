@@ -10,6 +10,7 @@ from .utils import hilight
 
 @dataclass
 class NtfyNotificationConfig(PushNotificationConfig):
+    notify_method = "ntfy"
     required_fields: ClassVar[List[str]] = ["ntfy_server", "ntfy_topic"]
 
     message_format: str | None = None
