@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import Any, Generator, List, Type, cast, Tuple
+from typing import Any, Generator, List, Tuple, Type, cast
 from urllib.parse import quote
 
 import humanize
