@@ -177,7 +177,7 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 
 | Option               | Requirement | DataType | Description         |
 | -------------------- | ----------- | -------- | ------------------- |
-| `pushover_user_id`   | Optional    | String   | Pushover user key.  |
+| `pushover_user_key`  | Optional    | String   | Pushover user key.  |
 | `pushover_api_token` | Optional    | String   | Pushover API Token. |
 
 #### Pushover notification

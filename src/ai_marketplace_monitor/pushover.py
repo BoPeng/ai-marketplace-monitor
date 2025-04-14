@@ -12,17 +12,17 @@ from .utils import hilight
 @dataclass
 class PushoverNotificationConfig(PushNotificationConfig):
     notify_method = "pushover"
-    required_fields: ClassVar[List[str]] = ["pushover_user_id", "pushover_api_token"]
+    required_fields: ClassVar[List[str]] = ["pushover_user_key", "pushover_api_token"]
 
-    pushover_user_id: str | None = None
+    pushover_user_key: str | None = None
     pushover_api_token: str | None = None
 
-    def handle_pushover_user_id(self: "PushoverNotificationConfig") -> None:
-        if self.pushover_user_id is None:
+    def handle_pushover_user_key(self: "PushoverNotificationConfig") -> None:
+        if self.pushover_user_key is None:
             return
-        if not isinstance(self.pushover_user_id, str) or not self.pushover_user_id:
-            raise ValueError("An non-empty pushover_user_id is needed.")
-        self.pushover_user_id = self.pushover_user_id.strip()
+        if not isinstance(self.pushover_user_key, str) or not self.pushover_user_key:
+            raise ValueError("An non-empty pushover_user_key is needed.")
+        self.pushover_user_key = self.pushover_user_key.strip()
 
     def handle_pushover_api_token(self: "PushoverNotificationConfig") -> None:
         if self.pushover_api_token is None:
@@ -46,7 +46,7 @@ class PushoverNotificationConfig(PushNotificationConfig):
             urllib.parse.urlencode(
                 {
                     "token": self.pushover_api_token,
-                    "user": self.pushover_user_id,
+                    "user": self.pushover_user_key,
                     "message": msg,
                 }
             ),

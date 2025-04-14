@@ -32,7 +32,7 @@ email = 'user2@gmail.com'
 notify_with = 'gmail'
 
 [notification.pushover]
-pushover_user_id = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 pushover_api_token = 'someone@gmail.com'
 
 [notification.gmail]

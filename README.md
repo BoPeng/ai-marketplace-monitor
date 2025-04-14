@@ -44,6 +44,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
   - [Cost of operations](#cost-of-operations)
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
+  - [Setting Up PushOver Notifications](#setting-up-pushover-notifications)
   - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
@@ -272,6 +273,35 @@ smtp_password = 'abcdefghijklmnop'
 
 - **Gmail Users**; Your will need to create a separate app password for your Google account as `smtp_password`.
 - **Commercial Users**: If you are a subscriber to our Pro or Business Plans, detailed instructions on configuring the SMTP service we provide will be sent to you via email.
+
+### Setting Up PushOver Notifications
+
+To enable PushOver notifications, follow these steps:
+
+1. **Install the PushOver app** on your mobile device.
+2. **Create a PushOver account** at [pushover.net](https://pushover.net). After registration, you will find your **User Key** labeled as `Your User Key` — this is your `pushover_user_key`.
+3. **Create a new application** (you can name it `AIMarketplaceMonitor`). After creation, you will receive an **API Token/Key**, referred to as `pushover_api_token`.
+
+Once you have both the user key and API token, add them to your configuration file using one of the following formats:
+
+**Option 1: Embed directly under your user profile**
+
+```toml
+[user.me]
+pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+**Option 2: Use a dedicated notification section**
+
+```toml
+[notification.pushover]
+pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+[user.me]
+notify_with = 'pushover'
+```
 
 ### Adjust prompt and notification level
 

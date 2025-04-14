@@ -137,7 +137,7 @@ pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 base_pushover_cfg = """
 [notification.pushover]
-pushover_user_id = "xxxxxx"
+pushover_user_key = "xxxxxx"
 pushover_api_token = "dfafdafd"
 """
 
