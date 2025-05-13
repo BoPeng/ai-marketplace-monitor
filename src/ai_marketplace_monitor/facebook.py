@@ -176,7 +176,10 @@ class FacebookMarketItemCommonConfig(BaseConfig):
             return
 
         if not isinstance(self.category, str) or self.category not in [x.value for x in Category]:
-            raise ValueError(f"Item {hilight(self.name)} category must be one of {', '.join(x.value for x in Category)}.")
+            raise ValueError(
+                f"Item {hilight(self.name)} category must be one of {', '.join(x.value for x in Category)}."
+            )
+
 
 @dataclass
 class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfig):
@@ -410,7 +413,6 @@ class FacebookMarketplace(Marketplace):
 
             category = item_config.category or self.config.category
             if category:
-                if category not in Category.__member
                 options.append(f"category={category}")
 
             for search_phrase in item_config.search_phrases:
