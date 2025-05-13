@@ -260,6 +260,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "ai": (list, type(None)),
         "availability": (list, type(None)),
         "api_key": str,
+        "category": (str, type(None)),
         "city_name": (list, type(None)),
         "condition": (list, type(None)),
         "currency": (list, type(None)),
