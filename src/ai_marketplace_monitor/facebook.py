@@ -56,7 +56,25 @@ class Availability(Enum):
 
 
 class Category(Enum):
-    FREE = "free"
+    VEHICLES = 'vehicles'
+    PROPERTY_RENTALS = 'propertyrentals'
+    APPAREL = 'apparel'
+    ELECTRONICS = 'electronics'
+    ENTERTAINMENT = 'entertainment'
+    FAMILY = 'family'
+    FREE_STUFF = 'freestuff'
+    GARDEN = 'garden'
+    HOBBIES = 'hobbies'
+    HOME_GOODS = 'homegoods'
+    HOME_IMPROVEMENT = 'homeimprovement'
+    HOME_SALES = 'homesales'
+    MUSICAL_INSTRUMENTS = 'musicalinstruments'
+    OFFICE_SUPPLIES = 'officesupplies'
+    PET_SUPPLIES = 'petsupplies'
+    SPORTING_GOODS = 'sportinggoods'
+    TICKETS = 'tickets'
+    TOYS = 'toys'
+    VIDEO_GAMES = 'videogames'
 
 
 @dataclass
