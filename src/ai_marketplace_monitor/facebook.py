@@ -55,6 +55,28 @@ class Availability(Enum):
     OUTSTOCK = "out"
 
 
+class Category(Enum):
+    VEHICLES = "vehicles"
+    PROPERTY_RENTALS = "propertyrentals"
+    APPAREL = "apparel"
+    ELECTRONICS = "electronics"
+    ENTERTAINMENT = "entertainment"
+    FAMILY = "family"
+    FREE_STUFF = "freestuff"
+    GARDEN = "garden"
+    HOBBIES = "hobbies"
+    HOME_GOODS = "homegoods"
+    HOME_IMPROVEMENT = "homeimprovement"
+    HOME_SALES = "homesales"
+    MUSICAL_INSTRUMENTS = "musicalinstruments"
+    OFFICE_SUPPLIES = "officesupplies"
+    PET_SUPPLIES = "petsupplies"
+    SPORTING_GOODS = "sportinggoods"
+    TICKETS = "tickets"
+    TOYS = "toys"
+    VIDEO_GAMES = "videogames"
+
+
 @dataclass
 class FacebookMarketItemCommonConfig(BaseConfig):
     """Item options that can be defined in marketplace
@@ -68,6 +90,7 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     condition: List[str] | None = None
     date_listed: List[int] | None = None
     delivery_method: List[str] | None = None
+    category: str | None = None
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.seller_locations is None:
@@ -164,6 +187,15 @@ class FacebookMarketItemCommonConfig(BaseConfig):
         ):
             raise ValueError(
                 f"Item {hilight(self.name)} delivery_method must be one of 'local_pick_up' and 'shipping'."
+            )
+
+    def handle_category(self: "FacebookMarketItemCommonConfig") -> None:
+        if self.category is None:
+            return
+
+        if not isinstance(self.category, str) or self.category not in [x.value for x in Category]:
+            raise ValueError(
+                f"Item {hilight(self.name)} category must be one of {', '.join(x.value for x in Category)}."
             )
 
 
@@ -396,6 +428,17 @@ class FacebookMarketplace(Marketplace):
                                 f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""
                             )
                     options.append(f"minPrice={price}")
+
+            category = item_config.category or self.config.category
+            if category:
+                options.append(f"category={category}")
+                if category == Category.FREE_STUFF.value:
+                    # find min_price= and max_price= in options and remove them
+                    options = [
+                        x
+                        for x in options
+                        if not x.startswith("minPrice=") and not x.startswith("maxPrice=")
+                    ]
 
             for search_phrase in item_config.search_phrases:
                 if self.logger:
