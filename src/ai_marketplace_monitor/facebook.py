@@ -56,25 +56,25 @@ class Availability(Enum):
 
 
 class Category(Enum):
-    VEHICLES = 'vehicles'
-    PROPERTY_RENTALS = 'propertyrentals'
-    APPAREL = 'apparel'
-    ELECTRONICS = 'electronics'
-    ENTERTAINMENT = 'entertainment'
-    FAMILY = 'family'
-    FREE_STUFF = 'freestuff'
-    GARDEN = 'garden'
-    HOBBIES = 'hobbies'
-    HOME_GOODS = 'homegoods'
-    HOME_IMPROVEMENT = 'homeimprovement'
-    HOME_SALES = 'homesales'
-    MUSICAL_INSTRUMENTS = 'musicalinstruments'
-    OFFICE_SUPPLIES = 'officesupplies'
-    PET_SUPPLIES = 'petsupplies'
-    SPORTING_GOODS = 'sportinggoods'
-    TICKETS = 'tickets'
-    TOYS = 'toys'
-    VIDEO_GAMES = 'videogames'
+    VEHICLES = "vehicles"
+    PROPERTY_RENTALS = "propertyrentals"
+    APPAREL = "apparel"
+    ELECTRONICS = "electronics"
+    ENTERTAINMENT = "entertainment"
+    FAMILY = "family"
+    FREE_STUFF = "freestuff"
+    GARDEN = "garden"
+    HOBBIES = "hobbies"
+    HOME_GOODS = "homegoods"
+    HOME_IMPROVEMENT = "homeimprovement"
+    HOME_SALES = "homesales"
+    MUSICAL_INSTRUMENTS = "musicalinstruments"
+    OFFICE_SUPPLIES = "officesupplies"
+    PET_SUPPLIES = "petsupplies"
+    SPORTING_GOODS = "sportinggoods"
+    TICKETS = "tickets"
+    TOYS = "toys"
+    VIDEO_GAMES = "videogames"
 
 
 @dataclass
@@ -432,6 +432,13 @@ class FacebookMarketplace(Marketplace):
             category = item_config.category or self.config.category
             if category:
                 options.append(f"category={category}")
+                if category == Category.FREE_STUFF.value:
+                    # find min_price= and max_price= in options and remove them
+                    options = [
+                        x
+                        for x in options
+                        if not x.startswith("minPrice=") and not x.startswith("maxPrice=")
+                    ]
 
             for search_phrase in item_config.search_phrases:
                 if self.logger:

@@ -246,7 +246,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `max_price`           | Optional          | Integer/String      | Maximum price, can be followed by a currency name.                                                                                                          |
 | `max_search_interval` | Optional          | String              | Maximum interval in seconds between searches. If specified, a random time will be chosen between `search_interval` and `max_search_interval`.               |
 | `min_price`           | Optional          | Integer/String      | Minimum price, can be followed by a currency name.                                                                                                          |
-| `category`            | Optional          | String              | Category of search                                                                                                                                          |
+| `category`            | Optional          | String              | Category of search.                                                                                                                                         |
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
 | `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
 | `city_name`           | Optional          | String/List         | Corresponding name of `search_city`.                                                                                                                        |
@@ -270,6 +270,7 @@ Note that
 4. `start_at` supports one or more of the following values: <br> - `HH:MM:SS` or `HH:MM` for every day at `HH:MM:SS` or `HH:MM:00` <br> - `*:MM:SS` or `*:MM` for every hour at `MM:SS` or `MM:00` <br> - `*:*:SS` for every minute at `SS`.
 5. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](../README.md#first-and-subsequent-searches) for details.
 6. `min_price` and `max_price` can be specified as a number (e.g. `min_price=100`) or a number followed by a currency name (e.g. `min_price='100 USD'`). If different currencies are specified for both `min_price/max_price` and `search_city` (or `region`), the `min_price` and `max_price` will be adjusted to use currency for the `search_city`. See [Searching across regions with different currencies](../README.md#searching-across-regions-with-different-currencies) for details.
+7. `category` can be `vehicles`, `propertyrentals`, `apparel`, `electronics`, `entertainment`, `family`, `freestuff`, `garden`, `hobbies`, `homegoods`, `homeimprovement`, `homesales`, `musicalinstruments`, `officesupplies`, `petsupplies`, `sportinggoods`, `tickets`, `toys`, and `videogames`. If `catgory=freestuff` is set, `min_price` and `max_price` is ignored.
 
 ### Regions
 
