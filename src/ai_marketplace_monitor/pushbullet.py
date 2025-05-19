@@ -50,6 +50,9 @@ class PushbulletNotificationConfig(PushNotificationConfig):
             raise ValueError("user requires an non-empty pushbullet_proxy_server.")
         self.pushbullet_proxy_server = self.pushbullet_proxy_server.strip()
 
+    def handle_message_format(self: "PushoverNotificationConfig") -> None:
+        self.message_format = "plain_text"
+
     def send_message(
         self: "PushbulletNotificationConfig",
         title: str,

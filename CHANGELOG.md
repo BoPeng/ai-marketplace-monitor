@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5]
+
+- [issue 155](https://github.com/BoPeng/ai-marketplace-monitor/issues/155) Fix output of pushbullet
+- [issue 150](https://github.com/BoPeng/ai-marketplace-monitor/issues/150) Support option `category`
+
 ## [0.9.4] - 2025-04-15
 
 - [issue 132](https://github.com/BoPeng/ai-marketplace-monitor/issues/132) Improve PushOver notification
