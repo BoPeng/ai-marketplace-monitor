@@ -63,6 +63,7 @@ class Category(Enum):
     ENTERTAINMENT = "entertainment"
     FAMILY = "family"
     FREE_STUFF = "freestuff"
+    FREE = "free"
     GARDEN = "garden"
     HOBBIES = "hobbies"
     HOME_GOODS = "homegoods"
