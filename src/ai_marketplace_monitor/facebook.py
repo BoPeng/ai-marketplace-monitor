@@ -433,7 +433,7 @@ class FacebookMarketplace(Marketplace):
             category = item_config.category or self.config.category
             if category:
                 options.append(f"category={category}")
-                if category == Category.FREE_STUFF.value:
+                if category == Category.FREE_STUFF.value or category == Category.FREE.value:
                     # find min_price= and max_price= in options and remove them
                     options = [
                         x
