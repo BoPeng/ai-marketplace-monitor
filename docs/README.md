@@ -1,4 +1,4 @@
-[# Configuration Guide
+# Configuration Guide
 
 **Table of content:**
 
@@ -332,4 +332,3 @@ sections to be referred from elsewhere (e.g. `notify` a disable user is allowed 
 | Parameter | Required/Optional | Data Type | Description                                            |
 | --------- | ----------------- | --------- | ------------------------------------------------------ |
 | `enabled` | Optional          | Boolean   | Disable corresponding configuration if set to `false`. |
-](https://github.dev/spawnpoint/ai-marketplace-monitor/blob/category-freestuff-fix/docs/README.md)
