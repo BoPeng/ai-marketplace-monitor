@@ -7,7 +7,15 @@ from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
 from .listing import Listing
-from .utils import BaseConfig, Currency, KeyboardMonitor, Translator, convert_to_seconds, hilight
+from .utils import (
+    BaseConfig,
+    Currency,
+    KeyboardMonitor,
+    MonitorConfig,
+    Translator,
+    convert_to_seconds,
+    hilight,
+)
 
 
 class MarketPlace(Enum):
@@ -343,6 +351,7 @@ class MarketplaceConfig(MarketItemCommonConfig):
     # name of market, right now facebook is the only supported one
     market_type: str | None = MarketPlace.FACEBOOK.value
     language: str | None = None
+    monitor_config: MonitorConfig | None = None
 
     def handle_market_type(self: "MarketplaceConfig") -> None:
         if self.market_type is None:
@@ -469,6 +478,32 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             # self.browser.close()
             self.browser = None
             self.page = None
+
+    def create_page(self: "Marketplace", swap_proxy: bool = False) -> Page:
+        assert self.browser is not None
+
+        # if there is an existing page, asked to swap_proxy, and there is an proxy_server
+        # setting with multiple proxies
+        if (
+            self.page
+            and swap_proxy
+            and self.config.monitor_config is not None
+            and isinstance(self.config.monitor_config.proxy_server, list)
+            and len(self.config.monitor_config.proxy_server) > 1
+        ):
+            self.page.close()
+            self.page = None
+
+        if self.page is None:
+            context = self.browser.new_context(
+                proxy=(
+                    None
+                    if self.config.monitor_config is None
+                    else self.config.monitor_config.get_proxy_options()
+                )
+            )
+            self.page = context.new_page()
+        return self.page
 
     def goto_url(self: "Marketplace", url: str, attempt: int = 0) -> None:
         try:
