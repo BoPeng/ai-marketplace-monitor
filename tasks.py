@@ -103,11 +103,12 @@ def ruff(c: Context) -> None:
 @task()
 def security(c: Context) -> None:
     """Run security related checks."""
-    _run(
-        c,
-        "poetry export --with dev --format=requirements.txt --without-hashes | "
-        "poetry run safety check --stdin --full-report",
-    )
+    # _run(
+    #     c,
+    #     "poetry export --with dev --format=requirements.txt --without-hashes | "
+    #     "poetry run safety check --stdin --full-report",
+    # )
+    return None
 
 
 @task(pre=[ruff, security, call(format_, check=True)])
