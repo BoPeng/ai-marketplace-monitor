@@ -281,6 +281,31 @@ class FacebookMarketplace(Marketplace):
         # Navigate to the URL, no timeout
         self.goto_url(self.initial_url)
 
+        if self.logger:
+            self.logger.debug("[Login] Checking for cookie consent pop-up...")
+        try:
+            allow_button_locator = self.page.get_by_role(
+                "button",
+                name=re.compile(r"Allow all cookies|Allow cookies|Accept All", re.IGNORECASE),
+            )
+
+            if allow_button_locator.is_visible(timeout=7000):  # timeout in milliseconds
+                allow_button_locator.click()
+                self.page.wait_for_timeout(2000)  # 2 seconds
+                if self.logger:
+                    self.logger.debug(
+                        f"{hilight("[Login]", "succ")} Allow all cookies' button clicked."
+                    )
+            elif self.logger:
+                self.logger.debug(
+                    f"{hilight("[Login]", "succ")} Cookie consent pop-up not found or not visible within timeout."
+                )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"{hilight("[Login]", "fail")} Could not handle cookie pop-up (or it was not present): {e!s}"
+                )
+
         self.config: FacebookMarketplaceConfig
         try:
             if self.config.username:
