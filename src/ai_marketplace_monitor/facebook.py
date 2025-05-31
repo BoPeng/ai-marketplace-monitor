@@ -294,7 +294,7 @@ class FacebookMarketplace(Marketplace):
                 self.page.wait_for_timeout(2000)  # 2 seconds
                 if self.logger:
                     self.logger.debug(
-                        f'{hilight("[Login]", "succ")} Allow all cookies' button clicked.'
+                        f"""{hilight("[Login]", "succ")} Allow all cookies' button clicked."""
                     )
             elif self.logger:
                 self.logger.debug(
