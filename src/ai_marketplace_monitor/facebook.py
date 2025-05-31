@@ -294,16 +294,16 @@ class FacebookMarketplace(Marketplace):
                 self.page.wait_for_timeout(2000)  # 2 seconds
                 if self.logger:
                     self.logger.debug(
-                        f"{hilight("[Login]", "succ")} Allow all cookies' button clicked."
+                        f'{hilight("[Login]", "succ")} Allow all cookies' button clicked.'
                     )
             elif self.logger:
                 self.logger.debug(
-                    f"{hilight("[Login]", "succ")} Cookie consent pop-up not found or not visible within timeout."
+                    f'{hilight("[Login]", "succ")} Cookie consent pop-up not found or not visible within timeout.'
                 )
         except Exception as e:
             if self.logger:
                 self.logger.warning(
-                    f"{hilight("[Login]", "fail")} Could not handle cookie pop-up (or it was not present): {e!s}"
+                    f'{hilight("[Login]", "fail")} Could not handle cookie pop-up (or it was not present): {e!s}'
                 )
 
         self.config: FacebookMarketplaceConfig
