@@ -184,7 +184,19 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | `pushover_user_key`  | Optional    | String   | Pushover user key.  |
 | `pushover_api_token` | Optional    | String   | Pushover API Token. |
 
-#### Pushover notification
+#### Telegram notification
+
+| Option               | Requirement | DataType | Description                                                |
+| -------------------- | ----------- | -------- | ---------------------------------------------------------- |
+| `telegram_bot_token` | Optional    | String   | Telegram bot token from @BotFather                         |
+| `telegram_chat_id`   | Optional    | String   | Telegram chat ID (personal chat or group chat)             |
+| `message_format`     | Optional    | String   | Format notification as `plain_text`, `markdown`, or `html` |
+
+- Telegram supports rich formatting and much longer messages (up to 4096 characters) compared to other notification services. Messages exceeding this limit are automatically split across multiple messages.
+- `message_format` defaults to `markdown` for Telegram notifications, supporting **bold**, _italic_, and [links](url).
+- For setup instructions, see [Setting Up Telegram Bot Notifications](../README.md#setting-up-telegram-bot-notifications).
+
+#### Ntfy notification
 
 | Option           | Requirement | DataType | Description                                       |
 | ---------------- | ----------- | -------- | ------------------------------------------------- |

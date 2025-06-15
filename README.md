@@ -19,7 +19,7 @@ An intelligent tool that monitors Facebook Marketplace listings using AI to help
 
 ![Search In Action](docs/search_in_action.png)
 
-Example notification from PushBullet:
+Example notification from PushBullet/Telegram:
 
 ```
 Found 1 new gopro from facebook
@@ -45,6 +45,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
   - [Setting Up PushOver Notifications](#setting-up-pushover-notifications)
+  - [Setting Up Telegram Bot Notifications](#setting-up-telegram-bot-notifications)
   - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
@@ -81,7 +82,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 📱 **Notifications**
 
-- PushBullet, PushOver, or Ntfy notifications
+- PushBullet, PushOver, Telegram, or Ntfy notifications
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
@@ -128,9 +129,9 @@ playwright install
 
 ### Set up a notification method (optional)
 
-If you would like to receive notification from your phone via PushBullet
+If you would like to receive notification from your phone via PushBullet, PushOver, or Telegram
 
-- Sign up for [PushBullet](https://www.pushbullet.com/), [PushOver](https://pushover.net/) or [Ntfy](https://ntfy.sh/)
+- Sign up for [PushBullet](https://www.pushbullet.com/), [PushOver](https://pushover.net/), [Telegram](https://telegram.org/), or [Ntfy](https://ntfy.sh/)
 - Install the app on your phone
 - Go to the respective website and obtain necessary token(s)
 
@@ -321,6 +322,74 @@ with_description = 100
 ```
 
 This will include up to the first 100 characters of each listing's description in your notifications.
+
+### Setting Up Telegram Bot Notifications
+
+Telegram bot notifications offer virtually unlimited message length (up to 4096 characters per message) compared to PushBullet/PushOver, making them ideal for receiving complete AI-generated analysis of listings. The setup is free and straightforward.
+
+#### Creating a Telegram Bot
+
+1. **Install Telegram** on your device and create an account if you don't have one.
+
+2. **Create a bot** by messaging `@BotFather` on Telegram:
+   - Start a chat with `@BotFather`
+   - Send the command `/newbot`
+   - Follow the prompts to name your bot and create a username
+   - BotFather will provide an API token - save this as your `telegram_bot_token`
+
+3. **Get your chat ID**:
+   - Start a chat with your new bot or add it to a group
+   - Send any message to the chat
+   - Visit `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates` in your browser
+   - Look for the "chat" object containing an "id" value - this is your `telegram_chat_id`
+
+#### Configuration
+
+Once you have both the bot token and chat ID, add them to your configuration file:
+
+**Option 1: Embed directly under your user profile**
+
+```toml
+[user.me]
+telegram_bot_token = 'your_bot_token_here'
+telegram_chat_id = 'your_chat_id_here'
+```
+
+**Option 2: Use a dedicated notification section**
+
+```toml
+[notification.telegram]
+telegram_bot_token = 'your_bot_token_here'
+telegram_chat_id = 'your_chat_id_here'
+
+[user.me]
+notify_with = 'telegram'
+```
+
+#### Message Formatting
+
+Telegram notifications support three formatting modes:
+
+- `message_format = "plain_text"` - Basic text formatting
+- `message_format = "markdown"` - Markdown formatting with **bold**, *italic*, and [links](url)
+- `message_format = "html"` - HTML formatting with `<b>bold</b>`, `<i>italic</i>, and `<a href="url">links</a>`
+
+Example with custom formatting:
+
+```toml
+[user.me]
+telegram_bot_token = 'your_bot_token_here'
+telegram_chat_id = 'your_chat_id_here'
+message_format = 'markdown'
+with_description = 200  # Include up to 200 characters of listing description
+```
+
+#### Advanced Features
+
+- **Long Message Support**: Telegram supports much longer messages than other notification services. Messages exceeding 4000 characters are automatically split across multiple messages.
+- **Rich Formatting**: Unlike PushBullet/PushOver, Telegram supports rich text formatting, making notifications more readable.
+- **Zero Cost**: Telegram bots are completely free to create and use.
+- **Group Support**: You can send notifications to Telegram groups by using the group's chat ID instead of a personal chat ID.
 
 ### Adjust prompt and notification level
 

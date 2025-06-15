@@ -14,6 +14,7 @@ from .notification import NotificationConfig, NotificationStatus
 from .ntfy import NtfyNotificationConfig
 from .pushbullet import PushbulletNotificationConfig
 from .pushover import PushoverNotificationConfig
+from .telegram import TelegramNotificationConfig
 from .utils import CacheType, CounterItem, cache, convert_to_seconds, counter, hilight
 
 
@@ -22,12 +23,14 @@ class UserConfig(
     EmailNotificationConfig,
     PushbulletNotificationConfig,
     PushoverNotificationConfig,
+    TelegramNotificationConfig,
     NtfyNotificationConfig,
 ):
     """UserConfiguration
 
-    Derive from EmailNotificationConfig, PushbulletNotificationConfig allows
-    the user config class to use settings from both classes.
+    Derive from EmailNotificationConfig, PushbulletNotificationConfig,
+    PushoverNotificationConfig, TelegramNotificationConfig, and NtfyNotificationConfig
+    allows the user config class to use settings from all notification classes.
 
     It is possible to dynamically added these classes as parent class
     of UserConfig, but it is troublesome to make sure that these classes
