@@ -30,7 +30,7 @@ version = "4.9.0"
 description = "High level compatibility layer for multiple asynchronous event loop implementations"
 optional = false
 python-versions = ">=3.9"
-groups = ["main"]
+groups = ["main", "security"]
 files = [
     {file = "anyio-4.9.0-py3-none-any.whl", hash = "sha256:9f76d541cad6e36af7beb62e978876f3b41e3e04f2c1fbf0884604c0a9c4d93c"},
     {file = "anyio-4.9.0.tar.gz", hash = "sha256:673c0c244e15788651a4ff38710fea9675823028a6f08a5eda409e0c9840a028"},
@@ -627,7 +627,7 @@ version = "1.2.2"
 description = "Backport of PEP 654 (exception groups)"
 optional = false
 python-versions = ">=3.7"
-groups = ["main", "test"]
+groups = ["main", "security", "test"]
 markers = "python_version < \"3.11\""
 files = [
     {file = "exceptiongroup-1.2.2-py3-none-any.whl", hash = "sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b"},
@@ -747,7 +747,7 @@ version = "0.14.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
 optional = false
 python-versions = ">=3.7"
-groups = ["main"]
+groups = ["main", "security"]
 files = [
     {file = "h11-0.14.0-py3-none-any.whl", hash = "sha256:e3fe4ac4b851c468cc8363d500db52c2ead036020723024a109d37346efaa761"},
     {file = "h11-0.14.0.tar.gz", hash = "sha256:8f19fbbe99e72420ff35c00b27a34cb9937e902a8b810e2c88300c6f0a3b699d"},
@@ -759,7 +759,7 @@ version = "1.0.8"
 description = "A minimal low-level HTTP client."
 optional = false
 python-versions = ">=3.8"
-groups = ["main"]
+groups = ["main", "security"]
 files = [
     {file = "httpcore-1.0.8-py3-none-any.whl", hash = "sha256:5254cf149bcb5f75e9d1b2b9f729ea4a4b883d1ad7379fc632b727cec23674be"},
     {file = "httpcore-1.0.8.tar.gz", hash = "sha256:86e94505ed24ea06514883fd44d2bc02d90e77e7979c8eb71b90f41d364a1bad"},
@@ -781,7 +781,7 @@ version = "0.28.1"
 description = "The next generation HTTP client."
 optional = false
 python-versions = ">=3.8"
-groups = ["main"]
+groups = ["main", "security"]
 files = [
     {file = "httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad"},
     {file = "httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc"},
@@ -2355,21 +2355,22 @@ files = [
 
 [[package]]
 name = "safety"
-version = "3.3.1"
+version = "3.5.2"
 description = "Scan dependencies for known vulnerabilities and licenses."
 optional = false
 python-versions = ">=3.8"
 groups = ["security"]
 files = [
-    {file = "safety-3.3.1-py3-none-any.whl", hash = "sha256:243355a961403b873c1504e3e6f79ce36b86881d559722595632d788aa92b7ea"},
-    {file = "safety-3.3.1.tar.gz", hash = "sha256:679834432d0ad64c54e0b864ac6715d4743a65f8db67512380ee7ee2011c206a"},
+    {file = "safety-3.5.2-py3-none-any.whl", hash = "sha256:d5baff410c548393e80ba2bd2ab1de2701a690ca3577e457335917b9db4641e1"},
+    {file = "safety-3.5.2.tar.gz", hash = "sha256:ecbb2e76f9574284f2c0e168e71ec92b39018ae9516b3b00f132de57ecaa09cb"},
 ]
 
 [package.dependencies]
 authlib = ">=1.2.0"
-click = ">=8.0.2"
+click = ">=8.0.2,<8.2.0"
 dparse = ">=0.6.4"
 filelock = ">=3.16.1,<3.17.0"
+httpx = "*"
 jinja2 = ">=3.1.0"
 marshmallow = ">=3.15.0"
 nltk = ">=3.9"
@@ -2378,8 +2379,11 @@ psutil = ">=6.1.0,<6.2.0"
 pydantic = ">=2.6.0,<2.10.0"
 requests = "*"
 ruamel-yaml = ">=0.17.21"
-safety-schemas = "0.0.11"
+safety-schemas = "0.0.14"
 setuptools = ">=65.5.1"
+tenacity = "*"
+tomli = {version = "*", markers = "python_version < \"3.11\""}
+tomlkit = "*"
 typer = ">=0.12.1"
 typing-extensions = ">=4.7.1"
 
@@ -2390,14 +2394,14 @@ spdx = ["spdx-tools (>=0.8.2)"]
 
 [[package]]
 name = "safety-schemas"
-version = "0.0.11"
+version = "0.0.14"
 description = "Schemas for Safety tools"
 optional = false
 python-versions = ">=3.7"
 groups = ["security"]
 files = [
-    {file = "safety_schemas-0.0.11-py3-none-any.whl", hash = "sha256:2af940c1c992d6891a6b84403a7c12fd445e20651752b1818b86c205690b3e03"},
-    {file = "safety_schemas-0.0.11.tar.gz", hash = "sha256:10804372e077ca5a95e740cc507e73d9173663284006fcaaf5756179ba13ac9d"},
+    {file = "safety_schemas-0.0.14-py3-none-any.whl", hash = "sha256:0bf6fc4aa5e474651b714cc9e427c862792946bf052b61d5c7bec4eac4c0f254"},
+    {file = "safety_schemas-0.0.14.tar.gz", hash = "sha256:49953f7a59e919572be25595a8946f9cbbcd2066fe3e160c9467d9d1d6d7af6a"},
 ]
 
 [package.dependencies]
@@ -2473,7 +2477,7 @@ version = "1.3.1"
 description = "Sniff out which async library your code is running under"
 optional = false
 python-versions = ">=3.7"
-groups = ["main"]
+groups = ["main", "security"]
 files = [
     {file = "sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2"},
     {file = "sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc"},
@@ -2666,6 +2670,22 @@ standalone = ["Sphinx (>=5)"]
 test = ["pytest"]
 
 [[package]]
+name = "tenacity"
+version = "9.1.2"
+description = "Retry code until it succeeds"
+optional = false
+python-versions = ">=3.9"
+groups = ["security"]
+files = [
+    {file = "tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138"},
+    {file = "tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb"},
+]
+
+[package.extras]
+doc = ["reno", "sphinx"]
+test = ["pytest", "tornado (>=4.5)", "typeguard"]
+
+[[package]]
 name = "text-unidecode"
 version = "1.3"
 description = "The most basic Text::Unidecode port"
@@ -2719,6 +2739,18 @@ files = [
     {file = "tomli-2.2.1.tar.gz", hash = "sha256:cd45e1dc79c835ce60f7404ec8119f2eb06d38b1deba146f07ced3bbc44505ff"},
 ]
 markers = {main = "python_version < \"3.11\"", docs = "python_version < \"3.11\"", linters = "python_version < \"3.11\"", security = "python_version < \"3.11\"", test = "python_full_version <= \"3.11.0a6\"", typing = "python_version < \"3.11\""}
+
+[[package]]
+name = "tomlkit"
+version = "0.13.3"
+description = "Style preserving TOML library"
+optional = false
+python-versions = ">=3.8"
+groups = ["security"]
+files = [
+    {file = "tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0"},
+    {file = "tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1"},
+]
 
 [[package]]
 name = "tqdm"
