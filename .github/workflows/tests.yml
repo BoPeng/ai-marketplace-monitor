@@ -64,6 +64,13 @@ jobs:
 
       - name: Run tests with nox
         shell: bash
+        env:
+          # Telegram test credentials (set as repository secrets)
+          TELEGRAM_TEST_BOT_TOKEN: ${{ secrets.TELEGRAM_TEST_BOT_TOKEN }}
+          TELEGRAM_TEST_CHAT_ID: ${{ secrets.TELEGRAM_TEST_CHAT_ID }}
+          # CI environment detection
+          CI: true
+          GITHUB_ACTIONS: true
         run: nox --force-color -s tests-${{ matrix.python-version }}
 
       - name: Run securtity check

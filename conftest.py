@@ -148,3 +148,16 @@ def ollama(ollama_config: OllamaConfig) -> User:
 @pytest.fixture
 def ai_response() -> AIResponse:
     return AIResponse(score=4, comment="good")
+
+
+@pytest.fixture
+def telegram_config() -> "ai_marketplace_monitor.telegram.TelegramNotificationConfig":
+    """Fixture for TelegramNotificationConfig."""
+    from ai_marketplace_monitor.telegram import TelegramNotificationConfig
+
+    return TelegramNotificationConfig(
+        name="test_telegram",
+        telegram_bot_token="test_bot_token_123456789",
+        telegram_chat_id="test_chat_id_987654321",
+        message_format="markdown",
+    )
