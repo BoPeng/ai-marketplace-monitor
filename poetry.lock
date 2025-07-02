@@ -529,14 +529,14 @@ test-randomorder = ["pytest-randomly"]
 
 [[package]]
 name = "currencyconverter"
-version = "0.18.7"
+version = "0.18.8"
 description = "A currency converter using the European Central Bank data."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "currencyconverter-0.18.7-py3-none-any.whl", hash = "sha256:8b8b038b9d8a6040b35b93bf2e3d528ec3509cb4897a0ddcf3b5f8954547af5d"},
-    {file = "currencyconverter-0.18.7.tar.gz", hash = "sha256:f6254267b3a0522c40d9ea3e4bccaa3a2b05369e84d7363dfd89bf4ad2ea1040"},
+    {file = "currencyconverter-0.18.8-py3-none-any.whl", hash = "sha256:14b375dbc40ca361afa3523bb034def20b5ac663afbe30fe776076d7b9293b94"},
+    {file = "currencyconverter-0.18.8.tar.gz", hash = "sha256:646cc69791bf9f8557bc656b022e5aa33e78e59832d3f2f619714fbd928262c7"},
 ]
 
 [[package]]
