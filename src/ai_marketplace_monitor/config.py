@@ -140,7 +140,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 )
             marketplace_class = supported_marketplaces[market_type]
             self.marketplace[marketplace_name] = marketplace_class.get_config(
-                name=marketplace_name, **marketplace_config
+                name=marketplace_name, monitor_config=self.monitor, **marketplace_config
             )
             lan = self.marketplace[marketplace_name].language
             if lan is None:
