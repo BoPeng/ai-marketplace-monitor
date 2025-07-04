@@ -289,7 +289,7 @@ class FacebookMarketplace(Marketplace):
                 name=re.compile(r"Allow all cookies|Allow cookies|Accept All", re.IGNORECASE),
             )
 
-            if allow_button_locator.is_visible(timeout=7000):  # timeout in milliseconds
+            if allow_button_locator.is_visible():
                 allow_button_locator.click()
                 self.page.wait_for_timeout(2000)  # 2 seconds
                 if self.logger:
