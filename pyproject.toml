@@ -46,6 +46,7 @@ pyparsing = ">=3.1.0"
 requests = ">=2.30.0"
 CurrencyConverter = ">=0.18.0"
 tomli = { version = "2.2.1", markers = "python_version < '3.11'" }
+python-telegram-bot = "^22.1"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
@@ -59,6 +60,7 @@ xdoctest = "^1.2.0"
 coverage = { version = "^7.6.7", extras = ["toml"] }
 pytest-cov = "^6.0.0"
 pytest-playwright = "^0.7.0"
+pytest-asyncio = "^1.0.0"
 
 [tool.poetry.group.linters.dependencies]
 isort = ">=5.13.2,<7.0.0"

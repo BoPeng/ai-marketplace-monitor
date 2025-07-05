@@ -129,8 +129,16 @@ class PushNotificationConfig(NotificationConfig):
         if self.message_format is None:
             self.message_format = "plain_text"
 
-        if self.message_format not in ["plain_text", "markdown", "html"]:
-            raise ValueError("message_format must be 'plain_text', 'markdown', or 'html'.")
+        # Supported message formats:
+        # - plain_text: No formatting (used by pushbullet by default)
+        # - markdown: Standard markdown with **bold** syntax (used by ntfy)
+        # - markdownv2: Telegram's MarkdownV2 format with *bold* syntax and strict escaping
+        # - html: HTML formatting (used by pushover)
+        # Each notifier can override this method to force their preferred format
+        if self.message_format not in ["plain_text", "markdown", "markdownv2", "html"]:
+            raise ValueError(
+                "message_format must be 'plain_text', 'markdown', 'markdownv2', or 'html'."
+            )
 
     def handle_with_description(self: "PushNotificationConfig") -> None:
         if self.with_description is None:
@@ -204,6 +212,26 @@ class PushNotificationConfig(NotificationConfig):
                         f"{listing.price}, {listing.location}\n"
                         f"{desc}{desc_newline}"
                         f"**AI**: {rating.comment}"
+                    )
+                )
+            elif self.message_format == "markdownv2":
+                # MarkdownV2 format for Telegram - uses *bold* instead of **bold**
+                # Note: Actual escaping of special characters is handled by the telegram notifier
+                # as it has specific requirements for MarkdownV2 parse mode
+                desc_newline = "\n" if desc else ""
+                msg = (
+                    (
+                        f"[*{listing.title}*]({listing.post_url.split('?')[0]})\n"
+                        f"{listing.price}, {listing.location}"
+                        f"{desc_newline}{desc}"
+                    )
+                    if rating.comment == AIResponse.NOT_EVALUATED
+                    else (
+                        f"[{rating.conclusion} ({rating.score})] "
+                        f"[*{listing.title}*]({listing.post_url.split('?')[0]})\n"
+                        f"{listing.price}, {listing.location}\n"
+                        f"{desc}{desc_newline}"
+                        f"*AI*: {rating.comment}"
                     )
                 )
             elif self.message_format == "html":

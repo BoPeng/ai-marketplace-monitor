@@ -124,9 +124,55 @@ def mypy(c: Context) -> None:
 
 @task()
 def tests(c: Context) -> None:
-    """Run tests."""
+    """Run tests with event loop conflict prevention.
+
+    This task splits test execution into two separate pytest runs to solve
+    the event loop conflict between pytest-asyncio and pytest-playwright:
+
+    1. Non-telegram tests (including Playwright browser tests)
+    2. Telegram tests (which use pytest-asyncio for async test methods)
+
+    Background:
+    - pytest-playwright creates its own event loop for browser automation
+    - pytest-asyncio manages event loops for async test methods
+    - When both run in the same pytest session, pytest-asyncio throws
+      "RuntimeError: This event loop is already running"
+
+    Solution:
+    - Run tests in separate pytest invocations to isolate event loops
+    - Use --cov-append to combine coverage from both runs
+    - Ensure both test runs pass before declaring success
+
+    This approach maintains full test coverage while preventing the
+    event loop conflict that would otherwise break the CI pipeline.
+    """
     pytest_options = ["--xdoctest", "--cov", "--cov-report=", "--cov-fail-under=0"]
-    _run(c, f"poetry run pytest {' '.join(pytest_options)} {TEST_DIR} {SOURCE_DIR}")
+
+    # Run non-telegram tests first (includes Playwright tests)
+    # These tests use pytest-playwright's event loop management
+    print("Running non-telegram tests...")
+    non_telegram_result = _run(
+        c,
+        f"poetry run pytest {' '.join(pytest_options)} {TEST_DIR} {SOURCE_DIR} --ignore={TEST_DIR}/test_telegram_simplified.py --ignore={TEST_DIR}/test_telegram_integration.py --ignore={TEST_DIR}/test_telegram_formatting.py",
+    )
+
+    # Run telegram tests separately to avoid event loop conflicts with Playwright
+    # These tests use pytest-asyncio's event loop management
+    print("Running telegram tests...")
+    telegram_result = _run(
+        c,
+        f"poetry run pytest --cov --cov-append --cov-report= --cov-fail-under=0 {TEST_DIR}/test_telegram*.py",
+    )
+
+    # Both test runs must succeed for overall success
+    if non_telegram_result and telegram_result:
+        print("All tests passed!")
+    else:
+        if not non_telegram_result:
+            print("Non-telegram tests failed!")
+        if not telegram_result:
+            print("Telegram tests failed!")
+        raise Exception("Some tests failed")
 
 
 @task(
