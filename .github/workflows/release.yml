@@ -23,12 +23,11 @@ jobs:
       - name: Install system deps
         shell: bash
         run: |
-          pip install poetry
-          poetry config virtualenvs.in-project true
+          pip install uv
 
       - name: Build package
         run: |
-          poetry build --ansi
+          uv build
 
       - name: Publish package on PyPI
         uses: pypa/gh-action-pypi-publish@v1.12.4

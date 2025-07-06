@@ -128,7 +128,7 @@ playwright install
 
 ### Set up a notification method (optional)
 
-If you would like to receive notification from your phone via PushBullet
+If you would like to receive notification from your phone
 
 - Sign up for [PushBullet](https://www.pushbullet.com/), [PushOver](https://pushover.net/) or [Ntfy](https://ntfy.sh/)
 - Install the app on your phone

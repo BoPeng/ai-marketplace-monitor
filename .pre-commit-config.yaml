@@ -35,8 +35,8 @@ repos:
     rev: 5295f87c0e261da61a7b919fc754e3a77edd98a7
     hooks:
       - id: validate-cff
-  - repo: https://github.com/python-poetry/poetry
-    rev: 1.8.3
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.7.19
     hooks:
-      - id: poetry-check
-      - id: poetry-install
+      - id: uv-lock

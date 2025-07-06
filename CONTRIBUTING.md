@@ -13,10 +13,10 @@ We take our open source community seriously and hold ourselves and other contrib
 
 ### Requirements
 
-We use `poetry` to manage and install dependencies. [Poetry](https://python-poetry.org/) provides a custom installer that will install `poetry` isolated from the rest of your system.
+We use `uv` to manage and install dependencies. [uv](https://docs.astral.sh/uv/) is a fast Python package manager that can be installed with:
 
 ```
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
+pip install uv
 ```
 
 We'll also need `nox` for automated testing in multiple Python environments so [install that too](https://nox.thea.codes/en/stable/).
@@ -24,11 +24,11 @@ We'll also need `nox` for automated testing in multiple Python environments so [
 To install the local development requirements inside a virtual environment run:
 
 ```
-$ poetry install
-$ poetry run inv install-hooks
+$ uv sync --all-extras
+$ uv run inv install-hooks
 ```
 
-> For more information about `poetry` check the [docs](https://python-poetry.org/docs/).
+> For more information about `uv` check the [docs](https://docs.astral.sh/uv/).
 
 We use [invoke](http://www.pyinvoke.org/) to wrap up some useful tasks like formatting, linting, testing and more.
 
@@ -59,7 +59,7 @@ git checkout dev
 Then install the tool from source code with command
 
 ```sh
-poetry install
+uv sync
 ```
 
 ## Contributing

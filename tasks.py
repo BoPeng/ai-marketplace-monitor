@@ -2,8 +2,9 @@
 
 Execute 'invoke --list' for guidance on using Invoke
 """
-
+import os
 import platform
+import tempfile
 import webbrowser
 from pathlib import Path
 from typing import Optional
@@ -76,42 +77,50 @@ def clean(c: Context) -> None:
 @task()
 def install_hooks(c: Context) -> None:
     """Install pre-commit hooks."""
-    _run(c, "poetry run pre-commit install")
+    _run(c, "uv run pre-commit install")
 
 
 @task()
 def hooks(c: Context) -> None:
     """Run pre-commit hooks."""
-    _run(c, "poetry run pre-commit run --all-files")
+    _run(c, "uv run pre-commit run --all-files")
 
 
 @task(name="format", help={"check": "Checks if source is formatted without applying changes"})
 def format_(c: Context, check: bool = False) -> None:
     """Format code."""
     isort_options = ["--check-only", "--diff"] if check else []
-    _run(c, f"poetry run isort {' '.join(isort_options)} {PYTHON_TARGETS_STR}")
+    _run(c, f"uv run isort {' '.join(isort_options)} {PYTHON_TARGETS_STR}")
     black_options = ["--diff", "--check"] if check else ["--quiet"]
-    _run(c, f"poetry run black {' '.join(black_options)} {PYTHON_TARGETS_STR}")
+    _run(c, f"uv run black {' '.join(black_options)} {PYTHON_TARGETS_STR}")
 
 
 @task()
 def ruff(c: Context) -> None:
     """Run ruff."""
-    _run(c, f"poetry run ruff check {PYTHON_TARGETS_STR}")
+    _run(c, f"uv run ruff check {PYTHON_TARGETS_STR}")
 
 
 @task()
 def security(c: Context) -> None:
     """Run security related checks."""
-    # _run(
-    #     c,
-    #     "poetry export --with dev --format=requirements.txt --without-hashes | "
-    #     "poetry run safety check --stdin --full-report",
-    # )
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        temp_file = f.name
+    try:
+        _run(
+            c,
+            f"uv export --extra dev --format requirements-txt --no-hashes  > {temp_file}")
+        _run(c,
+            f"uv run pip-audit --requirement {temp_file} --format json",
+        )
+    finally:
+        # Clean up
+        if os.path.exists(temp_file):
+            os.unlink(temp_file)
     return None
 
 
-@task(pre=[ruff, security, call(format_, check=True)])
+@task(pre=[ruff, call(format_, check=True)])
 def lint(c: Context) -> None:
     """Run all linting."""
 
@@ -119,14 +128,14 @@ def lint(c: Context) -> None:
 @task()
 def mypy(c: Context) -> None:
     """Run mypy."""
-    _run(c, f"poetry run mypy {PYTHON_TARGETS_STR}")
+    _run(c, f"uv run mypy {PYTHON_TARGETS_STR}")
 
 
 @task()
 def tests(c: Context) -> None:
     """Run tests."""
     pytest_options = ["--xdoctest", "--cov", "--cov-report=", "--cov-fail-under=0"]
-    _run(c, f"poetry run pytest {' '.join(pytest_options)} {TEST_DIR} {SOURCE_DIR}")
+    _run(c, f"uv run pytest {' '.join(pytest_options)} {TEST_DIR} {SOURCE_DIR}")
 
 
 @task(
@@ -138,8 +147,8 @@ def tests(c: Context) -> None:
 def coverage(c: Context, fmt: str = "report", open_browser: bool = False) -> None:
     """Create coverage report."""
     if any(Path().glob(".coverage.*")):
-        _run(c, "poetry run coverage combine")
-    _run(c, f"poetry run coverage {fmt} -i")
+        _run(c, "uv run coverage combine")
+    _run(c, f"uv run coverage {fmt} -i")
     if fmt == "html" and open_browser:
         webbrowser.open(COVERAGE_REPORT.as_uri())
 
@@ -158,7 +167,7 @@ def docs(c: Context, serve: bool = False, open_browser: bool = False) -> None:
     if open_browser:
         webbrowser.open(DOCS_INDEX.absolute().as_uri())
     if serve:
-        _run(c, f"poetry run watchmedo shell-command -p '*.rst;*.md' -c '{build_docs}' -R -D .")
+        _run(c, f"uv run watchmedo shell-command -p '*.rst;*.md' -c '{build_docs}' -R -D .")
 
 
 @task(
@@ -170,4 +179,4 @@ def docs(c: Context, serve: bool = False, open_browser: bool = False) -> None:
 def version(c: Context, part: str, dry_run: bool = False) -> None:
     """Bump version."""
     bump_options = ["--dry-run"] if dry_run else []
-    _run(c, f"poetry run bump2version {' '.join(bump_options)} {part}")
+    _run(c, f"uv run bump2version {' '.join(bump_options)} {part}")

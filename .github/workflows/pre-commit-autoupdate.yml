@@ -20,16 +20,15 @@ jobs:
       - name: Install system deps
         shell: bash
         run: |
-          pip install poetry
-          poetry config virtualenvs.in-project true
-          poetry install --no-root --only dev --only linters --sync
+          pip install uv
+          uv sync --extra dev --extra linters
 
       - name: Run autoupdate
-        run: poetry run pre-commit autoupdate
+        run: uv run pre-commit autoupdate
         continue-on-error: true
 
       - name: Run pre-commit
-        run: poetry run pre-commit run --all-files
+        run: uv run pre-commit run --all-files
 
       - uses: peter-evans/create-pull-request@v7.0.8
         with:

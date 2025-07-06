@@ -21,13 +21,12 @@ jobs:
       - name: Install system deps
         shell: bash
         run: |
-          pip install poetry
-          poetry config virtualenvs.in-project true
-          poetry install --no-root --only dev --only linters --sync
+          pip install uv
+          uv sync --extra dev --extra linters
 
       - name: Linting
         shell: bash
-        run: poetry run pre-commit run --all-files
+        run: uv run pre-commit run --all-files
 
   tests:
     needs: linting
@@ -49,9 +48,8 @@ jobs:
       - name: Install system deps
         shell: bash
         run: |
-          pip install nox-poetry==1.1.0
-          pip install poetry==1.8.5
-          poetry config virtualenvs.in-project true
+          pip install nox
+          pip install uv
 
       - name: Run mypy with nox
         shell: bash
@@ -93,9 +91,8 @@ jobs:
   #     - name: Install system deps
   #       shell: bash
   #       run: |
-  #         pip install nox-poetry==1.1.0
-  #         pip install poetry==1.8.5
-  #         poetry config virtualenvs.in-project true
+  #         pip install nox==1.1.0
+  #         pip install uv==1.8.5
 
   #     - name: Download coverage data
   #       uses: actions/download-artifact@v4.1.8
