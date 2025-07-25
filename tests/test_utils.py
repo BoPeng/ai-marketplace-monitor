@@ -65,7 +65,7 @@ def test_monitor_config_user_data_dir_validation() -> None:
     """Test MonitorConfig user_data_dir validation."""
     # Test invalid type
     with pytest.raises(ValueError, match="user_data_dir must be a string"):
-        config = MonitorConfig(name="test", user_data_dir=123)
+        config = MonitorConfig(name="test", user_data_dir=123)  # type: ignore[arg-type]
         config.handle_user_data_dir()
 
     # Test None value (should use default)

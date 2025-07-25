@@ -402,11 +402,12 @@ class MarketplaceMonitor:
                     f"Using persistent browser data directory: {self.config.monitor.user_data_dir}"
                 )
 
-            context_options = {
+            context_options: dict[str, Any] = {
                 "headless": self.headless,
             }
-            if self.config.monitor.get_proxy_options():
-                context_options["proxy"] = self.config.monitor.get_proxy_options()
+            proxy_options = self.config.monitor.get_proxy_options()
+            if proxy_options:
+                context_options["proxy"] = proxy_options
 
             # launch_persistent_context returns a context, not a browser
             self.browser_context = self.playwright.chromium.launch_persistent_context(
@@ -424,13 +425,15 @@ class MarketplaceMonitor:
                 def close(self: "PersistentBrowserWrapper") -> None:
                     return self.context.close()
 
-            self.browser = PersistentBrowserWrapper(self.browser_context)
+            self.browser = PersistentBrowserWrapper(self.browser_context)  # type: ignore[assignment]
         else:
             # Standard browser launch
-            launch_options = {
+            launch_options: dict[str, Any] = {
                 "headless": self.headless,
-                "proxy": self.config.monitor.get_proxy_options(),
             }
+            proxy_options = self.config.monitor.get_proxy_options()
+            if proxy_options:
+                launch_options["proxy"] = proxy_options
             self.browser = self.playwright.chromium.launch(**launch_options)
         #
         assert self.browser is not None
@@ -589,11 +592,12 @@ class MarketplaceMonitor:
                             )
                         # Use persistent context if user_data_dir is configured
                         if self.config.monitor.user_data_dir:
-                            context_options = {
+                            context_options: dict[str, Any] = {
                                 "headless": self.headless,
                             }
-                            if self.config.monitor.get_proxy_options():
-                                context_options["proxy"] = self.config.monitor.get_proxy_options()
+                            proxy_options = self.config.monitor.get_proxy_options()
+                            if proxy_options:
+                                context_options["proxy"] = proxy_options
 
                             # launch_persistent_context returns a context, not a browser
                             self.browser_context = (
@@ -615,13 +619,15 @@ class MarketplaceMonitor:
                                 def close(self: "PersistentBrowserWrapper") -> None:
                                     return self.context.close()
 
-                            self.browser = PersistentBrowserWrapper(self.browser_context)
+                            self.browser = PersistentBrowserWrapper(self.browser_context)  # type: ignore[assignment]
                         else:
                             # Standard browser launch
-                            launch_options = {
+                            launch_options: dict[str, Any] = {
                                 "headless": self.headless,
-                                "proxy": self.config.monitor.get_proxy_options(),
                             }
+                            proxy_options = self.config.monitor.get_proxy_options()
+                            if proxy_options:
+                                launch_options["proxy"] = proxy_options
                             self.browser = self.playwright.chromium.launch(**launch_options)
                         marketplace.set_browser(self.browser)
 
