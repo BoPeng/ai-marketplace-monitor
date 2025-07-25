@@ -1,8 +1,10 @@
+import os
+import tempfile
 from typing import List
 
 import pytest
 
-from ai_marketplace_monitor.utils import is_substring
+from ai_marketplace_monitor.utils import MonitorConfig, is_substring
 
 
 @pytest.mark.parametrize(
@@ -42,3 +44,33 @@ from ai_marketplace_monitor.utils import is_substring
 )
 def test_is_substring(var1: List[str] | str, var2: str, res: bool) -> None:
     assert is_substring(var1, var2) == res
+
+
+def test_monitor_config_user_data_dir() -> None:
+    """Test MonitorConfig user_data_dir functionality."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_dir = os.path.join(temp_dir, "test_browser_data")
+
+        # Test that directory is created
+        MonitorConfig(name="test", user_data_dir=test_dir)
+        assert os.path.exists(test_dir)
+
+        # Test that nested directories are created
+        nested_dir = os.path.join(temp_dir, "nested", "browser_data")
+        MonitorConfig(name="test2", user_data_dir=nested_dir)
+        assert os.path.exists(nested_dir)
+
+
+def test_monitor_config_user_data_dir_validation() -> None:
+    """Test MonitorConfig user_data_dir validation."""
+    # Test invalid type
+    with pytest.raises(ValueError, match="user_data_dir must be a string"):
+        config = MonitorConfig(name="test", user_data_dir=123)
+        config.handle_user_data_dir()
+
+    # Test None value (should use default)
+    config = MonitorConfig(name="test", user_data_dir=None)
+    config.handle_user_data_dir()
+    assert config.user_data_dir is not None
+    assert "browser_data" in config.user_data_dir
+    assert os.path.exists(config.user_data_dir)

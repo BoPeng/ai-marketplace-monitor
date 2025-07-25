@@ -304,6 +304,7 @@ class MonitorConfig(BaseConfig):
     proxy_bypass: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
+    user_data_dir: str | None = None
 
     def handle_proxy_server(self: "MonitorConfig") -> None:
         if self.proxy_server is None:
@@ -349,6 +350,18 @@ class MonitorConfig(BaseConfig):
         if self.proxy_bypass:
             res["bypass"] = self.proxy_bypass
         return res
+
+    def handle_user_data_dir(self: "MonitorConfig") -> None:
+        # Set default if None - same pattern as amm_home
+        if self.user_data_dir is None:
+            self.user_data_dir = str(amm_home / "browser_data")
+
+        if not isinstance(self.user_data_dir, str):
+            raise ValueError(f"Item {hilight(self.name)} user_data_dir must be a string.")
+
+        # Create directory if it doesn't exist
+        from pathlib import Path
+        Path(self.user_data_dir).mkdir(parents=True, exist_ok=True)
 
 
 def calculate_file_hash(file_paths: List[Path]) -> str:

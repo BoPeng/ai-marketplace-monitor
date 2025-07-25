@@ -2,7 +2,7 @@ import sys
 import time
 from logging import Logger
 from pathlib import Path
-from typing import ClassVar, List
+from typing import Any, ClassVar, List
 
 import humanize
 import inflect
@@ -394,9 +394,41 @@ class MarketplaceMonitor:
         # Open a new browser page.
         self.load_config_file()
         assert self.config is not None
-        self.browser = self.playwright.chromium.launch(
-            headless=self.headless, proxy=self.config.monitor.get_proxy_options()
-        )
+
+        # Use persistent context if user_data_dir is configured
+        if self.config.monitor.user_data_dir:
+            if self.logger:
+                self.logger.info(f"Using persistent browser data directory: {self.config.monitor.user_data_dir}")
+
+            context_options = {
+                "headless": self.headless,
+            }
+            if self.config.monitor.get_proxy_options():
+                context_options["proxy"] = self.config.monitor.get_proxy_options()
+
+            # launch_persistent_context returns a context, not a browser
+            self.browser_context = self.playwright.chromium.launch_persistent_context(
+                self.config.monitor.user_data_dir, **context_options
+            )
+            # Create a dummy browser object for compatibility
+            class PersistentBrowserWrapper:
+                def __init__(self, context: Any) -> None:
+                    self.context = context
+
+                def new_context(self) -> Any:
+                    return self.context
+
+                def close(self) -> None:
+                    return self.context.close()
+
+            self.browser = PersistentBrowserWrapper(self.browser_context)
+        else:
+            # Standard browser launch
+            launch_options = {
+                "headless": self.headless,
+                "proxy": self.config.monitor.get_proxy_options()
+            }
+            self.browser = self.playwright.chromium.launch(**launch_options)
         #
         assert self.browser is not None
         while True:
@@ -552,9 +584,37 @@ class MarketplaceMonitor:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                        self.browser = self.playwright.chromium.launch(
-                            headless=self.headless, proxy=self.config.monitor.get_proxy_options()
-                        )
+                        # Use persistent context if user_data_dir is configured
+                        if self.config.monitor.user_data_dir:
+                            context_options = {
+                                "headless": self.headless,
+                            }
+                            if self.config.monitor.get_proxy_options():
+                                context_options["proxy"] = self.config.monitor.get_proxy_options()
+
+                            # launch_persistent_context returns a context, not a browser
+                            self.browser_context = self.playwright.chromium.launch_persistent_context(
+                                self.config.monitor.user_data_dir, **context_options
+                            )
+                            # Create a dummy browser object for compatibility
+                            class PersistentBrowserWrapper:
+                                def __init__(self, context: Any) -> None:
+                                    self.context = context
+
+                                def new_context(self) -> Any:
+                                    return self.context
+
+                                def close(self) -> None:
+                                    return self.context.close()
+
+                            self.browser = PersistentBrowserWrapper(self.browser_context)
+                        else:
+                            # Standard browser launch
+                            launch_options = {
+                                "headless": self.headless,
+                                "proxy": self.config.monitor.get_proxy_options()
+                            }
+                            self.browser = self.playwright.chromium.launch(**launch_options)
                         marketplace.set_browser(self.browser)
 
                 # ignore enabled

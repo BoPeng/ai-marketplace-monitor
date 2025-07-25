@@ -5,6 +5,19 @@
 api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 model = "gpt-4o"
 
+# Alternative: Kimi K2 (Moonshot AI)
+# [ai.kimi]
+# provider = 'openai'
+# api_key = 'your-moonshot-api-key'
+# base_url = 'https://api.moonshot.ai/v1'
+# model = 'kimi-latest'
+
+#
+# Monitor Configuration
+#
+[monitor]
+# user_data_dir = '/path/to/browser/data'  # Optional: Custom browser data directory (defaults to ~/.ai-marketplace-monitor/browser_data)
+
 #
 # Marketplace
 #
