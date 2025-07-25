@@ -6,6 +6,21 @@ from pytest_playwright.pytest_playwright import CreateContextCallback  # type: i
 
 from ai_marketplace_monitor.facebook import FacebookSearchResultPage, parse_listing
 
+# Skip all tests if Playwright browsers are not available
+try:
+    import playwright
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        p.chromium.launch(headless=True)
+    PLAYWRIGHT_AVAILABLE = True
+except Exception:
+    PLAYWRIGHT_AVAILABLE = False
+
+pytestmark = pytest.mark.skipif(
+    not PLAYWRIGHT_AVAILABLE, 
+    reason="Playwright browsers not available - run 'playwright install' to enable these tests"
+)
+
 
 def test_search_page(
     new_context: CreateContextCallback, filename: str = "search_result_1.html"
