@@ -53,14 +53,14 @@ jobs:
           pip install poetry==1.8.5
           poetry config virtualenvs.in-project true
 
-      - name: Run mypy with nox
-        shell: bash
-        run: nox --force-color -s mypy-${{ matrix.python-version }}
-
       - name: Install Playwright Browsers
         run: |
           pip install playwright
           playwright install --with-deps # Ensures browsers and dependencies are installed
+
+      - name: Run mypy with nox
+        shell: bash
+        run: nox --force-color -s mypy-${{ matrix.python-version }}
 
       - name: Run tests with nox
         shell: bash
