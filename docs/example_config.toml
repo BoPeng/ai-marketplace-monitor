@@ -31,6 +31,7 @@ max_search_interval = '1h'
 seller_locations = ['city', 'surrounding city']
 notify = 'user1'
 exclude_sellers = []
+# language = 'sv'  # Uncomment for Swedish interface
 
 #
 # Users and Notifications

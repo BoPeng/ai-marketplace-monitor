@@ -361,6 +361,7 @@ class MonitorConfig(BaseConfig):
 
         # Create directory if it doesn't exist
         from pathlib import Path
+
         Path(self.user_data_dir).mkdir(parents=True, exist_ok=True)
 
 

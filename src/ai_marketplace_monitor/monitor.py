@@ -398,7 +398,9 @@ class MarketplaceMonitor:
         # Use persistent context if user_data_dir is configured
         if self.config.monitor.user_data_dir:
             if self.logger:
-                self.logger.info(f"Using persistent browser data directory: {self.config.monitor.user_data_dir}")
+                self.logger.info(
+                    f"Using persistent browser data directory: {self.config.monitor.user_data_dir}"
+                )
 
             context_options = {
                 "headless": self.headless,
@@ -410,15 +412,16 @@ class MarketplaceMonitor:
             self.browser_context = self.playwright.chromium.launch_persistent_context(
                 self.config.monitor.user_data_dir, **context_options
             )
+
             # Create a dummy browser object for compatibility
             class PersistentBrowserWrapper:
-                def __init__(self, context: Any) -> None:
+                def __init__(self: "PersistentBrowserWrapper", context: Any) -> None:
                     self.context = context
 
-                def new_context(self) -> Any:
+                def new_context(self: "PersistentBrowserWrapper") -> Any:
                     return self.context
 
-                def close(self) -> None:
+                def close(self: "PersistentBrowserWrapper") -> None:
                     return self.context.close()
 
             self.browser = PersistentBrowserWrapper(self.browser_context)
@@ -426,7 +429,7 @@ class MarketplaceMonitor:
             # Standard browser launch
             launch_options = {
                 "headless": self.headless,
-                "proxy": self.config.monitor.get_proxy_options()
+                "proxy": self.config.monitor.get_proxy_options(),
             }
             self.browser = self.playwright.chromium.launch(**launch_options)
         #
@@ -593,18 +596,23 @@ class MarketplaceMonitor:
                                 context_options["proxy"] = self.config.monitor.get_proxy_options()
 
                             # launch_persistent_context returns a context, not a browser
-                            self.browser_context = self.playwright.chromium.launch_persistent_context(
-                                self.config.monitor.user_data_dir, **context_options
+                            self.browser_context = (
+                                self.playwright.chromium.launch_persistent_context(
+                                    self.config.monitor.user_data_dir, **context_options
+                                )
                             )
+
                             # Create a dummy browser object for compatibility
                             class PersistentBrowserWrapper:
-                                def __init__(self, context: Any) -> None:
+                                def __init__(
+                                    self: "PersistentBrowserWrapper", context: Any
+                                ) -> None:
                                     self.context = context
 
-                                def new_context(self) -> Any:
+                                def new_context(self: "PersistentBrowserWrapper") -> Any:
                                     return self.context
 
-                                def close(self) -> None:
+                                def close(self: "PersistentBrowserWrapper") -> None:
                                     return self.context.close()
 
                             self.browser = PersistentBrowserWrapper(self.browser_context)
@@ -612,7 +620,7 @@ class MarketplaceMonitor:
                             # Standard browser launch
                             launch_options = {
                                 "headless": self.headless,
-                                "proxy": self.config.monitor.get_proxy_options()
+                                "proxy": self.config.monitor.get_proxy_options(),
                             }
                             self.browser = self.playwright.chromium.launch(**launch_options)
                         marketplace.set_browser(self.browser)
