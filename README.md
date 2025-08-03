@@ -126,6 +126,10 @@ Install a browser for Playwright using the command:
 playwright install
 ```
 
+For more detailed instructions, please refer to
+
+- [linux (pipx)](INSTALL.linux.md)
+
 ### Set up a notification method (optional)
 
 If you would like to receive notification from your phone
