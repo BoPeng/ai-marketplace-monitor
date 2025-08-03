@@ -16,7 +16,6 @@ from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
-from .telegram import TelegramNotificationConfig
 from .user import User, UserConfig
 from .utils import MonitorConfig, Translator, hilight, merge_dicts
 
@@ -255,28 +254,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                                     f"Overriding {hilight(key)} for user {config.name} with value {value} from notification {hilight(notification_name)}."
                                 )
                         setattr(config, key, value)
-
-            # Auto-create TelegramNotificationConfig if telegram fields are present in user config
-            if hasattr(config, "telegram_token") and hasattr(config, "telegram_chat_id"):
-                if config.telegram_token is not None and config.telegram_chat_id is not None:
-                    telegram_config_name = f"{config.name}_telegram_auto"
-                    if telegram_config_name not in self.notification:
-                        try:
-                            telegram_config = TelegramNotificationConfig(
-                                name=telegram_config_name,
-                                telegram_token=config.telegram_token,
-                                telegram_chat_id=config.telegram_chat_id,
-                            )
-                            self.notification[telegram_config_name] = telegram_config
-                            if logger:
-                                logger.info(
-                                    f"Auto-created TelegramNotificationConfig {hilight(telegram_config_name)} for user {hilight(config.name)}"
-                                )
-                        except ValueError as e:
-                            if logger:
-                                logger.warning(
-                                    f"Failed to auto-create TelegramNotificationConfig for user {hilight(config.name)}: {e}"
-                                )
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist

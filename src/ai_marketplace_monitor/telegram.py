@@ -343,43 +343,42 @@ class TelegramNotificationConfig(PushNotificationConfig):
                 return await self._send_single_message_with_retry(
                     bot, self.telegram_chat_id, formatted_message, logger
                 )
-            else:
-                # Split the ORIGINAL unescaped message to preserve MarkdownV2 formatting
-                # Reserve space for title formatting and continuation indicators
-                title_with_formatting = f"*{escaped_title}*\n\n"
-                continuation_space = 15  # Space for " \(1/999\)" indicator
-                available_for_message = (
-                    max_message_length - len(title_with_formatting) - continuation_space
-                )
+            # Split the ORIGINAL unescaped message to preserve MarkdownV2 formatting
+            # Reserve space for title formatting and continuation indicators
+            title_with_formatting = f"*{escaped_title}*\n\n"
+            continuation_space = 15  # Space for " \(1/999\)" indicator
+            available_for_message = (
+                max_message_length - len(title_with_formatting) - continuation_space
+            )
 
-                # Split the original message (before escaping) to avoid breaking escape sequences
-                message_parts = self._split_message_at_boundaries(message, available_for_message)
-                total_parts = len(message_parts)
+            # Split the original message (before escaping) to avoid breaking escape sequences
+            message_parts = self._split_message_at_boundaries(message, available_for_message)
+            total_parts = len(message_parts)
 
-                # Send first message with title
-                escaped_first_part = escape_markdown(message_parts[0], version=2)
-                first_message = f"{title_with_formatting}{escaped_first_part}"
-                if total_parts > 1:
-                    first_message += f" \\(1/{total_parts}\\)"
+            # Send first message with title
+            escaped_first_part = escape_markdown(message_parts[0], version=2)
+            first_message = f"{title_with_formatting}{escaped_first_part}"
+            if total_parts > 1:
+                first_message += f" \\(1/{total_parts}\\)"
 
+            success = await self._send_single_message_with_retry(
+                bot, self.telegram_chat_id, first_message, logger
+            )
+            if not success:
+                return False
+
+            # Send remaining parts without title
+            for i, part in enumerate(message_parts[1:], 2):
+                # Wait for rate limits before sending each additional part
+                await self._wait_for_rate_limit(logger)
+
+                escaped_part = escape_markdown(part, version=2)
+                continuation_message = f"{escaped_part} \\({i}/{total_parts}\\)"
                 success = await self._send_single_message_with_retry(
-                    bot, self.telegram_chat_id, first_message, logger
+                    bot, self.telegram_chat_id, continuation_message, logger
                 )
                 if not success:
                     return False
-
-                # Send remaining parts without title
-                for i, part in enumerate(message_parts[1:], 2):
-                    # Wait for rate limits before sending each additional part
-                    await self._wait_for_rate_limit(logger)
-
-                    escaped_part = escape_markdown(part, version=2)
-                    continuation_message = f"{escaped_part} \\({i}/{total_parts}\\)"
-                    success = await self._send_single_message_with_retry(
-                        bot, self.telegram_chat_id, continuation_message, logger
-                    )
-                    if not success:
-                        return False
 
             return True
 
