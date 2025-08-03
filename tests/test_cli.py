@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 import ai_marketplace_monitor
 from ai_marketplace_monitor import cli
 from ai_marketplace_monitor.config import Config
+from ai_marketplace_monitor.telegram import TelegramNotificationConfig
 
 runner = CliRunner()
 
@@ -385,3 +386,130 @@ def test_price_conversion(config_file: Callable) -> None:
 
     assert config.item["name"].max_price == "300 USD"
     assert config.item["name"].currency == ["EUR"]
+
+
+# Telegram config test strings
+telegram_user_cfg = """
+[user.user1]
+telegram_token = '123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '12345678'
+"""
+
+telegram_user_cfg_with_username = """
+[user.user1]
+telegram_token = '123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '@testuser'
+"""
+
+telegram_user_cfg_invalid_token = """
+[user.user1]
+telegram_token = 'invalid_token_format'
+telegram_chat_id = '12345678'
+"""
+
+telegram_user_cfg_invalid_chat_id = """
+[user.user1]
+telegram_token = '123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = 'invalid_chat_id'
+"""
+
+telegram_user_cfg_missing_chat_id = """
+[user.user1]
+telegram_token = '123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+"""
+
+telegram_user_cfg_missing_token = """
+[user.user1]
+telegram_chat_id = '12345678'
+"""
+
+
+def test_telegram_config_auto_creation(config_file: Callable) -> None:
+    """Test auto-creation of TelegramNotificationConfig when telegram fields are present."""
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + telegram_user_cfg)
+    config = Config([cfg])
+
+    # Check that TelegramNotificationConfig was auto-created
+    telegram_config_name = "user1_telegram_auto"
+    assert telegram_config_name in config.notification
+
+    telegram_config = config.notification[telegram_config_name]
+    assert isinstance(telegram_config, TelegramNotificationConfig)
+    assert telegram_config.telegram_token == "123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+    assert telegram_config.telegram_chat_id == "12345678"
+    assert telegram_config.name == telegram_config_name
+
+
+def test_telegram_config_with_username_chat_id(config_file: Callable) -> None:
+    """Test auto-creation of TelegramNotificationConfig with username-style chat ID."""
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + telegram_user_cfg_with_username)
+    config = Config([cfg])
+
+    # Check that TelegramNotificationConfig was auto-created
+    telegram_config_name = "user1_telegram_auto"
+    assert telegram_config_name in config.notification
+
+    telegram_config = config.notification[telegram_config_name]
+    assert isinstance(telegram_config, TelegramNotificationConfig)
+    assert telegram_config.telegram_chat_id == "@testuser"
+
+
+def test_telegram_config_invalid_token(config_file: Callable) -> None:
+    """Test that invalid telegram token prevents auto-creation."""
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + telegram_user_cfg_invalid_token)
+
+    # This should raise a ValueError during config validation
+    with pytest.raises(ValueError, match="telegram_token must contain a colon"):
+        Config([cfg])
+
+
+def test_telegram_config_invalid_chat_id(config_file: Callable) -> None:
+    """Test that invalid telegram chat ID prevents auto-creation."""
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + telegram_user_cfg_invalid_chat_id)
+
+    # This should raise a ValueError during config validation
+    with pytest.raises(ValueError, match="telegram_chat_id must be numeric or start with @"):
+        Config([cfg])
+
+
+def test_telegram_config_missing_fields(config_file: Callable) -> None:
+    """Test that missing telegram fields don't create TelegramNotificationConfig."""
+    # Test missing chat_id
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + telegram_user_cfg_missing_chat_id)
+    config = Config([cfg])
+
+    # No auto-creation should happen since chat_id is missing
+    telegram_config_name = "user1_telegram_auto"
+    assert telegram_config_name not in config.notification
+
+    # Test missing token
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + telegram_user_cfg_missing_token)
+    config = Config([cfg])
+
+    # No auto-creation should happen since token is missing
+    assert telegram_config_name not in config.notification
+
+
+def test_telegram_config_no_duplicate_creation(config_file: Callable) -> None:
+    """Test that TelegramNotificationConfig is not created if it already exists."""
+    # Create config with both explicit notification and user fields
+    explicit_telegram_cfg = """
+[notification.user1_telegram_auto]
+telegram_token = '987654321:XYZ-ABC1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '87654321'
+"""
+
+    cfg = config_file(
+        base_marketplace_cfg + base_item_cfg + telegram_user_cfg + explicit_telegram_cfg
+    )
+    config = Config([cfg])
+
+    # Should use the explicitly defined notification config, not auto-create
+    telegram_config_name = "user1_telegram_auto"
+    assert telegram_config_name in config.notification
+
+    telegram_config = config.notification[telegram_config_name]
+    assert isinstance(telegram_config, TelegramNotificationConfig)
+    # Should have the explicitly defined values, not the user field values
+    assert telegram_config.telegram_token == "987654321:XYZ-ABC1234ghIkl-zyx57W2v1u123ew11"
+    assert telegram_config.telegram_chat_id == "87654321"

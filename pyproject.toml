@@ -37,6 +37,7 @@ dependencies = [
   "tomli==2.2.1; python_version < '3.11'",
   "safety>=3.5.2",
   "pip-audit>=2.9.0",
+  "python-telegram-bot>=22.3",
 ]
 
 [project.urls]
@@ -92,6 +93,17 @@ show_missing = true
 [tool.coverage.html]
 directory = "htmlcov"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    # Suppress AsyncMock coroutine warnings in Telegram notification tests
+    # These warnings occur when testing sync methods that wrap async operations with asyncio.run()
+    # The coroutines are properly handled by asyncio.run() but pytest's garbage collection
+    # triggers warnings for the mock coroutines that were never directly awaited
+    "ignore::RuntimeWarning:_pytest.unraisableexception",
+    "ignore:coroutine.*was never awaited:RuntimeWarning",
+]
+
 [tool.ruff]
 target-version = "py39"
 output-format = "full"
@@ -109,6 +121,7 @@ ignore = [
   "G004",
   "S311",
   "B017",
+  "S105",   # hardcoded passwords (false positives in test data)
   "S106",
   "G003",
   "S101",   # use of assert
@@ -196,3 +209,11 @@ warn_no_return = true
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.1.0",
+]
+test = [
+    "pytest-asyncio>=1.1.0",
+]

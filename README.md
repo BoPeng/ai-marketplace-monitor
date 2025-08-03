@@ -45,6 +45,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - [Advanced features](#advanced-features)
   - [Setting up email notification](#setting-up-email-notification)
   - [Setting Up PushOver Notifications](#setting-up-pushover-notifications)
+  - [Setting Up Telegram Notifications](#setting-up-telegram-notifications)
   - [Adjust prompt and notification level](#adjust-prompt-and-notification-level)
   - [Advanced Keyword-based filters](#advanced-keyword-based-filters)
   - [Searching multiple cities and regions](#searching-multiple-cities-and-regions)
@@ -81,7 +82,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 📱 **Notifications**
 
-- PushBullet, PushOver, or Ntfy notifications
+- PushBullet, PushOver, Telegram, or Ntfy notifications
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
@@ -130,9 +131,9 @@ playwright install
 
 If you would like to receive notification from your phone
 
-- Sign up for [PushBullet](https://www.pushbullet.com/), [PushOver](https://pushover.net/) or [Ntfy](https://ntfy.sh/)
+- Sign up for [PushBullet](https://www.pushbullet.com/), [PushOver](https://pushover.net/), [Ntfy](https://ntfy.sh/), or use [Telegram](https://telegram.org/)
 - Install the app on your phone
-- Go to the respective website and obtain necessary token(s)
+- Go to the respective website and obtain necessary token(s), or for Telegram, create a bot using @BotFather
 
 If you would like to receive email notification, obtain relevant SMTP settings from your email provider. See [Setting up email notification](#setting-up-email-notification) for details.
 
@@ -321,6 +322,161 @@ with_description = 100
 ```
 
 This will include up to the first 100 characters of each listing's description in your notifications.
+
+### Setting Up Telegram Notifications
+
+To enable Telegram notifications, you'll need to create a Telegram bot and obtain a chat ID. Follow these steps:
+
+#### Step 1: Create a Telegram Bot
+
+1. **Open Telegram** and search for `@BotFather` (the official bot for creating other bots).
+2. **Start a conversation** with BotFather by clicking "Start" or sending `/start`.
+3. **Create a new bot** by sending the command `/newbot`.
+4. **Choose a bot name** when prompted (e.g., "AI Marketplace Monitor").
+5. **Choose a bot username** that ends with "bot" (e.g., "my_marketplace_monitor_bot").
+6. **Save your bot token** - BotFather will provide a token that looks like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`. **Keep this token secure and never share it publicly.**
+
+#### Step 2: Get Your Chat ID
+
+You need to find your chat ID to receive messages. Here are two methods:
+
+**Method 1: Using @userinfobot**
+
+1. Search for `@userinfobot` in Telegram and start a conversation.
+2. Send any message to the bot.
+3. The bot will reply with your user information, including your **Chat ID** (a number like `123456789`).
+
+**Method 2: Using the Telegram Bot API**
+
+1. Start a conversation with your newly created bot (search for its username).
+2. Send any message to your bot (e.g., "Hello").
+3. Open this URL in your browser, replacing `YOUR_BOT_TOKEN` with your actual token:
+   ```
+   https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
+   ```
+4. Look for the `"chat":{"id":` field in the response - this number is your chat ID.
+
+#### Step 3: Configure Your Settings
+
+Add your Telegram credentials to your configuration file using one of these formats:
+
+**Option 1: Direct configuration under user profile**
+
+```toml
+[user.me]
+telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '123456789'
+```
+
+**Option 2: Using a dedicated notification section**
+
+```toml
+[notification.telegram]
+telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '123456789'
+
+[user.me]
+notify_with = 'telegram'
+```
+
+**Option 3: Using environment variables for security**
+
+```toml
+[user.me]
+telegram_token = '${TELEGRAM_BOT_TOKEN}'
+telegram_chat_id = '${TELEGRAM_CHAT_ID}'
+```
+
+Then set the environment variables:
+```bash
+export TELEGRAM_BOT_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+export TELEGRAM_CHAT_ID="123456789"
+```
+
+#### Step 4: Test Your Configuration
+
+You can test your setup by running the monitor. If configured correctly, you should receive Telegram notifications when matching listings are found.
+
+#### Troubleshooting Common Issues
+
+**401 Unauthorized Error**
+- **Cause**: Invalid or incorrect bot token
+- **Solution**:
+  1. Verify your bot token is correct (it should look like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
+  2. Make sure there are no extra spaces or characters
+  3. Create a new bot with @BotFather if the token is lost
+
+**403 Forbidden Error**
+- **Cause**: Bot doesn't have permission to send messages to the chat
+- **Solution**:
+  1. Start a conversation with your bot by searching for its username in Telegram
+  2. Send at least one message to the bot (e.g., "/start" or "Hello")
+  3. Verify the chat ID is correct
+
+**400 Bad Request Error**
+- **Cause**: Invalid chat ID format or the chat doesn't exist
+- **Solution**:
+  1. Double-check your chat ID is a number (positive for users, negative for groups)
+  2. For group chats, make sure the bot is added to the group
+  3. Use the getUpdates method to verify your chat ID
+
+**Bot Not Responding**
+- **Cause**: Network issues or Telegram API problems
+- **Solution**:
+  1. Check your internet connection
+  2. Test with a simple curl command:
+     ```bash
+     curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getMe"
+     ```
+  3. Wait a few minutes and try again
+
+**Configuration Examples**
+
+Here are complete working configuration examples:
+
+**Basic Telegram setup:**
+```toml
+[ai.openai]
+api_key = 'your-openai-key'
+
+[marketplace.facebook]
+search_city = 'houston'
+
+[item.gopro]
+search_phrases = 'GoPro Hero'
+min_price = 100
+max_price = 300
+
+[user.me]
+telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '123456789'
+```
+
+**Advanced setup with multiple notification methods:**
+```toml
+[notification.telegram]
+telegram_token = '${TELEGRAM_BOT_TOKEN}'
+telegram_chat_id = '${TELEGRAM_CHAT_ID}'
+
+[notification.email]
+smtp_password = 'your-email-password'
+
+[user.me]
+email = 'your@email.com'
+notify_with = ['telegram', 'email']
+```
+
+**Group chat notifications:**
+```toml
+[user.family]
+telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+telegram_chat_id = '-987654321'  # Note: negative ID for groups
+```
+
+**Note on Security**:
+- Never commit your bot token to version control
+- Use environment variables for sensitive information
+- Keep your bot token private - anyone with access can send messages as your bot
 
 ### Adjust prompt and notification level
 
