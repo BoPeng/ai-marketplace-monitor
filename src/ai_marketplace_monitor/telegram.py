@@ -1,3 +1,4 @@
+import textwrap
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -126,33 +127,9 @@ class TelegramNotificationConfig(PushNotificationConfig):
         self: "TelegramNotificationConfig", text: str, max_length: int
     ) -> List[str]:
         """Split message at word boundaries while respecting character limit."""
-        if len(text) <= max_length:
-            return [text]
-
-        parts = []
-        remaining = text
-
-        while remaining:
-            if len(remaining) <= max_length:
-                parts.append(remaining)
-                break
-
-            # Find the last space within the limit
-            split_pos = max_length
-            while split_pos > 0 and remaining[split_pos] != " ":
-                split_pos -= 1
-
-            # If no space found, we have a word longer than max_length
-            if split_pos == 0:
-                # Force split at max_length - handle edge case of very long words
-                split_pos = max_length
-
-            # Extract the part and remove it from remaining
-            part = remaining[:split_pos].rstrip()
-            parts.append(part)
-            remaining = remaining[split_pos:].lstrip()
-
-        return parts
+        return textwrap.wrap(
+            text, width=max_length, break_long_words=False, break_on_hyphens=False
+        )
 
     def _is_group_chat(self: "TelegramNotificationConfig") -> bool:
         """Determine if the chat_id represents a group chat (negative ID or supergroup)."""
