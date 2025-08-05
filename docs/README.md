@@ -168,7 +168,7 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 Note that
 
 1. These settings are shared across all notification methods. For example, if you are notifying with `notify_with=['gmail', 'pushbullet']`, the same `max_retries` and `retry_delay` will apply to both methods.
-2. Support for `with_description` vary across notification methods due to their own limitations and strenght. For example, email notification will always include description.
+2. Support for `with_description` vary across notification methods due to their own limitations and strength. For example, email notification will always include description.
 3. Rate limiting prevents API violations by controlling message frequency. When enabled, the system waits for the longer of `instance_rate_limit` or `global_rate_limit` before sending each message. Telegram automatically enables rate limiting with optimized defaults for individual (1.1s) and group chats (3.0s).
 
 #### Telegram notification
