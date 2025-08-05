@@ -271,15 +271,15 @@ class TestNotificationConfigRateLimiting:
     def base_config(self: "Self") -> NotificationConfig:
         """Create a base NotificationConfig with rate limiting enabled for testing."""
         config = NotificationConfig(name="test_base")
-        config._rate_limit_enabled = True
+        config.rate_limit_enabled = True
         return config
 
     def test_rate_limiting_disabled_by_default(self: "Self") -> None:
         """Test that rate limiting is disabled by default in base class."""
         config = NotificationConfig(name="test")
-        assert config._rate_limit_enabled is False
-        assert config._instance_rate_limit == 1.0
-        assert config._global_rate_limit == 10
+        assert config.rate_limit_enabled is False
+        assert config.instance_rate_limit == 1.0
+        assert config.global_rate_limit == 10
 
     def test_get_wait_time_disabled(self: "Self") -> None:
         """Test _get_wait_time returns 0 when rate limiting is disabled."""
@@ -314,10 +314,10 @@ class TestNotificationConfigRateLimiting:
         for _ in range(5):
             NotificationConfig._global_send_times.append(current_time - 2.0)
 
-        # Mock the class to have rate limiting enabled
-        with patch.object(NotificationConfig, "_rate_limit_enabled", True):
-            wait_time = NotificationConfig._get_global_wait_time()
-            assert wait_time == 0.0
+        # Since global rate limiting now checks for existing send times,
+        # an empty deque means no rate limiting is active
+        wait_time = NotificationConfig._get_global_wait_time()
+        assert wait_time == 0.0
 
     def test_record_global_send_time(self: "Self") -> None:
         """Test that global send times are recorded correctly."""

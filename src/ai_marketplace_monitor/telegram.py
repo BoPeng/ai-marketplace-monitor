@@ -20,8 +20,8 @@ class TelegramNotificationConfig(PushNotificationConfig):
     telegram_chat_id: str | None = None
 
     # Enable rate limiting with Telegram-specific settings
-    _rate_limit_enabled: bool = True
-    _global_rate_limit: int = 30  # Telegram's higher limit
+    rate_limit_enabled: bool = True
+    global_rate_limit: int = 30  # Telegram's higher limit
 
     def handle_telegram_token(self: "TelegramNotificationConfig") -> None:
         if self.telegram_token is None:
@@ -146,7 +146,7 @@ class TelegramNotificationConfig(PushNotificationConfig):
 
     def _get_wait_time(self: "TelegramNotificationConfig") -> float:
         """Override for Telegram's group vs individual chat logic."""
-        if not self._rate_limit_enabled or self._last_send_time is None:
+        if not self.rate_limit_enabled or self._last_send_time is None:
             return 0.0
 
         elapsed = time.time() - self._last_send_time
@@ -158,7 +158,7 @@ class TelegramNotificationConfig(PushNotificationConfig):
         self: "TelegramNotificationConfig", logger: Logger | None = None
     ) -> None:
         """Override to provide Telegram-specific logging."""
-        if not self._rate_limit_enabled:
+        if not self.rate_limit_enabled:
             return
 
         import asyncio
@@ -174,7 +174,7 @@ class TelegramNotificationConfig(PushNotificationConfig):
             if logger:
                 if global_wait > instance_wait:
                     logger.debug(
-                        f"Global rate limiting: waiting {wait_time:.1f} seconds (limit: {self._global_rate_limit} msg/sec)"
+                        f"Global rate limiting: waiting {wait_time:.1f} seconds (limit: {self.global_rate_limit} msg/sec)"
                     )
                 else:
                     chat_type = "group" if self._is_group_chat() else "individual"
