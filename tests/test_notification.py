@@ -62,6 +62,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from ai_marketplace_monitor.notification import NotificationConfig
 from ai_marketplace_monitor.telegram import TelegramNotificationConfig
 
 if TYPE_CHECKING:
@@ -261,3 +262,79 @@ class TestTelegramNotificationConfig:
         )
         assert config._has_required_fields()
         assert not config._is_group_chat()
+
+
+class TestNotificationConfigRateLimiting:
+    """Test cases for base NotificationConfig rate limiting framework."""
+
+    @pytest.fixture
+    def base_config(self: "Self") -> NotificationConfig:
+        """Create a base NotificationConfig with rate limiting enabled for testing."""
+        config = NotificationConfig(name="test_base")
+        config._rate_limit_enabled = True
+        return config
+
+    def test_rate_limiting_disabled_by_default(self: "Self") -> None:
+        """Test that rate limiting is disabled by default in base class."""
+        config = NotificationConfig(name="test")
+        assert config._rate_limit_enabled is False
+        assert config._instance_rate_limit == 1.0
+        assert config._global_rate_limit == 10
+
+    def test_get_wait_time_disabled(self: "Self") -> None:
+        """Test _get_wait_time returns 0 when rate limiting is disabled."""
+        config = NotificationConfig(name="test")
+        config._last_send_time = time.time() - 0.5
+        wait_time = config._get_wait_time()
+        assert wait_time == 0.0
+
+    def test_get_wait_time_enabled(self: "Self", base_config: NotificationConfig) -> None:
+        """Test _get_wait_time calculates correctly when enabled."""
+        base_config._last_send_time = time.time() - 0.5
+        wait_time = base_config._get_wait_time()
+        assert 0.4 < wait_time <= 0.6  # Should wait ~0.5 seconds
+
+    def test_get_wait_time_no_previous_send(self: "Self", base_config: NotificationConfig) -> None:
+        """Test _get_wait_time returns 0 when no previous send time."""
+        base_config._last_send_time = None
+        wait_time = base_config._get_wait_time()
+        assert wait_time == 0.0
+
+    def test_global_rate_limit_disabled(self: "Self") -> None:
+        """Test global rate limiting returns 0 when disabled."""
+        NotificationConfig._global_send_times.clear()
+        wait_time = NotificationConfig._get_global_wait_time()
+        assert wait_time == 0.0
+
+    def test_global_rate_limit_under_limit(self: "Self", base_config: NotificationConfig) -> None:
+        """Test global rate limiting when under the limit."""
+        # Clear and add a few old messages
+        NotificationConfig._global_send_times.clear()
+        current_time = time.time()
+        for _ in range(5):
+            NotificationConfig._global_send_times.append(current_time - 2.0)
+
+        # Mock the class to have rate limiting enabled
+        with patch.object(NotificationConfig, "_rate_limit_enabled", True):
+            wait_time = NotificationConfig._get_global_wait_time()
+            assert wait_time == 0.0
+
+    def test_record_global_send_time(self: "Self") -> None:
+        """Test that global send times are recorded correctly."""
+        NotificationConfig._global_send_times.clear()
+        initial_count = len(NotificationConfig._global_send_times)
+
+        NotificationConfig._record_global_send_time()
+
+        assert len(NotificationConfig._global_send_times) == initial_count + 1
+        assert NotificationConfig._global_send_times[-1] <= time.time()
+
+    def test_send_message_with_retry_no_rate_limiting(self: "Self") -> None:
+        """Test send_message_with_retry works without rate limiting (existing behavior)."""
+        config = NotificationConfig(name="test")
+
+        # Mock send_message to return True
+        with patch.object(config, "send_message", return_value=True):
+            with patch.object(config, "_has_required_fields", return_value=True):
+                result = config.send_message_with_retry("title", "message")
+                assert result is True

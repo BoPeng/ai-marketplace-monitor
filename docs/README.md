@@ -156,16 +156,35 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 
 #### Common Notification settings
 
-| Option             | Requirement | DataType        | Description                                                                                                                      |
-| ------------------ | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `max_retries`      | Optional    | Integer         | Number of attempts to retry a notification. Defaults to `5`.                                                                     |
-| `retry_delay`      | Optional    | Integer         | Time in seconds to wait between retry attempts. Defaults to `60`.                                                                |
-| `with_description` | Optional    | Boolean/Integer | Whether or not include description of listings. If a number is given, the description will be truncated to the specified length. |
+| Option                  | Requirement | DataType        | Description                                                                                                                      |
+| ----------------------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `max_retries`           | Optional    | Integer         | Number of attempts to retry a notification. Defaults to `5`.                                                                     |
+| `retry_delay`           | Optional    | Integer         | Time in seconds to wait between retry attempts. Defaults to `60`.                                                                |
+| `with_description`      | Optional    | Boolean/Integer | Whether or not include description of listings. If a number is given, the description will be truncated to the specified length. |
+| `rate_limit_enabled`    | Optional    | Boolean         | Enable rate limiting for this notification method. Defaults to `false` (except Telegram which defaults to `true`).              |
+| `instance_rate_limit`   | Optional    | Integer         | Minimum seconds between messages for this specific configuration instance. Defaults to `1`.                                      |
+| `global_rate_limit`     | Optional    | Integer         | Minimum seconds between any messages globally across all instances. Defaults to `30`.                                           |
 
 Note that
 
 1. These settings are shared across all notification methods. For example, if you are notifying with `notify_with=['gmail', 'pushbullet']`, the same `max_retries` and `retry_delay` will apply to both methods.
 2. Support for `with_description` vary across notification methods due to their own limitations and strenght. For example, email notification will always include description.
+3. Rate limiting prevents API violations by controlling message frequency. When enabled, the system waits for the longer of `instance_rate_limit` or `global_rate_limit` before sending each message. Telegram automatically enables rate limiting with optimized defaults for individual (1.1s) and group chats (3.0s).
+
+#### Telegram notification
+
+| Option             | Requirement | DataType | Description                                    |
+| ------------------ | ----------- | -------- | ---------------------------------------------- |
+| `telegram_token`   | Required    | String   | Bot token obtained from @BotFather.           |
+| `telegram_chat_id` | Required    | String   | Chat ID for receiving notifications.           |
+
+Note that
+
+1. **Automatic Rate Limiting**: Telegram notifications automatically enable rate limiting (`rate_limit_enabled = true`) with intelligent defaults based on chat type.
+2. **Smart Chat Detection**: The system automatically detects individual chats (positive chat IDs) vs group chats (negative chat IDs) and applies appropriate rate limits.
+3. **Optimized Limits**: Individual chats use 1.1 seconds between messages, group chats use 3.0 seconds, with a global limit of 30 seconds across all Telegram instances.
+4. **HTTP 429 Handling**: Built-in retry logic with exponential backoff for Telegram API rate limit responses.
+5. **Message Splitting**: Long messages are automatically split while preserving MarkdownV2 formatting.
 
 #### Pushbullet notification
 

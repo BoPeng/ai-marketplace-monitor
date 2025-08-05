@@ -1,10 +1,9 @@
 import textwrap
 import time
-from collections import deque
 from dataclasses import dataclass
 from datetime import timedelta
 from logging import Logger
-from typing import TYPE_CHECKING, ClassVar, Deque, List, Type
+from typing import TYPE_CHECKING, ClassVar, List
 
 from .notification import PushNotificationConfig
 
@@ -20,12 +19,9 @@ class TelegramNotificationConfig(PushNotificationConfig):
     telegram_token: str | None = None
     telegram_chat_id: str | None = None
 
-    # Instance-level rate limiting
-    _last_send_time: float | None = None
-
-    # Class-level global rate limiting (30 messages/second)
-    _global_send_times: ClassVar[Deque[float]] = deque()
-    _global_rate_limit: ClassVar[int] = 30  # messages per second
+    # Enable rate limiting with Telegram-specific settings
+    _rate_limit_enabled: bool = True
+    _global_rate_limit: int = 30  # Telegram's higher limit
 
     def handle_telegram_token(self: "TelegramNotificationConfig") -> None:
         if self.telegram_token is None:
@@ -149,8 +145,8 @@ class TelegramNotificationConfig(PushNotificationConfig):
             return False
 
     def _get_wait_time(self: "TelegramNotificationConfig") -> float:
-        """Calculate wait time needed before next send."""
-        if self._last_send_time is None:
+        """Override for Telegram's group vs individual chat logic."""
+        if not self._rate_limit_enabled or self._last_send_time is None:
             return 0.0
 
         elapsed = time.time() - self._last_send_time
@@ -158,45 +154,25 @@ class TelegramNotificationConfig(PushNotificationConfig):
         min_interval = 3.0 if self._is_group_chat() else 1.1
         return max(0.0, min_interval - elapsed)
 
-    @classmethod
-    def _get_global_wait_time(cls: Type["TelegramNotificationConfig"]) -> float:
-        """Calculate wait time needed to respect global rate limit (30 msg/sec)."""
-        current_time = time.time()
-
-        # Remove timestamps older than 1 second
-        while cls._global_send_times and current_time - cls._global_send_times[0] > 1.0:
-            cls._global_send_times.popleft()
-
-        # If we have less than the rate limit, no wait needed
-        if len(cls._global_send_times) < cls._global_rate_limit:
-            return 0.0
-
-        # If we're at the limit, wait until the oldest message is more than 1 second old
-        oldest_send_time = cls._global_send_times[0]
-        wait_time = 1.0 - (current_time - oldest_send_time)
-        return max(0.0, wait_time)
-
-    @classmethod
-    def _record_global_send_time(cls: Type["TelegramNotificationConfig"]) -> None:
-        """Record the current time as a global send time."""
-        cls._global_send_times.append(time.time())
-
     async def _wait_for_rate_limit(
         self: "TelegramNotificationConfig", logger: Logger | None = None
     ) -> None:
-        """Wait if rate limiting is needed, then record send time."""
+        """Override to provide Telegram-specific logging."""
+        if not self._rate_limit_enabled:
+            return
+
         import asyncio
 
-        # Check both per-chat and global rate limits
-        per_chat_wait = self._get_wait_time()
+        # Check both per-instance and global rate limits
+        instance_wait = self._get_wait_time()
         global_wait = self._get_global_wait_time()
 
         # Use the longer of the two wait times
-        wait_time = max(per_chat_wait, global_wait)
+        wait_time = max(instance_wait, global_wait)
 
         if wait_time > 0:
             if logger:
-                if global_wait > per_chat_wait:
+                if global_wait > instance_wait:
                     logger.debug(
                         f"Global rate limiting: waiting {wait_time:.1f} seconds (limit: {self._global_rate_limit} msg/sec)"
                     )
@@ -208,7 +184,7 @@ class TelegramNotificationConfig(PushNotificationConfig):
 
             await asyncio.sleep(wait_time)
 
-        # Record both per-chat and global send times
+        # Record both per-instance and global send times
         self._last_send_time = time.time()
         self._record_global_send_time()
 
