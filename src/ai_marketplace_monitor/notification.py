@@ -85,20 +85,21 @@ class NotificationConfig(BaseConfig):
                 succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
 
-    def _send_message_with_rate_limiting_sync(
+    def _execute_with_retry(
         self: "NotificationConfig",
         title: str,
         message: str,
         logger: Logger | None = None,
+        apply_rate_limiting: bool = False,
     ) -> bool:
-        """Sync version of send_message_with_retry with rate limiting support."""
+        """Common retry logic for message sending with optional rate limiting."""
         if not self._has_required_fields():
             return False
 
         for attempt in range(self.max_retries):
             try:
-                # Apply rate limiting if enabled
-                if self.rate_limit_enabled:
+                # Apply rate limiting if requested
+                if apply_rate_limiting and self.rate_limit_enabled:
                     self._wait_for_rate_limit_sync(logger)
 
                 # Call the send_message method
@@ -130,6 +131,15 @@ class NotificationConfig(BaseConfig):
                     return False
         return False
 
+    def _send_message_with_rate_limiting_sync(
+        self: "NotificationConfig",
+        title: str,
+        message: str,
+        logger: Logger | None = None,
+    ) -> bool:
+        """Sync version of send_message_with_retry with rate limiting support."""
+        return self._execute_with_retry(title, message, logger, apply_rate_limiting=True)
+
     def send_message_with_retry(
         self: "NotificationConfig",
         title: str,
@@ -137,42 +147,9 @@ class NotificationConfig(BaseConfig):
         logger: Logger | None = None,
     ) -> bool:
         """Enhanced retry method with rate limiting support."""
-        if not self._has_required_fields():
-            return False
-
-        # If rate limiting is enabled, use sync version
-        if self.rate_limit_enabled:
-            return self._send_message_with_rate_limiting_sync(title, message, logger)
-
-        # Fallback to original sync implementation for non-rate-limited notifications
-        for attempt in range(self.max_retries):
-            try:
-                res = self.send_message(title=title, message=message, logger=logger)
-                if logger:
-                    logger.info(
-                        f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)}"""
-                    )
-                return res
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if logger:
-                    logger.debug(
-                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
-                    )
-                if attempt < self.max_retries - 1:
-                    if logger:
-                        logger.debug(
-                            f"""{hilight("[Notify]", "fail")} Retrying in {self.retry_delay} seconds..."""
-                        )
-                    time.sleep(self.retry_delay)
-                else:
-                    if logger:
-                        logger.error(
-                            f"""{hilight("[Notify]", "fail")} Max retries reached. Failed to push note to {self.name}."""
-                        )
-                    return False
-        return False
+        return self._execute_with_retry(
+            title, message, logger, apply_rate_limiting=self.rate_limit_enabled
+        )
 
     def _get_wait_time(self: "NotificationConfig") -> float:
         """Calculate instance-level wait time. Override for custom logic."""
