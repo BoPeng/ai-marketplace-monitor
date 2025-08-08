@@ -131,6 +131,8 @@ For more detailed instructions, please refer to
 
 - [linux (pipx)](INSTALL.linux.md)
 
+and [More detailed installation instructions #234](https://github.com/BoPeng/ai-marketplace-monitor/issues/234) for installation instructions from the community.
+
 ### Set up a notification method (optional)
 
 If you would like to receive notification from your phone
