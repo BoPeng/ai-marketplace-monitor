@@ -25,10 +25,15 @@ Install a browser for Playwright:
 
     $ playwright install
 
-For more detailed instructions, please refer to:
+For community-contributed instructions, see:
 
-- `Linux (pipx) installation guide <https://github.com/BoPeng/ai-marketplace-monitor/blob/main/INSTALL.linux.md>`_
 - `Community installation instructions #234 <https://github.com/BoPeng/ai-marketplace-monitor/issues/234>`_
+
+Linux Installation (using pipx)
+--------------------------------
+
+.. include:: linux-installation.md
+   :parser: myst_parser.sphinx_
 
 Development Installation
 ------------------------

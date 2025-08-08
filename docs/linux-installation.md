@@ -1,8 +1,6 @@
-## Linux Ubuntu Installation (using pipx)
-
 If you're using Ubuntu Linux and prefer not to use package managers like conda/mamba or virtual environments, you can install `ai-marketplace-monitor` as a system-wide command using `pipx`.
 
-### Prerequisites
+## Prerequisites
 
 If you haven't used `pipx` before or don't have `$HOME/.local/bin` in your `$PATH`:
 
@@ -15,7 +13,7 @@ source ~/.bashrc
 
 **Note:** You may need to restart your terminal or run `exec bash` instead of `source ~/.bashrc` for the PATH changes to take effect.
 
-### Installation
+## Installation
 
 ```bash
 # Install the main package
@@ -34,7 +32,7 @@ If prompted to install playwright system dependencies, run:
 sudo /home/YOURUSER/.local/bin/playwright install-deps
 ```
 
-### Configuration
+## Configuration
 
 Edit your configuration file using your preferred text editor:
 
@@ -49,7 +47,7 @@ vim ~/.ai-marketplace-monitor/config.toml
 sudo snap install code --classic
 ```
 
-### Verification
+## Verification
 
 To verify the installation was successful:
 
@@ -57,7 +55,7 @@ To verify the installation was successful:
 ai-marketplace-monitor --version
 ```
 
-### Troubleshooting
+## Troubleshooting
 
 - If you encounter permission issues, ensure `$HOME/.local/bin` is in your PATH
 - If playwright browsers fail to install, you may need to install additional system dependencies with `sudo apt install libnss3-dev libatk-bridge2.0-dev libdrm2-dev`
