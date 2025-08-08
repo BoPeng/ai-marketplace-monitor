@@ -120,7 +120,7 @@ And receive a notification on your phone via PushBullet.
 Next Steps
 ----------
 
-- :doc:`configuration` - Learn about advanced configuration options
+- :doc:`configuration` - Complete TOML configuration reference
 - :doc:`features` - Explore all available features
 - :doc:`usage` - Master command-line options and interactive mode
 - `GitHub Issues <https://github.com/BoPeng/ai-marketplace-monitor/issues>`_ - Get help or report problems

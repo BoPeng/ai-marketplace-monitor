@@ -1,4 +1,4 @@
-# Configuration Guide
+# Configuration Reference
 
 **Table of content:**
 

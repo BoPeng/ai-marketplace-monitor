@@ -279,7 +279,7 @@ Simple Contributions
 -------------------
 
 1. **Fix typos** in documentation
-2. **Add examples** to configuration guide
+2. **Add examples** to configuration reference
 3. **Improve error messages** for better user experience
 4. **Add tests** for existing functionality
 5. **Translate** interface messages
