@@ -90,6 +90,12 @@ def hooks(c: Context) -> None:
 @task(name="format", help={"check": "Checks if source is formatted without applying changes"})
 def format_(c: Context, check: bool = False) -> None:
     """Format code."""
+    # Fix whitespace and end-of-file issues using the same tools as pre-commit
+    if not check:
+        _run(c, "uv run pre-commit run trailing-whitespace --all-files")
+        _run(c, "uv run pre-commit run end-of-file-fixer --all-files")
+
+    # Run isort and black
     isort_options = ["--check-only", "--diff"] if check else []
     _run(c, f"uv run isort {' '.join(isort_options)} {PYTHON_TARGETS_STR}")
     black_options = ["--diff", "--check"] if check else ["--quiet"]
@@ -161,8 +167,8 @@ def coverage(c: Context, fmt: str = "report", open_browser: bool = False) -> Non
 )
 def docs(c: Context, serve: bool = False, open_browser: bool = False) -> None:
     """Build documentation."""
-    _run(c, f"sphinx-apidoc -o {DOCS_DIR} {SOURCE_DIR}")
-    build_docs = f"sphinx-build -b html {DOCS_DIR} {DOCS_BUILD_DIR}"
+    _run(c, f"uv run sphinx-apidoc -f -o {DOCS_DIR} {SOURCE_DIR}")
+    build_docs = f"uv run sphinx-build -b html {DOCS_DIR} {DOCS_BUILD_DIR}"
     _run(c, build_docs)
     if open_browser:
         webbrowser.open(DOCS_INDEX.absolute().as_uri())

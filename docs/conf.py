@@ -37,7 +37,12 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
-    "recommonmark",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.todo",
+    "sphinx.ext.coverage",
+    "sphinx.ext.imgmath",
+    "sphinx.ext.ifconfig",
+    "myst_parser",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -54,17 +59,43 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "furo"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
+    "source_repository": "https://github.com/BoPeng/ai-marketplace-monitor/",
+    "source_branch": "main",
+    "source_directory": "docs/",
+    "edit_page": True,
+}
+
+# Intersphinx configuration
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "playwright": ("https://playwright.dev/python/", None),
+}
+
+# MyST parser configuration
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "html_admonition",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+    "substitution",
+    "tasklist",
+]
+
+# Additional HTML context
+html_context = {
+    "display_github": True,
     "github_user": "BoPeng",
     "github_repo": "ai-marketplace-monitor",
-    "github_banner": True,
-    "show_related": False,
-    "fixed_sidebar": True,
+    "github_version": "main/docs/",
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

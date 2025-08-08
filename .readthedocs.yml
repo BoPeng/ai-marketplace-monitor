@@ -4,11 +4,19 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.12"
+  jobs:
+    post_create_environment:
+      # Install uv for faster dependency resolution
+      - pip install uv
+    post_install:
+      # Install the package with documentation dependencies
+      - uv pip install -e .[docs]
 
 formats: all
 
 sphinx:
   configuration: docs/conf.py
+  fail_on_warning: false
 
 python:
   install:
