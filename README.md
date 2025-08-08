@@ -111,6 +111,7 @@ The program will open a browser, search Facebook Marketplace, and notify you of 
 ## 💡 Example Usage
 
 **Find GoPro cameras under $300:**
+
 ```toml
 [item.gopro]
 search_phrases = 'Go Pro Hero'
@@ -120,6 +121,7 @@ max_price = 300
 ```
 
 **Search nationwide with shipping:**
+
 ```toml
 [item.rare_item]
 search_phrases = 'vintage collectible'
@@ -129,6 +131,7 @@ seller_locations = []
 ```
 
 **AI-powered filtering:**
+
 ```toml
 [ai.openai]
 api_key = 'your_openai_key'
@@ -145,30 +148,34 @@ For detailed information on setup and advanced features, see the comprehensive d
 
 - **[📖 Full Documentation](https://ai-marketplace-monitor.readthedocs.io/)** - Complete guide and reference
 - **[🚀 Quick Start Guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/quickstart.html)** - Get up and running in 10 minutes
-- **[⚙️ Configuration](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration.html)** - Complete configuration reference
-- **[🔧 Advanced Features](https://ai-marketplace-monitor.readthedocs.io/en/latest/advanced-features.html)** - Notifications, AI prompts, multi-location search
-- **[📱 Usage Guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/usage.html)** - Command-line options and tips
 - **[🔍 Features Overview](https://ai-marketplace-monitor.readthedocs.io/en/latest/features.html)** - Complete feature list
+- **[📱 Usage Guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/usage.html)** - Command-line options and tips
+- **[🔧 Configuration Guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/configurateion-guide.html)** - Notifications, AI prompts, multi-location search
+- **[⚙️ Configuration Reference](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration.html)** - Complete configuration reference
 
 ### Key Topics Covered in Documentation
 
 **Notification Setup:**
+
 - Email (SMTP), PushBullet, PushOver, Telegram, Ntfy
 - Multi-user configurations
 - HTML email templates
 
 **AI Integration:**
+
 - OpenAI, DeepSeek, Ollama setup
 - Custom prompt configuration
 - Rating thresholds and filtering
 
 **Advanced Search:**
+
 - Multi-city and region search
 - Currency conversion
 - Keyword filtering with Boolean logic
 - Proxy/anonymous searching
 
 **Configuration:**
+
 - TOML file structure
 - Environment variables
 - Multiple marketplace support

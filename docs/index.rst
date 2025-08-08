@@ -24,8 +24,8 @@ Reference & Setup
 .. toctree::
    :maxdepth: 2
 
+   configuration-guide
    Configuration Reference <configuration>
-   advanced-features
    troubleshooting
 
 Development & Reference
@@ -34,7 +34,6 @@ Development & Reference
 .. toctree::
    :maxdepth: 2
 
-   modules
    changelog
    contributing
 

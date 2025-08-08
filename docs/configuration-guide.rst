@@ -1,6 +1,6 @@
-================
-Advanced Features
-================
+===================
+Configuration Guide
+===================
 
 This section covers advanced configuration options and setup procedures for AI Marketplace Monitor.
 
