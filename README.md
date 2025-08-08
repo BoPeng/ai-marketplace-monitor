@@ -392,6 +392,7 @@ telegram_chat_id = '${TELEGRAM_CHAT_ID}'
 ```
 
 Then set the environment variables:
+
 ```bash
 export TELEGRAM_BOT_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 export TELEGRAM_CHAT_ID="123456789"
@@ -404,6 +405,7 @@ You can test your setup by running the monitor. If configured correctly, you sho
 #### Troubleshooting Common Issues
 
 **401 Unauthorized Error**
+
 - **Cause**: Invalid or incorrect bot token
 - **Solution**:
   1. Verify your bot token is correct (it should look like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
@@ -411,6 +413,7 @@ You can test your setup by running the monitor. If configured correctly, you sho
   3. Create a new bot with @BotFather if the token is lost
 
 **403 Forbidden Error**
+
 - **Cause**: Bot doesn't have permission to send messages to the chat
 - **Solution**:
   1. Start a conversation with your bot by searching for its username in Telegram
@@ -418,6 +421,7 @@ You can test your setup by running the monitor. If configured correctly, you sho
   3. Verify the chat ID is correct
 
 **400 Bad Request Error**
+
 - **Cause**: Invalid chat ID format or the chat doesn't exist
 - **Solution**:
   1. Double-check your chat ID is a number (positive for users, negative for groups)
@@ -425,6 +429,7 @@ You can test your setup by running the monitor. If configured correctly, you sho
   3. Use the getUpdates method to verify your chat ID
 
 **Bot Not Responding**
+
 - **Cause**: Network issues or Telegram API problems
 - **Solution**:
   1. Check your internet connection
@@ -439,6 +444,7 @@ You can test your setup by running the monitor. If configured correctly, you sho
 Here are complete working configuration examples:
 
 **Basic Telegram setup:**
+
 ```toml
 [ai.openai]
 api_key = 'your-openai-key'
@@ -457,6 +463,7 @@ telegram_chat_id = '123456789'
 ```
 
 **Advanced setup with multiple notification methods:**
+
 ```toml
 [notification.telegram]
 telegram_token = '${TELEGRAM_BOT_TOKEN}'
@@ -471,6 +478,7 @@ notify_with = ['telegram', 'email']
 ```
 
 **Group chat notifications:**
+
 ```toml
 [user.family]
 telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
@@ -478,6 +486,7 @@ telegram_chat_id = '-987654321'  # Note: negative ID for groups
 ```
 
 **Note on Security**:
+
 - Never commit your bot token to version control
 - Use environment variables for sensitive information
 - Keep your bot token private - anyone with access can send messages as your bot
