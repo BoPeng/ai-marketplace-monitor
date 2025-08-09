@@ -650,7 +650,7 @@ class FacebookMarketplace(Marketplace):
 
 class FacebookSearchResultPage(WebPage):
     def _get_listings_elements_by_children_counts(self: "FacebookSearchResultPage"):
-        parent: ElementHandle | None = self.page.locator("img").first.element_handle()
+        parent: ElementHandle | None = self.page.locator("img").first().element_handle()
         # look for parent of parent until it has more than 10 children
         children = []
         while parent:
@@ -704,7 +704,7 @@ class FacebookSearchResultPage(WebPage):
         if btn.count() > 0:
             if self.logger:
                 msg = self._parent_with_cond(
-                    btn.first,
+                    btn.first(),
                     lambda x: len(x) == 3
                     and self.translator("Browse Marketplace") in (x[-1].text_content() or ""),
                     1,
@@ -877,7 +877,7 @@ class FacebookRegularItemPage(FacebookItemPage):
 
     def get_image_url(self: "FacebookRegularItemPage") -> str:
         try:
-            image_url = self.page.locator("img").first.get_attribute("src") or ""
+            image_url = self.page.locator("img").first().get_attribute("src") or ""
             return image_url
         except KeyboardInterrupt:
             raise
@@ -888,13 +888,16 @@ class FacebookRegularItemPage(FacebookItemPage):
 
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
-            seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
-            return seller_link.text_content() or self.translator("**unspecified**")
+            seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last()
+            result = seller_link.text_content() or self.translator("**unspecified**")
+            return result
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
+                self.logger.error(
+                    f"{hilight('[Error]', 'fail')} get_seller failed: {type(e).__name__}: {e}"
+                )
             return ""
 
     def get_description(self: "FacebookRegularItemPage") -> str:
@@ -913,19 +916,30 @@ class FacebookRegularItemPage(FacebookItemPage):
 
     def get_condition(self: "FacebookRegularItemPage") -> str:
         try:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Debug]', 'info')} Getting condition info...")
             # Find the span with text "condition", then parent, then next...
-            condition_element = self.page.locator(f'span:text("{self.translator("Condition")}")')
-            return self._parent_with_cond(
+            condition_text = self.translator("Condition")
+
+            # Use first() to avoid strict mode violation when multiple elements match
+            # This handles cases where "Condition" appears in both the label and description text
+            condition_locator = self.page.locator(f'span:text("{condition_text}")')
+            condition_element = condition_locator.first()
+
+            result = self._parent_with_cond(
                 condition_element,
                 lambda x: len(x) >= 2
                 and self.translator("Condition") in (x[0].text_content() or ""),
                 1,
             )
+            return result
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
+                self.logger.error(
+                    f"{hilight('[Error]', 'fail')} get_condition failed: {type(e).__name__}: {e}"
+                )
             return ""
 
     def get_location(self: "FacebookRegularItemPage") -> str:
