@@ -24,19 +24,19 @@ def test_search_page(
 
     for idx, listing in enumerate(listings):
         assert listing.marketplace == "facebook"
-        assert listing.id.isnumeric(), f"wrong id for listing {idx+1} with title {listing.title}"
-        assert listing.title, f"No title is found {idx+1} with title "
-        assert listing.image, f"wrong image for listing {idx+1} with title {listing.title}"
-        assert listing.post_url, f"wrong post_url for listing {idx+1} with title {listing.title}"
-        assert listing.price, f"wrong price for listing {idx+1} with title {listing.title}"
+        assert listing.id.isnumeric(), f"wrong id for listing {idx + 1} with title {listing.title}"
+        assert listing.title, f"No title is found {idx + 1} with title "
+        assert listing.image, f"wrong image for listing {idx + 1} with title {listing.title}"
+        assert listing.post_url, f"wrong post_url for listing {idx + 1} with title {listing.title}"
+        assert listing.price, f"wrong price for listing {idx + 1} with title {listing.title}"
         if idx == 10:
             assert (
                 listing.location == ""
-            ), f"listing {idx+1} with title {listing.title} has empty location"
+            ), f"listing {idx + 1} with title {listing.title} has empty location"
         else:
             assert (
                 listing.location
-            ), f"wrong location for listing {idx+1} with title {listing.title}"
+            ), f"wrong location for listing {idx + 1} with title {listing.title}"
         assert listing.seller == "", "Seller should be empty"
 
     assert len(listings) == 21

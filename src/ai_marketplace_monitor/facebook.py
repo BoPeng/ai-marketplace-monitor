@@ -298,12 +298,12 @@ class FacebookMarketplace(Marketplace):
                     )
             elif self.logger:
                 self.logger.debug(
-                    f'{hilight("[Login]", "succ")} Cookie consent pop-up not found or not visible within timeout.'
+                    f"{hilight('[Login]', 'succ')} Cookie consent pop-up not found or not visible within timeout."
                 )
         except Exception as e:
             if self.logger:
                 self.logger.warning(
-                    f'{hilight("[Login]", "fail")} Could not handle cookie pop-up (or it was not present): {e!s}'
+                    f"{hilight('[Login]', 'fail')} Could not handle cookie pop-up (or it was not present): {e!s}"
                 )
 
         self.config: FacebookMarketplaceConfig
@@ -499,7 +499,7 @@ class FacebookMarketplace(Marketplace):
                     counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
                     found[listing.post_url.split("?")[0]] = True
                     # filter by title and location since we do not have description and seller yet.
-                    if not self.check_listing(listing, item_config):
+                    if not self.check_listing(listing, item_config, description_available=False):
                         counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                         continue
                     try:
@@ -527,9 +527,21 @@ class FacebookMarketplace(Marketplace):
                     listing.name = item_config.name
                     if self.logger:
                         self.logger.debug(
-                            f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from https://www.facebook.com{listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
+                            f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from {listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
                         )
-                    if self.check_listing(listing, item_config):
+
+                    # Warn if we never managed to extract a description for keyword-based filtering
+                    if (
+                        (not listing.description or len(listing.description.strip()) == 0)
+                        and item_config.keywords
+                        and len(item_config.keywords) > 0
+                    ):
+                        if self.logger:
+                            self.logger.debug(
+                                f"""{hilight("[Error]", "fail")} Failed to extract description for {hilight(listing.title)} at {listing.post_url}. Keyword filtering will only apply to title."""
+                            )
+
+                    if self.check_listing(listing, item_config, description_available=True):
                         yield listing
                     else:
                         counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
@@ -568,23 +580,34 @@ class FacebookMarketplace(Marketplace):
         return details, False
 
     def check_listing(
-        self: "FacebookMarketplace", item: Listing, item_config: FacebookItemConfig
+        self: "FacebookMarketplace",
+        item: Listing,
+        item_config: FacebookItemConfig,
+        description_available: bool = True,
     ) -> bool:
         # get antikeywords from both item_config or config
         antikeywords = item_config.antikeywords
-        if antikeywords and (
-            is_substring(antikeywords, item.title + " " + item.description, logger=self.logger)
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {', '.join(antikeywords)}"""
-                )
-            return False
+        if antikeywords:
+            # Determine what text to search based on availability
+            search_text = item.title + (" " + item.description if description_available else "")
+
+            # Check antikeywords against available text (eagerly reject)
+            if is_substring(antikeywords, search_text, logger=self.logger):
+                if self.logger:
+                    location_detail = "" if description_available else " in title"
+                    self.logger.info(
+                        f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}{location_detail}: {", ".join(antikeywords)}"""
+                    )
+                return False
 
         # if the return description does not contain any of the search keywords
         keywords = item_config.keywords
-        if keywords and not (
-            is_substring(keywords, item.title + "  " + item.description, logger=self.logger)
+        if (
+            description_available
+            and keywords
+            and not (
+                is_substring(keywords, item.title + "  " + item.description, logger=self.logger)
+            )
         ):
             if self.logger:
                 self.logger.info(
@@ -626,9 +649,8 @@ class FacebookMarketplace(Marketplace):
 
 
 class FacebookSearchResultPage(WebPage):
-
     def _get_listings_elements_by_children_counts(self: "FacebookSearchResultPage"):
-        parent: ElementHandle | None = self.page.locator("img").first.element_handle()
+        parent: ElementHandle | None = self.page.locator("img").first().element_handle()
         # look for parent of parent until it has more than 10 children
         children = []
         while parent:
@@ -647,7 +669,7 @@ class FacebookSearchResultPage(WebPage):
             # this error should be tolerated
             if self.logger:
                 self.logger.debug(
-                    f'{hilight("[Retrieve]", "fail")} Some grid item cannot be read: {e}'
+                    f"{hilight('[Retrieve]', 'fail')} Some grid item cannot be read: {e}"
                 )
         return valid_listings
 
@@ -672,7 +694,7 @@ class FacebookSearchResultPage(WebPage):
             # this error should be tolerated
             if self.logger:
                 self.logger.debug(
-                    f'{hilight("[Retrieve]", "fail")} Some grid item cannot be read: {e}'
+                    f"{hilight('[Retrieve]', 'fail')} Some grid item cannot be read: {e}"
                 )
         return valid_listings
 
@@ -682,12 +704,12 @@ class FacebookSearchResultPage(WebPage):
         if btn.count() > 0:
             if self.logger:
                 msg = self._parent_with_cond(
-                    btn.first,
+                    btn.first(),
                     lambda x: len(x) == 3
                     and self.translator("Browse Marketplace") in (x[-1].text_content() or ""),
                     1,
                 )
-                self.logger.info(f'{hilight("[Retrieve]", "dim")} {msg}')
+                self.logger.info(f"{hilight('[Retrieve]', 'dim')} {msg}")
             return []
 
         # find the grid box
@@ -702,7 +724,7 @@ class FacebookSearchResultPage(WebPage):
             filename = datetime.datetime.now().strftime("debug_%Y%m%d_%H%M%S.html")
             if self.logger:
                 self.logger.error(
-                    f'{hilight("[Retrieve]", "fail")} failed to parse searching result. Page saved to {filename}: {e}'
+                    f"{hilight('[Retrieve]', 'fail')} failed to parse searching result. Page saved to {filename}: {e}"
                 )
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(self.page.content())
@@ -761,14 +783,13 @@ class FacebookSearchResultPage(WebPage):
             except Exception as e:
                 if self.logger:
                     self.logger.error(
-                        f'{hilight("[Retrieve]", "fail")} Failed to parse search results {idx + 1} listing: {e}'
+                        f"{hilight('[Retrieve]', 'fail')} Failed to parse search results {idx + 1} listing: {e}"
                     )
                 continue
         return listings
 
 
 class FacebookItemPage(WebPage):
-
     def verify_layout(self: "FacebookItemPage") -> bool:
         return True
 
@@ -806,7 +827,7 @@ class FacebookItemPage(WebPage):
             raise ValueError(f"Failed to parse {post_url}")
 
         if self.logger:
-            self.logger.info(f'{hilight("[Retrieve]", "succ")} Parsing {hilight(title)}')
+            self.logger.info(f"{hilight('[Retrieve]', 'succ')} Parsing {hilight(title)}")
         res = Listing(
             marketplace="facebook",
             name="",
@@ -821,7 +842,7 @@ class FacebookItemPage(WebPage):
             seller=self.get_seller(),
         )
         if self.logger:
-            self.logger.debug(f'{hilight("[Retrieve]", "succ")} {pretty_repr(res)}')
+            self.logger.debug(f"{hilight('[Retrieve]', 'succ')} {pretty_repr(res)}")
         return cast(Listing, res)
 
 
@@ -840,7 +861,7 @@ class FacebookRegularItemPage(FacebookItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_price(self: "FacebookRegularItemPage") -> str:
@@ -851,29 +872,32 @@ class FacebookRegularItemPage(FacebookItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_image_url(self: "FacebookRegularItemPage") -> str:
         try:
-            image_url = self.page.locator("img").first.get_attribute("src") or ""
+            image_url = self.page.locator("img").first().get_attribute("src") or ""
             return image_url
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
-            seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
-            return seller_link.text_content() or self.translator("**unspecified**")
+            seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last()
+            result = seller_link.text_content() or self.translator("**unspecified**")
+            return result
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.error(
+                    f"{hilight('[Error]', 'fail')} get_seller failed: {type(e).__name__}: {e}"
+                )
             return ""
 
     def get_description(self: "FacebookRegularItemPage") -> str:
@@ -887,24 +911,35 @@ class FacebookRegularItemPage(FacebookItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_condition(self: "FacebookRegularItemPage") -> str:
         try:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Debug]', 'info')} Getting condition info...")
             # Find the span with text "condition", then parent, then next...
-            condition_element = self.page.locator(f'span:text("{self.translator("Condition")}")')
-            return self._parent_with_cond(
+            condition_text = self.translator("Condition")
+
+            # Use first() to avoid strict mode violation when multiple elements match
+            # This handles cases where "Condition" appears in both the label and description text
+            condition_locator = self.page.locator(f'span:text("{condition_text}")')
+            condition_element = condition_locator.first()
+
+            result = self._parent_with_cond(
                 condition_element,
                 lambda x: len(x) >= 2
                 and self.translator("Condition") in (x[0].text_content() or ""),
                 1,
             )
+            return result
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.error(
+                    f"{hilight('[Error]', 'fail')} get_condition failed: {type(e).__name__}: {e}"
+                )
             return ""
 
     def get_location(self: "FacebookRegularItemPage") -> str:
@@ -923,7 +958,7 @@ class FacebookRegularItemPage(FacebookItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
 
@@ -951,7 +986,7 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_condition(self: "FacebookRentalItemPage") -> str:
@@ -990,7 +1025,7 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def _get_seller_description(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> str:
@@ -1018,7 +1053,7 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def verify_layout(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
@@ -1069,7 +1104,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_condition(self: "FacebookAutoItemWithDescriptionPage") -> str:
@@ -1100,7 +1135,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_price(self: "FacebookAutoItemWithDescriptionPage") -> str:
@@ -1120,7 +1155,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
             raise
         except Exception as e:
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "fail")} {e}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
 

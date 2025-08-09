@@ -433,7 +433,6 @@ TItemConfig = TypeVar("TItemConfig", bound=ItemConfig)
 
 
 class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
-
     def __init__(
         self: "Marketplace",
         name: str,
@@ -509,7 +508,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         try:
             assert self.page is not None
             if self.logger:
-                self.logger.debug(f'{hilight("[Retrieve]", "info")} Navigating to {url}')
+                self.logger.debug(f"{hilight('[Retrieve]', 'info')} Navigating to {url}")
             self.page.goto(url, timeout=0)
             self.page.wait_for_load_state("domcontentloaded")
         except KeyboardInterrupt:
@@ -525,7 +524,6 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
 
 class WebPage:
-
     def __init__(
         self: "WebPage",
         page: Page,

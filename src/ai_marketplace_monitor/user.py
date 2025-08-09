@@ -85,7 +85,6 @@ class UserConfig(
 
 
 class User:
-
     def __init__(self: "User", config: UserConfig, logger: Logger | None = None) -> None:
         self.name = config.name
         self.config = config

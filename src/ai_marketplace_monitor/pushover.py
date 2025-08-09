@@ -68,7 +68,7 @@ class PushoverNotificationConfig(PushNotificationConfig):
                         "token": self.pushover_api_token,
                         "user": self.pushover_user_key,
                         "message": msg,
-                        "title": title + (f" ({idx+1}/{len(msgs)})" if len(msgs) > 1 else ""),
+                        "title": title + (f" ({idx + 1}/{len(msgs)})" if len(msgs) > 1 else ""),
                         "html": 1,
                     }
                 ),

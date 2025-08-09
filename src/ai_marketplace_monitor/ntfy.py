@@ -47,7 +47,7 @@ class NtfyNotificationConfig(PushNotificationConfig):
         assert self.ntfy_server is not None
         assert self.ntfy_topic is not None
         requests.post(
-            f'{self.ntfy_server.rstrip("/")}/{self.ntfy_topic}',
+            f"{self.ntfy_server.rstrip('/')}/{self.ntfy_topic}",
             msg,
             headers={
                 "Title": title,

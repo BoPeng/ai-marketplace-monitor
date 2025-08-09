@@ -21,7 +21,7 @@ runner = CliRunner()
         (["--help"], "Usage: "),
         (
             ["--version"],
-            f"AI Marketplace Monitor, version { ai_marketplace_monitor.__version__ }\n",
+            f"AI Marketplace Monitor, version {ai_marketplace_monitor.__version__}\n",
         ),
     ],
 )

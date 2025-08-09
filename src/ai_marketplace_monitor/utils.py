@@ -209,7 +209,6 @@ class KeyboardMonitor:
 
 
 class Counter:
-
     def increment(self: "Counter", counter_key: CounterItem, item_name: str, by: int = 1) -> None:
         key = (CacheType.COUNTERS.value, counter_key.value, item_name)
         try:
@@ -588,7 +587,9 @@ def fetch_with_retry(
     for attempt in range(max_retries):
         try:
             response = requests.get(
-                url, timeout=timeout, stream=True  # Good practice for downloading files
+                url,
+                timeout=timeout,
+                stream=True,  # Good practice for downloading files
             )
             response.raise_for_status()  # Raises exception for 4XX/5XX status codes
 

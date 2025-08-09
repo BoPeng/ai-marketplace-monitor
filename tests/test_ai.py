@@ -42,7 +42,6 @@ def test_extra_prompt(
     item_config: FacebookItemConfig,
     marketplace_config: FacebookMarketplaceConfig,
 ) -> None:
-
     marketplace_config.extra_prompt = "This is an extra prompt"
     prompt = ollama.get_prompt(listing, item_config, marketplace_config)
     assert "extra prompt" in prompt

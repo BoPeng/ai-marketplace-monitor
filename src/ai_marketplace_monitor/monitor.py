@@ -330,7 +330,7 @@ class MarketplaceMonitor:
                         )
                         if self.logger:
                             self.logger.info(
-                                f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {'' if search_interval == max_search_interval else f'to {humanize.naturaldelta(max_search_interval)}'}"""
+                                f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {"" if search_interval == max_search_interval else f"to {humanize.naturaldelta(max_search_interval)}"}"""
                             )
                         scheduled = schedule.every(search_interval).to(max_search_interval).seconds
                     if scheduled is None:
@@ -567,7 +567,14 @@ class MarketplaceMonitor:
                     item_config = self.config.item[for_item]
 
                 # do not search, get the item details directly
-                listing: Listing = marketplace.get_listing_details(post_url, item_config)
+                listing_result = marketplace.get_listing_details(post_url, item_config)
+
+                # get_listing_details returns a tuple (Listing, bool) - unpack it properly
+                if isinstance(listing_result, tuple) and len(listing_result) == 2:
+                    listing, from_cache = listing_result
+                else:
+                    # Fallback - treat as direct listing (shouldn't happen but defensive)
+                    listing = listing_result
 
                 if self.logger:
                     self.logger.info(
