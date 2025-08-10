@@ -1,3 +1,4 @@
+import inspect
 import sys
 import time
 from logging import Logger
@@ -54,9 +55,16 @@ class MarketplaceMonitor:
         self.headless = headless
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
-        self.playwright: Playwright = sync_playwright().start()
+        self._playwright: Playwright | None = None
         self.browser: Browser | None = None
         self.logger = logger
+
+    @property
+    def playwright(self: "MarketplaceMonitor") -> Playwright:
+        """Lazily initialize Playwright to avoid async API conflicts during testing."""
+        if self._playwright is None:
+            self._playwright = sync_playwright().start()
+        return self._playwright
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
         """Load the configuration file."""
@@ -108,7 +116,14 @@ class MarketplaceMonitor:
                 continue
 
             try:
-                self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
+                # Pass main config for LangSmith integration if backend supports it
+                init_signature = inspect.signature(ai_class.__init__)
+                if "main_config" in init_signature.parameters:
+                    self.ai_agents.append(
+                        ai_class(config=ai_config, logger=self.logger, main_config=self.config)
+                    )
+                else:
+                    self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
                 # self.ai_agents[-1].connect()
                 # self.logger.info(
                 #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
@@ -567,14 +582,7 @@ class MarketplaceMonitor:
                     item_config = self.config.item[for_item]
 
                 # do not search, get the item details directly
-                listing_result = marketplace.get_listing_details(post_url, item_config)
-
-                # get_listing_details returns a tuple (Listing, bool) - unpack it properly
-                if isinstance(listing_result, tuple) and len(listing_result) == 2:
-                    listing, from_cache = listing_result
-                else:
-                    # Fallback - treat as direct listing (shouldn't happen but defensive)
-                    listing = listing_result
+                listing, _ = marketplace.get_listing_details(post_url, item_config)
 
                 if self.logger:
                     self.logger.info(

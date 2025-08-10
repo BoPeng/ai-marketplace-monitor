@@ -11,19 +11,22 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .ai import DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
+from .ai import LangChainBackend, TAIConfig
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import MonitorConfig, Translator, hilight, merge_dicts
+from .utils import BaseConfig, MonitorConfig, Translator, hilight, merge_dicts
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
+# Configuration compatibility layer: All AI providers now route through
+# LangChainBackend while preserving existing TOML configuration format
 supported_ai_backends = {
-    "deepseek": DeepSeekBackend,
-    "openai": OpenAIBackend,
-    "ollama": OllamaBackend,
+    "deepseek": LangChainBackend,  # Mapped to _create_deepseek_model
+    "openai": LangChainBackend,  # Mapped to _create_openai_model
+    "ollama": LangChainBackend,  # Mapped to _create_ollama_model
+    "openrouter": LangChainBackend,  # Mapped to _create_openrouter_model
 }
 
 
@@ -36,6 +39,30 @@ class ConfigItem(Enum):
     REGION = "region"
     NOTIFICATION = "notification"
     TRANSLATION = "translation"
+    LANGSMITH = "langsmith"
+
+
+@dataclass
+class LangSmithConfig(BaseConfig):
+    """Configuration for LangSmith tracing integration."""
+
+    enabled: bool = False
+    api_key: str | None = None
+    project_name: str | None = None
+    endpoint: str | None = None
+
+    def handle_api_key(self: "LangSmithConfig") -> None:
+        """Validate that API key is provided when tracing is enabled."""
+        if self.enabled and not self.api_key:
+            raise ValueError(
+                f"LangSmith configuration '{self.name}' is enabled but missing api_key"
+            )
+
+    def handle_enabled(self: "LangSmithConfig") -> None:
+        """Override BaseConfig to handle boolean conversion."""
+        super().handle_enabled()
+        if self.enabled is None:
+            self.enabled = False
 
 
 @dataclass
@@ -48,6 +75,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     item: Dict[str, TItemConfig] = field(init=False)
     translator: Dict[str, Translator] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
+    langsmith: LangSmithConfig | None = field(init=False, default=None)
 
     def __init__(self: "Config", config_files: List[Path], logger: Logger | None = None) -> None:
         configs = []
@@ -70,6 +98,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.validate_sections(config)
         self.get_translator_config(config)
         self.get_monitor_config(config)
+        self.get_langsmith_config(config)
         self.get_ai_config(config)
         self.get_notification_config(config)
         self.get_marketplace_config(config)
@@ -98,6 +127,14 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
         self.monitor = MonitorConfig(name="monitor", **config.get("monitor", {}))
 
+    def get_langsmith_config(self: "Config", config: Dict[str, Any]) -> None:
+        """Load LangSmith configuration from the [langsmith] section."""
+        langsmith_config = config.get("langsmith", {})
+        if langsmith_config:
+            self.langsmith = LangSmithConfig(name="langsmith", **langsmith_config)
+        else:
+            self.langsmith = None
+
     def get_ai_config(self: "Config", config: Dict[str, Any]) -> None:
         # convert ai config to AIConfig objects
         if not isinstance(config.get("ai", {}), dict):
@@ -106,14 +143,18 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.ai = {}
         for key, value in config.get("ai", {}).items():
             try:
-                backend_class = supported_ai_backends[value.get("provider", key).lower()]
+                provider = value.get("provider", key).lower()
+                backend_class = supported_ai_backends[provider]
             except KeyboardInterrupt:
                 raise
             except Exception as e:
                 raise ValueError(
                     f"Config file contains an unsupported AI backend {key} in the ai section."
                 ) from e
-            self.ai[key] = backend_class.get_config(name=key, **value)
+            # Ensure provider is set in the config values
+            config_values = value.copy()
+            config_values["provider"] = provider
+            self.ai[key] = backend_class.get_config(name=key, **config_values)
 
     def get_notification_config(self: "Config", config: Dict[str, Any]) -> None:
         if not isinstance(config.get("notification", {}), dict):

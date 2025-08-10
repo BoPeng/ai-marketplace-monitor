@@ -890,9 +890,7 @@ class FacebookRegularItemPage(FacebookItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.error(
-                    f"{hilight('[Error]', 'fail')} get_seller failed: {type(e).__name__}: {e}"
-                )
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_description(self: "FacebookRegularItemPage") -> str:
@@ -932,9 +930,7 @@ class FacebookRegularItemPage(FacebookItemPage):
             raise
         except Exception as e:
             if self.logger:
-                self.logger.error(
-                    f"{hilight('[Error]', 'fail')} get_condition failed: {type(e).__name__}: {e}"
-                )
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
 
     def get_location(self: "FacebookRegularItemPage") -> str:
