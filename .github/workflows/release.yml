@@ -13,7 +13,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5.6.0
@@ -49,7 +49,7 @@ jobs:
     name: Create Github Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
 
       - name: Get version from tag
         id: tag_name
