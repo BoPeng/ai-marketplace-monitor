@@ -35,7 +35,6 @@ dependencies = [
     { name = "pip-audit" },
     { name = "playwright" },
     { name = "pushbullet-py" },
-    { name = "pynput" },
     { name = "pyparsing" },
     { name = "python-telegram-bot" },
     { name = "requests" },
@@ -70,6 +69,9 @@ linters = [
     { name = "black" },
     { name = "isort" },
     { name = "ruff" },
+]
+pynput = [
+    { name = "pynput" },
 ]
 security = [
     { name = "safety" },
@@ -118,7 +120,7 @@ requires-dist = [
     { name = "playwright", specifier = ">=1.41.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.1" },
     { name = "pushbullet-py", specifier = ">=0.12.0" },
-    { name = "pynput", specifier = ">=1.7.0" },
+    { name = "pynput", marker = "extra == 'pynput'", specifier = ">=1.7.0" },
     { name = "pyparsing", specifier = ">=3.1.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0" },
@@ -140,7 +142,7 @@ requires-dist = [
     { name = "watchdog", extras = ["watchmedo"], marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "xdoctest", marker = "extra == 'test'", specifier = ">=1.2.0" },
 ]
-provides-extras = ["dev", "test", "linters", "security", "typing", "docs"]
+provides-extras = ["pynput", "dev", "test", "linters", "security", "typing", "docs"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest-asyncio", specifier = ">=1.1.0" }]

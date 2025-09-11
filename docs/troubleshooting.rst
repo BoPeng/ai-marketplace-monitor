@@ -223,10 +223,8 @@ Logs are typically saved to:
 
 **Interactive debugging**
 
-While monitor is running:
-- Press ``Esc`` to view statistics
-- Use ``--check URL`` to test individual listings
-- Enter interactive mode to debug specific issues
+- Use option ``--check URL`` when starting ai-marketplace-monitor to test individual listings
+- Enter interactive mode by pressing any key while monitor is running. This feature requires the installation of `pynput` package.
 
 Getting Help
 ============
