@@ -1,7 +1,7 @@
 [project]
 readme = "README.md"
 name = "ai-marketplace-monitor"
-version = "0.9.8"
+version = "0.9.9"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = [{ name = "Bo Peng", email = "ben.bob@gmail.com" }]
 requires-python = ">=3.10"
