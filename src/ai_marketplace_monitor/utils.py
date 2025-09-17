@@ -32,10 +32,10 @@ from rich.pretty import pretty_repr
 try:
     from pynput import keyboard  # type: ignore
 
-    pynput_installed = True
+    pynput_enabled = os.environ.get("DISABLE_PYNPUT", "").lower() not in ("1", "y", "true", "yes")
 except ImportError:
     # some platforms are not supported
-    pynput_installed = False
+    pynput_enabled = False
 
 import io
 
@@ -136,7 +136,7 @@ class KeyboardMonitor:
         self._confirmed: bool | None = None
 
     def start(self: "KeyboardMonitor") -> None:
-        if pynput_installed:
+        if pynput_enabled:
             self._listener = keyboard.Listener(on_press=self.handle_key_press)
             self._listener.start()  # start to listen on a separate thread
 
@@ -183,7 +183,7 @@ class KeyboardMonitor:
     def set_paused(self: "KeyboardMonitor", paused: bool = True) -> None:
         self._paused = paused
 
-    if pynput_installed:
+    if pynput_enabled:
 
         def handle_key_press(
             self: "KeyboardMonitor", key: keyboard.Key | keyboard.KeyCode | None

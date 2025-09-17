@@ -226,6 +226,55 @@ def release(c: Context, version: str) -> None:
         with open(file_path, "w") as f:
             f.write("\n".join(lines))
 
+    # Update CHANGELOG.md
+    print("Updating CHANGELOG.md...")
+    changelog_path = "CHANGELOG.md"
+    with open(changelog_path, "r") as f:
+        changelog_content = f.read()
+
+    # Find the [Unreleased] section
+    lines = changelog_content.split("\n")
+    updated_lines = []
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() == "## [Unreleased]":
+            # Add the [Unreleased] header
+            updated_lines.append(lines[i])
+
+            # Collect all content under [Unreleased] until the next section
+            i += 1
+            unreleased_content = []
+            while i < len(lines) and not lines[i].startswith("## ["):
+                if lines[i].strip():  # Non-empty content line
+                    unreleased_content.append(lines[i])
+                i += 1
+
+            # If there's content to move to the new version
+            if unreleased_content:
+                # Keep [Unreleased] section empty
+                updated_lines.append("")
+
+                # Add new version section with the content
+                updated_lines.append(f"## [{version}]")
+                updated_lines.append("")
+                updated_lines.extend(unreleased_content)
+            else:
+                # Just add empty line after [Unreleased]
+                updated_lines.append("")
+
+            # Continue with the rest of the file (next version sections)
+            if i < len(lines) and lines[i].startswith("## ["):
+                updated_lines.append("")  # Add blank line before next section
+                updated_lines.append(lines[i])
+                i += 1
+        else:
+            updated_lines.append(lines[i])
+            i += 1
+
+    # Write back the updated changelog
+    with open(changelog_path, "w") as f:
+        f.write("\n".join(updated_lines))
+
     # Clean previous builds
     print("Cleaning previous builds...")
     _run(c, "rm -fr build/ dist/ *.egg-info")

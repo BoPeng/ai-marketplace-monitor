@@ -1,7 +1,7 @@
 [project]
 readme = "README.md"
 name = "ai-marketplace-monitor"
-version = "0.9.8"
+version = "0.9.9"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = [{ name = "Bo Peng", email = "ben.bob@gmail.com" }]
 requires-python = ">=3.10"
@@ -28,7 +28,6 @@ dependencies = [
   "humanize>=4.0.0",
   "schedule>=1.2.2",
   "inflect>=7.0.0",
-  "pynput>=1.7.0",
   "pillow>=10.0.0",
   "jinja2>=3.0.0",
   "pyparsing>=3.1.0",
@@ -50,6 +49,7 @@ Documentation = "https://ai-marketplace-monitor.readthedocs.io"
 ai-marketplace-monitor = "ai_marketplace_monitor.cli:app"
 
 [project.optional-dependencies]
+pynput = ["pynput>=1.7.0"]
 dev = [
   "pre-commit>=4.0.1",
   "invoke>=2.2.0",

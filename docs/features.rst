@@ -60,7 +60,7 @@ Features
 
 - **Search Statistics**: Track pages searched, listings examined, and matches found
 - **Performance Metrics**: Monitor search frequency and success rates
-- **Interactive Mode**: Real-time statistics and manual listing checks
+- **Interactive Mode**: Real-time statistics and manual listing checks (optional)
 - **Persistent Counters**: Statistics maintained across program restarts
 - **Individual Listing Analysis**: Debug why specific listings were included or excluded
 
