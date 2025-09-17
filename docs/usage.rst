@@ -74,6 +74,14 @@ While the monitor is running, you can:
 - Enter interactive mode to check individual URLs
 - Type ``exit`` to leave interactive mode
 
+* This feature requires the installation of `pynput` package, which can be installed separately or through
+
+```bash
+pip install 'ai-marketplace-monitor[pynput]'
+```
+
+You can disable this feature by define environment variable `DISABLE_PYNPUT=true` if `pynput` is already installed.
+
 Cost Considerations
 ------------------
 
