@@ -132,6 +132,25 @@ class MarketItemCommonConfig(BaseConfig):
                 f"Item {hilight(self.name)} search_city must be a string or list of string."
             )
 
+        # Validate format of each search_city entry
+        for city in self.search_city:
+            # Check if the city contains only lowercase letters and numbers
+            if not city.replace("_", "").replace("-", "").isalnum() or any(
+                c.isupper() for c in city
+            ):
+                # Provide helpful guidance on obtaining the correct format
+                raise ValueError(
+                    f"Item {hilight(self.name)} search_city '{city}' has incorrect format.\n"
+                    f"Expected: lowercase letters and numbers only (e.g., 'sanfrancisco', 'newyork', 'toronto').\n"
+                    f"To get the correct value:\n"
+                    f"  1. Visit Facebook Marketplace\n"
+                    f"  2. Perform a search in your desired location\n"
+                    f"  3. Look at the URL: https://www.facebook.com/marketplace/XXXXX/search?query=...\n"
+                    f"  4. Use the XXXXX value (the text after 'marketplace/') as your search_city\n"
+                    f"Example: If URL is https://www.facebook.com/marketplace/sanfrancisco/search?query=item\n"
+                    f"         Then search_city = 'sanfrancisco'"
+                )
+
     def handle_city_name(self: "MarketItemCommonConfig") -> None:
         if self.city_name is None:
             if self.search_city is None:
