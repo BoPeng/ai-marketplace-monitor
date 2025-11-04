@@ -87,6 +87,35 @@ class MarketplaceMonitor:
                 doze(60, self.config_files, self.keyboard_monitor)
                 continue
 
+    def _launch_browser(self: "MarketplaceMonitor") -> Browser:
+        """Launch a browser, preferring Chromium if available, otherwise any installed browser."""
+        # Try browsers in order of preference
+        browser_types = [
+            ("chromium", self.playwright.chromium),
+            ("firefox", self.playwright.firefox),
+            ("webkit", self.playwright.webkit),
+        ]
+
+        for browser_name, browser_type in browser_types:
+            try:
+                if self.logger:
+                    self.logger.debug(f"Attempting to launch {browser_name} browser...")
+                browser = browser_type.launch(headless=self.headless)
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser."""
+                    )
+                return browser
+            except Exception as e:
+                if self.logger:
+                    self.logger.debug(f"Failed to launch {browser_name}: {e}")
+                continue
+
+        # If all fail, raise an error
+        raise RuntimeError(
+            "No browser could be launched. Please ensure Chromium, Firefox, or WebKit is installed."
+        )
+
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
         """Load the AI agent."""
         assert self.config is not None
@@ -394,7 +423,7 @@ class MarketplaceMonitor:
         # Open a new browser page.
         self.load_config_file()
         assert self.config is not None
-        self.browser = self.playwright.chromium.launch(headless=self.headless)
+        self.browser = self._launch_browser()
         #
         assert self.browser is not None
         while True:
@@ -550,7 +579,7 @@ class MarketplaceMonitor:
                             self.logger.info(
                                 f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
                             )
-                        self.browser = self.playwright.chromium.launch(headless=self.headless)
+                        self.browser = self._launch_browser()
                         marketplace.set_browser(self.browser)
 
                 # ignore enabled

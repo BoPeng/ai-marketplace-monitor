@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.11]
+
+- [Issue 264](https://github.com/BoPeng/ai-marketplace-monitor/pull/264). Support different browsers.
 
 ## [0.9.10]
 
