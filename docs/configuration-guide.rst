@@ -89,8 +89,8 @@ By default, notifications include the **title**, **price**, **location**, **desc
 
 You can set `with_description` to:
 
-- `True` — to include the **full description**.
-- `False` — to exclude the description (default behavior).
+- `true` — to include the **full description**.
+- `false` — to exclude the description (default behavior).
 - A **number** — to include only the **first N characters** of the description.
 
 For example:
