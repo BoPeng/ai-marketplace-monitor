@@ -1011,8 +1011,10 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
                 # start from About this vehicle
                 about_element,
                 # find an array of elements with the first one being "About this vehicle"
+                # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
-                and self.translator("About this vehicle") in (x[0].text_content() or ""),
+                and self.translator("About this vehicle") in (x[0].text_content() or "")
+                and (x[1].text_content() or "").strip(),
                 # Extract all texts from the elements
                 lambda x: "\n".join([child.text_content() or "" for child in x]),
             )
@@ -1033,8 +1035,10 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
+                # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
-                and self.translator("Seller's description") in (x[0].text_content() or ""),
+                and self.translator("Seller's description") in (x[0].text_content() or "")
+                and (x[1].text_content() or "").strip(),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
@@ -1084,8 +1088,10 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
+                # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
-                and self.translator("Seller's description") in (x[0].text_content() or ""),
+                and self.translator("Seller's description") in (x[0].text_content() or "")
+                and (x[1].text_content() or "").strip(),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
@@ -1112,8 +1118,10 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
                 # start from the description header
                 description_header,
                 # find an array of elements with the first one being "Seller's description"
+                # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
-                and self.translator("Seller's description") in (x[0].text_content() or ""),
+                and self.translator("Seller's description") in (x[0].text_content() or "")
+                and (x[1].text_content() or "").strip(),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
