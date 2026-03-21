@@ -810,9 +810,28 @@ class FacebookItemPage(WebPage):
     def get_condition(self: "FacebookItemPage") -> str:
         raise NotImplementedError("get_condition is not implemented for this page")
 
+    def _expand_see_more(self: "FacebookItemPage") -> None:
+        """Click any 'See more' disclosure links to expand truncated descriptions."""
+        try:
+            see_more_buttons = self.page.locator(
+                f'div[role="button"]:has(span:text("{self.translator("See more")}"))'
+            )
+            for i in range(see_more_buttons.count()):
+                see_more_buttons.nth(i).click(timeout=2000)
+            # allow the DOM to update after clicking
+            self.page.wait_for_timeout(500)
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} See more expansion: {e}")
+
     def parse(self: "FacebookItemPage", post_url: str) -> Listing:
         if not self.verify_layout():
             raise ValueError("Layout mismatch")
+
+        # expand any truncated description sections before extracting text
+        self._expand_see_more()
 
         # title
         title = self.get_title()
