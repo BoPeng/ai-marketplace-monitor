@@ -160,7 +160,7 @@
                                 <!-- Description -->
                                 {% if listing.description %}
                                 <div style="color: #444444; margin: 12px 0; line-height: 1.6; font-size: 14px; white-space: pre-line;">
-                                    {{ listing.description }}
+                                    {{ listing.description | bold_headers }}
                                 </div>
                                 {% endif %}
 
