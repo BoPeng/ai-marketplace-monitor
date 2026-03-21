@@ -837,6 +837,9 @@ class FacebookItemPage(WebPage):
         title = self.get_title()
         price = self.get_price()
         description = self.get_description()
+        # strip disclosure button text left over after expanding "See more"
+        for label in (self.translator("See more"), self.translator("See less")):
+            description = description.replace(label, "").strip()
 
         if not title or not price or not description:
             raise ValueError(f"Failed to parse {post_url}")
@@ -1008,6 +1011,40 @@ class FacebookRentalItemPage(FacebookRegularItemPage):
         return self.translator("**unspecified**")
 
 
+_VEHICLE_EMOJI_PATTERNS = [
+    ("Driven", "🚗"),
+    ("transmission", "⚙️"),
+    ("color", "🎨"),
+    ("safety rating", "⭐"),
+    ("NHTSA", "⭐"),
+    ("Fuel type", "⛽"),
+    ("MPG", "⛽"),
+    ("owner", "👤"),
+    ("paid off", "💰"),
+    ("Clean title", "✅"),
+    ("no significant damage", "✅"),
+    ("Salvage", "⚠️"),
+    ("accident", "⚠️"),
+]
+
+
+def _add_vehicle_emojis(text: str) -> str:
+    """Prepend emoji indicators to known vehicle attribute lines."""
+    lines = text.split("\n")
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        emoji = ""
+        for pattern, icon in _VEHICLE_EMOJI_PATTERNS:
+            if pattern.lower() in stripped.lower():
+                emoji = icon + " "
+                break
+        result.append(emoji + stripped)
+    return "\n".join(result)
+
+
 class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
     def _has_about_this_vehicle(self: "FacebookAutoItemWithAboutAndDescriptionPage") -> bool:
         return any(
@@ -1034,8 +1071,10 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
                 lambda x: len(x) > 1
                 and self.translator("About this vehicle") in (x[0].text_content() or "")
                 and (x[1].text_content() or "").strip(),
-                # Extract all texts from the elements
-                lambda x: "\n".join([child.text_content() or "" for child in x]),
+                # Extract all texts, using inner_text to preserve line breaks, and add emojis
+                lambda x: _add_vehicle_emojis(
+                    "\n".join([child.inner_text() or "" for child in x])
+                ),
             )
         except KeyboardInterrupt:
             raise
