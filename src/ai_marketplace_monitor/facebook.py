@@ -817,7 +817,7 @@ class FacebookItemPage(WebPage):
                 f'div[role="button"]:has(span:text("{self.translator("See more")}"))'
             )
             # wait briefly for "See more" buttons to appear in the DOM
-            see_more_buttons.first.wait_for(state="visible", timeout=3000)
+            see_more_buttons.first.wait_for(state="visible", timeout=8000)
             for i in range(see_more_buttons.count()):
                 see_more_buttons.nth(i).click(timeout=2000)
             # allow the DOM to update after clicking
@@ -1072,7 +1072,7 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
                 # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
                 and self.translator("About this vehicle") in (x[0].text_content() or "")
-                and (x[1].text_content() or "").strip(),
+                and (x[1].text_content() or "").replace("\xa0", "").strip(),
                 # Extract all texts, using inner_text to preserve line breaks, and add emojis
                 lambda x: _add_vehicle_emojis(
                     "\n".join([child.inner_text() or "" for child in x])
@@ -1098,7 +1098,7 @@ class FacebookAutoItemWithAboutAndDescriptionPage(FacebookRegularItemPage):
                 # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
                 and self.translator("Seller's description") in (x[0].text_content() or "")
-                and (x[1].text_content() or "").strip(),
+                and (x[1].text_content() or "").replace("\xa0", "").strip(),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
@@ -1151,7 +1151,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
                 # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
                 and self.translator("Seller's description") in (x[0].text_content() or "")
-                and (x[1].text_content() or "").strip(),
+                and (x[1].text_content() or "").replace("\xa0", "").strip(),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
@@ -1181,7 +1181,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
                 # and the second child has actual content (not just whitespace)
                 lambda x: len(x) > 1
                 and self.translator("Seller's description") in (x[0].text_content() or "")
-                and (x[1].text_content() or "").strip(),
+                and (x[1].text_content() or "").replace("\xa0", "").strip(),
                 # then, drill down from the second child
                 lambda x: self._children_with_cond(
                     x[1],
