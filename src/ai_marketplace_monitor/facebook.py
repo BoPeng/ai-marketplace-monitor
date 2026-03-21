@@ -816,6 +816,8 @@ class FacebookItemPage(WebPage):
             see_more_buttons = self.page.locator(
                 f'div[role="button"]:has(span:text("{self.translator("See more")}"))'
             )
+            # wait briefly for "See more" buttons to appear in the DOM
+            see_more_buttons.first.wait_for(state="visible", timeout=3000)
             for i in range(see_more_buttons.count()):
                 see_more_buttons.nth(i).click(timeout=2000)
             # allow the DOM to update after clicking
