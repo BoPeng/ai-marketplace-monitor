@@ -12,6 +12,7 @@ from typing import ClassVar, List, Tuple
 
 import inflect
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup, escape
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
@@ -178,6 +179,15 @@ class EmailNotificationConfig(NotificationConfig):
 
         # Add custom filter for hashing
         env.filters["hash"] = hash
+
+        def bold_headers(text: str) -> Markup:
+            """Escape text then bold known section headers."""
+            safe_text = escape(text)
+            for header in ("About this vehicle", "Seller's description", "Description"):
+                safe_text = safe_text.replace(escape(header), Markup(f"<b>{header}</b>"))
+            return Markup(safe_text)
+
+        env.filters["bold_headers"] = bold_headers
 
         # Load template
         template = env.get_template("email.html.j2")
