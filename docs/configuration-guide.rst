@@ -456,7 +456,7 @@ If you have access to a decent machine and prefer not to pay for AI services fro
     [ai.ollama]
     base_url = "http://localhost:11434/v1"
     model = "deepseek-r1:14b"
-    timeout = 120
+    timeout = 120 # specified in seconds
 
 .. note::
    1. Depending on your hardware configuration, you can choose any of the models listed at `ollama.com/library <https://ollama.com/library>`_. The default model is `deepseek-r1:14b` because it appears to work better than `llama-3.1:8b`.
