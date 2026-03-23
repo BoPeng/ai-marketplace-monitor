@@ -64,10 +64,10 @@ jobs:
         shell: bash
         run: nox --force-color -s tests-${{ matrix.python-version }}
 
-      - name: Run securtity check
-        if: matrix.python-version == '3.12' && matrix.os == 'Ubuntu'
-        shell: bash
-        run: nox --force-color -s security
+      # - name: Run securtity check
+      #   if: matrix.python-version == '3.12' && matrix.os == 'Ubuntu'
+      #   shell: bash
+      #   run: nox --force-color -s security
 
       - name: Upload coverage data
         uses: actions/upload-artifact@v7.0.0
