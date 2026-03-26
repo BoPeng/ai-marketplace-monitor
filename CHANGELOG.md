@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.12]
+
+- [Issue 289](https://github.com/BoPeng/ai-marketplace-monitor/issues/289). Fix 30s timeout delay in get_seller for anonymous mode.
+- Change release workflow trigger from tag push to release creation.
+
 ## [0.9.11]
 
 - [Issue 264](https://github.com/BoPeng/ai-marketplace-monitor/pull/264). Support different browsers.
