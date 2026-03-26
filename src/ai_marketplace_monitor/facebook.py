@@ -909,7 +909,9 @@ class FacebookRegularItemPage(FacebookItemPage):
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
             seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
-            return seller_link.text_content() or self.translator("**unspecified**")
+            # Use a short timeout to avoid a 30s delay when seller data is not
+            # present (e.g. in anonymous/not-logged-in mode). See #289.
+            return seller_link.text_content(timeout=3000) or self.translator("**unspecified**")
         except KeyboardInterrupt:
             raise
         except Exception as e:
