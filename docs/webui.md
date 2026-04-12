@@ -25,7 +25,7 @@ The web UI is available at [http://127.0.0.1:8467](http://127.0.0.1:8467). A sta
 
 ```
 ╭──────────── Web UI ────────────╮
-│ 🌐  http://127.0.0.1:8467     │
+│ 🌐  http://127.0.0.1:8467      │
 │                                │
 │ No password required           │
 │ (local access only).           │
@@ -95,13 +95,13 @@ The startup banner will show all reachable URLs:
 
 ```
 ╭──────────────── Web UI ────────────────╮
-│ 🌐  http://127.0.0.1:8467             │
-│ 🌐  http://192.168.1.42:8467          │
+│ 🌐  http://127.0.0.1:8467              │
+│ 🌐  http://192.168.1.42:8467           │
 │                                        │
 │ user:      you@example.com             │
 │ password:  (from marketplace config)   │
 │                                        │
-│ ⚠  Bound to non-loopback interface.   │
+│ ⚠  Bound to non-loopback interface.    │
 │    Consider TLS via a reverse proxy.   │
 ╰────────────────────────────────────────╯
 ```
@@ -130,9 +130,9 @@ On Windows, add an inbound rule in **Windows Defender Firewall > Advanced Settin
 
 ## CLI Options Reference
 
-| Option               | Default       | Description                                 |
-| -------------------- | ------------- | ------------------------------------------- |
-| `--webui / --no-webui` | `--webui`   | Enable or disable the web UI                |
-| `--webui-host`       | `127.0.0.1`  | Bind address (requires credentials if not loopback) |
-| `--webui-port`       | `8467`        | Port for the web UI                         |
-| `--webui-log-retention` | `2000`     | Number of log messages kept in memory       |
+| Option                  | Default     | Description                                         |
+| ----------------------- | ----------- | --------------------------------------------------- |
+| `--webui / --no-webui`  | `--webui`   | Enable or disable the web UI                        |
+| `--webui-host`          | `127.0.0.1` | Bind address (requires credentials if not loopback) |
+| `--webui-port`          | `8467`      | Port for the web UI                                 |
+| `--webui-log-retention` | `2000`      | Number of log messages kept in memory               |
