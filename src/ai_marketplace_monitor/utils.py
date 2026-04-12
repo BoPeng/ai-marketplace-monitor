@@ -60,6 +60,18 @@ class SleepStatus(Enum):
     BY_FILE_CHANGE = 2
 
 
+def aimm_event(kind: str, **fields: Any) -> Dict[str, Any]:
+    """Build a structured-event payload for a log call.
+
+    Usage:
+        logger.info(message, extra=aimm_event("ai_eval", score=5, ...))
+
+    The web UI surfaces these structured fields in its filter dropdowns
+    (kind / item / score) and in the expand-row detail pane.
+    """
+    return {"aimm": {"kind": kind, **fields}}
+
+
 class CacheType(Enum):
     LISTING_DETAILS = "listing-details"
     AI_INQUIRY = "ai-inquiries"
@@ -482,11 +494,36 @@ def is_substring(
 class ChangeHandler(FileSystemEventHandler):
     def __init__(self: "ChangeHandler", files: List[str]) -> None:
         self.changed = False
-        self.files = files
+        # Normalize to real paths — on macOS /var/folders is a symlink
+        # to /private/var/folders and watchdog reports the resolved form.
+        self.files = {os.path.realpath(f) for f in files}
+
+    def _mark_if_watched(self: "ChangeHandler", path: str | None) -> None:
+        if path and os.path.realpath(path) in self.files:
+            self.changed = True
 
     def on_modified(self: "ChangeHandler", event: FileSystemEvent) -> None:
-        if not event.is_directory and event.src_path in self.files:
-            self.changed = True
+        if not event.is_directory:
+            self._mark_if_watched(event.src_path)
+
+    def on_created(self: "ChangeHandler", event: FileSystemEvent) -> None:
+        # Atomic writes via os.replace() may appear as a create on the
+        # destination path (depending on platform + watchdog backend).
+        if not event.is_directory:
+            self._mark_if_watched(event.src_path)
+
+    def on_deleted(self: "ChangeHandler", event: FileSystemEvent) -> None:
+        # On macOS, os.replace() over an existing file fires a 'deleted'
+        # event on the destination path, not 'moved'. Treat it as a change.
+        if not event.is_directory:
+            self._mark_if_watched(event.src_path)
+
+    def on_moved(self: "ChangeHandler", event: FileSystemEvent) -> None:
+        # On Linux (inotify), atomic writes via tempfile + os.replace()
+        # land here: src_path is the temp file, dest_path is the real one.
+        if not event.is_directory:
+            self._mark_if_watched(getattr(event, "dest_path", None))
+            self._mark_if_watched(event.src_path)
 
 
 def doze(

@@ -23,6 +23,7 @@ from .utils import (
     KeyboardMonitor,
     SleepStatus,
     Translator,
+    aimm_event,
     amm_home,
     cache,
     calculate_file_hash,
@@ -52,6 +53,10 @@ class MarketplaceMonitor:
         self.config: Config | None = None
         self.config_hash: str | None = None
         self.headless = headless
+        # When True, start_monitor blocks until every enabled marketplace
+        # has a username + password in the config. The web UI sets this
+        # so Playwright doesn't race the web UI for Facebook credentials.
+        self.defer_login_until_credentials: bool = False
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
@@ -103,7 +108,8 @@ class MarketplaceMonitor:
                 browser = browser_type.launch(headless=self.headless)
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser."""
+                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser.""",
+                        extra=aimm_event("browser_ready", engine=browser_name),
                     )
                 return browser
             except Exception as e:
@@ -182,7 +188,14 @@ class MarketplaceMonitor:
             ):
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping."""
+                        f"""{hilight("[Skip]", "info")} Already sent notification for item {hilight(listing.title)}, skipping.""",
+                        extra=aimm_event(
+                            "listing_skip",
+                            reason="already_notified",
+                            listing_id=listing.id,
+                            title=listing.title,
+                            item=item_config.name,
+                        ),
                     )
                 continue
             # for x in self.find_new_items(found_items)
@@ -201,7 +214,20 @@ class MarketplaceMonitor:
                         )
                 else:
                     self.logger.info(
-                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}.""",
+                        extra=aimm_event(
+                            "ai_eval",
+                            listing_id=listing.id,
+                            title=listing.title,
+                            url=getattr(listing, "post_url", None)
+                            or getattr(listing, "url", None),
+                            price=getattr(listing, "price", None),
+                            score=res.score,
+                            conclusion=res.conclusion,
+                            comment=res.comment,
+                            ai_name=res.name,
+                            item=item_config.name,
+                        ),
                     )
             if item_config.rating:
                 acceptable_rating = item_config.rating[
@@ -217,7 +243,16 @@ class MarketplaceMonitor:
             if res.score < acceptable_rating:
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}."""
+                        f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}.""",
+                        extra=aimm_event(
+                            "listing_skip",
+                            reason="below_threshold",
+                            listing_id=listing.id,
+                            title=listing.title,
+                            item=item_config.name,
+                            score=res.score,
+                            threshold=acceptable_rating,
+                        ),
                     )
                 counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                 continue
@@ -227,7 +262,13 @@ class MarketplaceMonitor:
         p = inflect.engine()
         if self.logger:
             self.logger.info(
-                f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found."""
+                f"""{hilight("[Search]", "succ" if len(new_listings) > 0 else "fail")} {hilight(str(len(new_listings)))} new {p.plural_noun("listing", len(new_listings))} for {item_config.name} {p.plural_verb("is", len(new_listings))} found.""",
+                extra=aimm_event(
+                    "search_summary",
+                    item=item_config.name,
+                    marketplace=marketplace_config.name,
+                    new_count=len(new_listings),
+                ),
             )
         if new_listings:
             counter.increment(
@@ -413,6 +454,48 @@ class MarketplaceMonitor:
                 if self.logger:
                     self.logger.debug(f"Failed to check item {url}: {e}")
 
+    def _has_marketplace_credentials(self: "MarketplaceMonitor") -> bool:
+        """True if every enabled marketplace has a username and password.
+
+        Used to defer launching the Playwright browser until the user has
+        provided credentials (typically via the web UI), to avoid the
+        confusing state of two places asking for Facebook login at once.
+        """
+        assert self.config is not None
+        for mp in self.config.marketplace.values():
+            if getattr(mp, "enabled", True) is False:
+                continue
+            if not getattr(mp, "username", None) or not getattr(mp, "password", None):
+                return False
+        return True
+
+    def _wait_for_marketplace_credentials(self: "MarketplaceMonitor") -> None:
+        """Block until config has marketplace credentials, reloading the
+        config whenever the file changes on disk. No-op if credentials
+        are already present.
+        """
+        assert self.config is not None
+        while not self._has_marketplace_credentials():
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Login]", "info")} Waiting for Facebook credentials. Sign in via the web UI or add username/password under [marketplace.facebook] in your config. The Playwright browser will launch once credentials are available.""",
+                    extra=aimm_event("credentials_wait", status="waiting"),
+                )
+            # doze wakes up on file change OR keyboard interrupt OR timeout.
+            doze(300, self.config_files, self.keyboard_monitor)
+            # File may have changed — reload the config (non-fatal on parse error).
+            try:
+                self.load_config_file()
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                continue
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Login]", "succ")} Facebook credentials found — launching browser.""",
+                extra=aimm_event("credentials_wait", status="found"),
+            )
+
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
         # start a browser with playwright, cannot use with statement since the jobs will be
@@ -423,6 +506,13 @@ class MarketplaceMonitor:
         # Open a new browser page.
         self.load_config_file()
         assert self.config is not None
+        # If requested (by the web UI), defer browser launch until
+        # marketplace credentials are set. Without this, Playwright
+        # navigates to the Facebook login page and waits for manual
+        # input even though the user has a web UI open that's also
+        # asking for those same credentials.
+        if self.defer_login_until_credentials:
+            self._wait_for_marketplace_credentials()
         self.browser = self._launch_browser()
         #
         assert self.browser is not None
