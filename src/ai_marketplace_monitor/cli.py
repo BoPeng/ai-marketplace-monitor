@@ -70,9 +70,9 @@ def _print_webui_banner(info: Any) -> None:
     text.append("\n")
 
     if info.exposed:
-        text.append("user:      ", style="dim")
+        text.append("user:     ", style="dim")
         text.append(f"{info.username}\n")
-        text.append("password:  ", style="dim")
+        text.append("password: ", style="dim")
         text.append("(from marketplace config or environment)\n", style="dim")
         text.append(
             "\n⚠  Bound to non-loopback interface — exposed on LAN.\n"
