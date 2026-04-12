@@ -241,7 +241,7 @@ def main(
 
         sys.exit(0)
 
-    monitor = None
+    monitor = None  # type: ignore[assignment]
     webui_server = None
     try:
         # If web UI is on and there are no existing config files, seed

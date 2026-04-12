@@ -509,7 +509,7 @@ class ChangeHandler(FileSystemEventHandler):
         # to /private/var/folders and watchdog reports the resolved form.
         self.files = {os.path.realpath(f) for f in files}
 
-    def _mark_if_watched(self: "ChangeHandler", path: str | None) -> None:
+    def _mark_if_watched(self: "ChangeHandler", path: "str | bytes | None") -> None:
         if path and os.path.realpath(path) in self.files:
             self.changed = True
 

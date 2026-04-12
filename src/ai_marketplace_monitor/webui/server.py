@@ -147,7 +147,7 @@ def _enumerate_urls(host: str, port: int) -> List[str]:
         try:
             hostname = socket.gethostname()
             for info in socket.getaddrinfo(hostname, None):
-                addr = info[4][0]
+                addr = str(info[4][0])
                 if addr and addr not in ("127.0.0.1", "::1"):
                     if ":" in addr:
                         urls.append(f"http://[{addr}]:{port}")
@@ -306,7 +306,7 @@ def create_app(
         body: Dict[str, Any],
         _: str = Depends(require_session),
         __: None = Depends(require_csrf),
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | JSONResponse:
         content = body.get("content")
         if not isinstance(content, str):
             raise HTTPException(status_code=400, detail="Missing 'content' field")
