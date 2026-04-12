@@ -536,6 +536,11 @@
   setInterval(renderMonitorStatus, 1000);
 
   // Restart button — soft-restarts the monitor by touching the config.
+  const wireClick = (sel, fn) => {
+    const el = $(sel);
+    if (el) el.addEventListener("click", fn);
+    else console.warn("missing element:", sel);
+  };
   wireClick("#restart-btn", async () => {
     const btn = $("#restart-btn");
     if (btn) btn.disabled = true;
@@ -1533,13 +1538,6 @@
     }, 50);
   };
 
-  // Wire form-modal close / save buttons. Use optional chaining so a
-  // missing element (during refactors) logs a warning instead of crash.
-  const wireClick = (sel, fn) => {
-    const el = $(sel);
-    if (el) el.addEventListener("click", fn);
-    else console.warn("missing element:", sel);
-  };
   wireClick("#form-modal-close", () => formModal.close());
   wireClick("#form-cancel", () => formModal.close());
   wireClick("#form-save", () => saveForm());
