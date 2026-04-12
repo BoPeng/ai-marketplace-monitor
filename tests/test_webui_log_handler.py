@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import pytest
+
 from ai_marketplace_monitor.webui.log_handler import (
     LogBroadcastHandler,
     _clean,
@@ -86,36 +88,32 @@ def test_aimm_extra_is_attached() -> None:
     assert records[-1]["extra"] == {"kind": "ai_eval", "score": 5}
 
 
-def test_fanout_to_subscribed_queue() -> None:
-    async def run():
-        h = LogBroadcastHandler()
-        loop = asyncio.get_running_loop()
-        h.attach_loop(loop)
-        queue: asyncio.Queue = asyncio.Queue()
-        h.subscribe(queue)
-        h.emit(_make_record("hello"))
-        # Yield once for call_soon_threadsafe to run.
-        await asyncio.sleep(0)
-        payload = await asyncio.wait_for(queue.get(), timeout=1)
-        assert payload["message"] == "hello"
-
-    asyncio.run(run())
+@pytest.mark.asyncio
+async def test_fanout_to_subscribed_queue() -> None:
+    h = LogBroadcastHandler()
+    loop = asyncio.get_running_loop()
+    h.attach_loop(loop)
+    queue: asyncio.Queue = asyncio.Queue()
+    h.subscribe(queue)
+    h.emit(_make_record("hello"))
+    # Yield once for call_soon_threadsafe to run.
+    await asyncio.sleep(0)
+    payload = await asyncio.wait_for(queue.get(), timeout=1)
+    assert payload["message"] == "hello"
 
 
-def test_full_queue_drops_oldest() -> None:
-    async def run():
-        h = LogBroadcastHandler()
-        loop = asyncio.get_running_loop()
-        h.attach_loop(loop)
-        queue: asyncio.Queue = asyncio.Queue(maxsize=2)
-        h.subscribe(queue)
-        h.emit(_make_record("a"))
-        h.emit(_make_record("b"))
-        h.emit(_make_record("c"))
-        await asyncio.sleep(0)
-        got = []
-        while not queue.empty():
-            got.append((await queue.get())["message"])
-        assert got == ["b", "c"]
-
-    asyncio.run(run())
+@pytest.mark.asyncio
+async def test_full_queue_drops_oldest() -> None:
+    h = LogBroadcastHandler()
+    loop = asyncio.get_running_loop()
+    h.attach_loop(loop)
+    queue: asyncio.Queue = asyncio.Queue(maxsize=2)
+    h.subscribe(queue)
+    h.emit(_make_record("a"))
+    h.emit(_make_record("b"))
+    h.emit(_make_record("c"))
+    await asyncio.sleep(0)
+    got = []
+    while not queue.empty():
+        got.append((await queue.get())["message"])
+    assert got == ["b", "c"]
