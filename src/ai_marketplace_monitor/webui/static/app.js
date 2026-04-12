@@ -589,20 +589,29 @@
   // -------- Thin gutter with ⋯ buttons aligned to section headers --------
 
   const getLineMetrics = () => {
-    const cs = window.getComputedStyle(textarea);
+    if (editor.defaultTextHeight) {
+      // CodeMirror path
+      const lineHeight = editor.defaultTextHeight();
+      const scrollInfo = editor.getScrollInfo();
+      return { lineHeight, paddingTop: 0, scrollHeight: scrollInfo.height };
+    }
+    // Fallback textarea path
+    const el = editorHost.querySelector("textarea");
+    if (!el) return { lineHeight: 20, paddingTop: 0, scrollHeight: 0 };
+    const cs = window.getComputedStyle(el);
     const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.55;
     const paddingTop = parseFloat(cs.paddingTop) || 0;
-    return { lineHeight, paddingTop };
+    return { lineHeight, paddingTop, scrollHeight: el.scrollHeight };
   };
 
   const renderGutter = () => {
     const inner = $("#gutter-inner");
     if (!inner) return;
     inner.innerHTML = "";
-    const { lineHeight, paddingTop } = getLineMetrics();
-    // Match gutter height to textarea scroll height so the transform
+    const { lineHeight, paddingTop, scrollHeight } = getLineMetrics();
+    // Match gutter height to editor scroll height so the transform
     // range is correct.
-    inner.style.height = textarea.scrollHeight + "px";
+    inner.style.height = scrollHeight + "px";
 
     state.sections.forEach((section) => {
       const btn = document.createElement("button");
