@@ -74,6 +74,32 @@ def main(
             help="Item to check for URLs specified --check. You will be prmopted for each URL if unspecified and there are multiple items to search.",
         ),
     ] = None,
+    install_service: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--install-service",
+            help=(
+                "Linux only. Install a systemd --user unit so the monitor runs "
+                "as a background service and is automatically restarted on "
+                "crash. The unit is written to "
+                "~/.config/systemd/user/ai-marketplace-monitor.service and enabled."
+            ),
+        ),
+    ] = False,
+    uninstall_service: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--uninstall-service",
+            help="Linux only. Stop, disable, and remove the systemd --user unit.",
+        ),
+    ] = False,
+    service_status: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--service-status",
+            help="Linux only. Show systemctl --user status for the monitor service.",
+        ),
+    ] = False,
     version: Annotated[
         Optional[bool], typer.Option("--version", callback=version_callback, is_eager=True)
     ] = None,
@@ -113,6 +139,36 @@ def main(
     logger.info(
         f"""{hilight("[VERSION]", "info")} AI Marketplace Monitor, version {hilight(__version__, "name")}"""
     )
+
+    if install_service or uninstall_service or service_status:
+        from . import systemd_service
+
+        try:
+            if install_service:
+                path = systemd_service.install_service()
+                logger.info(
+                    f"""{hilight("[Service]", "succ")} Installed and enabled systemd user unit at {hilight(str(path), "name")}."""
+                )
+                logger.info(
+                    f"""{hilight("[Service]", "info")} Check status with `systemctl --user status {systemd_service.SERVICE_NAME}` """
+                    "or `journalctl --user -u " + systemd_service.SERVICE_NAME + " -f`."
+                )
+            if uninstall_service:
+                removed = systemd_service.uninstall_service()
+                if removed is None:
+                    logger.info(
+                        f"""{hilight("[Service]", "info")} No systemd user unit was installed; nothing to remove."""
+                    )
+                else:
+                    logger.info(
+                        f"""{hilight("[Service]", "succ")} Removed systemd user unit {hilight(str(removed), "name")}."""
+                    )
+            if service_status:
+                rich.print(systemd_service.service_status())
+        except Exception as e:
+            logger.error(f"""{hilight("[Service]", "fail")} {e}""")
+            sys.exit(1)
+        sys.exit(0)
 
     if clear_cache is not None:
         if clear_cache == "all":

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add `--install-service`, `--uninstall-service`, and `--service-status` flags
+  that manage a `systemd --user` unit on Linux, letting the monitor run as a
+  background service that is automatically restarted after a crash.
+
 ## [0.9.12]
 
 - [Issue 289](https://github.com/BoPeng/ai-marketplace-monitor/issues/289). Fix 30s timeout delay in get_seller for anonymous mode.

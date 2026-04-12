@@ -55,6 +55,69 @@ To verify the installation was successful:
 ai-marketplace-monitor --version
 ```
 
+## Running as a systemd service
+
+On a Linux workstation or server it is convenient to run the monitor in the
+background so that it is automatically restarted if the Playwright browser
+crashes or the process exits unexpectedly. `ai-marketplace-monitor` ships with
+built-in helpers that install a `systemd --user` unit for you.
+
+### Prerequisites
+
+- A systemd-based distribution (Ubuntu, Debian, Fedora, Arch, etc.).
+- `ai-marketplace-monitor` installed for the current user (e.g. via `pipx`),
+  so the executable is on `$PATH`.
+- A working configuration at `~/.ai-marketplace-monitor/config.toml`.
+- Facebook credentials saved in the config file. The service runs headless
+  and cannot complete an interactive login. Set `username` and `password`
+  under the `[marketplace.facebook]` section, and consider setting a small
+  `login_wait_time` so the service does not idle on the login page.
+- If the user account is not normally logged into a graphical session, run
+  `sudo loginctl enable-linger $USER` so that user units keep running after
+  you log out.
+
+### Install the service
+
+```bash
+ai-marketplace-monitor --install-service
+```
+
+This writes `~/.config/systemd/user/ai-marketplace-monitor.service`, reloads
+the user unit cache, and runs `systemctl --user enable --now` so the monitor
+starts immediately and on every subsequent login. The generated unit passes
+`--headless` to the CLI and sets `Restart=on-failure` with a 30 second delay,
+so a crashed monitor is automatically restarted without any manual
+intervention.
+
+### Inspect the service
+
+```bash
+# One-shot status via the built-in helper:
+ai-marketplace-monitor --service-status
+
+# Live log tail via journald:
+journalctl --user -u ai-marketplace-monitor.service -f
+```
+
+### Remove the service
+
+```bash
+ai-marketplace-monitor --uninstall-service
+```
+
+This stops the unit, disables it, and deletes the unit file.
+
+### A note about Playwright and headless mode
+
+The monitor drives Facebook Marketplace through a Playwright-controlled
+browser. Running it as a service is only viable in **headless** mode, because
+a systemd user unit has no attached display. The login flow therefore needs
+to be fully automated using the credentials in the config file. If Facebook
+challenges the session with a 2FA prompt or a CAPTCHA, the service will not
+be able to resolve it on its own — in that case, stop the service, run the
+monitor interactively once to complete the challenge, and then start the
+service again.
+
 ## Troubleshooting
 
 - If you encounter permission issues, ensure `$HOME/.local/bin` is in your PATH
