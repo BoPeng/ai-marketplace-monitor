@@ -69,27 +69,18 @@ def _print_webui_banner(info: Any) -> None:
         text.append(url + "\n", style="bold cyan")
     text.append("\n")
 
-    if info.setup_mode:
-        text.append("first-run setup — no credentials configured\n", style="bold yellow")
-        text.append(
-            "\nOpen the URL above and enter your Facebook username\n"
-            "and password. They will be saved to your config and\n"
-            "used to log in to Facebook. Or click Skip to enter\n"
-            "the editor without authentication (loopback only).\n",
-            style="dim",
-        )
-    else:
+    if info.exposed:
         text.append("user:      ", style="dim")
         text.append(f"{info.username}\n")
         text.append("password:  ", style="dim")
-        text.append("(from [marketplace.facebook] in config)\n", style="dim")
-
-    if info.exposed:
+        text.append("(from marketplace config or environment)\n", style="dim")
         text.append(
             "\n⚠  Bound to non-loopback interface — exposed on LAN.\n"
             "   Consider TLS via a reverse proxy (nginx, caddy, tailscale).\n",
             style="bold red",
         )
+    else:
+        text.append("No password required (local access only).\n", style="dim")
 
     rich.print(Panel(text, title="[bold]Web UI[/bold]", border_style="cyan", padding=(1, 2)))
 
@@ -277,10 +268,6 @@ def main(
                         ),
                         logger=logger,
                     )
-                    # Don't race the web UI for Facebook credentials —
-                    # wait for them to land in the config before
-                    # launching the Playwright browser.
-                    monitor.defer_login_until_credentials = True
                     _print_webui_banner(webui_info)
                 except Exception as e:
                     logger.error(

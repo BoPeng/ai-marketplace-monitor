@@ -51,7 +51,7 @@ from .auth import (
     verify_password,
 )
 from .config_api import ConfigFileService
-from .config_auth import extract_credentials, set_value_in_section
+from .config_auth import extract_credentials
 from .log_handler import LogBroadcastHandler
 
 
@@ -71,57 +71,54 @@ class StartupInfo:
     """Information about the running server, shown in the startup banner."""
 
     urls: List[str]
-    username: str | None  # None in setup mode
+    username: str | None  # None in open mode
     host: str
     port: int
     exposed: bool
-    setup_mode: bool  # True if the first-run setup form should be shown
 
 
 class AuthState:
     """Mutable auth state.
 
-    In normal operation ``auth`` holds the active credentials and
-    ``setup_mode`` is False. In setup mode ``auth`` is None until the
-    user completes the first-run setup; after that ``auth`` is populated
-    and setup mode is off. In "skipped" mode ``auth`` stays None and
-    ``setup_mode`` is False — the web UI runs without authentication.
+    On loopback (default) the web UI is always open — no password
+    required.  When ``--webui-host`` exposes the server on a
+    non-loopback interface, ``auth`` must be set (credentials from
+    a marketplace config section or environment variables).
     """
 
     def __init__(self) -> None:
         self.auth: AuthConfig | None = None
-        self.setup_mode: bool = False
-        self.source: str = ""
+        self.exposed: bool = False
 
 
 def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
-    """Build initial AuthState from the config file.
+    """Build initial AuthState from config files and environment.
 
-    If ``[marketplace.facebook]`` has a username and password, use those
-    for web UI auth. Otherwise start in setup mode.
+    On loopback the UI is always open.  When exposed (--webui-host),
+    credentials are required — checked from ``[marketplace.*]`` config
+    sections, then ``FACEBOOK_USERNAME`` / ``FACEBOOK_PASSWORD`` env
+    vars.
     """
+    exposed = config.host not in ("127.0.0.1", "localhost", "::1")
     state = AuthState()
-    extracted = extract_credentials(config.config_files)
-    if extracted.username and extracted.password:
-        state.auth = AuthConfig(
-            username=extracted.username,
-            password_hash=hash_password(extracted.password),
-            secret_key=secrets.token_urlsafe(32),
-        )
-        state.source = "facebook"
-        state.setup_mode = False
-    else:
-        state.auth = None
-        state.setup_mode = True
-        state.source = "setup"
+    state.exposed = exposed
+
+    if exposed:
+        extracted = extract_credentials(config.config_files)
+        if extracted.username and extracted.password:
+            state.auth = AuthConfig(
+                username=extracted.username,
+                password_hash=hash_password(extracted.password),
+                secret_key=secrets.token_urlsafe(32),
+            )
+        # If exposed with no credentials, start_webui() will reject this.
 
     info = StartupInfo(
         urls=_enumerate_urls(config.host, config.port),
         username=state.auth.username if state.auth else None,
         host=config.host,
         port=config.port,
-        exposed=config.host not in ("127.0.0.1", "localhost", "::1"),
-        setup_mode=state.setup_mode,
+        exposed=exposed,
     )
     return state, info
 
@@ -141,28 +138,6 @@ def _set_session_cookies(response: Response, token: str, csrf: str) -> None:
         httponly=False,  # JS reads this to echo via header
         samesite="strict",
     )
-
-
-def _write_marketplace_credentials(
-    config_service: ConfigFileService,
-    username: str,
-    password: str,
-) -> None:
-    """Write Facebook credentials into the config during first-run setup.
-
-    Goes through the same atomic-write and validation path as a regular
-    editor save, so we can't corrupt the file.
-    """
-    content, mtime = config_service.read("primary")
-    new_content, _ = set_value_in_section(
-        content, "marketplace.facebook", "username", username
-    )
-    new_content, _ = set_value_in_section(
-        new_content, "marketplace.facebook", "password", password
-    )
-    _, ok, error = config_service.write("primary", new_content, base_mtime=mtime)
-    if not ok:
-        raise RuntimeError(error or "config write failed")
 
 
 def _enumerate_urls(host: str, port: int) -> List[str]:
@@ -206,20 +181,13 @@ def create_app(
         openapi_url=None,
     )
 
-    # Session manager uses a stable secret for the process lifetime
-    # regardless of whether auth is on at the moment. This way sessions
-    # issued during setup mode remain valid after the user completes
-    # setup and populates state.auth.
     process_secret = secrets.token_urlsafe(32)
     sessions = SessionManager(process_secret)
     rate_limiter = RateLimiter()
 
     def is_open() -> bool:
-        """True if the server is running without authentication — i.e.
-        the user has skipped setup. Setup mode is NOT open: endpoints
-        still 401 so the frontend falls through to the setup form.
-        """
-        return state.auth is None and not state.setup_mode
+        """True when running on loopback — no password required."""
+        return not state.exposed
 
     def require_session(
         request: Request,
@@ -250,12 +218,10 @@ def create_app(
 
     @app.get("/api/auth/info")
     async def auth_info() -> Dict[str, Any]:
-        """Unauthenticated — the login screen calls this to decide
-        between sign-in and first-run setup.
+        """Unauthenticated — the frontend calls this to decide whether
+        to show the login form or go straight to the app.
         """
         return {
-            "mode": state.source or "setup-mode",
-            "setup_mode": state.setup_mode,
             "open": is_open(),
             "username_hint": state.auth.username if state.auth else None,
         }
@@ -264,49 +230,21 @@ def create_app(
     async def login(
         request: Request,
         response: Response,
-        username: str = Form(...),
-        password: str = Form(...),
+        username: str = Form(""),
+        password: str = Form(""),
     ) -> Dict[str, Any]:
+        # Loopback — always open, no password needed.
+        if is_open():
+            token, csrf = sessions.issue("anonymous")
+            _set_session_cookies(response, token, csrf)
+            return {"username": "anonymous", "csrf": csrf}
+
+        # Exposed — credentials required.
         client_ip = request.client.host if request.client else "unknown"
         if rate_limiter.is_locked(client_ip):
             raise HTTPException(status_code=429, detail="Too many failed attempts")
 
-        # ------- Setup mode -------
-        # No credentials configured yet. Accept whatever the user types,
-        # write them into [marketplace.facebook] of the config, and
-        # promote the server to authenticated mode with those creds.
-        if state.setup_mode and state.auth is None:
-            if not username or not password:
-                raise HTTPException(status_code=400, detail="Username and password required")
-
-            try:
-                _write_marketplace_credentials(config_service, username, password)
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to save credentials to config: {e}",
-                )
-
-            state.auth = AuthConfig(
-                username=username,
-                password_hash=hash_password(password),
-                secret_key=process_secret,
-            )
-            state.setup_mode = False
-            state.source = "facebook"
-
-            token, csrf = sessions.issue(username)
-            _set_session_cookies(response, token, csrf)
-            return {"username": username, "csrf": csrf, "setup_completed": True}
-
-        # ------- Normal login -------
-        if state.auth is None:
-            # "Skipped" open mode — login is a no-op but still issues
-            # a session so the UI shows an authenticated state.
-            token, csrf = sessions.issue(username or "anonymous")
-            _set_session_cookies(response, token, csrf)
-            return {"username": username or "anonymous", "csrf": csrf}
-
+        assert state.auth is not None  # enforced by start_webui()
         if username != state.auth.username or not verify_password(
             password, state.auth.password_hash
         ):
@@ -317,21 +255,6 @@ def create_app(
         token, csrf = sessions.issue(username)
         _set_session_cookies(response, token, csrf)
         return {"username": username, "csrf": csrf}
-
-    @app.post("/api/setup/skip")
-    async def setup_skip(response: Response) -> Dict[str, Any]:
-        """Dismiss the first-run setup form and enter the editor without
-        authentication. The server stays in open mode for the rest of
-        the process lifetime.
-        """
-        if not state.setup_mode:
-            raise HTTPException(status_code=400, detail="Not in setup mode")
-        state.setup_mode = False
-        state.source = "skipped"
-        # Issue a cosmetic session so the UI has something to hold onto.
-        token, csrf = sessions.issue("anonymous")
-        _set_session_cookies(response, token, csrf)
-        return {"ok": True, "open": True}
 
     @app.post("/api/logout")
     async def logout(response: Response) -> Dict[str, Any]:
@@ -563,13 +486,14 @@ def start_webui(
         raise ValueError("WebUIConfig.log_handler is required")
     state, info = _resolve_auth(config)
 
-    # Safety: setup mode / open mode requires loopback. Refuse to start
-    # if the server would expose an unauthenticated editor on a LAN.
-    if state.auth is None and info.exposed:
+    # --webui-host requires credentials. Refuse to expose without auth.
+    if state.exposed and state.auth is None:
         raise RuntimeError(
-            f"Refusing to start an unauthenticated web UI on {config.host}. "
-            "Set credentials in [webui] or [marketplace.*] of your config, "
-            "pass --webui-password, or bind to 127.0.0.1."
+            f"--webui-host {config.host} requires authentication. "
+            "Set username/password in a [marketplace.*] config section "
+            "or set FACEBOOK_USERNAME and FACEBOOK_PASSWORD environment "
+            "variables. Omit --webui-host to run on 127.0.0.1 without "
+            "a password."
         )
 
     config_service = ConfigFileService(config.config_files, logger=logger)

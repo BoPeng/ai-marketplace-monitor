@@ -60,33 +60,32 @@
   const showLogin = async () => {
     $("#login-screen").classList.remove("hidden");
     $("#app").classList.add("hidden");
-    // Fetch the auth mode so we can label the form correctly.
+    // Fetch the auth mode so we can decide between login form and open mode.
     try {
       const info = await (await fetch("/api/auth/info", { credentials: "same-origin" })).json();
-      const form = $("#login-form");
-      const title = $("#login-title");
-      const subtitle = $("#login-subtitle");
-      const submit = $("#login-submit");
-      const skip = $("#skip-setup");
-      title.textContent = "AI Marketplace Monitor";
-      subtitle.hidden = false;
-      if (info.setup_mode) {
-        subtitle.innerHTML =
-          '<strong class="warn">⚠ The web UI is currently unprotected.</strong><br />' +
-          "Enter your Facebook username and password to save them to " +
-          "your config — they'll be used to sign in to Facebook and to " +
-          "lock the web UI behind them. Or click Skip to continue without " +
-          "a password.";
-        submit.textContent = "Save & sign in";
-        skip.hidden = false;
-        form.username.placeholder = "you@example.com";
-      } else {
-        subtitle.textContent =
-          "Sign in with the Facebook credentials from your config file.";
-        submit.textContent = "Sign in";
-        skip.hidden = true;
-        if (info.username_hint) form.username.value = info.username_hint;
+      if (info.open) {
+        // Open mode — no credentials configured, auto-login as anonymous.
+        const res = await fetch("/api/login", {
+          method: "POST",
+          body: new FormData(),
+          credentials: "same-origin",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          state.csrf = data.csrf || getCookie("aimm_csrf");
+          hideLogin();
+          await bootstrap();
+          return;
+        }
       }
+      // Authenticated mode — show sign-in form.
+      const form = $("#login-form");
+      const subtitle = $("#login-subtitle");
+      subtitle.textContent =
+        "Sign in with the marketplace credentials from your config.";
+      subtitle.hidden = false;
+      $("#login-submit").textContent = "Sign in";
+      if (info.username_hint) form.username.value = info.username_hint;
     } catch (err) {
       // fall back to generic login form
     }
@@ -113,26 +112,6 @@
       const data = await res.json();
       state.csrf = data.csrf || getCookie("aimm_csrf");
       $("#login-error").hidden = true;
-      hideLogin();
-      await bootstrap();
-    } catch (err) {
-      $("#login-error").textContent = String(err);
-      $("#login-error").hidden = false;
-    }
-  });
-
-  $("#skip-setup").addEventListener("click", async () => {
-    try {
-      const res = await fetch("/api/setup/skip", {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        $("#login-error").textContent = "Skip failed";
-        $("#login-error").hidden = false;
-        return;
-      }
-      state.csrf = getCookie("aimm_csrf");
       hideLogin();
       await bootstrap();
     } catch (err) {
