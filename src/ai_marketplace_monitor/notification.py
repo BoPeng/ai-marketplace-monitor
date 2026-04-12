@@ -33,6 +33,12 @@ class NotificationConfig(BaseConfig):
     instance_rate_limit: float = 1.0  # seconds between sends per instance
     global_rate_limit: int = 10  # messages per second across all instances
 
+    # Subclasses that handle rate limiting in their own send path (e.g.
+    # Telegram's async _wait_for_rate_limit) should set this to True so
+    # the base class _execute_with_retry does NOT also apply sync rate
+    # limiting — preventing double-wait.
+    _handles_own_rate_limiting: bool = False
+
     # Private tracking attributes
     _last_send_time: float | None = None
 
@@ -146,10 +152,15 @@ class NotificationConfig(BaseConfig):
         message: str,
         logger: Logger | None = None,
     ) -> bool:
-        """Enhanced retry method with rate limiting support."""
-        return self._execute_with_retry(
-            title, message, logger, apply_rate_limiting=self.rate_limit_enabled
-        )
+        """Enhanced retry method with rate limiting support.
+
+        Subclasses that set ``_handles_own_rate_limiting = True`` (e.g.
+        Telegram, which applies async rate limiting inside its own
+        ``send_message``) will NOT get sync rate limiting here —
+        avoiding a double-wait.
+        """
+        apply = self.rate_limit_enabled and not self._handles_own_rate_limiting
+        return self._execute_with_retry(title, message, logger, apply_rate_limiting=apply)
 
     def _get_wait_time(self: "NotificationConfig") -> float:
         """Calculate instance-level wait time. Override for custom logic."""
@@ -161,7 +172,12 @@ class NotificationConfig(BaseConfig):
 
     @classmethod
     def _get_global_wait_time(cls: Type["NotificationConfig"]) -> float:
-        """Calculate global wait time across all instances."""
+        """Calculate global wait time across all instances.
+
+        Note: this is only called from _wait_for_rate_limit[_sync] which
+        already gates on rate_limit_enabled, so non-rate-limited instances
+        never reach here and never populate _global_send_times.
+        """
         with cls._global_lock:
             # Check if any instance has rate limiting enabled by checking if we have any tracked times
             # This is a more practical approach than checking class attributes

@@ -22,6 +22,9 @@ class TelegramNotificationConfig(PushNotificationConfig):
     # Enable rate limiting with Telegram-specific settings
     rate_limit_enabled: bool = True
     global_rate_limit: int = 30  # Telegram's higher limit
+    # Telegram handles rate limiting in its own async _send_message_async
+    # path — tell the base class not to also apply sync rate limiting.
+    _handles_own_rate_limiting: bool = True
 
     def handle_telegram_token(self: "TelegramNotificationConfig") -> None:
         if self.telegram_token is None:

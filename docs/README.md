@@ -163,7 +163,7 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 | `with_description`      | Optional    | Boolean/Integer | Whether or not include description of listings. If a number is given, the description will be truncated to the specified length. |
 | `rate_limit_enabled`    | Optional    | Boolean         | Enable rate limiting for this notification method. Defaults to `false` (except Telegram which defaults to `true`).              |
 | `instance_rate_limit`   | Optional    | Integer         | Minimum seconds between messages for this specific configuration instance. Defaults to `1`.                                      |
-| `global_rate_limit`     | Optional    | Integer         | Minimum seconds between any messages globally across all instances. Defaults to `30`.                                           |
+| `global_rate_limit`     | Optional    | Integer         | Maximum messages per second across all notification instances (sliding window). Defaults to `10` (`30` for Telegram).            |
 
 Note that
 
