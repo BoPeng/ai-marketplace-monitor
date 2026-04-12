@@ -95,9 +95,10 @@ async def test_fanout_to_subscribed_queue() -> None:
     h.attach_loop(loop)
     queue: asyncio.Queue = asyncio.Queue()
     h.subscribe(queue)
-    h.emit(_make_record("hello"))
-    # Yield once for call_soon_threadsafe to run.
-    await asyncio.sleep(0)
+    # emit() uses call_soon_threadsafe, so call from a worker thread
+    # (just like the real monitor does).
+    await loop.run_in_executor(None, h.emit, _make_record("hello"))
+    await asyncio.sleep(0.05)
     payload = await asyncio.wait_for(queue.get(), timeout=1)
     assert payload["message"] == "hello"
 
@@ -109,10 +110,14 @@ async def test_full_queue_drops_oldest() -> None:
     h.attach_loop(loop)
     queue: asyncio.Queue = asyncio.Queue(maxsize=2)
     h.subscribe(queue)
-    h.emit(_make_record("a"))
-    h.emit(_make_record("b"))
-    h.emit(_make_record("c"))
-    await asyncio.sleep(0)
+
+    def emit_all() -> None:
+        h.emit(_make_record("a"))
+        h.emit(_make_record("b"))
+        h.emit(_make_record("c"))
+
+    await loop.run_in_executor(None, emit_all)
+    await asyncio.sleep(0.05)
     got = []
     while not queue.empty():
         got.append((await queue.get())["message"])
