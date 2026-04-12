@@ -31,14 +31,14 @@ def config_file(tmp_path: Path) -> Path:
 
 def test_scan_sections_basic() -> None:
     content = (
-        '[marketplace.facebook]\n'
+        "[marketplace.facebook]\n"
         'username = "u"\n'
         'password = "p"\n'
-        '\n'
-        '[item.foo]\n'
+        "\n"
+        "[item.foo]\n"
         'search_phrases = "x"\n'
-        '\n'
-        '[user.me]\n'
+        "\n"
+        "[user.me]\n"
         'pushbullet_token = "t"\n'
     )
     sections = scan_sections(content)
@@ -69,7 +69,7 @@ def test_scan_sections_empty_file() -> None:
 
 def test_scan_sections_malformed_still_works() -> None:
     # Garbage between sections doesn't break the scan.
-    content = '[a.b]\nthis is not = = valid\n[c.d]\n'
+    content = "[a.b]\nthis is not = = valid\n[c.d]\n"
     sections = scan_sections(content)
     assert [s.name for s in sections] == ["a.b", "c.d"]
 

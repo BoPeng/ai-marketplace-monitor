@@ -352,9 +352,7 @@ def create_app(
             path.touch()
             return {"ok": True, "message": "Monitor woken — searching all items now."}
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to touch config: {e}"
-            ) from e
+            raise HTTPException(status_code=500, detail=f"Failed to touch config: {e}") from e
 
     @app.get("/api/logs")
     async def get_logs(

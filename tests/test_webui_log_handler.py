@@ -12,7 +12,9 @@ from ai_marketplace_monitor.webui.log_handler import (
 )
 
 
-def _make_record(message: str, level: int = logging.INFO, extra: dict | None = None) -> logging.LogRecord:
+def _make_record(
+    message: str, level: int = logging.INFO, extra: dict | None = None
+) -> logging.LogRecord:
     record = logging.LogRecord(
         name="test", level=level, pathname="t.py", lineno=1, msg=message, args=(), exc_info=None
     )
@@ -56,9 +58,7 @@ def test_snapshot_respects_min_level() -> None:
 def test_snapshot_filters_by_kind_item_and_score() -> None:
     h = LogBroadcastHandler()
     h.emit(
-        _make_record(
-            "search done", extra={"aimm": {"kind": "search_summary", "item": "iphone"}}
-        )
+        _make_record("search done", extra={"aimm": {"kind": "search_summary", "item": "iphone"}})
     )
     h.emit(
         _make_record(
