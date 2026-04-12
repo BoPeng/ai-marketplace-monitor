@@ -10,7 +10,7 @@ from ai_marketplace_monitor.webui.secrets_redact import (
 )
 
 
-def test_redact_replaces_password_and_token():
+def test_redact_replaces_password_and_token() -> None:
     src = """
 [marketplace.facebook]
 username = "ben@example.com"
@@ -29,7 +29,7 @@ pushbullet_token = "abc123token"
     assert secrets[("user.me", "pushbullet_token")] == "abc123token"
 
 
-def test_redact_leaves_non_sensitive_keys_alone():
+def test_redact_leaves_non_sensitive_keys_alone() -> None:
     src = """
 [marketplace.facebook]
 search_city = "houston"
@@ -40,7 +40,7 @@ search_phrases = "gopro hero"
     assert secrets == {}
 
 
-def test_restore_round_trips_unchanged_masks():
+def test_restore_round_trips_unchanged_masks() -> None:
     src = """
 [marketplace.facebook]
 password = "real-password"
@@ -49,7 +49,7 @@ password = "real-password"
     assert restore(redacted, secrets) == src
 
 
-def test_restore_leaves_user_edits_alone():
+def test_restore_leaves_user_edits_alone() -> None:
     src = """
 [marketplace.facebook]
 password = "old-password"
@@ -62,7 +62,7 @@ password = "old-password"
     assert "old-password" not in restored
 
 
-def test_same_key_in_different_sections_no_collision():
+def test_same_key_in_different_sections_no_collision() -> None:
     src = """
 [user.alice]
 pushbullet_token = "alice-token"
@@ -78,7 +78,7 @@ pushbullet_token = "bob-token"
     assert "bob-token" in restored
 
 
-def test_redact_idempotent():
+def test_redact_idempotent() -> None:
     src = '[x]\npassword = "foo"\n'
     once, secrets1 = redact(src)
     twice, _ = redact(once)
@@ -88,19 +88,19 @@ def test_redact_idempotent():
     assert secrets1[("x", "password")] == "foo"
 
 
-def test_empty_value_not_redacted():
+def test_empty_value_not_redacted() -> None:
     src = '[x]\npassword = ""\n'
     redacted, secrets = redact(src)
     assert redacted == src
     assert secrets == {}
 
 
-def test_has_mask():
+def test_has_mask() -> None:
     assert has_mask(f'password = "{MASK}"')
     assert not has_mask('password = "real"')
 
 
-def test_preserves_trailing_comment():
+def test_preserves_trailing_comment() -> None:
     src = '[x]\napi_key = "sk-abc"  # my key\n'
     redacted, secrets = redact(src)
     assert "# my key" in redacted
@@ -108,7 +108,7 @@ def test_preserves_trailing_comment():
     assert restore(redacted, secrets) == src
 
 
-def test_single_quoted_string_redacted():
+def test_single_quoted_string_redacted() -> None:
     src = "[x]\npassword = 'quoted'\n"
     redacted, secrets = redact(src)
     assert "quoted" not in redacted

@@ -277,9 +277,7 @@ def create_app(
         return {"files": [f.__dict__ for f in config_service.list_files()]}
 
     @app.get("/api/config/file/{file_id}")
-    async def get_config_file(
-        file_id: str, _: str = Depends(require_session)
-    ) -> Dict[str, Any]:
+    async def get_config_file(file_id: str, _: str = Depends(require_session)) -> Dict[str, Any]:
         try:
             content, mtime = config_service.read(file_id)
         except KeyError as e:

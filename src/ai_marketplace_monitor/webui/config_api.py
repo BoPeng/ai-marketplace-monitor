@@ -243,9 +243,7 @@ class ConfigFileService:
         # Refresh secret map from the new on-disk contents so any future
         # read() uses the latest secrets (e.g. user typed a new password).
         try:
-            _, self._secrets = redact(
-                self._editable.read_text(encoding="utf-8")
-            )
+            _, self._secrets = redact(self._editable.read_text(encoding="utf-8"))
         except OSError:
             pass
 

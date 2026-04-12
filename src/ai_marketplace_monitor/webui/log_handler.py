@@ -29,8 +29,10 @@ from typing import Any, Deque, Dict, List, Set
 _SECRET_PATTERNS = [
     (re.compile(r"sk-[A-Za-z0-9_\-]{16,}"), "sk-***REDACTED***"),
     (re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]{16,}"), "Bearer ***REDACTED***"),
-    (re.compile(r"(?i)(api[_-]?key|token|secret)\s*[:=]\s*['\"]?[A-Za-z0-9._\-]{12,}['\"]?"),
-     r"\1=***REDACTED***"),
+    (
+        re.compile(r"(?i)(api[_-]?key|token|secret)\s*[:=]\s*['\"]?[A-Za-z0-9._\-]{12,}['\"]?"),
+        r"\1=***REDACTED***",
+    ),
 ]
 
 # Rich markup like "[bold red]foo[/bold red]" and ANSI escapes. We ship
@@ -128,9 +130,7 @@ class LogBroadcastHandler(logging.Handler):
         payload: Dict[str, Any] = {
             "id": next(self._counter),
             "time": record.created,
-            "iso_time": time.strftime(
-                "%H:%M:%S", time.localtime(record.created)
-            ),
+            "iso_time": time.strftime("%H:%M:%S", time.localtime(record.created)),
             "level": record.levelname,
             "levelno": record.levelno,
             "logger": record.name,
@@ -167,9 +167,7 @@ class LogBroadcastHandler(logging.Handler):
                     self._subscribers.discard(queue)
 
     @staticmethod
-    def _safe_put(
-        queue: "asyncio.Queue[Dict[str, Any]]", payload: Dict[str, Any]
-    ) -> None:
+    def _safe_put(queue: "asyncio.Queue[Dict[str, Any]]", payload: Dict[str, Any]) -> None:
         try:
             queue.put_nowait(payload)
         except asyncio.QueueFull:

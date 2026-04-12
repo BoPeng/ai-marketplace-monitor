@@ -922,7 +922,9 @@ class FacebookRegularItemPage(FacebookItemPage):
                 return self.translator("**unspecified**")
             # Use a short timeout to avoid a 30s delay when seller data is not
             # present (e.g. in anonymous/not-logged-in mode). See #289.
-            return seller_locator.last.text_content(timeout=3000) or self.translator("**unspecified**")
+            return seller_locator.last.text_content(timeout=3000) or self.translator(
+                "**unspecified**"
+            )
         except KeyboardInterrupt:
             raise
         except Exception as e:

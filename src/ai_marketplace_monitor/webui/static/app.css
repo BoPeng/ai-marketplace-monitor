@@ -633,7 +633,7 @@ html, body {
 .level-INFO .log-level { color: var(--info); }
 .level-WARNING .log-level { color: var(--warn); }
 .level-ERROR .log-level, .level-CRITICAL .log-level { color: var(--err); }
-.log-row .log-msg { white-space: pre-wrap; word-break: break-word; }
+.log-row .log-msg { white-space: pre-wrap; overflow-wrap: break-word; }
 .kind-badge {
   display: inline-block;
   font-size: 9px;

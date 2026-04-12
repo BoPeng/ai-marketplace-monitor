@@ -14,7 +14,7 @@ from ai_marketplace_monitor.webui.log_handler import (
 )
 
 
-def _make_record(message: str, level: int = logging.INFO, extra: dict | None = None):
+def _make_record(message: str, level: int = logging.INFO, extra: dict | None = None) -> logging.LogRecord:
     record = logging.LogRecord(
         name="test", level=level, pathname="t.py", lineno=1, msg=message, args=(), exc_info=None
     )
@@ -24,19 +24,19 @@ def _make_record(message: str, level: int = logging.INFO, extra: dict | None = N
     return record
 
 
-def test_redact_strips_sk_keys():
+def test_redact_strips_sk_keys() -> None:
     assert "sk-***REDACTED***" in _redact("key is sk-abcdefghij0123456789")
 
 
-def test_redact_strips_bearer():
+def test_redact_strips_bearer() -> None:
     assert "***REDACTED***" in _redact("Authorization: Bearer abcdefghijklmnop")
 
 
-def test_clean_removes_rich_markup_and_ansi():
+def test_clean_removes_rich_markup_and_ansi() -> None:
     assert _clean("[bold red]hi[/bold red]\x1b[31mx\x1b[0m") == "hix"
 
 
-def test_ring_buffer_caps_at_capacity():
+def test_ring_buffer_caps_at_capacity() -> None:
     h = LogBroadcastHandler(capacity=3)
     for i in range(10):
         h.emit(_make_record(f"msg {i}"))
@@ -46,7 +46,7 @@ def test_ring_buffer_caps_at_capacity():
     assert snapshot[-1]["message"] == "msg 9"
 
 
-def test_snapshot_respects_min_level():
+def test_snapshot_respects_min_level() -> None:
     h = LogBroadcastHandler(capacity=10)
     h.emit(_make_record("debug msg", logging.DEBUG))
     h.emit(_make_record("info msg", logging.INFO))
@@ -55,7 +55,7 @@ def test_snapshot_respects_min_level():
     assert len(h.snapshot(min_level=logging.ERROR)) == 1
 
 
-def test_snapshot_filters_by_kind_item_and_score():
+def test_snapshot_filters_by_kind_item_and_score() -> None:
     h = LogBroadcastHandler()
     h.emit(
         _make_record(
@@ -81,14 +81,14 @@ def test_snapshot_filters_by_kind_item_and_score():
     assert len(h.snapshot(item="ipad")) == 1
 
 
-def test_aimm_extra_is_attached():
+def test_aimm_extra_is_attached() -> None:
     h = LogBroadcastHandler()
     h.emit(_make_record("listing found", extra={"aimm": {"kind": "ai_eval", "score": 5}}))
     records = h.snapshot()
     assert records[-1]["extra"] == {"kind": "ai_eval", "score": 5}
 
 
-def test_fanout_to_subscribed_queue():
+def test_fanout_to_subscribed_queue() -> None:
     async def run():
         h = LogBroadcastHandler()
         loop = asyncio.get_running_loop()
@@ -104,7 +104,7 @@ def test_fanout_to_subscribed_queue():
     asyncio.run(run())
 
 
-def test_full_queue_drops_oldest():
+def test_full_queue_drops_oldest() -> None:
     async def run():
         h = LogBroadcastHandler()
         loop = asyncio.get_running_loop()

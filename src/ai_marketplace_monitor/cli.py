@@ -18,7 +18,7 @@ from .utils import CacheType, amm_home, cache, counter, hilight
 app = typer.Typer()
 
 
-_DEFAULT_CONFIG_TEMPLATE = '''\
+_DEFAULT_CONFIG_TEMPLATE = """\
 # AI Marketplace Monitor — configuration file
 #
 # Created automatically on first run. Edit in the web UI (or any
@@ -44,7 +44,7 @@ search_phrases = "gopro hero"
 [user.me]
 # One of these notification channels is required.
 # pushbullet_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-'''
+"""
 
 
 def _seed_default_config(path: Path, logger: logging.Logger) -> None:
@@ -241,6 +241,7 @@ def main(
 
         sys.exit(0)
 
+    monitor = None
     webui_server = None
     try:
         # If web UI is on and there are no existing config files, seed
@@ -270,9 +271,7 @@ def main(
                     )
                     _print_webui_banner(webui_info)
                 except Exception as e:
-                    logger.error(
-                        f"""{hilight("[WebUI]", "fail")} Failed to start web UI: {e}"""
-                    )
+                    logger.error(f"""{hilight("[WebUI]", "fail")} Failed to start web UI: {e}""")
         monitor.start_monitor()
     except KeyboardInterrupt:
         rich.print("Exiting...")
@@ -284,7 +283,8 @@ def main(
     finally:
         if webui_server is not None:
             webui_server.stop()
-        monitor.stop_monitor()
+        if monitor is not None:
+            monitor.stop_monitor()
         rich.print(counter)
 
 

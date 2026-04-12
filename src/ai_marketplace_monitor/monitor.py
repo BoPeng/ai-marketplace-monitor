@@ -488,7 +488,9 @@ class MarketplaceMonitor:
                 self.load_config_file()
             except KeyboardInterrupt:
                 raise
-            except Exception:
+            except Exception as e:
+                if self.logger:
+                    self.logger.debug(f"Config reload failed during credential wait: {e}")
                 continue
         if self.logger:
             self.logger.info(
