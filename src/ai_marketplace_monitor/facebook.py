@@ -908,16 +908,22 @@ class FacebookRegularItemPage(FacebookItemPage):
 
     def get_seller(self: "FacebookRegularItemPage") -> str:
         try:
-            seller_link = self.page.locator("//a[contains(@href, '/marketplace/profile')]").last
-            return seller_link.text_content() or self.translator("**unspecified**")
+            seller_locator = self.page.locator("//a[contains(@href, '/marketplace/profile')]")
+            if seller_locator.count() == 0:
+                # Try an alternative pattern — Facebook sometimes uses
+                # different link structures for the seller name.
+                seller_locator = self.page.locator("//a[contains(@href, '/profile')]")
+            if seller_locator.count() == 0:
+                return self.translator("**unspecified**")
+            return seller_locator.last.text_content(timeout=5000) or self.translator("**unspecified**")
         except KeyboardInterrupt:
             raise
         except Exception as e:
             if self.logger:
-                self.logger.error(
-                    f"{hilight('[Error]', 'fail')} get_seller failed: {type(e).__name__}: {e}"
+                self.logger.debug(
+                    f"{hilight('[Retrieve]', 'fail')} get_seller failed: {type(e).__name__}: {e}"
                 )
-            return ""
+            return self.translator("**unspecified**")
 
     def get_description(self: "FacebookRegularItemPage") -> str:
         try:
