@@ -290,13 +290,24 @@ class BaseConfig:
             if handle_method:
                 handle_method()
 
-    def _value_from_environ(self: "BaseConfig", key: str) -> str:
-        """Replace key with value from an environment variable if it has a format of ${KEY}"""
+    def _value_from_environ(self: "BaseConfig", key: str) -> str | None:
+        """Replace key with value from an environment variable if it has a format of ${KEY}.
+
+        Returns None (with a warning) when the variable is not set, so
+        that optional credentials degrade gracefully to anonymous mode.
+        """
         if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
             return key
-        if key[2:-1] not in os.environ:
-            raise ValueError(f"Environment variable {key[2:-1]} not set")
-        return os.environ[key[2:-1]]
+        var_name = key[2:-1]
+        if var_name not in os.environ:
+            import warnings
+
+            warnings.warn(
+                f"Environment variable {var_name} is not set — ignored.",
+                stacklevel=2,
+            )
+            return None
+        return os.environ[var_name]
 
     def handle_enabled(self: "BaseConfig") -> None:
         if self.enabled is None:

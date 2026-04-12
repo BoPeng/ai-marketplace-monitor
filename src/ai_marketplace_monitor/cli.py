@@ -31,8 +31,8 @@ _DEFAULT_CONFIG_TEMPLATE = '''\
 # See https://ai-marketplace-monitor.readthedocs.io/ for a full reference.
 
 [marketplace.facebook]
-# username = "you@example.com"
-# password = "your-facebook-password"
+username = "${FACEBOOK_USERNAME}"
+password = "${FACEBOOK_PASSWORD}"
 search_city = "houston"
 
 [item.example]
