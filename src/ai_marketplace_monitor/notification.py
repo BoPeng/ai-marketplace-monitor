@@ -1,9 +1,10 @@
+import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, fields
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, DefaultDict, List, Optional, Tuple, Type
+from typing import Any, ClassVar, DefaultDict, Deque, List, Optional, Tuple, Type
 
 import inflect
 
@@ -26,6 +27,24 @@ class NotificationConfig(BaseConfig):
 
     max_retries: int = 5
     retry_delay: int = 60
+
+    # Rate limiting configuration (disabled by default, but public for user config)
+    rate_limit_enabled: bool = False
+    instance_rate_limit: float = 1.0  # seconds between sends per instance
+    global_rate_limit: int = 10  # messages per second across all instances
+
+    # Subclasses that handle rate limiting in their own send path (e.g.
+    # Telegram's async _wait_for_rate_limit) should set this to True so
+    # the base class _execute_with_retry does NOT also apply sync rate
+    # limiting — preventing double-wait.
+    _handles_own_rate_limiting: bool = False
+
+    # Private tracking attributes
+    _last_send_time: float | None = None
+
+    # Class-level global tracking (shared across all notification types)
+    _global_send_times: ClassVar[Deque[float]] = deque()
+    _global_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def handle_max_retries(self: "NotificationConfig") -> None:
         if not isinstance(self.max_retries, int):
@@ -72,18 +91,26 @@ class NotificationConfig(BaseConfig):
                 succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
 
-    def send_message_with_retry(
+    def _execute_with_retry(
         self: "NotificationConfig",
         title: str,
         message: str,
         logger: Logger | None = None,
+        apply_rate_limiting: bool = False,
     ) -> bool:
+        """Common retry logic for message sending with optional rate limiting."""
         if not self._has_required_fields():
             return False
 
         for attempt in range(self.max_retries):
             try:
+                # Apply rate limiting if requested
+                if apply_rate_limiting and self.rate_limit_enabled:
+                    self._wait_for_rate_limit_sync(logger)
+
+                # Call the send_message method
                 res = self.send_message(title=title, message=message, logger=logger)
+
                 if logger:
                     logger.info(
                         f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)}"""
@@ -109,6 +136,142 @@ class NotificationConfig(BaseConfig):
                         )
                     return False
         return False
+
+    def _send_message_with_rate_limiting_sync(
+        self: "NotificationConfig",
+        title: str,
+        message: str,
+        logger: Logger | None = None,
+    ) -> bool:
+        """Sync version of send_message_with_retry with rate limiting support."""
+        return self._execute_with_retry(title, message, logger, apply_rate_limiting=True)
+
+    def send_message_with_retry(
+        self: "NotificationConfig",
+        title: str,
+        message: str,
+        logger: Logger | None = None,
+    ) -> bool:
+        """Enhanced retry method with rate limiting support.
+
+        Subclasses that set ``_handles_own_rate_limiting = True`` (e.g.
+        Telegram, which applies async rate limiting inside its own
+        ``send_message``) will NOT get sync rate limiting here —
+        avoiding a double-wait.
+        """
+        apply = self.rate_limit_enabled and not self._handles_own_rate_limiting
+        return self._execute_with_retry(title, message, logger, apply_rate_limiting=apply)
+
+    def _get_wait_time(self: "NotificationConfig") -> float:
+        """Calculate instance-level wait time. Override for custom logic."""
+        if not self.rate_limit_enabled or self._last_send_time is None:
+            return 0.0
+
+        elapsed = time.time() - self._last_send_time
+        return max(0.0, self.instance_rate_limit - elapsed)
+
+    @classmethod
+    def _get_global_wait_time(cls: Type["NotificationConfig"]) -> float:
+        """Calculate global wait time across all instances.
+
+        Note: this is only called from _wait_for_rate_limit[_sync] which
+        already gates on rate_limit_enabled, so non-rate-limited instances
+        never reach here and never populate _global_send_times.
+        """
+        with cls._global_lock:
+            # Check if any instance has rate limiting enabled by checking if we have any tracked times
+            # This is a more practical approach than checking class attributes
+            if not cls._global_send_times:
+                return 0.0
+
+            current_time = time.time()
+
+            # Remove timestamps older than 1 second
+            while cls._global_send_times and current_time - cls._global_send_times[0] > 1.0:
+                cls._global_send_times.popleft()
+
+            # Use a reasonable default global rate limit (30 msg/sec like Telegram)
+            # Individual classes can override this behavior
+            global_rate_limit = getattr(cls, "global_rate_limit", 30)
+
+            # If we have less than the rate limit, no wait needed
+            if len(cls._global_send_times) < global_rate_limit:
+                return 0.0
+
+            # If we're at the limit, wait until the oldest message is more than 1 second old
+            oldest_send_time = cls._global_send_times[0]
+            wait_time = 1.0 - (current_time - oldest_send_time)
+            return max(0.0, wait_time)
+
+    @classmethod
+    def _record_global_send_time(cls: Type["NotificationConfig"]) -> None:
+        """Record the current time as a global send time."""
+        with cls._global_lock:
+            cls._global_send_times.append(time.time())
+
+    def _wait_for_rate_limit_sync(
+        self: "NotificationConfig", logger: Logger | None = None
+    ) -> None:
+        """Wait for rate limits and record send time (synchronous version)."""
+        if not self.rate_limit_enabled:
+            return
+
+        # Check both per-instance and global rate limits
+        instance_wait = self._get_wait_time()
+        global_wait = self._get_global_wait_time()
+
+        # Use the longer of the two wait times
+        wait_time = max(instance_wait, global_wait)
+
+        if wait_time > 0:
+            if logger:
+                if global_wait > instance_wait:
+                    logger.debug(
+                        f"Rate limiting: waiting {wait_time:.1f} seconds (global limit: {self.global_rate_limit}s)"
+                    )
+                else:
+                    logger.debug(
+                        f"Rate limiting: waiting {wait_time:.1f} seconds (instance limit: {self.instance_rate_limit}s)"
+                    )
+
+            time.sleep(wait_time)
+
+        # Record both per-instance and global send times
+        self._last_send_time = time.time()
+        self._record_global_send_time()
+
+    async def _wait_for_rate_limit(
+        self: "NotificationConfig", logger: Logger | None = None
+    ) -> None:
+        """Wait for rate limits and record send time (async version for Telegram)."""
+        if not self.rate_limit_enabled:
+            return
+
+        import asyncio
+
+        # Check both per-instance and global rate limits
+        instance_wait = self._get_wait_time()
+        global_wait = self._get_global_wait_time()
+
+        # Use the longer of the two wait times
+        wait_time = max(instance_wait, global_wait)
+
+        if wait_time > 0:
+            if logger:
+                if global_wait > instance_wait:
+                    logger.debug(
+                        f"Global rate limiting: waiting {wait_time:.1f} seconds (limit: {self.global_rate_limit} msg/sec)"
+                    )
+                else:
+                    logger.debug(
+                        f"Rate limiting: waiting {wait_time:.1f} seconds (limit: {self.instance_rate_limit}s)"
+                    )
+
+            await asyncio.sleep(wait_time)
+
+        # Record both per-instance and global send times
+        self._last_send_time = time.time()
+        self._record_global_send_time()
 
     def send_message(
         self: "NotificationConfig",

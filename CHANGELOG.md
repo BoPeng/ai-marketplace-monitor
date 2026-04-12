@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- [issue 235](https://github.com/BoPeng/ai-marketplace-monitor/issues/235) Configurable rate limiting framework for all notification types
+  - Rate limiting infrastructure moved from Telegram-specific to base notification class
+  - Automatic rate limiting for Telegram with intelligent chat type detection (1.1s individual, 3.0s group)
+  - Configurable instance-level and global rate limiting for all notification methods
+  - Opt-in rate limiting for email, PushBullet, PushOver, and other notification types
+  - Comprehensive test coverage for rate limiting behavior
+
 ## [0.9.12]
 
 - [Issue 289](https://github.com/BoPeng/ai-marketplace-monitor/issues/289). Fix 30s timeout delay in get_seller for anonymous mode.
