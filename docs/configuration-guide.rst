@@ -469,7 +469,7 @@ Anonymous Search with Proxy
 
 You can search Facebook Marketplace anonymously by disabling login:
 
-- Do not provide a `username` or `password` in the `facebook` section
+- Do not provide a `username` or `password` in the `facebook` section, and ensure `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables are not set
 - (optional) Set `login_wait_time = 0` to stop waiting for login
 - (optional) Use the `--headless` command line option to run `ai-marketplace-monitor` without a browser window.
 

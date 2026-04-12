@@ -14,6 +14,8 @@ model = "gpt-4o"
 #
 [marketplace.facebook]
 search_city = 'city'
+# username and password can also be provided via FACEBOOK_USERNAME
+# and FACEBOOK_PASSWORD environment variables.
 username = 'username'
 password = 'password'
 login_wait_time = 60
