@@ -169,7 +169,7 @@ For detailed information on setup and advanced features, see the comprehensive d
 
 **AI Integration:**
 
-- OpenAI, DeepSeek, Ollama setup
+- OpenAI, DeepSeek, Anthropic, Ollama setup
 - Custom prompt configuration
 - Rating thresholds and filtering
 

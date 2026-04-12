@@ -17,8 +17,8 @@ from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
 class AIServiceProvider(Enum):
     OPENAI = "OpenAI"
     DEEPSEEK = "DeepSeek"
-    OLLAMA = "Ollama"
     ANTHROPIC = "Anthropic"
+    OLLAMA = "Ollama"
 
 
 @dataclass

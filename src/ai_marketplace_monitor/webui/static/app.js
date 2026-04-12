@@ -1102,8 +1102,8 @@
       const aiProviders = [
         { value: "openai", label: "OpenAI" },
         { value: "deepseek", label: "DeepSeek" },
-        { value: "ollama", label: "Ollama" },
         { value: "anthropic", label: "Anthropic" },
+        { value: "ollama", label: "Ollama" },
       ];
       const opts = aiProviders.map((p) =>
         `<option value="${p.value}" ${currentSuffix === p.value ? "selected" : ""}>${p.label}</option>`
@@ -1275,6 +1275,30 @@
       }
       form.appendChild(wrapper);
     });
+
+    // For AI sections in add mode, set the API key to the env var
+    // reference matching the selected provider.
+    if (aiAutoName && formContext.addMode) {
+      const envVarMap = {
+        openai: "${OPENAI_API_KEY}",
+        deepseek: "${DEEPSEEK_API_KEY}",
+        anthropic: "${ANTHROPIC_API_KEY}",
+        ollama: "${OLLAMA_API_KEY}",
+      };
+      const nameSelect = $("#add-section-name");
+      const apiKeyInput = form.querySelector('[data-key="api_key"]');
+      if (nameSelect && apiKeyInput) {
+        const syncApiKey = () => {
+          const envRef = envVarMap[nameSelect.value] || "";
+          // Only auto-fill if the user hasn't typed something custom.
+          if (!apiKeyInput.value || apiKeyInput.value.startsWith("${")) {
+            apiKeyInput.value = envRef;
+          }
+        };
+        nameSelect.addEventListener("change", syncApiKey);
+        syncApiKey();
+      }
+    }
 
   };
 
