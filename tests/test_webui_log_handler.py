@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-
-import pytest
+import threading
 
 from ai_marketplace_monitor.webui.log_handler import (
     LogBroadcastHandler,
@@ -88,25 +87,31 @@ def test_aimm_extra_is_attached() -> None:
     assert records[-1]["extra"] == {"kind": "ai_eval", "score": 5}
 
 
-@pytest.mark.asyncio
-async def test_fanout_to_subscribed_queue() -> None:
+def test_fanout_to_subscribed_queue() -> None:
+    """Emit from a background thread, verify the queue receives it."""
+    loop = asyncio.new_event_loop()
     h = LogBroadcastHandler()
-    loop = asyncio.get_running_loop()
     h.attach_loop(loop)
     queue: asyncio.Queue = asyncio.Queue()
     h.subscribe(queue)
-    # emit() uses call_soon_threadsafe, so call from a worker thread
-    # (just like the real monitor does).
-    await loop.run_in_executor(None, h.emit, _make_record("hello"))
-    await asyncio.sleep(0.05)
-    payload = await asyncio.wait_for(queue.get(), timeout=1)
+
+    # Emit from a separate thread (like the real monitor).
+    t = threading.Thread(target=h.emit, args=(_make_record("hello"),))
+    t.start()
+    t.join()
+
+    # Drain the loop so call_soon_threadsafe callbacks execute.
+    loop.run_until_complete(asyncio.sleep(0.05))
+    assert not queue.empty()
+    payload = queue.get_nowait()
     assert payload["message"] == "hello"
+    loop.close()
 
 
-@pytest.mark.asyncio
-async def test_full_queue_drops_oldest() -> None:
+def test_full_queue_drops_oldest() -> None:
+    """When the queue is full, oldest messages are dropped."""
+    loop = asyncio.new_event_loop()
     h = LogBroadcastHandler()
-    loop = asyncio.get_running_loop()
     h.attach_loop(loop)
     queue: asyncio.Queue = asyncio.Queue(maxsize=2)
     h.subscribe(queue)
@@ -116,9 +121,13 @@ async def test_full_queue_drops_oldest() -> None:
         h.emit(_make_record("b"))
         h.emit(_make_record("c"))
 
-    await loop.run_in_executor(None, emit_all)
-    await asyncio.sleep(0.05)
+    t = threading.Thread(target=emit_all)
+    t.start()
+    t.join()
+
+    loop.run_until_complete(asyncio.sleep(0.05))
     got = []
     while not queue.empty():
-        got.append((await queue.get())["message"])
+        got.append(queue.get_nowait()["message"])
     assert got == ["b", "c"]
+    loop.close()
