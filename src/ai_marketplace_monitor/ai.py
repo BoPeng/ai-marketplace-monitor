@@ -163,7 +163,7 @@ class AIBackend(Generic[TAIConfig]):
     def __init__(self: "AIBackend", config: AIConfig, logger: Logger | None = None) -> None:
         self.config = config
         self.logger = logger
-        self.client: OpenAI | None = None
+        self.client: Any = None
 
     @classmethod
     def get_config(cls: Type["AIBackend"], **kwargs: Any) -> TAIConfig:
