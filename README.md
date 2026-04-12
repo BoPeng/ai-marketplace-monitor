@@ -79,6 +79,8 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - Add, edit, and delete config sections from your browser
 - No password required on localhost
 
+![Web UI](docs/webui_screenshot.png)
+
 🌎 **Location Support**
 
 - Multi-city search
@@ -120,9 +122,7 @@ pushbullet_token = 'your_token_here'  # Get from pushbullet.com
 ai-marketplace-monitor
 ```
 
-The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs.
-
-![Web UI](docs/webui_screenshot.png)
+The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md).
 
 ## 💡 Example Usage
 
