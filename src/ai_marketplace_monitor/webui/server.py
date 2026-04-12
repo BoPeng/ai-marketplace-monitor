@@ -384,11 +384,13 @@ def create_app(
 
     @app.websocket("/ws/stream")
     async def ws_stream(websocket: WebSocket) -> None:
-        # Cookie-based auth on the WebSocket handshake.
-        session = websocket.cookies.get(SESSION_COOKIE)
-        if not session or sessions.validate(session) is None:
-            await websocket.close(code=4401)
-            return
+        # In open mode (loopback) skip cookie check; otherwise require
+        # a valid session cookie on the WebSocket handshake.
+        if not is_open():
+            session = websocket.cookies.get(SESSION_COOKIE)
+            if not session or sessions.validate(session) is None:
+                await websocket.close(code=4401)
+                return
 
         await websocket.accept()
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=1000)
