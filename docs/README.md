@@ -47,10 +47,10 @@ One of more sections to list the AI agent that can be used to judge if listings 
 Note that:
 
 1. `provider` can be [OpenAI](https://openai.com/),
-   [DeepSeek](https://www.deepseek.com/), [Ollama](https://ollama.com/), or [Anthropic](https://www.anthropic.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
+   [DeepSeek](https://www.deepseek.com/), [Anthropic](https://www.anthropic.com/), or [Ollama](https://ollama.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
 2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers.
-3. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
-4. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-4-20250514`. An `api_key` is required.
+3. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-4-20250514`. An `api_key` is required.
+4. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
 5. Although only four providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 6. You can use option `ai` to list the AI services for particular marketplaces or items.
 

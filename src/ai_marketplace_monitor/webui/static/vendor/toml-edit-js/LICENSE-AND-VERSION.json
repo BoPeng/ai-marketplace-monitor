@@ -1,0 +1,30 @@
+{
+  "name": "@rainbowatcher/toml-edit-js",
+  "type": "module",
+  "version": "0.6.5",
+  "description": "Edit TOML files in JavaScript",
+  "author": "rainbowatcher <rainobw-w@qq.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/rainbowatcher/toml-edit-js#readme",
+  "repository": "https://github.com/rainbowatcher/toml-edit-js",
+  "bugs": "https://github.com/rainbowatcher/toml-edit-js/issues",
+  "keywords": [
+    "wasm",
+    "toml",
+    "edit",
+    "javascript"
+  ],
+  "exports": {
+    ".": "./shims.js",
+    "./index": "./index.js",
+    "./index_bg.wasm": "./index_bg.wasm"
+  },
+  "types": "shims.d.ts",
+  "files": [
+    "index.js",
+    "index_bg.wasm",
+    "index_bg.wasm.d.ts",
+    "shims.d.ts",
+    "shims.js"
+  ]
+}

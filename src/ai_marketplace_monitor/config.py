@@ -23,8 +23,8 @@ supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
     "deepseek": DeepSeekBackend,
     "openai": OpenAIBackend,
-    "ollama": OllamaBackend,
     "anthropic": AnthropicBackend,
+    "ollama": OllamaBackend,
 }
 
 

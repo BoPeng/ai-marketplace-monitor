@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Marketplace Monitor</title>
+  <link rel="stylesheet" href="/static/vendor/codemirror.css" />
+  <link rel="stylesheet" href="/static/vendor/dialog.css" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="icon" href="data:," />
+</head>
+<body>
+  <div id="login-screen" class="login-screen hidden">
+    <form id="login-form" class="login-form">
+      <h1 id="login-title">AI Marketplace Monitor</h1>
+      <p id="login-subtitle" class="subtitle" hidden></p>
+      <label>Username
+        <input type="text" name="username" autocomplete="username" required />
+      </label>
+      <label>Password
+        <input type="password" name="password" autocomplete="current-password" required autofocus />
+      </label>
+      <button type="submit" id="login-submit">Sign in</button>
+      <p id="login-error" class="error" hidden></p>
+    </form>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="header">
+      <div class="header-left">
+        <span class="brand">AI Marketplace Monitor</span>
+        <span id="config-name" class="config-name">—</span>
+      </div>
+      <div class="header-right">
+        <span id="monitor-status" class="status-chip status-warn" title="Last activity from the monitor">● monitor: idle</span>
+        <button id="restart-btn" class="ghost small" title="Wake up and search all items now" aria-label="Wake up and search all items now">▶</button>
+        <button id="logout-btn" class="ghost">Logout</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="editor-pane">
+        <div class="editor-toolbar">
+          <div class="add-dropdown" id="add-dropdown">
+            <button id="add-btn" class="toolbar-btn">+ Add section ▾</button>
+            <div id="add-menu" class="add-menu hidden">
+              <button data-prefix="item">Item to watch</button>
+              <button data-prefix="user">User / notification</button>
+              <button data-prefix="ai">AI backend</button>
+              <button data-prefix="marketplace">Marketplace</button>
+            </div>
+          </div>
+          <div class="toolbar-spacer"></div>
+          <button id="save-btn" class="toolbar-btn save-btn" disabled>Save</button>
+        </div>
+        <div class="editor-with-gutter">
+          <div id="gutter" class="gutter"><div id="gutter-inner" class="gutter-inner"></div></div>
+          <div id="editor-host"></div>
+        </div>
+        <div id="editor-status" class="editor-status"></div>
+      </section>
+
+      <section class="logs-pane">
+        <div class="logs-toolbar">
+          <div class="level-chips">
+            <button data-level="ALL" class="chip active">All</button>
+            <button data-level="INFO" class="chip">Info</button>
+            <button data-level="WARNING" class="chip">Warn</button>
+            <button data-level="ERROR" class="chip">Error</button>
+          </div>
+          <div class="kind-chips">
+            <button data-kind="" class="chip active">Any</button>
+            <button data-kind="ai_eval" class="chip">AI eval</button>
+            <button data-kind="search_summary" class="chip">Searches</button>
+            <button data-kind="listing_skip" class="chip">Skipped</button>
+            <button data-kind="credentials_wait" class="chip">Login</button>
+          </div>
+          <select id="item-filter" title="Filter by item"><option value="">Any item</option></select>
+          <select id="score-filter" title="Minimum score">
+            <option value="">Any score</option>
+            <option value="3">≥ 3</option>
+            <option value="4">≥ 4</option>
+            <option value="5">= 5 (high)</option>
+          </select>
+          <input id="log-filter" type="search" placeholder="Text filter…" />
+          <label class="autoscroll">
+            <input id="autoscroll" type="checkbox" checked /> auto-scroll
+          </label>
+        </div>
+        <div id="logs" class="logs"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="ws-status">● connecting…</span>
+      <span id="mtime"></span>
+    </footer>
+  </div>
+
+  <!-- Section form modal -->
+  <div id="form-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card form-modal-card">
+      <div class="modal-header">
+        <h2 id="form-modal-title">Edit section</h2>
+        <button class="modal-close" id="form-modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="form-modal-hint" class="modal-hint" hidden></p>
+        <form id="section-form" class="section-form" autocomplete="off"></form>
+        <div id="form-error" class="error" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="form-cancel" class="ghost">Cancel</button>
+        <button type="button" id="form-save" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Load the vendored toml-edit-js (Rust→WASM port of toml_edit).
+    Initializes once and exposes parse/edit/stringify on window.tomlEdit
+    so the classic app.js script can call it after init resolves.
+  -->
+  <script type="module">
+    import init, { parse, edit, stringify } from "/static/vendor/toml-edit-js/shims.js";
+    window.tomlEditReady = (async () => {
+      try {
+        await init();
+        window.tomlEdit = { parse, edit, stringify };
+        document.dispatchEvent(new Event("tomlEditReady"));
+      } catch (err) {
+        console.error("toml-edit-js failed to initialize:", err);
+        window.tomlEdit = null;
+        document.dispatchEvent(new Event("tomlEditReady"));
+      }
+    })();
+  </script>
+  <script src="/static/vendor/codemirror.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

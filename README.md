@@ -33,6 +33,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
+- **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/WEBUI.md).
 - **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-4-20250514`) to evaluate listings alongside OpenAI, DeepSeek, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
 - **Configurable Rate Limiting**: Rate limiting framework for all notification types with per-instance and global limits. Telegram notifications use optimized defaults automatically.
 
@@ -70,6 +71,15 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
+
+🖥️ **Web UI**
+
+- Built-in config editor with TOML syntax highlighting
+- Live log streaming and filtering
+- Add, edit, and delete config sections from your browser
+- No password required on localhost
+
+![Web UI](docs/webui_screenshot.png)
 
 🌎 **Location Support**
 
@@ -112,7 +122,7 @@ pushbullet_token = 'your_token_here'  # Get from pushbullet.com
 ai-marketplace-monitor
 ```
 
-The program will open a browser, search Facebook Marketplace, and notify you of matching items.
+The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md).
 
 ## 💡 Example Usage
 
@@ -158,6 +168,7 @@ For detailed information on setup and advanced features, see the comprehensive d
 - **[📱 Usage Guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/usage.html)** - Command-line options and tips
 - **[🔧 Configuration Guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html)** - Notifications, AI prompts, multi-location search
 - **[⚙️ Configuration Reference](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration.html)** - Complete configuration reference
+- **[🖥️ Web UI Guide](docs/webui.md)** - Built-in web interface for config editing and monitoring
 
 ### Key Topics Covered in Documentation
 
@@ -169,7 +180,7 @@ For detailed information on setup and advanced features, see the comprehensive d
 
 **AI Integration:**
 
-- OpenAI, DeepSeek, Ollama setup
+- OpenAI, DeepSeek, Anthropic, Ollama setup
 - Custom prompt configuration
 - Rating thresholds and filtering
 
