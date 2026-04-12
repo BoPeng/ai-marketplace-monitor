@@ -67,7 +67,7 @@ Create a minimal configuration file at ``~/.ai-marketplace-monitor/config.toml``
 Step 4: Add AI Service (Optional but Recommended)
 ------------------------------------------------
 
-Sign up for an AI service like `OpenAI <https://openai.com/>`_ or `DeepSeek <https://www.deepseek.com/>`_ and add to your config:
+Sign up for an AI service like `OpenAI <https://openai.com/>`_, `DeepSeek <https://www.deepseek.com/>`_, or `Anthropic <https://www.anthropic.com/>`_ and add to your config:
 
 .. code-block:: toml
 
