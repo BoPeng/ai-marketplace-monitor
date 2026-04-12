@@ -128,31 +128,18 @@
   });
 
   // ---------------------------------------------------------------
-  // Editor (textarea + highlight overlay rendered in footer status)
+  // Editor — CodeMirror 5 with TOML syntax highlighting
   // ---------------------------------------------------------------
   const editorHost = $("#editor-host");
-  const textarea = document.createElement("textarea");
-  textarea.className = "aimm-editor";
-  textarea.spellcheck = false;
-  textarea.autocapitalize = "off";
-  textarea.autocomplete = "off";
-  editorHost.appendChild(textarea);
 
-  // Lightweight TOML highlighter — renders to a <pre> that mirrors the
-  // textarea below it. Because vanilla textareas don't support inline
-  // styling, we overlay a highlighted <pre> using a transparent textarea
-  // on top. For simplicity and to keep the code reviewable, this build
-  // ships the textarea as-is and uses class hints in error reporting.
-  // To upgrade to full overlay highlighting, replace this comment with
-  // the overlay implementation — the state/save/validate code does not
-  // need to change.
-
+  // Thin wrapper so the rest of the code uses editor.getValue() / editor.setValue()
+  // regardless of whether CodeMirror loaded successfully.
+  let editor;
   let validateTimer = null;
-  textarea.addEventListener("input", () => {
-    state.currentContent = textarea.value;
+  const onEditorChange = () => {
+    state.currentContent = editor.getValue();
     const dirty = state.currentContent !== state.originalContent;
     $("#save-btn").disabled = !dirty;
-    // Debounced auto-validate — runs 400ms after the last keystroke.
     if (validateTimer) clearTimeout(validateTimer);
     if (dirty) {
       setEditorStatus("typing…");
@@ -161,21 +148,49 @@
         validateConfig();
       }, 400);
     }
-  });
+  };
 
-  textarea.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      saveConfig();
-    }
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const { selectionStart: s, selectionEnd: eEnd } = textarea;
-      textarea.value = textarea.value.slice(0, s) + "  " + textarea.value.slice(eEnd);
-      textarea.selectionStart = textarea.selectionEnd = s + 2;
-      textarea.dispatchEvent(new Event("input"));
-    }
-  });
+  if (window.CodeMirror) {
+    editor = CodeMirror(editorHost, {
+      mode: "toml",
+      theme: "default",
+      lineNumbers: true,
+      indentUnit: 2,
+      tabSize: 2,
+      indentWithTabs: false,
+      lineWrapping: false,
+      extraKeys: {
+        "Cmd-S": () => saveConfig(),
+        "Ctrl-S": () => saveConfig(),
+        Tab: (cm) => cm.replaceSelection("  ", "end"),
+      },
+    });
+    editor.on("change", onEditorChange);
+    // Expose a uniform API.
+    editor.getValue = editor.getValue.bind(editor);
+    editor.setValue = editor.setValue.bind(editor);
+    editor.getScrollInfo = editor.getScrollInfo.bind(editor);
+  } else {
+    // Fallback: plain textarea if CodeMirror failed to load.
+    const textarea = document.createElement("textarea");
+    textarea.className = "aimm-editor";
+    textarea.spellcheck = false;
+    editorHost.appendChild(textarea);
+    editor = {
+      getValue: () => textarea.value,
+      setValue: (v) => { textarea.value = v; },
+      getScrollInfo: () => ({ top: textarea.scrollTop }),
+      on: () => {},
+      refresh: () => {},
+    };
+    textarea.addEventListener("input", onEditorChange);
+    textarea.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        saveConfig();
+      }
+    });
+  }
 
   // ---------------------------------------------------------------
   // Config load / save / validate
@@ -198,7 +213,7 @@
     state.originalContent = res.content;
     state.currentContent = res.content;
     state.baseMtime = res.mtime;
-    textarea.value = res.content;
+    editor.setValue(res.content);
     // Prefer the server-provided sections list, but fall back to a
     // client-side scan if the server didn't include one (e.g. user is
     // running an older aimm that hasn't been restarted yet).
@@ -605,22 +620,24 @@
     });
   };
 
-  // Sync gutter scroll position with the textarea.
+  // Sync gutter scroll position with the editor.
   const syncGutter = () => {
     const inner = $("#gutter-inner");
-    if (inner) inner.style.transform = `translateY(${-textarea.scrollTop}px)`;
+    if (inner) inner.style.transform = `translateY(${-editor.getScrollInfo().top}px)`;
   };
-  textarea.addEventListener("scroll", syncGutter, { passive: true });
+  if (editor.on) {
+    editor.on("scroll", syncGutter);
+    editor.on("change", () => {
+      if (refreshSectionsFromBuffer._t) clearTimeout(refreshSectionsFromBuffer._t);
+      refreshSectionsFromBuffer._t = setTimeout(refreshSectionsFromBuffer, 150);
+    });
+  }
 
   // Re-scan sections from the buffer after edits (debounced).
   const refreshSectionsFromBuffer = () => {
-    state.sections = scanSectionsClient(textarea.value);
+    state.sections = scanSectionsClient(editor.getValue());
     renderGutter();
   };
-  textarea.addEventListener("input", () => {
-    if (refreshSectionsFromBuffer._t) clearTimeout(refreshSectionsFromBuffer._t);
-    refreshSectionsFromBuffer._t = setTimeout(refreshSectionsFromBuffer, 150);
-  });
 
   // -------- Popover menu (Edit / Delete / Add another) --------
 
@@ -684,7 +701,7 @@
   // -------- Delete section (pure client-side string op) --------
 
   const deleteSection = (section) => {
-    const lines = textarea.value.split("\n");
+    const lines = editor.getValue().split("\n");
     let start = section.line_start;
     let end = section.line_end; // exclusive
 
@@ -702,7 +719,7 @@
       start--;
     }
     const next = lines.slice(0, start).concat(lines.slice(end)).join("\n");
-    textarea.value = next;
+    editor.setValue(next);
     state.currentContent = next;
     const dirty = state.currentContent !== state.originalContent;
     $("#save-btn").disabled = !dirty;
@@ -1341,7 +1358,7 @@
         buffer = buffer.replace(/\n*$/, "") + "\n\n" + block;
       }
 
-      textarea.value = buffer;
+      editor.setValue(buffer);
       state.currentContent = buffer;
       const dirty = state.currentContent !== state.originalContent;
       $("#save-btn").disabled = !dirty;
@@ -1397,7 +1414,7 @@
       } else {
         buffer = buffer.replace(/\n*$/, "") + "\n\n" + block;
       }
-      textarea.value = buffer;
+      editor.setValue(buffer);
       state.currentContent = buffer;
     } else {
       // No rename — patch fields in place via tomlEdit.edit().
@@ -1426,7 +1443,7 @@
         $("#form-error").hidden = false;
         return;
       }
-      textarea.value = buffer;
+      editor.setValue(buffer);
       state.currentContent = buffer;
     }
 
@@ -1581,6 +1598,9 @@
   const bootstrap = async () => {
     try {
       await loadConfig();
+      // CodeMirror needs a refresh after becoming visible (the editor
+      // host is hidden during the login screen).
+      if (editor.refresh) editor.refresh();
       await loadLogs();
       connectWs();
     } catch (err) {

@@ -489,6 +489,7 @@ html, body {
 .modal-footer button.primary:hover { background: var(--accent-dim); }
 .modal-footer button:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Fallback textarea (used when CodeMirror fails to load) */
 .aimm-editor {
   width: 100%;
   height: 100%;
@@ -504,6 +505,31 @@ html, body {
   white-space: pre;
   tab-size: 2;
 }
+/* CodeMirror 5 integration */
+.CodeMirror {
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.CodeMirror-gutters {
+  background: var(--bg-elev);
+  border-right: 1px solid var(--border);
+}
+.CodeMirror-linenumber {
+  color: var(--text-dim);
+}
+.CodeMirror-cursor { border-left-color: var(--text); }
+.CodeMirror-selected { background: rgba(100, 150, 255, 0.2); }
+/* TOML syntax tokens */
+.cm-s-default .cm-atom   { color: #d19a66; }  /* booleans */
+.cm-s-default .cm-number  { color: #d19a66; }
+.cm-s-default .cm-string  { color: #98c379; }
+.cm-s-default .cm-comment { color: #7f848e; font-style: italic; }
+.cm-s-default .cm-meta    { color: #61afef; font-weight: 600; }  /* [section.headers] */
+.cm-s-default .cm-property { color: #e06c75; }  /* keys */
 .editor-status {
   border-top: 1px solid var(--border);
   padding: 6px 12px;
