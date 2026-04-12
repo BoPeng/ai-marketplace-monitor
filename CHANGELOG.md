@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Anthropic/Claude as an AI backend provider with support for Claude models (default: `claude-sonnet-4-20250514`)
+- [issue 235](https://github.com/BoPeng/ai-marketplace-monitor/issues/235) Configurable rate limiting framework for all notification types
+  - Rate limiting infrastructure moved from Telegram-specific to base notification class
+  - Automatic rate limiting for Telegram with intelligent chat type detection (1.1s individual, 3.0s group)
+  - Configurable instance-level and global rate limiting for all notification methods
+  - Opt-in rate limiting for email, PushBullet, PushOver, and other notification types
+  - Comprehensive test coverage for rate limiting behavior
+
+## [0.9.12]
+
+- [Issue 289](https://github.com/BoPeng/ai-marketplace-monitor/issues/289). Fix 30s timeout delay in get_seller for anonymous mode.
+- Change release workflow trigger from tag push to release creation.
+
 ## [0.9.11]
 
 - [Issue 264](https://github.com/BoPeng/ai-marketplace-monitor/pull/264). Support different browsers.

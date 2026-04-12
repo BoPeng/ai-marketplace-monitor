@@ -31,8 +31,14 @@ https://facebook.com/marketplace/item/1234567890
 AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger.
 ```
 
+## What's New
+
+- **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-4-20250514`) to evaluate listings alongside OpenAI, DeepSeek, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
+- **Configurable Rate Limiting**: Rate limiting framework for all notification types with per-instance and global limits. Telegram notifications use optimized defaults automatically.
+
 **Table of Contents:**
 
+- [What's New](#whats-new)
 - [✨ Key Features](#-key-features)
 - [🚀 Quick Start](#-quick-start)
 - [💡 Example Usage](#-example-usage)

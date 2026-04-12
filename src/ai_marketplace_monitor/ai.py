@@ -18,6 +18,7 @@ class AIServiceProvider(Enum):
     OPENAI = "OpenAI"
     DEEPSEEK = "DeepSeek"
     OLLAMA = "Ollama"
+    ANTHROPIC = "Anthropic"
 
 
 @dataclass
@@ -148,6 +149,13 @@ class OllamaConfig(OpenAIConfig):
             raise ValueError("Ollama requires a string model.")
 
 
+@dataclass
+class AnthropicConfig(AIConfig):
+    def handle_api_key(self: "AnthropicConfig") -> None:
+        if self.api_key is None:
+            raise ValueError("Anthropic requires a string api_key.")
+
+
 TAIConfig = TypeVar("TAIConfig", bound=AIConfig)
 
 
@@ -155,7 +163,7 @@ class AIBackend(Generic[TAIConfig]):
     def __init__(self: "AIBackend", config: AIConfig, logger: Logger | None = None) -> None:
         self.config = config
         self.logger = logger
-        self.client: OpenAI | None = None
+        self.client: Any = None
 
     @classmethod
     def get_config(cls: Type["AIBackend"], **kwargs: Any) -> TAIConfig:
@@ -366,3 +374,99 @@ class OllamaBackend(OpenAIBackend):
     @classmethod
     def get_config(cls: Type["OllamaBackend"], **kwargs: Any) -> OllamaConfig:
         return OllamaConfig(**kwargs)
+
+
+class AnthropicBackend(AIBackend):
+    default_model = "claude-sonnet-4-20250514"
+
+    @classmethod
+    def get_config(cls: Type["AnthropicBackend"], **kwargs: Any) -> AnthropicConfig:
+        return AnthropicConfig(**kwargs)
+
+    def connect(self: "AnthropicBackend") -> None:
+        if self.client is None:
+            import anthropic  # type: ignore
+
+            self.client = anthropic.Anthropic(
+                api_key=self.config.api_key,
+                timeout=self.config.timeout,
+            )
+            if self.logger:
+                self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
+
+    def evaluate(
+        self: "AnthropicBackend",
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+    ) -> AIResponse:
+        counter.increment(CounterItem.AI_QUERY, item_config.name)
+        prompt = self.get_prompt(listing, item_config, marketplace_config)
+        res: AIResponse | None = AIResponse.from_cache(listing, item_config, marketplace_config)
+        if res is not None:
+            if self.logger:
+                self.logger.debug(
+                    f"""{hilight("[AI]", res.style)} {self.config.name} previously concluded {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                )
+            return res
+
+        self.connect()
+
+        retries = 0
+        while retries < self.config.max_retries:
+            self.connect()
+            assert self.client is not None
+            try:
+                response = self.client.messages.create(
+                    model=self.config.model or self.default_model,
+                    max_tokens=1024,
+                    system="You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
+                    messages=[
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+                break
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
+                    )
+                retries += 1
+                self.client = None
+                time.sleep(5)
+
+        if self.logger:
+            self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
+
+        answer = response.content[0].text if response.content else ""
+        if (
+            answer is None
+            or not answer.strip()
+            or re.search(r"Rating[^1-5]*[1-5]", answer, re.DOTALL) is None
+        ):
+            counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
+            raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
+
+        lines = answer.split("\n")
+        score: int = 1
+        comment = ""
+        rating_line = None
+        for idx, line in enumerate(lines):
+            matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
+            if matched:
+                score = int(matched.group(1))
+                comment = matched.group(2).strip()
+                rating_line = idx
+                continue
+            if rating_line is not None:
+                comment += " " + line
+        if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
+            comment = lines[rating_line - 1]
+
+        comment = " ".join([x for x in comment.split() if x.strip()]).strip()
+        res = AIResponse(name=self.config.name, score=score, comment=comment)
+        res.to_cache(listing, item_config, marketplace_config)
+        counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
+        return res

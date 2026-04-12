@@ -33,7 +33,7 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### AI Services
 
-One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]` or `[ai.deepseek]`, and have the following keys:
+One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]`, `[ai.deepseek]`, or `[ai.anthropic]`, and have the following keys:
 
 | Option        | Requirement | DataType | Description                                                |
 | ------------- | ----------- | -------- | ---------------------------------------------------------- |
@@ -47,17 +47,25 @@ One of more sections to list the AI agent that can be used to judge if listings 
 Note that:
 
 1. `provider` can be [OpenAI](https://openai.com/),
-   [DeepSeek](https://www.deepseek.com/), or [Ollama](https://ollama.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
+   [DeepSeek](https://www.deepseek.com/), [Ollama](https://ollama.com/), or [Anthropic](https://www.anthropic.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
 2. [OpenAI](https://openai.com/) and [DeepSeek](https://www.deepseek.com/) models sets default `base_url` and `model` for these providers.
 3. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
-4. Although only three providers are supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
-5. You can use option `ai` to list the AI services for particular marketplaces or items.
+4. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-4-20250514`. An `api_key` is required.
+5. Although only four providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
+6. You can use option `ai` to list the AI services for particular marketplaces or items.
 
 A typical section for OpenAI looks like
 
 ```toml
 [ai.openai]
 api_key = 'sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+A typical section for Anthropic looks like
+
+```toml
+[ai.anthropic]
+api_key = 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
 ### Marketplaces
@@ -156,16 +164,35 @@ pushbullet_token = "yyyyyyyyyyyyyyyy"
 
 #### Common Notification settings
 
-| Option             | Requirement | DataType        | Description                                                                                                                      |
-| ------------------ | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `max_retries`      | Optional    | Integer         | Number of attempts to retry a notification. Defaults to `5`.                                                                     |
-| `retry_delay`      | Optional    | Integer         | Time in seconds to wait between retry attempts. Defaults to `60`.                                                                |
-| `with_description` | Optional    | Boolean/Integer | Whether or not include description of listings. If a number is given, the description will be truncated to the specified length. |
+| Option                  | Requirement | DataType        | Description                                                                                                                      |
+| ----------------------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `max_retries`           | Optional    | Integer         | Number of attempts to retry a notification. Defaults to `5`.                                                                     |
+| `retry_delay`           | Optional    | Integer         | Time in seconds to wait between retry attempts. Defaults to `60`.                                                                |
+| `with_description`      | Optional    | Boolean/Integer | Whether or not include description of listings. If a number is given, the description will be truncated to the specified length. |
+| `rate_limit_enabled`    | Optional    | Boolean         | Enable rate limiting for this notification method. Defaults to `false` (except Telegram which defaults to `true`).              |
+| `instance_rate_limit`   | Optional    | Integer         | Minimum seconds between messages for this specific configuration instance. Defaults to `1`.                                      |
+| `global_rate_limit`     | Optional    | Integer         | Maximum messages per second across all notification instances (sliding window). Defaults to `10` (`30` for Telegram).            |
 
 Note that
 
 1. These settings are shared across all notification methods. For example, if you are notifying with `notify_with=['gmail', 'pushbullet']`, the same `max_retries` and `retry_delay` will apply to both methods.
-2. Support for `with_description` vary across notification methods due to their own limitations and strenght. For example, email notification will always include description.
+2. Support for `with_description` vary across notification methods due to their own limitations and strength. For example, email notification will always include description.
+3. Rate limiting prevents API violations by controlling message frequency. When enabled, the system waits for the longer of `instance_rate_limit` or `global_rate_limit` before sending each message. Telegram automatically enables rate limiting with optimized defaults for individual (1.1s) and group chats (3.0s).
+
+#### Telegram notification
+
+| Option             | Requirement | DataType | Description                                    |
+| ------------------ | ----------- | -------- | ---------------------------------------------- |
+| `telegram_token`   | Required    | String   | Bot token obtained from @BotFather.           |
+| `telegram_chat_id` | Required    | String   | Chat ID for receiving notifications.           |
+
+Note that
+
+1. **Automatic Rate Limiting**: Telegram notifications automatically enable rate limiting (`rate_limit_enabled = true`) with intelligent defaults based on chat type.
+2. **Smart Chat Detection**: The system automatically detects individual chats (positive chat IDs) vs group chats (negative chat IDs) and applies appropriate rate limits.
+3. **Optimized Limits**: Individual chats use 1.1 seconds between messages, group chats use 3.0 seconds, with a global limit of 30 seconds across all Telegram instances.
+4. **HTTP 429 Handling**: Built-in retry logic with exponential backoff for Telegram API rate limit responses.
+5. **Message Splitting**: Long messages are automatically split while preserving MarkdownV2 formatting.
 
 #### Pushbullet notification
 

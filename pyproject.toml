@@ -1,7 +1,7 @@
 [project]
 readme = "README.md"
 name = "ai-marketplace-monitor"
-version = "0.9.11"
+version = "0.9.12"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = [{ name = "Bo Peng", email = "ben.bob@gmail.com" }]
 requires-python = ">=3.10"
@@ -24,6 +24,7 @@ dependencies = [
   "diskcache>=5.6.3",
   "watchdog>=4.0.0",
   "openai>=1.24.0",
+  "anthropic>=0.39.0",
   "parsedatetime>=2.5",
   "humanize>=4.0.0",
   "schedule>=1.2.2",
