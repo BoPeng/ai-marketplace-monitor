@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1]
+
+### Added
+- Built-in web UI for config editing and live monitoring (FastAPI + CodeMirror)
+- TOML syntax highlighting in config editor
+- Live log streaming with filtering by level, item, AI score, and text
+- Guided forms for adding/editing AI backends, items, users, and marketplaces
+- `--webui-host` and `--webui-port` CLI options for remote access
+- No password required on localhost; credentials required for remote access
+- `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD` environment variable fallback for credentials
+- Graceful handling of missing `${ENV_VAR}` references (warning instead of error)
+
 ## [0.10.0]
 
 ### Added
