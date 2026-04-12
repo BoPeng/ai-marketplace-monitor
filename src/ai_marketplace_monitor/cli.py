@@ -24,9 +24,9 @@ _DEFAULT_CONFIG_TEMPLATE = '''\
 # Created automatically on first run. Edit in the web UI (or any
 # editor) and save — the monitor picks up changes within a second.
 #
-# Web UI authentication: if [marketplace.facebook] has both `username`
-# and `password` set, the web UI requires those credentials to log in.
-# Otherwise the web UI starts in first-run setup mode.
+# The web UI requires no password on localhost (127.0.0.1). To expose
+# it on a network interface (--webui-host), set username and password
+# below or via FACEBOOK_USERNAME / FACEBOOK_PASSWORD env vars.
 #
 # See https://ai-marketplace-monitor.readthedocs.io/ for a full reference.
 
