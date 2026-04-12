@@ -1038,18 +1038,12 @@
 
     // ---- AI backend form ----
     "ai.*": [
-      { key: "provider", label: "Provider", type: "select", required: true,
-        options: [
-          { value: "openai", label: "OpenAI" },
-          { value: "deepseek", label: "DeepSeek" },
-          { value: "ollama", label: "Ollama" },
-          { value: "anthropic", label: "Anthropic" },
-        ],
-        help: "AI service provider." },
       { key: "api_key", label: "API key", type: "password", required: true,
         help: "Required for OpenAI, DeepSeek, and Anthropic. For Ollama, use 'ollama'." },
       { key: "model", label: "Model", type: "text",
         help: "e.g. 'gpt-4o', 'deepseek-chat', 'deepseek-r1:14b', 'claude-sonnet-4-20250514'" },
+      { key: "provider", label: "Provider override", type: "text", advanced: true,
+        help: "Override the provider (auto-detected from section name). Only needed for custom OpenAI-compatible endpoints." },
       { key: "base_url", label: "Base URL", type: "text", advanced: true,
         help: "Custom API endpoint. Required for Ollama (e.g. http://localhost:11434/v1)." },
       { key: "timeout", label: "Timeout (seconds)", type: "number", advanced: true },
@@ -1097,21 +1091,42 @@
     // the current suffix (editable for rename); in add/duplicate mode
     // it shows the suggested new name.
     const currentPrefix = formContext.addMode ? formContext.addPrefix : formContext.sectionName.split(".")[0];
-    // For AI sections the name is derived from the provider selection.
+    // For AI sections, show a dropdown of known providers instead of a
+    // free-text name input.
     const aiAutoName = currentPrefix === "ai";
     const nameWrapper = document.createElement("div");
     nameWrapper.className = "form-field";
     const currentSuffix = formContext.nameValue ??
       (formContext.addMode ? "" : (formContext.sectionName.split(".").slice(1).join(".") || formContext.sectionName));
-    nameWrapper.innerHTML =
-      `<label class="form-label">Section name <span class="required">*</span></label>` +
-      `<input type="text" id="add-section-name" value="${esc(currentSuffix)}" ` +
-      `placeholder="e.g. gopro, openai, me" ${aiAutoName ? 'readonly style="opacity:0.6;cursor:not-allowed"' : ""} />` +
-      `<p class="form-help">[${esc(currentPrefix)}.<em>name</em>]` +
-      `${aiAutoName ? " — set automatically from provider" : ""}</p>`;
-    // Track changes so tab switches preserve the typed name.
-    const nameInput = nameWrapper.querySelector("input");
-    nameInput.addEventListener("input", () => { formContext.nameValue = nameInput.value; });
+    if (aiAutoName) {
+      const aiProviders = [
+        { value: "openai", label: "OpenAI" },
+        { value: "deepseek", label: "DeepSeek" },
+        { value: "ollama", label: "Ollama" },
+        { value: "anthropic", label: "Anthropic" },
+      ];
+      const opts = aiProviders.map((p) =>
+        `<option value="${p.value}" ${currentSuffix === p.value ? "selected" : ""}>${p.label}</option>`
+      ).join("");
+      nameWrapper.innerHTML =
+        `<label class="form-label">AI Provider <span class="required">*</span></label>` +
+        `<select id="add-section-name">${opts}</select>` +
+        `<p class="form-help">[ai.<em>provider</em>]</p>`;
+      const nameSelect = nameWrapper.querySelector("select");
+      nameSelect.addEventListener("change", () => { formContext.nameValue = nameSelect.value; });
+      // Set initial value.
+      if (!currentSuffix) {
+        formContext.nameValue = nameSelect.value;
+      }
+    } else {
+      nameWrapper.innerHTML =
+        `<label class="form-label">Section name <span class="required">*</span></label>` +
+        `<input type="text" id="add-section-name" value="${esc(currentSuffix)}" ` +
+        `placeholder="e.g. gopro, me" />` +
+        `<p class="form-help">[${esc(currentPrefix)}.<em>name</em>]</p>`;
+      const nameInput = nameWrapper.querySelector("input");
+      nameInput.addEventListener("input", () => { formContext.nameValue = nameInput.value; });
+    }
     form.appendChild(nameWrapper);
 
     const hasColumns = schema.some((f) => f.column);
@@ -1261,20 +1276,6 @@
       form.appendChild(wrapper);
     });
 
-    // For AI sections, sync the provider dropdown → section name.
-    if (aiAutoName) {
-      const providerSelect = form.querySelector('[data-key="provider"]');
-      const nameInput = $("#add-section-name");
-      if (providerSelect && nameInput) {
-        const syncName = () => {
-          nameInput.value = providerSelect.value;
-          formContext.nameValue = providerSelect.value;
-        };
-        providerSelect.addEventListener("change", syncName);
-        // Set initial value if provider already has a selection.
-        if (providerSelect.value) syncName();
-      }
-    }
   };
 
   // Collect form field values into a {key: coerced_value} dict.
