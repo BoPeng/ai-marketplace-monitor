@@ -1038,8 +1038,8 @@
 
     // ---- AI backend form ----
     "ai.*": [
-      { key: "api_key", label: "API key", type: "password", required: true,
-        help: "Required for OpenAI, DeepSeek, and Anthropic. For Ollama, use 'ollama'." },
+      { key: "api_key", label: "API key", type: "password",
+        help: "If left blank, the env var for the provider is used (e.g. ${OPENAI_API_KEY}, ${ANTHROPIC_API_KEY}, ${DEEPSEEK_API_KEY})." },
       { key: "model", label: "Model", type: "text",
         help: "e.g. 'gpt-4o', 'deepseek-chat', 'deepseek-r1:14b', 'claude-sonnet-4-20250514'" },
       { key: "provider", label: "Provider override", type: "text", advanced: true,
