@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import shutil
 import time
 from pathlib import Path
 
 import pytest
 
 from ai_marketplace_monitor.webui.config_api import ConfigFileService, scan_sections
-
 
 SAMPLE_CONFIG = """
 [marketplace.facebook]
@@ -31,7 +29,7 @@ def config_file(tmp_path: Path) -> Path:
     return f
 
 
-def test_scan_sections_basic():
+def test_scan_sections_basic() -> None:
     content = (
         '[marketplace.facebook]\n'
         'username = "u"\n'
@@ -55,7 +53,7 @@ def test_scan_sections_basic():
     assert sections[-1].line_end == len(content.splitlines())
 
 
-def test_scan_sections_handles_single_segment_name():
+def test_scan_sections_handles_single_segment_name() -> None:
     content = '[monitor]\nproxy_server = "x"\n'
     sections = scan_sections(content)
     assert len(sections) == 1
@@ -64,19 +62,19 @@ def test_scan_sections_handles_single_segment_name():
     assert sections[0].suffix == ""
 
 
-def test_scan_sections_empty_file():
+def test_scan_sections_empty_file() -> None:
     assert scan_sections("") == []
     assert scan_sections("# just a comment\n") == []
 
 
-def test_scan_sections_malformed_still_works():
+def test_scan_sections_malformed_still_works() -> None:
     # Garbage between sections doesn't break the scan.
     content = '[a.b]\nthis is not = = valid\n[c.d]\n'
     sections = scan_sections(content)
     assert [s.name for s in sections] == ["a.b", "c.d"]
 
 
-def test_list_files_returns_editable(config_file: Path):
+def test_list_files_returns_editable(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     files = svc.list_files()
     assert len(files) == 1
@@ -84,27 +82,27 @@ def test_list_files_returns_editable(config_file: Path):
     assert Path(files[0].path) == config_file
 
 
-def test_read_returns_content_and_mtime(config_file: Path):
+def test_read_returns_content_and_mtime(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     content, mtime = svc.read("primary")
     assert "[item.iphone]" in content
     assert mtime > 0
 
 
-def test_read_unknown_id_raises(config_file: Path):
+def test_read_unknown_id_raises(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     with pytest.raises(KeyError):
         svc.read("other")
 
 
-def test_validate_rejects_garbage_toml(config_file: Path):
+def test_validate_rejects_garbage_toml(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     ok, error = svc.validate("this is not = = toml")
     assert ok is False
     assert error is not None
 
 
-def test_write_rejects_invalid_and_leaves_file_untouched(config_file: Path):
+def test_write_rejects_invalid_and_leaves_file_untouched(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     original = config_file.read_text(encoding="utf-8")
     _, ok, error = svc.write("primary", "not = = toml", base_mtime=None)
@@ -113,7 +111,7 @@ def test_write_rejects_invalid_and_leaves_file_untouched(config_file: Path):
     assert config_file.read_text(encoding="utf-8") == original
 
 
-def test_write_mtime_conflict(config_file: Path):
+def test_write_mtime_conflict(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     _, stale = svc.read("primary")
     # Simulate an external edit.
@@ -124,8 +122,10 @@ def test_write_mtime_conflict(config_file: Path):
     assert error and "conflict" in error
 
 
-def test_validate_accepts_incomplete_template(config_file: Path):
-    """The default template seeded on first run contains no real
+def test_validate_accepts_incomplete_template(config_file: Path) -> None:
+    """Validate the default first-run template without raising.
+
+    The default template seeded on first run contains no real
     credentials. It's intentionally invalid until the user fills it in.
     Validation should return the error clearly rather than raising.
     """
@@ -140,9 +140,8 @@ def test_validate_accepts_incomplete_template(config_file: Path):
         assert error
 
 
-def test_write_success_updates_file(config_file: Path):
+def test_write_success_updates_file(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
-    new_content = SAMPLE_CONFIG + '\n[item.ipad]\nsearch_phrases = "ipad pro"\n'
     _, mtime = svc.read("primary")
     # SAMPLE_CONFIG has a username so read() returns redacted content.
     # Start from the redacted version to mimic what the browser sends.
@@ -157,7 +156,7 @@ def test_write_success_updates_file(config_file: Path):
     assert new_mtime >= mtime
 
 
-def test_read_returns_redacted_content(config_file: Path):
+def test_read_returns_redacted_content(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     content, _ = svc.read("primary")
     # SAMPLE_CONFIG has username = "user@example.com" which is sensitive.
@@ -165,8 +164,10 @@ def test_read_returns_redacted_content(config_file: Path):
     assert "<REDACTED>" in content
 
 
-def test_write_rejects_invalid_after_restore(config_file: Path):
-    """Masks must be restored before validation, so a user saving just
+def test_write_rejects_invalid_after_restore(config_file: Path) -> None:
+    """Unchanged redacted content round-trips cleanly after restore.
+
+    Masks must be restored before validation, so a user saving just
     the mask shouldn't accidentally write garbage.
     """
     svc = ConfigFileService([config_file])
@@ -179,7 +180,7 @@ def test_write_rejects_invalid_after_restore(config_file: Path):
     assert "user@example.com" in on_disk
 
 
-def test_write_new_secret_over_mask(config_file: Path):
+def test_write_new_secret_over_mask(config_file: Path) -> None:
     svc = ConfigFileService([config_file])
     _, mtime = svc.read("primary")
     redacted, _ = svc.read("primary")

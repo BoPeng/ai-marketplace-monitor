@@ -47,6 +47,7 @@ class SectionInfo:
     fields: Dict[str, Any] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
+        """Initialize fields to empty dict if not provided."""
         if self.fields is None:
             self.fields = {}
 
@@ -55,8 +56,7 @@ _SECTION_HEADER_RE = re.compile(r"^\s*\[([^\]\n]+)\]\s*$")
 
 
 def _parse_fields(content: str) -> Dict[str, Dict[str, Any]]:
-    """Parse the TOML content via tomllib and return a flat mapping of
-    dotted-section-names to {key: value} dicts.
+    """Parse TOML content into a flat mapping of section names to fields.
 
     Best-effort: if parsing fails (malformed TOML mid-edit), returns {}.
     """

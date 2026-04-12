@@ -6,8 +6,6 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from ai_marketplace_monitor.webui.config_auth import extract_credentials
 
 

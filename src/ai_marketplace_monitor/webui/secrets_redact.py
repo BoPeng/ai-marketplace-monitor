@@ -103,8 +103,9 @@ def redact(content: str) -> Tuple[str, SecretMap]:
 
 
 def restore(content: str, secrets: SecretMap) -> str:
-    """Replace any ``<REDACTED>`` mask for a known (section, key) with
-    its real value. Unknown masks and non-sensitive keys pass through.
+    """Restore redacted masks to their real values.
+
+    Unknown masks and non-sensitive keys pass through unchanged.
     """
     if not secrets:
         return content

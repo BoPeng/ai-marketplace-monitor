@@ -14,15 +14,11 @@ import secrets
 import socket
 import threading
 import time
-
-# Ensure the vendored toml-edit-js WASM bundle is served with the right
-# Content-Type. Python's mimetypes module learned .wasm in 3.10 but
-# explicit registration is safer across patch versions.
-mimetypes.add_type("application/wasm", ".wasm")
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List
 
+import uvicorn
 from fastapi import (
     Cookie,
     Depends,
@@ -36,8 +32,6 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-import uvicorn
 
 from .auth import (
     CSRF_COOKIE,
@@ -54,6 +48,10 @@ from .config_api import ConfigFileService
 from .config_auth import extract_credentials
 from .log_handler import LogBroadcastHandler
 
+# Ensure the vendored toml-edit-js WASM bundle is served with the right
+# Content-Type. Python's mimetypes module learned .wasm in 3.10 but
+# explicit registration is safer across patch versions.
+mimetypes.add_type("application/wasm", ".wasm")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -143,7 +141,7 @@ def _set_session_cookies(response: Response, token: str, csrf: str) -> None:
 def _enumerate_urls(host: str, port: int) -> List[str]:
     if host in ("127.0.0.1", "localhost", "::1"):
         return [f"http://127.0.0.1:{port}"]
-    if host in ("0.0.0.0", "::"):
+    if host in ("0.0.0.0", "::"):  # noqa: S104 — intentional bind-all
         # Enumerate local interface addresses so the user sees every reachable URL.
         urls = [f"http://127.0.0.1:{port}"]
         try:
@@ -218,9 +216,7 @@ def create_app(
 
     @app.get("/api/auth/info")
     async def auth_info() -> Dict[str, Any]:
-        """Unauthenticated — the frontend calls this to decide whether
-        to show the login form or go straight to the app.
-        """
+        """Return auth mode info for the frontend login screen."""
         return {
             "open": is_open(),
             "username_hint": state.auth.username if state.auth else None,
@@ -281,7 +277,7 @@ def create_app(
         try:
             content, mtime = config_service.read(file_id)
         except KeyError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=404, detail=str(e)) from None
         from .config_api import scan_sections
         from .secrets_redact import MASK, has_mask
 
@@ -320,7 +316,7 @@ def create_app(
                 file_id, content, base_mtime if isinstance(base_mtime, (int, float)) else None
             )
         except KeyError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=404, detail=str(e)) from None
         if not ok:
             status_code = 409 if error and "conflict" in error else 400
             return JSONResponse(
@@ -346,16 +342,19 @@ def create_app(
         _: str = Depends(require_session),
         __: None = Depends(require_csrf),
     ) -> Dict[str, Any]:
-        """Wake the monitor by touching the config file. The file watcher
-        interrupts the monitor's doze() sleep, causing it to reload the
-        config and run all scheduled searches immediately.
+        """Wake the monitor by touching the config file.
+
+        The file watcher interrupts the monitor's doze() sleep, causing
+        it to reload the config and run all scheduled searches immediately.
         """
         try:
             path = config_service.editable_path
             path.touch()
             return {"ok": True, "message": "Monitor woken — searching all items now."}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to touch config: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to touch config: {e}"
+            ) from e
 
     @app.get("/api/logs")
     async def get_logs(
@@ -401,7 +400,7 @@ def create_app(
                 await websocket.send_json({"type": "log", "record": payload})
         except WebSocketDisconnect:
             pass
-        except Exception:
+        except Exception:  # noqa: S110 — client disconnected; nothing to handle
             pass
         finally:
             log_handler.unsubscribe(queue)

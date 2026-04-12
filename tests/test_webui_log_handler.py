@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import pytest
-
 from ai_marketplace_monitor.webui.log_handler import (
     LogBroadcastHandler,
     _clean,

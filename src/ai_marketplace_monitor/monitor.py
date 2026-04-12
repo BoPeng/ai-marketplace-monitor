@@ -470,9 +470,10 @@ class MarketplaceMonitor:
         return True
 
     def _wait_for_marketplace_credentials(self: "MarketplaceMonitor") -> None:
-        """Block until config has marketplace credentials, reloading the
-        config whenever the file changes on disk. No-op if credentials
-        are already present.
+        """Block until config has marketplace credentials.
+
+        Reloads the config whenever the file changes on disk.
+        No-op if credentials are already present.
         """
         assert self.config is not None
         while not self._has_marketplace_credentials():

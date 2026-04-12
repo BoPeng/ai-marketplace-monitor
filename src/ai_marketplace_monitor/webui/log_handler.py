@@ -54,8 +54,10 @@ def _clean(text: str) -> str:
 
 
 class LogBroadcastHandler(logging.Handler):
-    """Logging handler that retains a ring buffer and fans records out to
-    registered asyncio queues on another loop.
+    """Logging handler with ring buffer and asyncio fan-out.
+
+    Retains a ring buffer and fans records out to registered asyncio
+    queues on another loop.
     """
 
     def __init__(self, capacity: int = 2000) -> None:

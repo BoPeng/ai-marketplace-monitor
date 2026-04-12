@@ -33,9 +33,10 @@ class ExtractedCredentials:
 
 
 def _parse_toml(config_files: List[Path]) -> Dict[str, Any]:
-    """Merge all config files into a single dict. Files that fail to
-    parse are skipped silently — we can still extract credentials from
-    the files that do parse.
+    """Merge all config files into a single dict.
+
+    Files that fail to parse are skipped silently — we can still
+    extract credentials from the files that do parse.
     """
     merged: Dict[str, Any] = {}
     for path in config_files:
