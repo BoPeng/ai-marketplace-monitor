@@ -268,7 +268,7 @@ def create_app(
         return {
             "config_files": [f.__dict__ for f in files],
             "urls": _enumerate_urls(config.host, config.port),
-            "auth_mode": state.source,
+            "auth_mode": "open" if is_open() else "authenticated",
             "open": is_open(),
         }
 
