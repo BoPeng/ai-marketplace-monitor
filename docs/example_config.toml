@@ -5,6 +5,10 @@
 api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 model = "gpt-4o"
 
+# [ai.anthropic]
+# api_key = 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+# model = "claude-sonnet-4-20250514"
+
 #
 # Marketplace
 #

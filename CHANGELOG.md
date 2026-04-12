@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Anthropic/Claude as an AI backend provider with support for Claude models (default: `claude-sonnet-4-20250514`)
 - [issue 235](https://github.com/BoPeng/ai-marketplace-monitor/issues/235) Configurable rate limiting framework for all notification types
   - Rate limiting infrastructure moved from Telegram-specific to base notification class
   - Automatic rate limiting for Telegram with intelligent chat type detection (1.1s individual, 3.0s group)
