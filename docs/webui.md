@@ -112,9 +112,7 @@ You can also specify a port:
 ai-marketplace-monitor --webui-host 0.0.0.0 --webui-port 9090
 ```
 
-```{note}
-If no credentials are configured, `--webui-host` will refuse to start and display an error. This prevents accidentally exposing an unprotected editor on the network.
-```
+> **Note:** If no credentials are configured, `--webui-host` will refuse to start and display an error. This prevents accidentally exposing an unprotected editor on the network.
 
 ### Step 3: Open a firewall port
 
@@ -128,9 +126,7 @@ On macOS, allow incoming connections through **System Settings > Network > Firew
 
 On Windows, add an inbound rule in **Windows Defender Firewall > Advanced Settings**.
 
-```{warning}
-Exposing the web UI on a network means anyone who can reach the port can attempt to log in. Consider using a reverse proxy (nginx, Caddy, Tailscale) with TLS for encrypted connections, especially over untrusted networks.
-```
+> **Warning:** Exposing the web UI on a network means anyone who can reach the port can attempt to log in. Consider using a reverse proxy (nginx, Caddy, Tailscale) with TLS for encrypted connections, especially over untrusted networks.
 
 ## CLI Options Reference
 
