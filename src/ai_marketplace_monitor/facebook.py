@@ -1,4 +1,5 @@
 import datetime
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -214,12 +215,16 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
 
     def handle_username(self: "FacebookMarketplaceConfig") -> None:
         if self.username is None:
+            self.username = os.environ.get("FACEBOOK_USERNAME")
+        if self.username is None:
             return
 
         if not isinstance(self.username, str):
             raise ValueError(f"Marketplace {self.name} username must be a string.")
 
     def handle_password(self: "FacebookMarketplaceConfig") -> None:
+        if self.password is None:
+            self.password = os.environ.get("FACEBOOK_PASSWORD")
         if self.password is None:
             return
 
