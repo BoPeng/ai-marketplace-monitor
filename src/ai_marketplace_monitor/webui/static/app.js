@@ -25,7 +25,9 @@
     expanded: new Set(),
     knownItems: new Set(),
     lastActivity: null, // epoch seconds of the most recent log record
-    monitorState: "idle", // "idle" | "waiting" | "running" | "error"
+    monitorState: "disconnected", // "connected" | "idle" | "disconnected"
+    wsConnected: false,
+    errorCount: 0, // unread ERROR-level messages (for tab badge)
   };
 
   // ---------------------------------------------------------------
@@ -425,6 +427,11 @@
       $$(".level-chips .chip").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       state.logLevel = btn.dataset.level;
+      // Clear error badge when user views errors.
+      if (btn.dataset.level === "ERROR" || btn.dataset.level === "ALL") {
+        state.errorCount = 0;
+        renderErrorBadge();
+      }
       renderLogs();
     });
   });
@@ -466,21 +473,13 @@
   };
 
   // -------- Monitor status chip derived from the log stream --------
+  // Track activity timestamp from any log record.
   const noteActivity = (record) => {
     state.lastActivity = record.time;
-    const msg = (record.message || "").toLowerCase();
+    // Track error count for the Error tab badge.
     if (record.level === "ERROR" || record.level === "CRITICAL") {
-      state.monitorState = "error";
-    } else if (msg.includes("waiting for facebook credentials")) {
-      state.monitorState = "waiting";
-    } else if (
-      msg.includes("launching browser") ||
-      msg.includes("successfully launched") ||
-      msg.includes("[search]") ||
-      msg.includes("[ai]") ||
-      msg.includes("[schedule]")
-    ) {
-      state.monitorState = "running";
+      state.errorCount++;
+      renderErrorBadge();
     }
   };
 
@@ -492,23 +491,68 @@
     return `${Math.round(s / 3600)}h ago`;
   };
 
+  // Monitor status is purely about process liveness — driven by
+  // WebSocket connection state, not log message content.
   const renderMonitorStatus = () => {
     const chip = $("#monitor-status");
     if (!chip) return;
-    const labels = {
-      idle: { text: "idle", cls: "status-warn" },
-      waiting: { text: "waiting for credentials", cls: "status-warn" },
-      running: { text: "running", cls: "status-ok" },
-      error: { text: "error", cls: "status-err" },
-    };
-    const l = labels[state.monitorState] || labels.idle;
-    chip.className = "status-chip " + l.cls;
-    chip.textContent = `● monitor: ${l.text} · ${formatAgo(state.lastActivity)}`;
+    if (!state.wsConnected) {
+      chip.className = "status-chip status-err";
+      chip.textContent = "● monitor: disconnected";
+      chip.title = "The aimm process may have stopped. Reconnecting…";
+    } else if (!state.lastActivity) {
+      chip.className = "status-chip status-warn";
+      chip.textContent = "● monitor: connected";
+      chip.title = "Connected, waiting for first log message.";
+    } else {
+      const ago = Math.round(Date.now() / 1000 - state.lastActivity);
+      if (ago > 300) {
+        chip.className = "status-chip status-warn";
+        chip.textContent = `● monitor: idle · ${formatAgo(state.lastActivity)}`;
+        chip.title = "Connected but no activity for 5+ minutes.";
+      } else {
+        chip.className = "status-chip status-ok";
+        chip.textContent = `● monitor: running · ${formatAgo(state.lastActivity)}`;
+        chip.title = "Process is alive and active.";
+      }
+    }
+  };
+
+  // Error badge on the "Error" filter chip in the logs toolbar.
+  const renderErrorBadge = () => {
+    const errorChip = document.querySelector('.level-chips [data-level="ERROR"]');
+    if (!errorChip) return;
+    if (state.errorCount > 0) {
+      errorChip.dataset.badge = state.errorCount;
+      errorChip.classList.add("has-badge");
+    } else {
+      delete errorChip.dataset.badge;
+      errorChip.classList.remove("has-badge");
+    }
   };
 
   // Tick the "Xs ago" display once a second so it stays fresh even
   // without new log records.
   setInterval(renderMonitorStatus, 1000);
+
+  // Restart button — soft-restarts the monitor by touching the config.
+  wireClick("#restart-btn", async () => {
+    const btn = $("#restart-btn");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await api("/api/monitor/restart", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setEditorStatus("▶ Waking monitor — searching all items now…", "ok");
+      } else {
+        setEditorStatus("▶ Failed: " + (data.detail || "unknown"), "err");
+      }
+    } catch (err) {
+      setEditorStatus("↻ Restart failed: " + err.message, "err");
+    } finally {
+      setTimeout(() => { if (btn) btn.disabled = false; }, 2000);
+    }
+  });
 
   // ---------------------------------------------------------------
   // Sections sidebar (AI-assisted edit / delete / add)
@@ -1528,7 +1572,9 @@
     const ws = new WebSocket(`${proto}//${location.host}/ws/stream`);
     state.ws = ws;
     ws.onopen = () => {
+      state.wsConnected = true;
       $("#ws-status").textContent = "● streaming";
+      renderMonitorStatus();
     };
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
@@ -1542,7 +1588,9 @@
       }
     };
     ws.onclose = () => {
+      state.wsConnected = false;
       $("#ws-status").textContent = "● disconnected — retrying…";
+      renderMonitorStatus();
       setTimeout(connectWs, 2000);
     };
     ws.onerror = () => {

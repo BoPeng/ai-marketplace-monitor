@@ -137,6 +137,12 @@ html, body {
   cursor: not-allowed;
 }
 .header button.ghost:hover { background: var(--bg-elev); }
+.header button.small {
+  padding: 3px 7px;
+  font-size: 14px;
+  min-width: 0;
+  line-height: 1;
+}
 .header button.primary:not(:disabled):hover { background: var(--accent-dim); }
 
 /* + Add dropdown */
@@ -545,6 +551,27 @@ html, body {
   cursor: pointer;
 }
 .chip.active { color: var(--text); border-color: var(--accent); }
+.chip.has-badge {
+  position: relative;
+  border-color: var(--err);
+  color: var(--err);
+}
+.chip.has-badge::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--err);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 7px;
+  padding: 0 3px;
+}
 #log-filter {
   flex: 1;
   min-width: 120px;

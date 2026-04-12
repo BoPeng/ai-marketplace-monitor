@@ -420,6 +420,22 @@ def create_app(
         ok, error = config_service.validate(content)
         return {"valid": ok, "error": error}
 
+    @app.post("/api/monitor/restart")
+    async def restart_monitor(
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Wake the monitor by touching the config file. The file watcher
+        interrupts the monitor's doze() sleep, causing it to reload the
+        config and run all scheduled searches immediately.
+        """
+        try:
+            path = config_service.editable_path
+            path.touch()
+            return {"ok": True, "message": "Monitor woken — searching all items now."}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to touch config: {e}")
+
     @app.get("/api/logs")
     async def get_logs(
         limit: int = 500,
