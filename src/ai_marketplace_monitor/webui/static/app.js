@@ -1096,6 +1096,9 @@
     // Always render the section name field first. In edit mode it shows
     // the current suffix (editable for rename); in add/duplicate mode
     // it shows the suggested new name.
+    const currentPrefix = formContext.addMode ? formContext.addPrefix : formContext.sectionName.split(".")[0];
+    // For AI sections the name is derived from the provider selection.
+    const aiAutoName = currentPrefix === "ai";
     const nameWrapper = document.createElement("div");
     nameWrapper.className = "form-field";
     const currentSuffix = formContext.nameValue ??
@@ -1103,8 +1106,9 @@
     nameWrapper.innerHTML =
       `<label class="form-label">Section name <span class="required">*</span></label>` +
       `<input type="text" id="add-section-name" value="${esc(currentSuffix)}" ` +
-      `placeholder="e.g. gopro, openai, me" />` +
-      `<p class="form-help">[${esc(formContext.addMode ? formContext.addPrefix : formContext.sectionName.split(".")[0])}.<em>name</em>]</p>`;
+      `placeholder="e.g. gopro, openai, me" ${aiAutoName ? 'readonly style="opacity:0.6;cursor:not-allowed"' : ""} />` +
+      `<p class="form-help">[${esc(currentPrefix)}.<em>name</em>]` +
+      `${aiAutoName ? " — set automatically from provider" : ""}</p>`;
     // Track changes so tab switches preserve the typed name.
     const nameInput = nameWrapper.querySelector("input");
     nameInput.addEventListener("input", () => { formContext.nameValue = nameInput.value; });
@@ -1256,6 +1260,21 @@
       }
       form.appendChild(wrapper);
     });
+
+    // For AI sections, sync the provider dropdown → section name.
+    if (aiAutoName) {
+      const providerSelect = form.querySelector('[data-key="provider"]');
+      const nameInput = $("#add-section-name");
+      if (providerSelect && nameInput) {
+        const syncName = () => {
+          nameInput.value = providerSelect.value;
+          formContext.nameValue = providerSelect.value;
+        };
+        providerSelect.addEventListener("change", syncName);
+        // Set initial value if provider already has a selection.
+        if (providerSelect.value) syncName();
+      }
+    }
   };
 
   // Collect form field values into a {key: coerced_value} dict.
