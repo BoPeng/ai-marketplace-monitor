@@ -184,8 +184,9 @@ class EmailNotificationConfig(NotificationConfig):
             """Escape text then bold known section headers."""
             safe_text = escape(text)
             for header in ("About this vehicle", "Seller's description", "Description"):
-                safe_text = safe_text.replace(escape(header), Markup(f"<b>{header}</b>"))  # noqa: S704
-            return Markup(safe_text)  # noqa: S704
+                bold = Markup(f"<b>{header}</b>")  # noqa: S704 — header is a literal
+                safe_text = safe_text.replace(escape(header), bold)
+            return Markup(safe_text)  # noqa: S704 — safe_text was escaped above
 
         env.filters["bold_headers"] = bold_headers
 
