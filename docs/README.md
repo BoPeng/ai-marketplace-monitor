@@ -75,15 +75,16 @@ One or more sections `marketplace.name` show the options for interacting with va
 | Option             | Requirement | DataType | Description                                                                                                      |
 | ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `market_type`      | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                                              |
-| `username`         | Optional    | String   | Username can be entered manually or kept in the config file.                                                     |
-| `password`         | Optional    | String   | Password can be entered manually or kept in the config file.                                                     |
+| `username`         | Optional    | String   | Username can be entered manually or kept in the config file. Falls back to `FACEBOOK_USERNAME` environment variable if not set. |
+| `password`         | Optional    | String   | Password can be entered manually or kept in the config file. Falls back to `FACEBOOK_PASSWORD` environment variable if not set. |
 | `login_wait_time`  | Optional    | Integer  | Time (in seconds) to wait before searching to allow enough time to enter CAPTCHA. Defaults to 60.                |
 | `language`         | Optional    | String   | Language for webpages                                                                                            |
 | **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
 1. Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). However, because the default `marketplace` for all items are `facebook`, it is easiest to define a default marketplace called `marketplace.facebook`.
-2. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
-3. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
+2. `username` and `password` can be provided in three ways (in order of priority): directly in the config file, via the `${ENV_VAR}` syntax (e.g. `password = '${MY_FB_PASS}'`), or automatically from the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables. If none are set, the monitor runs in anonymous mode.
+3. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
+4. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
 
 ### Users
 

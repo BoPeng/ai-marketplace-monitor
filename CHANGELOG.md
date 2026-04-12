@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0]
+
 ### Added
 - Anthropic/Claude as an AI backend provider with support for Claude models (default: `claude-sonnet-4-20250514`)
 - [issue 235](https://github.com/BoPeng/ai-marketplace-monitor/issues/235) Configurable rate limiting framework for all notification types
@@ -15,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configurable instance-level and global rate limiting for all notification methods
   - Opt-in rate limiting for email, PushBullet, PushOver, and other notification types
   - Comprehensive test coverage for rate limiting behavior
+- Support for `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables as fallback credentials
+- PyPI trusted publisher (OIDC) for release workflow
 
 ## [0.9.12]
 
