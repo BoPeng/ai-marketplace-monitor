@@ -94,6 +94,8 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ### Installation
 
+> **Requires Python 3.10 or higher.** Check your version with `python --version`. If your system default is older, use `pip3.10` (or `pip3.11`, `pip3.12`, etc.) instead of `pip`, or create a virtual environment with the correct version.
+
 ```bash
 pip install ai-marketplace-monitor
 playwright install
