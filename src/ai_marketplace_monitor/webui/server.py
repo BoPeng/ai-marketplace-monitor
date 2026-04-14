@@ -306,7 +306,7 @@ def create_app(
         body: Dict[str, Any],
         _: str = Depends(require_session),
         __: None = Depends(require_csrf),
-    ) -> Dict[str, Any] | JSONResponse:
+    ) -> Dict[str, Any]:
         content = body.get("content")
         if not isinstance(content, str):
             raise HTTPException(status_code=400, detail="Missing 'content' field")
@@ -319,7 +319,7 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(e)) from None
         if not ok:
             status_code = 409 if error and "conflict" in error else 400
-            return JSONResponse(
+            return JSONResponse(  # type: ignore[return-value]
                 status_code=status_code,
                 content={"ok": False, "error": error, "mtime": new_mtime},
             )
