@@ -135,3 +135,13 @@ dmypy.json
 
 # Code editors
 .vscode
+
+# Plate-OCR model binaries (auto-downloaded on first run / via scripts/warmup-plate-ocr.bat)
+models/
+*.onnx
+
+# Runtime analytics database
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

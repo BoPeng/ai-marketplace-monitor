@@ -15,8 +15,13 @@ from rich.prompt import Prompt
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .listing import Listing
+from .listing_scorer import score_listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .notification import NotificationStatus
+from .analytics_db import parse_price, record_listing
+from .human_actions import HUMAN_LAUNCH_ARGS
+from .nzta_wof import check_wof, extract_plate_from_text, scan_wof_text, should_notify
+from .plate_ocr import detect_plates_from_listing
 from .user import User
 from .utils import (
     CounterItem,
@@ -105,7 +110,12 @@ class MarketplaceMonitor:
             try:
                 if self.logger:
                     self.logger.debug(f"Attempting to launch {browser_name} browser...")
-                browser = browser_type.launch(headless=self.headless)
+                launch_kwargs = {"headless": self.headless}
+                if browser_name == "chromium":
+                    # Anti-detection: strip the automation banner & a few headless tells.
+                    launch_kwargs["args"] = HUMAN_LAUNCH_ARGS
+                    launch_kwargs["ignore_default_args"] = ["--enable-automation"]
+                browser = browser_type.launch(**launch_kwargs)
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser.""",
@@ -198,66 +208,163 @@ class MarketplaceMonitor:
                         ),
                     )
                 continue
-            # for x in self.find_new_items(found_items)
-            res = self.evaluate_by_ai(
-                listing, item_config=item_config, marketplace_config=marketplace_config
+            # === ALGORITHMIC SCORING (no AI, pure regex — microseconds) ===
+            rejection_level = getattr(item_config, "rejection_level", None) or "normal"
+            price_value, _ = parse_price(getattr(listing, "price", None))
+            score = score_listing(
+                listing.title or "",
+                getattr(listing, "description", "") or "",
+                rejection_level=rejection_level,
+                price_value=price_value,
             )
-            if self.logger:
-                if res.comment == AIResponse.NOT_EVALUATED:
-                    if res.name:
-                        self.logger.info(
-                            f"""{hilight("[AI]", res.style)} {res.name or "AI"} did not evaluate {hilight(listing.title)}."""
-                        )
-                    else:
-                        self.logger.info(
-                            f"""{hilight("[AI]", res.style)} No AI available to evaluate {hilight(listing.title)}."""
-                        )
-                else:
-                    self.logger.info(
-                        f"""{hilight("[AI]", res.style)} {res.name or "AI"} concludes {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}.""",
-                        extra=aimm_event(
-                            "ai_eval",
-                            listing_id=listing.id,
-                            title=listing.title,
-                            url=getattr(listing, "post_url", None)
-                            or getattr(listing, "url", None),
-                            price=getattr(listing, "price", None),
-                            score=res.score,
-                            conclusion=res.conclusion,
-                            comment=res.comment,
-                            ai_name=res.name,
-                            item=item_config.name,
-                        ),
-                    )
-            if item_config.rating:
-                acceptable_rating = item_config.rating[
-                    0 if item_config.searched_count == 0 else -1
-                ]
-            elif marketplace_config.rating:
-                acceptable_rating = marketplace_config.rating[
-                    0 if item_config.searched_count == 0 else -1
-                ]
-            else:
-                acceptable_rating = 3
 
-            if res.score < acceptable_rating:
+            if score.rejected:
+                reason = "hard_reject" if score.hard_reject else "below_threshold"
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Skip]", "fail")} Rating {hilight(f"{res.conclusion} ({res.score})")} for {listing.title} is below threshold {acceptable_rating}.""",
+                        f"""{hilight("[Skip]", "fail")} {score.summary} — {hilight(listing.title)}""",
                         extra=aimm_event(
                             "listing_skip",
-                            reason="below_threshold",
+                            reason=reason,
                             listing_id=listing.id,
                             title=listing.title,
                             item=item_config.name,
-                            score=res.score,
-                            threshold=acceptable_rating,
+                            score=score.score,
+                            level=rejection_level,
                         ),
                     )
+                record_listing(
+                    listing=listing,
+                    item_name=item_config.name,
+                    score=score.score,
+                    rejection_level=rejection_level,
+                    notified=False,
+                    skip_reason=f"score:{reason}",
+                    logger=self.logger,
+                )
                 counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                 continue
+
+            # === PRE-NOTIFY VERIFICATION ===
+            # 1) Plate from text (title → description)
+            description = getattr(listing, "description", "") or ""
+            plate = extract_plate_from_text(listing.title) or extract_plate_from_text(description)
+            plate_source = "text" if plate else None
+
+            # 2) Plate from OCR over EVERY listing photo (not just thumbnail)
+            if not plate and self.browser:
+                try:
+                    plates = detect_plates_from_listing(
+                        listing.post_url, self.browser, logger=self.logger
+                    )
+                    if plates:
+                        plate = plates[0]
+                        plate_source = "ocr"
+                except KeyboardInterrupt:
+                    raise
+                except Exception as e:
+                    if self.logger:
+                        self.logger.debug(f"""{hilight("[PlateOCR]", "fail")} {e}""")
+
+            # 3) NZTA check (if plate found)
+            wof = None
+            if plate and self.browser:
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Plate]", "info")} {plate} (via {plate_source}) — {hilight(listing.title)}"""
+                    )
+                wof = check_wof(plate, self.browser, self.logger)
+
+            # 4) Description-level WOF/rego claims (fallback signal)
+            text_claims = scan_wof_text(listing.title + " " + description)
+
+            # 5) Gate notification on WOF/rego rules
+            do_notify, reason = should_notify(wof, text_claims=text_claims)
+            if not do_notify:
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Skip]", "fail")} WOF gate: {reason} — {hilight(listing.title)}""",
+                        extra=aimm_event(
+                            "listing_skip",
+                            reason="wof_gate",
+                            listing_id=listing.id,
+                            title=listing.title,
+                            item=item_config.name,
+                            wof_reason=reason,
+                        ),
+                    )
+                record_listing(
+                    listing=listing,
+                    item_name=item_config.name,
+                    score=score.score,
+                    rejection_level=rejection_level,
+                    plate=plate,
+                    plate_source=plate_source,
+                    wof=wof,
+                    notified=False,
+                    skip_reason=f"wof_gate:{reason}",
+                    logger=self.logger,
+                )
+                counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
+                continue
+
+            # === NOTIFY (WOF/rego verified, or unverifiable but no red flags) ===
+            # Bake WOF/rego summary into the description so it travels with the
+            # main Telegram alert. Also log it prominently to stdout/cmd.
+            wof_block = ""
+            if wof:
+                src_note = f" · plate via {plate_source}" if plate else ""
+                wof_block = f"🔍 WOF/Rego{src_note}\n{wof.summary}\n"
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[WOF]", "succ")} {wof.summary.replace(chr(10), ' | ')}"""
+                    )
+            elif plate is None:
+                wof_block = "🔍 WOF/Rego: no plate found — couldn't verify\n"
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[WOF]", "info")} No plate found in text or images for {hilight(listing.title)}"""
+                    )
+
+            original_desc = getattr(listing, "description", "") or ""
+            if wof_block:
+                listing.description = wof_block + ("\n" + original_desc if original_desc else "")
+
+            res = AIResponse(score=0, comment=AIResponse.NOT_EVALUATED)
             new_listings.append(listing)
             listing_ratings.append(res)
+            counter.increment(CounterItem.NEW_VALIDATED_LISTING, item_config.name)
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Match]", "succ")} {score.summary} — {hilight(listing.title)} — {reason}""",
+                    extra=aimm_event(
+                        "listing_match",
+                        listing_id=listing.id,
+                        title=listing.title,
+                        item=item_config.name,
+                        score=score.score,
+                        level=rejection_level,
+                        wof_reason=reason,
+                        wof_status=wof.wof_status if wof else None,
+                        rego_status=wof.rego_status if wof else None,
+                    ),
+                )
+            for user in users_to_notify:
+                User(self.config.user[user], logger=self.logger).notify(
+                    [listing], [res], item_config
+                )
+            record_listing(
+                listing=listing,
+                item_name=item_config.name,
+                score=score.score,
+                rejection_level=rejection_level,
+                plate=plate,
+                plate_source=plate_source,
+                wof=wof,
+                notified=True,
+                skip_reason=None,
+                logger=self.logger,
+            )
 
         p = inflect.engine()
         if self.logger:
@@ -270,15 +377,6 @@ class MarketplaceMonitor:
                     new_count=len(new_listings),
                 ),
             )
-        if new_listings:
-            counter.increment(
-                CounterItem.NEW_VALIDATED_LISTING, item_config.name, len(new_listings)
-            )
-            for user in users_to_notify:
-                User(self.config.user[user], logger=self.logger).notify(
-                    new_listings, listing_ratings, item_config
-                )
-        time.sleep(5)
 
     def _select_translator(
         self: "MarketplaceMonitor", language: str | None = None

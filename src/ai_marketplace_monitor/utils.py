@@ -77,6 +77,7 @@ class CacheType(Enum):
     AI_INQUIRY = "ai-inquiries"
     USER_NOTIFIED = "user-notifications"
     COUNTERS = "counters"
+    SEEN_LISTINGS = "seen-listings"
 
 
 class CounterItem(Enum):

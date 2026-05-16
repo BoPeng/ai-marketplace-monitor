@@ -192,3 +192,15 @@ class User:
             for listing, ns in zip(listings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:
                     self.to_cache(listing, local_cache=local_cache)
+
+    def send_raw_message(self: "User", message: str) -> None:
+        """Send a raw text message via all configured notification channels."""
+        try:
+            NotificationConfig.notify_all_raw(self.config, message, logger=self.logger)
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.error(
+                    f"""{hilight("[Notify]", "fail")} Failed to send raw message: {e}"""
+                )

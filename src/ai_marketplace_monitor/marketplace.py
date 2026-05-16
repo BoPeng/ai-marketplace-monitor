@@ -404,6 +404,17 @@ class ItemConfig(MarketItemCommonConfig):
     antikeywords: List[str] | None = None
     description: str | None = None
     marketplace: str | None = None
+    # Algorithmic scorer threshold: firehose | lenient | normal | strict | best_only
+    rejection_level: str | None = None
+
+    def handle_rejection_level(self: "ItemConfig") -> None:
+        if self.rejection_level is None:
+            self.rejection_level = "normal"
+        allowed = {"firehose", "lenient", "normal", "strict", "best_only"}
+        if self.rejection_level not in allowed:
+            raise ValueError(
+                f"Item {hilight(self.name)} rejection_level must be one of {sorted(allowed)}."
+            )
 
     def handle_search_phrases(self: "ItemConfig") -> None:
         if isinstance(self.search_phrases, str):
@@ -513,13 +524,16 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             self.page = None
 
         if self.page is None:
-            context = self.browser.new_context(
-                proxy=(
-                    None
-                    if self.config.monitor_config is None
-                    else self.config.monitor_config.get_proxy_options()
-                )
+            from .human_actions import apply_stealth, human_context_opts
+
+            ctx_kwargs = human_context_opts()
+            ctx_kwargs["proxy"] = (
+                None
+                if self.config.monitor_config is None
+                else self.config.monitor_config.get_proxy_options()
             )
+            context = self.browser.new_context(**ctx_kwargs)
+            apply_stealth(context)
             self.page = context.new_page()
         return self.page
 

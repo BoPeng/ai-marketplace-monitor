@@ -91,6 +91,35 @@ class NotificationConfig(BaseConfig):
                 succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
 
+    @classmethod
+    def notify_all_raw(
+        cls: type["NotificationConfig"],
+        config: "NotificationConfig",
+        message: str,
+        logger: Logger | None = None,
+    ) -> bool:
+        """Send a raw text message through all configured notification channels."""
+        succ = []
+        for subclass in cls.__subclasses__():
+            flds = {f.name for f in fields(subclass)}
+            try:
+                subclass_obj = subclass(**{k: getattr(config, k) for k in flds})
+            except Exception:
+                continue
+            if (
+                hasattr(subclass_obj, "send_message")
+                and subclass_obj._has_required_fields()
+                and subclass.__name__ not in ["UserConfig", "PushNotificationConfig"]
+            ):
+                try:
+                    succ.append(subclass_obj.send_message("🔍 WOF Check", message, logger))
+                except Exception as e:
+                    if logger:
+                        logger.debug(f"Raw message via {subclass.__name__} failed: {e}")
+            if hasattr(subclass, "notify_all_raw"):
+                succ.append(subclass.notify_all_raw(config, message, logger))
+        return any(succ)
+
     def _execute_with_retry(
         self: "NotificationConfig",
         title: str,

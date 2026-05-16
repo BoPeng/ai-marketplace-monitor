@@ -387,10 +387,19 @@ class AnthropicBackend(AIBackend):
         if self.client is None:
             import anthropic  # type: ignore
 
-            self.client = anthropic.Anthropic(
-                api_key=self.config.api_key,
-                timeout=self.config.timeout,
-            )
+            api_key = self.config.api_key or ""
+            # OAuth access tokens (sk-ant-oat…) must be passed as auth_token,
+            # not api_key, so the SDK sends them as a Bearer header.
+            if api_key.startswith("sk-ant-oat"):
+                self.client = anthropic.Anthropic(
+                    auth_token=api_key,
+                    timeout=self.config.timeout,
+                )
+            else:
+                self.client = anthropic.Anthropic(
+                    api_key=api_key,
+                    timeout=self.config.timeout,
+                )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
 

@@ -1,5 +1,6 @@
 import datetime
 import os
+import random
 import re
 import time
 from dataclasses import dataclass
@@ -18,9 +19,11 @@ from .listing import Listing
 from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage
 from .utils import (
     BaseConfig,
+    CacheType,
     CounterItem,
     KeyboardMonitor,
     Translator,
+    cache,
     convert_to_seconds,
     counter,
     doze,
@@ -311,20 +314,30 @@ class FacebookMarketplace(Marketplace):
                     f"{hilight('[Login]', 'fail')} Could not handle cookie pop-up (or it was not present): {e!s}"
                 )
 
+        # Humanise the login flow so FB's bot detector doesn't trip.
+        from .human_actions import human_mouse_jitter, human_sleep, human_type
+
         self.config: FacebookMarketplaceConfig
         try:
+            # Small idle: humans look around before typing.
+            human_mouse_jitter(self.page, moves=random.randint(2, 4))
+            human_sleep(0.8, 2.2)
+
             if self.config.username:
-                time.sleep(2)
                 selector = self.page.wait_for_selector('input[name="email"]')
                 if selector is not None:
-                    selector.type(self.config.username, delay=250)
+                    human_type(selector, self.config.username, base_delay_ms=90)
+                human_sleep(0.6, 1.6)
+
             if self.config.password:
-                time.sleep(2)
                 selector = self.page.wait_for_selector('input[name="pass"]')
                 if selector is not None:
-                    selector.type(self.config.password, delay=250)
+                    human_type(selector, self.config.password, base_delay_ms=95)
+                human_sleep(0.7, 1.9)
+
             if self.config.username and self.config.password:
-                time.sleep(2)
+                # Pre-click mouse path so the click isn't teleported.
+                human_mouse_jitter(self.page, moves=2)
                 selector = self.page.wait_for_selector('button[name="login"]')
                 if selector is not None:
                     selector.click()
@@ -357,7 +370,7 @@ class FacebookMarketplace(Marketplace):
             self.login()
             assert self.page is not None
 
-        options = []
+        options = ["sortBy=creation_time_descend"]
 
         condition = item_config.condition or self.config.condition
         if condition:
@@ -403,6 +416,8 @@ class FacebookMarketplace(Marketplace):
         # search multiple keywords and cities
         # there is a small chance that search by different keywords and city will return the same items.
         found = {}
+        seen_key = (CacheType.SEEN_LISTINGS.value, item_config.name)
+        seen_listing_ids: set = cache.get(seen_key) or set()
         search_city = item_config.search_city or self.config.search_city or []
         city_name = item_config.city_name or self.config.city_name or []
         radiuses = item_config.radius or self.config.radius
@@ -483,14 +498,19 @@ class FacebookMarketplace(Marketplace):
                     marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
                 )
 
+                # Human-ish post-load behaviour: small idle + scroll so FB's
+                # behavioural model sees us "reading" results.
+                try:
+                    from .human_actions import human_mouse_jitter, human_scroll, human_sleep
+                    human_sleep(0.6, 1.6)
+                    human_mouse_jitter(self.page, moves=random.randint(1, 3))
+                    human_scroll(self.page, steps=random.randint(1, 3))
+                except Exception:
+                    pass
+
                 found_listings = FacebookSearchResultPage(
                     self.page, self.translator, self.logger
                 ).get_listings()
-                time.sleep(5)
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[Search]", "fail")} Failed to get search results for {search_phrase} from {city}"""
-                    )
 
                 counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
 
@@ -501,55 +521,29 @@ class FacebookMarketplace(Marketplace):
                         continue
                     if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
                         return
+                    # skip listings already fully examined in previous search runs
+                    if listing.id in seen_listing_ids:
+                        continue
                     counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
                     found[listing.post_url.split("?")[0]] = True
                     # filter by title and location; skip keyword filtering since we do not have description yet.
                     if not self.check_listing(listing, item_config, description_available=False):
+                        seen_listing_ids.add(listing.id)
                         counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                         continue
-                    try:
-                        details, from_cache = self.get_listing_details(
-                            listing.post_url,
-                            item_config,
-                            price=listing.price,
-                            title=listing.title,
-                        )
-                        if not from_cache:
-                            time.sleep(5)
-                    except KeyboardInterrupt:
-                        raise
-                    except Exception as e:
-                        if self.logger:
-                            self.logger.error(
-                                f"""{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"""
-                            )
-                        continue
-                    # currently we trust the other items from summary page a bit better
-                    # so we do not copy title, description etc from the detailed result
-                    for attr in ("condition", "seller", "description"):
-                        # other attributes should be consistent
-                        setattr(listing, attr, getattr(details, attr))
+                    # FAST PATH: skip detail page entirely — yield from search page data
                     listing.name = item_config.name
+                    seen_listing_ids.add(listing.id)
+                    # Persist immediately so a mid-loop crash / Ctrl+C doesn't
+                    # cause every "new" listing to be re-sent next cycle.
+                    cache.set(seen_key, seen_listing_ids, tag=CacheType.SEEN_LISTINGS.value)
                     if self.logger:
-                        self.logger.debug(
-                            f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from {listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
+                        self.logger.info(
+                            f"""{hilight("[New]", "succ")} {hilight(listing.title)} - {listing.price} in {listing.location}"""
                         )
+                    yield listing
 
-                    # Warn if we never managed to extract a description for keyword-based filtering
-                    if (
-                        (not listing.description or len(listing.description.strip()) == 0)
-                        and item_config.keywords
-                        and len(item_config.keywords) > 0
-                        and self.logger
-                    ):
-                        self.logger.debug(
-                            f"""{hilight("[Error]", "fail")} Failed to extract description for {hilight(listing.title)} at {listing.post_url}. Keyword filtering will only apply to title."""
-                        )
-
-                    if self.check_listing(listing, item_config):
-                        yield listing
-                    else:
-                        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
+                cache.set(seen_key, seen_listing_ids, tag=CacheType.SEEN_LISTINGS.value)
 
     def get_listing_details(
         self: "FacebookMarketplace",
@@ -699,6 +693,83 @@ class FacebookSearchResultPage(WebPage):
                 )
         return valid_listings
 
+    def _get_listings_from_aria_labels(self: "FacebookSearchResultPage") -> List[Listing]:
+        """Fast extraction using aria-label attributes on marketplace links.
+
+        The aria-label has format: "Title, $Price, Location, listing ID"
+        This avoids deep DOM traversal entirely.
+        """
+        listings: List[Listing] = []
+        try:
+            links = self.page.query_selector_all('a[aria-label*="listing"][href*="/marketplace/item/"]')
+            for link in links:
+                try:
+                    aria = link.get_attribute("aria-label") or ""
+                    href = link.get_attribute("href") or ""
+                    if not aria or not href:
+                        continue
+
+                    # Extract listing ID from aria-label: "..., listing 1234567890"
+                    listing_match = re.search(r"listing\s+(\d+)", aria)
+                    if not listing_match:
+                        continue
+                    listing_id = listing_match.group(1)
+
+                    # Parse aria-label: "Title, $Price, Location, listing ID"
+                    # Split from the right to handle commas in titles
+                    parts = aria.rsplit(", listing ", 1)[0]  # remove "listing ID"
+                    # Try to find price pattern
+                    price_match = re.search(r"[\$€£¥]\s?[\d,]+(?:\.\d{2})?", parts)
+                    if price_match:
+                        price_str = price_match.group(0)
+                        price_idx = parts.index(price_str)
+                        title = parts[:price_idx].rstrip(", ").strip()
+                        after_price = parts[price_idx + len(price_str):].lstrip(", ").strip()
+                        location = after_price
+                    else:
+                        # Fallback: split by last commas
+                        segments = parts.rsplit(", ", 2)
+                        title = segments[0] if len(segments) > 0 else ""
+                        price_str = segments[1] if len(segments) > 1 else ""
+                        location = segments[2] if len(segments) > 2 else ""
+
+                    price = extract_price(price_str)
+                    post_url = f"https://www.facebook.com{href}" if href.startswith("/") else href
+
+                    # Get image
+                    img = link.query_selector("img")
+                    image = (img.get_attribute("src") or "") if img else ""
+                    if image.startswith("/"):
+                        image = f"https://www.facebook.com{image}"
+
+                    listings.append(
+                        Listing(
+                            marketplace="facebook",
+                            name="",
+                            id=listing_id,
+                            title=title,
+                            image=image,
+                            price=price,
+                            post_url=post_url,
+                            location=location,
+                            condition="",
+                            seller="",
+                            description="",
+                        )
+                    )
+                except KeyboardInterrupt:
+                    raise
+                except Exception:
+                    continue
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(
+                    f"{hilight('[Retrieve]', 'fail')} aria-label parsing failed: {e}"
+                )
+        return listings
+
     def get_listings(self: "FacebookSearchResultPage") -> List[Listing]:
         # if no result is found
         btn = self.page.locator(f"""span:has-text('{self.translator("Browse Marketplace")}')""")
@@ -713,7 +784,12 @@ class FacebookSearchResultPage(WebPage):
                 self.logger.info(f"{hilight('[Retrieve]', 'dim')} {msg}")
             return []
 
-        # find the grid box
+        # Fast path: parse aria-label attributes directly (no DOM traversal)
+        listings = self._get_listings_from_aria_labels()
+        if listings:
+            return listings
+
+        # Fallback: deep DOM traversal
         try:
             valid_listings = (
                 self._get_listing_elements_by_traversing_header()
@@ -731,7 +807,7 @@ class FacebookSearchResultPage(WebPage):
                 f.write(self.page.content())
             return []
 
-        listings: List[Listing] = []
+        listings = []
         for idx, listing in enumerate(valid_listings):
             try:
                 atag = listing.query_selector(
@@ -769,9 +845,6 @@ class FacebookSearchResultPage(WebPage):
                         title=title,
                         image=image,
                         price=price,
-                        # all the ?referral_code&referral_sotry_type etc
-                        # could be helpful for live navigation, but will be stripped
-                        # for caching item details.
                         post_url=post_url,
                         location=location,
                         condition="",
