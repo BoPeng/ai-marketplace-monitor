@@ -1668,6 +1668,11 @@
       const res = await fetch("/api/status", { credentials: "same-origin" });
       if (res.ok) {
         state.csrf = getCookie("aimm_csrf");
+        try {
+          const status = await res.clone().json();
+          const browserBtn = document.getElementById("browser-btn");
+          if (browserBtn && status && status.vnc_enabled) browserBtn.hidden = false;
+        } catch (_) {}
         hideLogin();
         await bootstrap();
       } else {
