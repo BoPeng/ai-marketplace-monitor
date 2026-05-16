@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import mimetypes
+import os
 import secrets
 import socket
 import threading
@@ -266,6 +267,8 @@ def create_app(
             "urls": _enumerate_urls(config.host, config.port),
             "auth_mode": "open" if is_open() else "authenticated",
             "open": is_open(),
+            "vnc_enabled": os.environ.get("AIMM_ENABLE_VNC") == "1"
+            and Path(os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")).is_dir(),
         }
 
     @app.get("/api/config/files")
@@ -402,6 +405,55 @@ def create_app(
             pass
         finally:
             log_handler.unsubscribe(queue)
+
+    # ------------------------------------------------------------------
+    # Optional noVNC bridge (Docker deployments)
+    # ------------------------------------------------------------------
+    novnc_dir = os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")
+    vnc_host = os.environ.get("AIMM_VNC_HOST", "127.0.0.1")
+    vnc_port = int(os.environ.get("AIMM_VNC_PORT", "5900"))
+    if os.environ.get("AIMM_ENABLE_VNC") == "1" and Path(novnc_dir).is_dir():
+        app.mount("/vnc", StaticFiles(directory=novnc_dir, html=True), name="vnc")
+
+        @app.websocket("/ws/vnc")
+        async def ws_vnc(websocket: WebSocket) -> None:
+            if not is_open():
+                session = websocket.cookies.get(SESSION_COOKIE)
+                if not session or sessions.validate(session) is None:
+                    await websocket.close(code=4401)
+                    return
+            await websocket.accept(subprotocol="binary")
+            try:
+                reader, writer = await asyncio.open_connection(vnc_host, vnc_port)
+            except OSError:
+                await websocket.close(code=1011)
+                return
+
+            async def ws_to_tcp() -> None:
+                try:
+                    while True:
+                        data = await websocket.receive_bytes()
+                        writer.write(data)
+                        await writer.drain()
+                except WebSocketDisconnect:
+                    pass
+                finally:
+                    writer.close()
+
+            async def tcp_to_ws() -> None:
+                try:
+                    while True:
+                        chunk = await reader.read(65536)
+                        if not chunk:
+                            break
+                        await websocket.send_bytes(chunk)
+                finally:
+                    try:
+                        await websocket.close()
+                    except Exception:  # noqa: S110 — already closed
+                        pass
+
+            await asyncio.gather(ws_to_tcp(), tcp_to_ws(), return_exceptions=True)
 
     # ------------------------------------------------------------------
     # Static UI

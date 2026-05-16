@@ -118,7 +118,8 @@ html, body {
 .status-warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); }
 .status-err { color: var(--err); border-color: rgba(248, 113, 113, 0.35); }
 
-.header button {
+.header button,
+.header a.ghost {
   font-size: 12px;
   padding: 6px 12px;
   border-radius: 6px;
@@ -126,6 +127,9 @@ html, body {
   background: var(--bg-elev-2);
   color: var(--text);
   cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  line-height: normal;
 }
 .header button.primary {
   background: var(--accent);
@@ -136,7 +140,8 @@ html, body {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.header button.ghost:hover { background: var(--bg-elev); }
+.header button.ghost:hover,
+.header a.ghost:hover { background: var(--bg-elev); color: var(--text); }
 .header button.small {
   padding: 3px 7px;
   font-size: 14px;

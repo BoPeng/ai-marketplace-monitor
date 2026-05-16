@@ -126,6 +126,26 @@ ai-marketplace-monitor
 
 The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md).
 
+### Run with Docker
+
+A prebuilt Linux image is published to GitHub Container Registry. It bundles Python, Playwright Chromium, a virtual display (Xvfb), and an embedded noVNC client so you can solve Facebook CAPTCHAs / interactive logins from the web UI — useful on macOS, headless servers, or NAS boxes.
+
+```bash
+docker run -d --name aimm \
+  -p 8467:8467 \
+  -v "$HOME/.ai-marketplace-monitor:/root/.ai-marketplace-monitor" \
+  -e FACEBOOK_USERNAME -e FACEBOOK_PASSWORD \
+  -e ANTHROPIC_API_KEY \
+  --restart unless-stopped \
+  ghcr.io/bopeng/ai-marketplace-monitor:latest
+```
+
+Then open [http://localhost:8467](http://localhost:8467). When Facebook needs an interactive login or CAPTCHA, click the **Browser** button in the header to view and control the in-container Chromium.
+
+Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch back and forth freely. Update with `docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker restart aimm`.
+
+To build the image yourself instead of pulling: `docker build -t aimm .` from a checkout of this repo.
+
 ## 💡 Example Usage
 
 **Find GoPro cameras under $300:**
