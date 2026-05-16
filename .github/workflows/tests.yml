@@ -70,7 +70,7 @@ jobs:
       #   run: nox --force-color -s security
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: ${{ matrix.os }}-${{ matrix.python-version }}.coverage-data
           path: ".coverage.*"
