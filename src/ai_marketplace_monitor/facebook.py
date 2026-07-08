@@ -996,6 +996,86 @@ class FacebookRegularItemPage(FacebookItemPage):
             return ""
 
 
+class FacebookFlexItemPage(FacebookRegularItemPage):
+    """Layout observed since mid-2026: the Details section renders Condition,
+    condition value, and description in nested span/div structures instead of
+    the previous ul/li lists. See #326."""
+
+    def verify_layout(self: "FacebookFlexItemPage") -> bool:
+        return (
+            self.page.locator(f'span:text-is("{self.translator("Condition")}")').count() > 0
+            and len(self.page.query_selector_all("h1")) > 0
+        )
+
+    def _condition_and_description(self: "FacebookFlexItemPage") -> List[str]:
+        """Climb from the Condition label; the first non-empty next-sibling text
+        is the condition value, the second is the description."""
+        label = self.page.query_selector(f'span:text-is("{self.translator("Condition")}")')
+        if label is None:
+            return []
+        return label.evaluate(
+            """(el) => {
+              const hits = [];
+              let n = el;
+              for (let i = 0; i < 16 && n && hits.length < 2; i++) {
+                const sib = n.nextElementSibling;
+                const t = sib && sib.textContent ? sib.textContent.trim() : '';
+                if (t) hits.push(t);
+                n = n.parentElement;
+              }
+              return hits;
+            }"""
+        )
+
+    def get_condition(self: "FacebookFlexItemPage") -> str:
+        try:
+            hits = self._condition_and_description()
+            return hits[0] if hits else ""
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
+            return ""
+
+    def get_description(self: "FacebookFlexItemPage") -> str:
+        try:
+            hits = self._condition_and_description()
+            return hits[1] if len(hits) > 1 else ""
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
+            return ""
+
+    def get_location(self: "FacebookFlexItemPage") -> str:
+        try:
+            phrase = self.translator("Location is approximate")
+            label = self.page.query_selector(f'span:text("{phrase}")')
+            if label is None:
+                return ""
+            text = label.evaluate(
+                """(el, phrase) => {
+                  let n = el;
+                  for (let i = 0; i < 10 && n; i++) {
+                    const t = (n.textContent || '').trim();
+                    if (t.split(phrase).join('').split('\\u00b7').join('').trim()) return t;
+                    n = n.parentElement;
+                  }
+                  return '';
+                }""",
+                phrase,
+            )
+            return text.replace(phrase, "").replace("·", "").strip()
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
+            return ""
+
+
 class FacebookRentalItemPage(FacebookRegularItemPage):
     def verify_layout(self: "FacebookRentalItemPage") -> bool:
         # there is a header h2 with text Description
@@ -1245,6 +1325,7 @@ def parse_listing(
         FacebookAutoItemWithAboutAndDescriptionPage,
         FacebookAutoItemWithDescriptionPage,
         FacebookRegularItemPage,
+        FacebookFlexItemPage,
     ]
 
     for page_model in supported_facebook_item_layouts:
