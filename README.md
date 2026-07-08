@@ -34,7 +34,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 ## What's New
 
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
-- **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-4-20250514`) to evaluate listings alongside OpenAI, DeepSeek, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
+- **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-4-20250514`) to evaluate listings alongside OpenAI, DeepSeek, Gemini, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
 - **Configurable Rate Limiting**: Rate limiting framework for all notification types with per-instance and global limits. Telegram notifications use optimized defaults automatically.
 
 **Table of Contents:**
@@ -202,7 +202,7 @@ For detailed information on setup and advanced features, see the comprehensive d
 
 **AI Integration:**
 
-- OpenAI, DeepSeek, Anthropic, Ollama setup
+- OpenAI, DeepSeek, Gemini, Anthropic, Ollama setup
 - Custom prompt configuration
 - Rating thresholds and filtering
 

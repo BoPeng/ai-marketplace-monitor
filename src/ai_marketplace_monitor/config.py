@@ -11,7 +11,14 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .ai import AnthropicBackend, DeepSeekBackend, OllamaBackend, OpenAIBackend, TAIConfig
+from .ai import (
+    AnthropicBackend,
+    DeepSeekBackend,
+    GeminiBackend,
+    OllamaBackend,
+    OpenAIBackend,
+    TAIConfig,
+)
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
@@ -22,6 +29,7 @@ from .utils import MonitorConfig, Translator, hilight, merge_dicts
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
     "deepseek": DeepSeekBackend,
+    "gemini": GeminiBackend,
     "openai": OpenAIBackend,
     "anthropic": AnthropicBackend,
     "ollama": OllamaBackend,
