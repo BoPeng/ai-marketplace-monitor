@@ -325,9 +325,8 @@ class FacebookMarketplace(Marketplace):
                     selector.type(self.config.password, delay=250)
             if self.config.username and self.config.password:
                 time.sleep(2)
-                selector = self.page.wait_for_selector('button[name="login"]')
-                if selector is not None:
-                    selector.click()
+                # Facebook removed the <button name="login"> — press Enter to submit the form
+                self.page.keyboard.press('Enter')
         except KeyboardInterrupt:
             raise
         except Exception as e:
