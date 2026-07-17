@@ -79,6 +79,24 @@ class Category(Enum):
     VIDEO_GAMES = "videogames"
 
 
+class SortBy(Enum):
+    SUGGESTED = "suggested"
+    NEW = "new"
+    PRICE_ASCEND = "price_ascend"
+    PRICE_DESCEND = "price_descend"
+    DISTANCE_ASCEND = "distance_ascend"
+
+
+# facebook's `sortBy` query values, keyed by the accepted config value. `suggested`
+# is the marketplace default and is expressed by omitting the parameter altogether.
+SORT_BY_PARAM = {
+    SortBy.NEW.value: "creation_time_descend",
+    SortBy.PRICE_ASCEND.value: "price_ascend",
+    SortBy.PRICE_DESCEND.value: "price_descend",
+    SortBy.DISTANCE_ASCEND.value: "distance_ascend",
+}
+
+
 @dataclass
 class FacebookMarketItemCommonConfig(BaseConfig):
     """Item options that can be defined in marketplace
@@ -93,6 +111,7 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     date_listed: List[int] | None = None
     delivery_method: List[str] | None = None
     category: str | None = None
+    sort_by: str | None = None
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.seller_locations is None:
@@ -198,6 +217,15 @@ class FacebookMarketItemCommonConfig(BaseConfig):
         if not isinstance(self.category, str) or self.category not in [x.value for x in Category]:
             raise ValueError(
                 f"Item {hilight(self.name)} category must be one of {', '.join(x.value for x in Category)}."
+            )
+
+    def handle_sort_by(self: "FacebookMarketItemCommonConfig") -> None:
+        if self.sort_by is None:
+            return
+
+        if not isinstance(self.sort_by, str) or self.sort_by not in [x.value for x in SortBy]:
+            raise ValueError(
+                f"Item {hilight(self.name)} sort_by must be one of {', '.join(x.value for x in SortBy)}."
             )
 
 
@@ -326,7 +354,7 @@ class FacebookMarketplace(Marketplace):
             if self.config.username and self.config.password:
                 time.sleep(2)
                 # Facebook removed the <button name="login"> — press Enter to submit the form
-                self.page.keyboard.press('Enter')
+                self.page.keyboard.press("Enter")
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -398,6 +426,12 @@ class FacebookMarketplace(Marketplace):
             availability = Availability.ALL.value
         if availability is not None and availability != Availability.ALL.value:
             options.append(f"availability={availability}")
+
+        # sort order does not depend on the search city, so it is appended once here.
+        # `suggested` is facebook's default and needs no parameter.
+        sort_by = item_config.sort_by or self.config.sort_by
+        if sort_by and sort_by != SortBy.SUGGESTED.value:
+            options.append(f"sortBy={SORT_BY_PARAM[sort_by]}")
 
         # search multiple keywords and cities
         # there is a small chance that search by different keywords and city will return the same items.
@@ -996,9 +1030,11 @@ class FacebookRegularItemPage(FacebookItemPage):
 
 
 class FacebookFlexItemPage(FacebookRegularItemPage):
-    """Layout observed since mid-2026: the Details section renders Condition,
-    condition value, and description in nested span/div structures instead of
-    the previous ul/li lists. See #326."""
+    """Layout observed since mid-2026.
+
+    The Details section renders Condition, condition value, and description in
+    nested span/div structures instead of the previous ul/li lists. See #326.
+    """
 
     def verify_layout(self: "FacebookFlexItemPage") -> bool:
         return (
@@ -1007,8 +1043,11 @@ class FacebookFlexItemPage(FacebookRegularItemPage):
         )
 
     def _condition_and_description(self: "FacebookFlexItemPage") -> List[str]:
-        """Climb from the Condition label; the first non-empty next-sibling text
-        is the condition value, the second is the description."""
+        """Extract the condition value and description from the Details section.
+
+        Climb from the Condition label; the first non-empty next-sibling text
+        is the condition value, the second is the description.
+        """
         label = self.page.query_selector(f'span:text-is("{self.translator("Condition")}")')
         if label is None:
             return []

@@ -296,6 +296,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`.                                                          |
 | `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
 | `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
+| `sort_by`             | Optional          | String              | Order of search results. One of `suggested`, `new`, `price_ascend`, `price_descend`, and `distance_ascend`.                                                 |
 | `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                      |
 
 Note that
@@ -307,6 +308,7 @@ Note that
 5. A list of two values can be specified for options `rating`, `availability`, `delivery_method`, and `date_listed`. See [First and subsequent searches](../README.md#first-and-subsequent-searches) for details.
 6. `min_price` and `max_price` can be specified as a number (e.g. `min_price=100`) or a number followed by a currency name (e.g. `min_price='100 USD'`). If different currencies are specified for both `min_price/max_price` and `search_city` (or `region`), the `min_price` and `max_price` will be adjusted to use currency for the `search_city`. See [Searching across regions with different currencies](../README.md#searching-across-regions-with-different-currencies) for details.
 7. `category` can be `vehicles`, `propertyrentals`, `apparel`, `electronics`, `entertainment`, `family`, `freestuff`, `free`, `garden`, `hobbies`, `homegoods`, `homeimprovement`, `homesales`, `musicalinstruments`, `officesupplies`, `petsupplies`, `sportinggoods`, `tickets`, `toys`, and `videogames`. If `catgory=freestuff` or `catgory=free` is set, `min_price` and `max_price` is ignored.
+8. `sort_by` controls the order of the search results. `suggested` (the default) uses Facebook's own ranking, `new` lists the newest items first (useful for catching newly listed items), `price_ascend` and `price_descend` sort by price, and `distance_ascend` sorts by distance from the search city.
 
 ### Regions
 

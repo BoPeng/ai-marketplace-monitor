@@ -295,6 +295,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "search_phrases": list,
         "search_region": (list, type(None)),
         "searched_count": int,
+        "sort_by": (str, type(None)),
         "start_at": (list, type(None)),
         "username": (str, type(None)),
     }
