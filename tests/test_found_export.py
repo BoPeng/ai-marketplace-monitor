@@ -17,6 +17,11 @@ def test_rows_to_csv_empty_has_header_only() -> None:
     text = rows_to_csv([])
     lines = text.splitlines()
     assert lines[0].split(",") == CSV_COLUMNS
+    # Pin the canonical column order (a binding requirement) against silent drift.
+    assert lines[0] == (
+        "found_at,item,marketplace,title,price,rating,ai_comment,"
+        "location,seller,condition,notified_user,url"
+    )
     assert len(lines) == 1
 
 
