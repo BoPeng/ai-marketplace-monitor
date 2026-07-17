@@ -354,7 +354,7 @@ class FacebookMarketplace(Marketplace):
             if self.config.username and self.config.password:
                 time.sleep(2)
                 # Facebook removed the <button name="login"> — press Enter to submit the form
-                self.page.keyboard.press('Enter')
+                self.page.keyboard.press("Enter")
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -1030,9 +1030,11 @@ class FacebookRegularItemPage(FacebookItemPage):
 
 
 class FacebookFlexItemPage(FacebookRegularItemPage):
-    """Layout observed since mid-2026: the Details section renders Condition,
-    condition value, and description in nested span/div structures instead of
-    the previous ul/li lists. See #326."""
+    """Layout observed since mid-2026.
+
+    The Details section renders Condition, condition value, and description in
+    nested span/div structures instead of the previous ul/li lists. See #326.
+    """
 
     def verify_layout(self: "FacebookFlexItemPage") -> bool:
         return (
@@ -1041,8 +1043,11 @@ class FacebookFlexItemPage(FacebookRegularItemPage):
         )
 
     def _condition_and_description(self: "FacebookFlexItemPage") -> List[str]:
-        """Climb from the Condition label; the first non-empty next-sibling text
-        is the condition value, the second is the description."""
+        """Extract the condition value and description from the Details section.
+
+        Climb from the Condition label; the first non-empty next-sibling text
+        is the condition value, the second is the description.
+        """
         label = self.page.query_selector(f'span:text-is("{self.translator("Condition")}")')
         if label is None:
             return []
