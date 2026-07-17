@@ -17,6 +17,7 @@ from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
 class AIServiceProvider(Enum):
     OPENAI = "OpenAI"
     DEEPSEEK = "DeepSeek"
+    GEMINI = "Gemini"
     ANTHROPIC = "Anthropic"
     OLLAMA = "Ollama"
 
@@ -133,6 +134,11 @@ class OpenAIConfig(AIConfig):
 
 @dataclass
 class DeekSeekConfig(OpenAIConfig):
+    pass
+
+
+@dataclass
+class GeminiConfig(OpenAIConfig):
     pass
 
 
@@ -366,6 +372,17 @@ class DeepSeekBackend(OpenAIBackend):
     @classmethod
     def get_config(cls: Type["DeepSeekBackend"], **kwargs: Any) -> DeekSeekConfig:
         return DeekSeekConfig(**kwargs)
+
+
+class GeminiBackend(OpenAIBackend):
+    """Google Gemini via its OpenAI-compatible endpoint."""
+
+    default_model = "gemini-2.5-flash"
+    base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+    @classmethod
+    def get_config(cls: Type["GeminiBackend"], **kwargs: Any) -> GeminiConfig:
+        return GeminiConfig(**kwargs)
 
 
 class OllamaBackend(OpenAIBackend):
