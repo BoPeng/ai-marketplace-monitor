@@ -36,6 +36,18 @@ def test_rows_to_csv_writes_row_and_escapes() -> None:
     assert parsed[0]["price"] == "$40"
 
 
+def test_rows_to_csv_neutralizes_formula_injection() -> None:
+    row = dict.fromkeys(CSV_COLUMNS, "")
+    row["title"] = '=HYPERLINK("http://evil")'
+    row["seller"] = "+cmd"
+    row["ai_comment"] = "@SUM(1)"
+    text = rows_to_csv([row])
+    parsed = _parse(text)
+    assert parsed[0]["title"] == '\'=HYPERLINK("http://evil")'
+    assert parsed[0]["seller"] == "'+cmd"
+    assert parsed[0]["ai_comment"] == "'@SUM(1)"
+
+
 from pathlib import Path  # noqa: E402
 from typing import Iterator  # noqa: E402
 
@@ -159,6 +171,23 @@ def test_build_rows_sorted_by_found_at_desc(temp_cache: Cache) -> None:
     _seed_notified(temp_cache, new, date="2026-07-16 08:00:00")
     rows = build_found_rows(temp_cache)
     assert [r["found_at"] for r in rows] == ["2026-07-16 08:00:00", "2026-07-10 08:00:00"]
+
+
+def test_build_rows_excludes_unnotified_listings(temp_cache: Cache) -> None:
+    # One notified listing, fully joined.
+    wanted = _listing("111")
+    wanted.to_cache(wanted.post_url, local_cache=temp_cache)
+    _seed_rating(temp_cache, wanted)
+    _seed_notified(temp_cache, wanted)
+    # An unrelated scraped listing + rating that was never notified: the two-pass
+    # loader must not surface it (and, per the memory design, not even load it).
+    other = _listing("222")
+    other.to_cache(other.post_url, local_cache=temp_cache)
+    _seed_rating(temp_cache, other)
+
+    rows = build_found_rows(temp_cache)
+    assert len(rows) == 1
+    assert rows[0]["url"] == "https://www.facebook.com/marketplace/item/111/?ref=search"
 
 
 from fastapi.testclient import TestClient  # noqa: E402
