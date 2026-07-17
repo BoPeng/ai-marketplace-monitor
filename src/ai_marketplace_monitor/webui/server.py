@@ -303,7 +303,7 @@ def create_app(
             "sections": sections,
         }
 
-    @app.put("/api/config/file/{file_id}")
+    @app.put("/api/config/file/{file_id}", response_model=None)
     async def put_config_file(
         file_id: str,
         body: Dict[str, Any],
