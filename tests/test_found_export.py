@@ -21,7 +21,7 @@ def test_rows_to_csv_empty_has_header_only() -> None:
 
 
 def test_rows_to_csv_writes_row_and_escapes() -> None:
-    row = {c: "" for c in CSV_COLUMNS}
+    row = dict.fromkeys(CSV_COLUMNS, "")
     row["title"] = 'Chair, "comfy"'
     row["price"] = "$40"
     text = rows_to_csv([row])
