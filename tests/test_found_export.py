@@ -154,3 +154,53 @@ def test_build_rows_sorted_by_found_at_desc(temp_cache: Cache) -> None:
     _seed_notified(temp_cache, new, date="2026-07-16 08:00:00")
     rows = build_found_rows(temp_cache)
     assert [r["found_at"] for r in rows] == ["2026-07-16 08:00:00", "2026-07-10 08:00:00"]
+
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from ai_marketplace_monitor.webui import server as webui_server  # noqa: E402
+from ai_marketplace_monitor.webui.config_api import ConfigFileService  # noqa: E402
+from ai_marketplace_monitor.webui.log_handler import LogBroadcastHandler  # noqa: E402
+from ai_marketplace_monitor.webui.server import AuthState, WebUIConfig, create_app  # noqa: E402
+
+
+def _make_client(
+    tmp_path: Path, temp_cache: Cache, monkeypatch: pytest.MonkeyPatch, exposed: bool = False
+) -> TestClient:
+    monkeypatch.setattr(webui_server, "cache", temp_cache)
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("[marketplace.facebook]\nsearch_city = 'dallas'\n", encoding="utf-8")
+    handler = LogBroadcastHandler()
+    config = WebUIConfig(config_files=[cfg_file], log_handler=handler)
+    state = AuthState()
+    state.exposed = exposed
+    service = ConfigFileService([cfg_file])
+    app = create_app(config, state, service, handler)
+    return TestClient(app)
+
+
+def test_endpoint_returns_csv(
+    tmp_path: Path, temp_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listing = _listing()
+    listing.to_cache(listing.post_url, local_cache=temp_cache)
+    _seed_rating(temp_cache, listing)
+    _seed_notified(temp_cache, listing)
+
+    client = _make_client(tmp_path, temp_cache, monkeypatch)
+    resp = client.get("/api/found.csv")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "attachment" in resp.headers["content-disposition"]
+    parsed = list(csv.DictReader(io.StringIO(resp.text)))
+    assert len(parsed) == 1
+    assert parsed[0]["rating"] == "5"
+    assert parsed[0]["url"].startswith("https://www.facebook.com/marketplace/item/123/")
+
+
+def test_endpoint_requires_session_when_exposed(
+    tmp_path: Path, temp_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = _make_client(tmp_path, temp_cache, monkeypatch, exposed=True)
+    resp = client.get("/api/found.csv")
+    assert resp.status_code == 401

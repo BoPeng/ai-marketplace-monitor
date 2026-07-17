@@ -34,6 +34,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from ..utils import cache
 from .auth import (
     CSRF_COOKIE,
     CSRF_HEADER,
@@ -47,6 +48,7 @@ from .auth import (
 )
 from .config_api import ConfigFileService
 from .config_auth import extract_credentials
+from .found_export import build_found_rows, rows_to_csv
 from .log_handler import LogBroadcastHandler
 
 # Ensure the vendored toml-edit-js WASM bundle is served with the right
@@ -464,6 +466,16 @@ def create_app(
         @app.get("/")
         async def index() -> FileResponse:
             return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/api/found.csv")
+    async def export_found_csv(_: str = Depends(require_session)) -> Response:
+        csv_text = rows_to_csv(build_found_rows(cache))
+        filename = f"found-items-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+        return Response(
+            content=csv_text,
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return app
 
