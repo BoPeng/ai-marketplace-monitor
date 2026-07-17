@@ -553,6 +553,36 @@
     }
   });
 
+  wireClick("#export-csv-btn", async () => {
+    const btn = $("#export-csv-btn");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await api("/api/found.csv");
+      if (!res.ok) {
+        setEditorStatus("⬇ Export failed: " + res.status, "err");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[-:T]/g, "")
+        .replace(/(\d{8})(\d{6})/, "$1-$2");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `found-items-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setEditorStatus("⬇ Export failed: " + err.message, "err");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
   // ---------------------------------------------------------------
   // Sections sidebar (AI-assisted edit / delete / add)
   // ---------------------------------------------------------------
