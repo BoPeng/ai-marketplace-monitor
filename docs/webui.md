@@ -11,6 +11,7 @@ The web UI provides:
 - **TOML Config Editor** with syntax highlighting, powered by CodeMirror
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level, item, AI score, and text search
+- **Export CSV** button in the header downloads all found (notified) listings — link, price, rating, and details — as a CSV file
 - **Auto-validation** of your config as you type
 
 ## Getting Started
