@@ -73,6 +73,7 @@ def test_create_page_recovers_from_corrupted_storage_state(
 
     mock_browser = MagicMock()
     good_context = MagicMock()
+    good_context.pages = []
     # first call (with storage_state) fails, second call (fallback) succeeds
     mock_browser.new_context.side_effect = [Exception("invalid storage_state"), good_context]
 
@@ -94,9 +95,48 @@ def test_create_page_recovers_from_corrupted_storage_state(
     assert state_file.with_suffix(".json.invalid").exists()
 
 
+def test_create_page_recovers_when_quarantine_file_already_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A leftover .invalid file shouldn't block quarantining a new one.
+
+    .rename() raises FileExistsError on Windows when the destination
+    already exists, which would leave the active (still-bad) state file
+    in place to keep failing every restart; .replace() overwrites
+    unconditionally on every platform.
+    """
+    state_file = tmp_path / "browser_state.json"
+    state_file.write_text("not valid json")
+    (tmp_path / "browser_state.json.invalid").write_text("older quarantine")
+    monkeypatch.setattr(marketplace_module, "browser_state_file", state_file)
+
+    mock_browser = MagicMock()
+    good_context = MagicMock()
+    good_context.pages = []
+    mock_browser.new_context.side_effect = [Exception("invalid storage_state"), good_context]
+
+    mp = Marketplace(name="facebook", browser=mock_browser, logger=MagicMock())
+    mp.config = MagicMock(monitor_config=None)
+
+    page = mp.create_page()
+
+    assert page is good_context.new_page.return_value
+    assert not state_file.exists()
+    assert (tmp_path / "browser_state.json.invalid").read_text() == "not valid json"
+
+
 def test_login_saves_storage_state_when_logged_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The early-return (already-authenticated) path must still persist.
+
+    Regression test: an earlier version returned before ever reaching the
+    save logic when already authenticated, so a persistent profile's
+    storage_state fallback (used e.g. for multi-proxy rotation) would
+    never get created or refreshed. Asserting goto was never called proves
+    this exercises that early-return branch specifically, not the full
+    login flow.
+    """
     state_file = tmp_path / "browser_state.json"
     monkeypatch.setattr(marketplace_module, "browser_state_file", state_file)
     monkeypatch.setattr(facebook_module, "browser_state_file", state_file)
@@ -110,6 +150,7 @@ def test_login_saves_storage_state_when_logged_in(
 
     marketplace.login()
 
+    marketplace.page.goto.assert_not_called()
     marketplace.page.context.storage_state.assert_called_once_with(path=state_file)
 
 
@@ -161,6 +202,7 @@ def test_login_skips_navigation_when_already_authenticated() -> None:
 
     mock_page.goto.assert_not_called()
     mock_page.wait_for_selector.assert_not_called()
+    mock_page.keyboard.press.assert_not_called()
 
 
 def test_login_skips_save_when_not_logged_in(

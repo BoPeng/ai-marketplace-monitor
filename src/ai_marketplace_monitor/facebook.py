@@ -306,6 +306,49 @@ class FacebookMarketplace(Marketplace):
     def get_item_config(cls: Type["FacebookMarketplace"], **kwargs: Any) -> FacebookItemConfig:
         return FacebookItemConfig(**kwargs)
 
+    def _persist_session_state(self: "FacebookMarketplace") -> bool:
+        """Save cookies/storage to browser_state_file if authenticated.
+
+        Returns whether the session is currently authenticated (Facebook
+        sets the "c_user" cookie, holding the user's numeric id, only once
+        logged in). Safe to call whether or not a persistent browser
+        profile is in use: for a persistent profile this is a redundant
+        (harmless) backup snapshot, since the profile itself already
+        persists to disk continuously; for the storage_state fallback path
+        (multi-proxy rotation) it's the only persistence mechanism, so it
+        needs to be refreshed here too, not just after a fresh login.
+        """
+        assert self.page is not None
+        try:
+            is_logged_in = any(
+                cookie.get("name") == "c_user" for cookie in self.page.context.cookies()
+            )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Login]", "fail")} Could not check login status: {e}"""
+                )
+            return False
+
+        if is_logged_in:
+            try:
+                self.page.context.storage_state(path=browser_state_file)
+                try:
+                    browser_state_file.chmod(0o600)
+                except (OSError, NotImplementedError):
+                    # e.g. Windows, where POSIX permission bits don't apply
+                    pass
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Login]", "succ")} Saved browser session for reuse across restarts."""
+                    )
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Login]", "fail")} Could not save browser session: {e}"""
+                    )
+        return is_logged_in
+
     def login(self: "FacebookMarketplace") -> None:
         assert self.browser is not None
 
@@ -317,14 +360,7 @@ class FacebookMarketplace(Marketplace):
         # explicit login form submission as a real login event -- and alerts
         # the account owner about it -- even when it's just automation
         # re-authenticating a session that was never actually logged out.
-        try:
-            already_logged_in = any(
-                cookie.get("name") == "c_user" for cookie in self.page.context.cookies()
-            )
-        except Exception:
-            already_logged_in = False
-
-        if already_logged_in:
+        if self._persist_session_state():
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Login]", "succ")} Reusing an existing authenticated session -- skipping login."""
@@ -400,40 +436,11 @@ class FacebookMarketplace(Marketplace):
         # Persist cookies/local storage so a future restart can reuse this
         # session instead of logging in again -- repeated fresh logins are
         # what trigger Facebook's "approve this login" prompt every time.
-        # Only do this if the session is actually authenticated (Facebook
-        # sets the "c_user" cookie, holding the user's numeric id, only
-        # once logged in) -- otherwise, e.g. when login_wait_time is 0 or
-        # the login didn't complete in time, we'd persist a logged-out
-        # session that would just fail again on the next restart.
-        try:
-            is_logged_in = any(
-                cookie.get("name") == "c_user" for cookie in self.page.context.cookies()
-            )
-        except Exception as e:
-            is_logged_in = False
-            if self.logger:
-                self.logger.warning(
-                    f"""{hilight("[Login]", "fail")} Could not check login status: {e}"""
-                )
-
-        if is_logged_in:
-            try:
-                self.page.context.storage_state(path=browser_state_file)
-                try:
-                    browser_state_file.chmod(0o600)
-                except (OSError, NotImplementedError):
-                    # e.g. Windows, where POSIX permission bits don't apply
-                    pass
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Login]", "succ")} Saved browser session for reuse across restarts."""
-                    )
-            except Exception as e:
-                if self.logger:
-                    self.logger.warning(
-                        f"""{hilight("[Login]", "fail")} Could not save browser session: {e}"""
-                    )
-        elif self.logger:
+        # Only actually saves if the session is authenticated -- otherwise,
+        # e.g. when login_wait_time is 0 or the login didn't complete in
+        # time, we'd persist a logged-out session that would just fail
+        # again on the next restart.
+        if not self._persist_session_state() and self.logger:
             self.logger.warning(
                 f"""{hilight("[Login]", "fail")} Not logged in yet -- skipping browser session save."""
             )

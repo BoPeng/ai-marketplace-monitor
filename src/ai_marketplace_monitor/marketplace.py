@@ -573,7 +573,12 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
                             f"""{hilight("[Browser]", "fail")} Saved browser session at {browser_state_file} could not be loaded ({e}); starting a fresh session instead."""
                         )
                     try:
-                        browser_state_file.rename(
+                        # .replace() (not .rename()) since a prior quarantine
+                        # file may already exist at the destination -- on
+                        # Windows, .rename() raises FileExistsError in that
+                        # case, leaving the invalid file in place to keep
+                        # failing on every future restart.
+                        browser_state_file.replace(
                             browser_state_file.with_suffix(browser_state_file.suffix + ".invalid")
                         )
                     except OSError:
