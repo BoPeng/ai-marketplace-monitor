@@ -520,14 +520,36 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             self.page = None
 
         if self.page is None:
-            context = self.browser.new_context(
-                storage_state=str(browser_state_file) if browser_state_file.exists() else None,
-                proxy=(
-                    None
-                    if self.config.monitor_config is None
-                    else self.config.monitor_config.get_proxy_options()
-                ),
+            proxy = (
+                None
+                if self.config.monitor_config is None
+                else self.config.monitor_config.get_proxy_options()
             )
+            use_saved_state = browser_state_file.exists()
+            try:
+                context = self.browser.new_context(
+                    storage_state=str(browser_state_file) if use_saved_state else None,
+                    proxy=proxy,
+                )
+            except Exception as e:
+                if not use_saved_state:
+                    raise
+                # The saved session is invalid/corrupted (e.g. malformed
+                # JSON, or from an incompatible Playwright version) --
+                # quarantine it so it doesn't keep failing on every future
+                # restart, then fall back to a fresh, unauthenticated
+                # context so monitoring can continue.
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Browser]", "fail")} Saved browser session at {browser_state_file} could not be loaded ({e}); starting a fresh session instead."""
+                    )
+                try:
+                    browser_state_file.rename(
+                        browser_state_file.with_suffix(browser_state_file.suffix + ".invalid")
+                    )
+                except OSError:
+                    pass
+                context = self.browser.new_context(storage_state=None, proxy=proxy)
             self.page = context.new_page()
         return self.page
 

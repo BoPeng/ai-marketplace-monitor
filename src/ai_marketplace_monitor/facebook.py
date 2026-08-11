@@ -380,17 +380,43 @@ class FacebookMarketplace(Marketplace):
         # Persist cookies/local storage so a future restart can reuse this
         # session instead of logging in again -- repeated fresh logins are
         # what trigger Facebook's "approve this login" prompt every time.
+        # Only do this if the session is actually authenticated (Facebook
+        # sets the "c_user" cookie, holding the user's numeric id, only
+        # once logged in) -- otherwise, e.g. when login_wait_time is 0 or
+        # the login didn't complete in time, we'd persist a logged-out
+        # session that would just fail again on the next restart.
         try:
-            self.page.context.storage_state(path=browser_state_file)
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Login]", "succ")} Saved browser session for reuse across restarts."""
-                )
+            is_logged_in = any(
+                cookie.get("name") == "c_user" for cookie in self.page.context.cookies()
+            )
         except Exception as e:
+            is_logged_in = False
             if self.logger:
                 self.logger.warning(
-                    f"""{hilight("[Login]", "fail")} Could not save browser session: {e}"""
+                    f"""{hilight("[Login]", "fail")} Could not check login status: {e}"""
                 )
+
+        if is_logged_in:
+            try:
+                self.page.context.storage_state(path=browser_state_file)
+                try:
+                    browser_state_file.chmod(0o600)
+                except (OSError, NotImplementedError):
+                    # e.g. Windows, where POSIX permission bits don't apply
+                    pass
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Login]", "succ")} Saved browser session for reuse across restarts."""
+                    )
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Login]", "fail")} Could not save browser session: {e}"""
+                    )
+        elif self.logger:
+            self.logger.warning(
+                f"""{hilight("[Login]", "fail")} Not logged in yet -- skipping browser session save."""
+            )
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
