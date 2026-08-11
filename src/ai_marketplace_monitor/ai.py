@@ -29,10 +29,13 @@ def _sanitize_comp(comp: str) -> str:
     """Flatten and bound an untrusted comparable-listing string for the prompt.
 
     Collapses embedded newlines/control characters (which could otherwise be
-    used to fake new prompt sections) to single spaces, and truncates overly
-    long entries.
+    used to fake new prompt sections) to single spaces, neutralizes "<"/">"
+    so a comp can't spell out a literal "</comparison_data>" and prematurely
+    close the delimiter block it's placed inside, and truncates overly long
+    entries.
     """
     flattened = " ".join(comp.split())
+    flattened = flattened.replace("<", "&lt;").replace(">", "&gt;")
     if len(flattened) > _COMP_MAX_LEN:
         flattened = flattened[: _COMP_MAX_LEN - 1].rstrip() + "…"
     return flattened
@@ -44,10 +47,12 @@ def _comps_fingerprint(comps: Optional[List[str]]) -> str:
     The exact comps list changes almost every search cycle as listings
     come and go, so hashing it directly would defeat caching entirely
     (every re-sighting of an unsold listing would re-hit the AI). Instead
-    bucket by count and rounded price range: a cached rating is reused
-    across turnover that doesn't meaningfully change the price picture,
-    but invalidated when it does (e.g. no comps -> some comps, or a large
-    shift in price range).
+    bucket by count, rounded price range, and rounded median: a cached
+    rating is reused across turnover that doesn't meaningfully change the
+    price picture, but invalidated when it does -- including cases with
+    the same count and min/max but a different price distribution in
+    between (e.g. one cheap and one expensive outlier vs. a cluster of
+    mid-priced items sharing the same extremes).
     """
     if not comps:
         return "none"
@@ -62,9 +67,11 @@ def _comps_fingerprint(comps: Optional[List[str]]) -> str:
     if not prices:
         return f"n{len(comps)}"
     bucket = 25
-    lo = int(min(prices) // bucket * bucket)
-    hi = int(max(prices) // bucket * bucket)
-    return f"n{len(comps)}:{lo}-{hi}"
+    prices.sort()
+    lo = int(prices[0] // bucket * bucket)
+    hi = int(prices[-1] // bucket * bucket)
+    median = int(prices[len(prices) // 2] // bucket * bucket)
+    return f"n{len(comps)}:{lo}-{median}-{hi}"
 
 
 @dataclass
