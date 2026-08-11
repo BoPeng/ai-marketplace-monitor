@@ -13,9 +13,16 @@ from .utils import (
     KeyboardMonitor,
     MonitorConfig,
     Translator,
+    amm_home,
     convert_to_seconds,
     hilight,
 )
+
+# Where we persist the logged-in browser session (cookies, local storage)
+# so that a container/process restart can resume marketplace access
+# without triggering another login (and, for Facebook, another
+# "approve this login" prompt on the account owner's phone).
+browser_state_file = amm_home / "browser_state.json"
 
 
 class MarketPlace(Enum):
@@ -514,11 +521,12 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 
         if self.page is None:
             context = self.browser.new_context(
+                storage_state=str(browser_state_file) if browser_state_file.exists() else None,
                 proxy=(
                     None
                     if self.config.monitor_config is None
                     else self.config.monitor_config.get_proxy_options()
-                )
+                ),
             )
             self.page = context.new_page()
         return self.page

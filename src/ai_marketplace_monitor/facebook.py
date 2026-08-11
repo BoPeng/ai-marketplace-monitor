@@ -15,7 +15,7 @@ from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
-from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage
+from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage, browser_state_file
 from .utils import (
     BaseConfig,
     CounterItem,
@@ -376,6 +376,21 @@ class FacebookMarketplace(Marketplace):
                     )
                 )
             doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
+
+        # Persist cookies/local storage so a future restart can reuse this
+        # session instead of logging in again -- repeated fresh logins are
+        # what trigger Facebook's "approve this login" prompt every time.
+        try:
+            self.page.context.storage_state(path=browser_state_file)
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Login]", "succ")} Saved browser session for reuse across restarts."""
+                )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Login]", "fail")} Could not save browser session: {e}"""
+                )
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
