@@ -142,6 +142,27 @@ def test_login_saves_storage_state_with_restricted_permissions(
     assert (state_file.stat().st_mode & 0o777) == 0o600
 
 
+def test_login_skips_navigation_when_already_authenticated() -> None:
+    """Skip re-authenticating an already-valid session.
+
+    A valid session (persistent profile or resumed storage_state) should
+    skip navigating to the login page and re-submitting credentials --
+    Facebook treats that explicit login-form submission as a real login
+    event and alerts the account owner, even when nothing needed to change.
+    """
+    marketplace = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=MagicMock())
+    marketplace.config = MagicMock(
+        username="user@example.com", password="hunter2", login_wait_time=0
+    )
+    mock_page = MagicMock(context=_mock_context_with_cookies(logged_in=True))
+    marketplace.create_page = MagicMock(return_value=mock_page)  # type: ignore[method-assign]
+
+    marketplace.login()
+
+    mock_page.goto.assert_not_called()
+    mock_page.wait_for_selector.assert_not_called()
+
+
 def test_login_skips_save_when_not_logged_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -252,6 +273,39 @@ def test_launch_browser_uses_persistent_profile_when_no_rotation_needed(
     assert mock_chromium.launch_persistent_context.call_args.kwargs["user_data_dir"] == str(
         profile_dir
     )
+
+
+def test_launch_browser_falls_back_to_classic_launch_for_non_chromium(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Firefox/WebKit fall back to a regular (non-persistent) launch.
+
+    browser_profile_dir is a Chromium user-data directory and isn't
+    meaningful for other engines.
+    """
+    profile_dir = tmp_path / "profile"
+    monkeypatch.setattr(monitor_module, "browser_profile_dir", profile_dir)
+
+    config = MagicMock()
+    config.marketplace = {"facebook": _mock_marketplace_config(proxy_server=None)}
+    m = _monitor_with_config(config)
+
+    mock_chromium = MagicMock()
+    mock_chromium.launch_persistent_context.side_effect = Exception("chromium not installed")
+
+    mock_firefox_browser = MagicMock()
+    mock_firefox = MagicMock()
+    mock_firefox.launch.return_value = mock_firefox_browser
+
+    m.playwright = MagicMock(chromium=mock_chromium, firefox=mock_firefox)
+
+    result = m._launch_browser()
+
+    assert result is mock_firefox_browser
+    mock_chromium.launch_persistent_context.assert_called_once()
+    mock_chromium.launch.assert_not_called()
+    mock_firefox.launch.assert_called_once()
+    mock_firefox.launch_persistent_context.assert_not_called()
 
 
 def test_launch_browser_uses_classic_browser_when_rotation_needed() -> None:

@@ -311,6 +311,26 @@ class FacebookMarketplace(Marketplace):
 
         self.page = self.create_page(swap_proxy=True)
 
+        # If a persistent browser profile (or a resumed storage_state) already
+        # carries a valid Facebook session, skip navigating to the login page
+        # and re-submitting credentials entirely. Facebook treats that
+        # explicit login form submission as a real login event -- and alerts
+        # the account owner about it -- even when it's just automation
+        # re-authenticating a session that was never actually logged out.
+        try:
+            already_logged_in = any(
+                cookie.get("name") == "c_user" for cookie in self.page.context.cookies()
+            )
+        except Exception:
+            already_logged_in = False
+
+        if already_logged_in:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Login]", "succ")} Reusing an existing authenticated session -- skipping login."""
+                )
+            return
+
         # Navigate to the URL, no timeout
         self.goto_url(self.initial_url)
 

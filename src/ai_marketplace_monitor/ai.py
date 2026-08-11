@@ -3,7 +3,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
+from typing import Any, ClassVar, Generic, List, Optional, Type, TypeVar
 
 from diskcache import Cache  # type: ignore
 from openai import OpenAI  # type: ignore
@@ -183,6 +183,7 @@ class AIBackend(Generic[TAIConfig]):
         listing: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
+        comps: Optional[List[str]] = None,
     ) -> str:
         prompt = (
             f"""A user wants to buy a {item_config.name} from Facebook Marketplace. """
@@ -208,6 +209,13 @@ class AIBackend(Generic[TAIConfig]):
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
         )
+        if comps:
+            prompt += (
+                "Other listings currently found in this same search (for price "
+                "comparison -- use these, not just your own general knowledge, to "
+                "judge whether this listing's price is unusually high, low, or "
+                "typical):\n" + "\n".join(f"- {comp}" for comp in comps) + "\n\n"
+            )
         # prompt
         if item_config.prompt is not None:
             prompt += item_config.prompt
@@ -250,6 +258,7 @@ class AIBackend(Generic[TAIConfig]):
         listing: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
+        comps: Optional[List[str]] = None,
     ) -> AIResponse:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
@@ -282,10 +291,11 @@ class OpenAIBackend(AIBackend):
         listing: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
+        comps: Optional[List[str]] = None,
     ) -> AIResponse:
         # ask openai to confirm the item is correct
         counter.increment(CounterItem.AI_QUERY, item_config.name)
-        prompt = self.get_prompt(listing, item_config, marketplace_config)
+        prompt = self.get_prompt(listing, item_config, marketplace_config, comps=comps)
         res: AIResponse | None = AIResponse.from_cache(listing, item_config, marketplace_config)
         if res is not None:
             if self.logger:
@@ -416,9 +426,10 @@ class AnthropicBackend(AIBackend):
         listing: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
+        comps: Optional[List[str]] = None,
     ) -> AIResponse:
         counter.increment(CounterItem.AI_QUERY, item_config.name)
-        prompt = self.get_prompt(listing, item_config, marketplace_config)
+        prompt = self.get_prompt(listing, item_config, marketplace_config, comps=comps)
         res: AIResponse | None = AIResponse.from_cache(listing, item_config, marketplace_config)
         if res is not None:
             if self.logger:

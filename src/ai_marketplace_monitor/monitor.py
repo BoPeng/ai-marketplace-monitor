@@ -155,7 +155,13 @@ class MarketplaceMonitor:
                 if self.logger:
                     self.logger.debug(f"Attempting to launch {browser_name} browser...")
                 browser: Browser | BrowserContext
-                if use_persistent_profile:
+                # browser_profile_dir is a Chromium user-data-dir -- only
+                # meaningful (and safe) for chromium itself. If chromium
+                # isn't available and we fall back to firefox/webkit, use
+                # the regular (non-persistent) launch path; cookie-based
+                # persistence via storage_state in Marketplace.create_page
+                # still applies in that case.
+                if use_persistent_profile and browser_name == "chromium":
                     browser = browser_type.launch_persistent_context(
                         user_data_dir=str(browser_profile_dir),
                         headless=self.headless,
@@ -163,9 +169,10 @@ class MarketplaceMonitor:
                     )
                 else:
                     browser = browser_type.launch(headless=self.headless)
+                used_persistent_profile = use_persistent_profile and browser_name == "chromium"
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser{" with a persistent profile" if use_persistent_profile else ""}.""",
+                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser{" with a persistent profile" if used_persistent_profile else ""}.""",
                         extra=aimm_event("browser_ready", engine=browser_name),
                     )
                 return browser
@@ -228,7 +235,21 @@ class MarketplaceMonitor:
         users_to_notify = (
             item_config.notify or marketplace_config.notify or list(self.config.user.keys())
         )
-        for listing in marketplace.search(item_config):
+        # Materialize the full result set up front (rather than evaluating as
+        # we stream from the search generator) so each listing's AI
+        # evaluation can be given the *other* listings found in this same
+        # search cycle as price comps -- without this, the AI has no real
+        # market context and can only guess at a fair price from its own
+        # general training knowledge.
+        listings = list(marketplace.search(item_config))
+        comps_by_id = {
+            listing.id: f"""{listing.title} - {listing.price}"""
+            for listing in listings
+            if listing.price and listing.price != "**unspecified**"
+        }
+        max_comps = 20
+
+        for listing in listings:
             # duplicated ID should not happen, but sellers could repost the same listing,
             # potentially under different seller names
             if listing.id in [x.id for x in new_listings] or listing.content in [
@@ -256,8 +277,12 @@ class MarketplaceMonitor:
                     )
                 continue
             # for x in self.find_new_items(found_items)
+            comps = [comp for lid, comp in comps_by_id.items() if lid != listing.id][:max_comps]
             res = self.evaluate_by_ai(
-                listing, item_config=item_config, marketplace_config=marketplace_config
+                listing,
+                item_config=item_config,
+                marketplace_config=marketplace_config,
+                comps=comps,
             )
             if self.logger:
                 if res.comment == AIResponse.NOT_EVALUATED:
@@ -824,6 +849,7 @@ class MarketplaceMonitor:
         item: Listing,
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
+        comps: List[str] | None = None,
     ) -> AIResponse:
         if item_config.ai is not None:
             ai_agents = item_config.ai
@@ -836,7 +862,7 @@ class MarketplaceMonitor:
             if ai_agents is not None and agent.config.name not in ai_agents:
                 continue
             try:
-                return agent.evaluate(item, item_config, marketplace_config)
+                return agent.evaluate(item, item_config, marketplace_config, comps=comps)
             except KeyboardInterrupt:
                 raise
             except Exception as e:
