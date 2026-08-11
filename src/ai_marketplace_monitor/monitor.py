@@ -8,14 +8,14 @@ import humanize
 import inflect
 import rich
 import schedule  # type: ignore
-from playwright.sync_api import Browser, Playwright, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, Playwright, ProxySettings, sync_playwright
 from rich.pretty import pretty_repr
 from rich.prompt import Prompt
 
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .listing import Listing
-from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
+from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig, browser_profile_dir
 from .notification import NotificationStatus
 from .user import User
 from .utils import (
@@ -60,7 +60,7 @@ class MarketplaceMonitor:
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
-        self.browser: Browser | None = None
+        self.browser: Browser | BrowserContext | None = None
         self.logger = logger
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
@@ -92,8 +92,57 @@ class MarketplaceMonitor:
                 doze(60, self.config_files, self.keyboard_monitor)
                 continue
 
-    def _launch_browser(self: "MarketplaceMonitor") -> Browser:
-        """Launch a browser, preferring Chromium if available, otherwise any installed browser."""
+    def _uses_multi_proxy_rotation(self: "MarketplaceMonitor") -> bool:
+        """True if any configured marketplace rotates between multiple proxies.
+
+        A persistent browser profile isn't compatible with that -- its
+        proxy is fixed for the life of the browser process, since
+        Chromium doesn't support changing a running profile's proxy per
+        context the way a plain (non-persistent) browser does.
+        """
+        if self.config is None:
+            return False
+        for marketplace_config in self.config.marketplace.values():
+            proxy_server = (
+                None
+                if marketplace_config.monitor_config is None
+                else marketplace_config.monitor_config.proxy_server
+            )
+            if isinstance(proxy_server, list) and len(proxy_server) > 1:
+                return True
+        return False
+
+    def _resolve_static_proxy(self: "MarketplaceMonitor") -> ProxySettings | None:
+        """Resolve the single proxy (if any) to use for a persistent profile.
+
+        Only meaningful when _uses_multi_proxy_rotation() is False, i.e.
+        at most one distinct proxy is configured anywhere.
+        """
+        if self.config is None:
+            return None
+        for marketplace_config in self.config.marketplace.values():
+            if marketplace_config.monitor_config is not None:
+                options = marketplace_config.monitor_config.get_proxy_options()
+                if options is not None:
+                    return options
+        return None
+
+    def _launch_browser(self: "MarketplaceMonitor") -> Browser | BrowserContext:
+        """Launch a browser, preferring Chromium if available, otherwise any installed browser.
+
+        Uses a persistent browser profile when possible -- much stronger
+        session/device continuity across restarts than cookie-only
+        persistence, since sites with fraud detection (e.g. Facebook)
+        can flag a brand new browser context as an unrecognized device
+        even when it's carrying valid session cookies. Falls back to a
+        plain browser (with cookie-based persistence handled separately
+        in Marketplace.create_page) when a marketplace is configured
+        with multiple rotating proxies, which a single persistent
+        profile can't support.
+        """
+        use_persistent_profile = not self._uses_multi_proxy_rotation()
+        proxy = self._resolve_static_proxy() if use_persistent_profile else None
+
         # Try browsers in order of preference
         browser_types = [
             ("chromium", self.playwright.chromium),
@@ -105,10 +154,18 @@ class MarketplaceMonitor:
             try:
                 if self.logger:
                     self.logger.debug(f"Attempting to launch {browser_name} browser...")
-                browser = browser_type.launch(headless=self.headless)
+                browser: Browser | BrowserContext
+                if use_persistent_profile:
+                    browser = browser_type.launch_persistent_context(
+                        user_data_dir=str(browser_profile_dir),
+                        headless=self.headless,
+                        proxy=proxy,
+                    )
+                else:
+                    browser = browser_type.launch(headless=self.headless)
                 if self.logger:
                     self.logger.info(
-                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser.""",
+                        f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser{" with a persistent profile" if use_persistent_profile else ""}.""",
                         extra=aimm_event("browser_ready", engine=browser_name),
                     )
                 return browser

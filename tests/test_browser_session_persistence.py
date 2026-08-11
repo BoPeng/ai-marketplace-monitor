@@ -12,11 +12,14 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from playwright.sync_api import BrowserContext
 
 import ai_marketplace_monitor.facebook as facebook_module
 import ai_marketplace_monitor.marketplace as marketplace_module
+import ai_marketplace_monitor.monitor as monitor_module
 from ai_marketplace_monitor.facebook import FacebookMarketplace
 from ai_marketplace_monitor.marketplace import Marketplace
+from ai_marketplace_monitor.monitor import MarketplaceMonitor
 
 
 def _mock_context_with_cookies(logged_in: bool) -> MagicMock:
@@ -157,3 +160,114 @@ def test_login_skips_save_when_not_logged_in(
 
     marketplace.page.context.storage_state.assert_not_called()
     assert not state_file.exists()
+
+
+# --- Persistent browser profile (stronger than storage_state alone) ---
+
+
+def _mock_marketplace_config(proxy_server: list | None = None) -> MagicMock:
+    monitor_config = MagicMock(proxy_server=proxy_server)
+    monitor_config.get_proxy_options.return_value = (
+        {"server": proxy_server[0]} if proxy_server else None
+    )
+    return MagicMock(monitor_config=monitor_config)
+
+
+def _monitor_with_config(config: MagicMock) -> MarketplaceMonitor:
+    # bypass __init__ (which starts a real Playwright driver process) --
+    # these methods only touch self.config/.headless/.playwright/.logger
+    m = MarketplaceMonitor.__new__(MarketplaceMonitor)
+    m.config = config
+    m.headless = True
+    m.logger = None
+    return m
+
+
+def test_create_page_uses_persistent_context_directly(tmp_path: Path) -> None:
+    mock_context = MagicMock(spec=BrowserContext)
+    mock_context.pages = []
+
+    mp = Marketplace(name="facebook", browser=mock_context)
+    mp.config = MagicMock(monitor_config=None)
+
+    page = mp.create_page()
+
+    assert page is mock_context.new_page.return_value
+    mock_context.new_context.assert_not_called()
+
+
+def test_create_page_reuses_existing_page_on_persistent_context() -> None:
+    existing_page = MagicMock()
+    mock_context = MagicMock(spec=BrowserContext)
+    mock_context.pages = [existing_page]
+
+    mp = Marketplace(name="facebook", browser=mock_context)
+    mp.config = MagicMock(monitor_config=None)
+
+    page = mp.create_page()
+
+    assert page is existing_page
+    mock_context.new_page.assert_not_called()
+
+
+def test_uses_multi_proxy_rotation_true_when_any_marketplace_rotates() -> None:
+    config = MagicMock()
+    config.marketplace = {
+        "facebook": _mock_marketplace_config(proxy_server=["http://a", "http://b"]),
+    }
+    m = _monitor_with_config(config)
+    assert m._uses_multi_proxy_rotation() is True
+
+
+def test_uses_multi_proxy_rotation_false_for_none_or_single_proxy() -> None:
+    config = MagicMock()
+    config.marketplace = {
+        "facebook": _mock_marketplace_config(proxy_server=None),
+        "other": _mock_marketplace_config(proxy_server=["http://a"]),
+    }
+    m = _monitor_with_config(config)
+    assert m._uses_multi_proxy_rotation() is False
+
+
+def test_launch_browser_uses_persistent_profile_when_no_rotation_needed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile_dir = tmp_path / "profile"
+    monkeypatch.setattr(monitor_module, "browser_profile_dir", profile_dir)
+
+    config = MagicMock()
+    config.marketplace = {"facebook": _mock_marketplace_config(proxy_server=None)}
+    m = _monitor_with_config(config)
+
+    mock_context = MagicMock()
+    mock_chromium = MagicMock()
+    mock_chromium.launch_persistent_context.return_value = mock_context
+    m.playwright = MagicMock(chromium=mock_chromium)
+
+    result = m._launch_browser()
+
+    assert result is mock_context
+    mock_chromium.launch.assert_not_called()
+    mock_chromium.launch_persistent_context.assert_called_once()
+    assert mock_chromium.launch_persistent_context.call_args.kwargs["user_data_dir"] == str(
+        profile_dir
+    )
+
+
+def test_launch_browser_uses_classic_browser_when_rotation_needed() -> None:
+    config = MagicMock()
+    config.marketplace = {
+        "facebook": _mock_marketplace_config(proxy_server=["http://a", "http://b"]),
+    }
+    m = _monitor_with_config(config)
+
+    mock_browser = MagicMock()
+    mock_chromium = MagicMock()
+    mock_chromium.launch.return_value = mock_browser
+    m.playwright = MagicMock(chromium=mock_chromium)
+
+    result = m._launch_browser()
+
+    assert result is mock_browser
+    mock_chromium.launch_persistent_context.assert_not_called()
+    mock_chromium.launch.assert_called_once()
