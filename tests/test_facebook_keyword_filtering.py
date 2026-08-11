@@ -2,7 +2,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplace
+from ai_marketplace_monitor.facebook import (
+    FacebookItemConfig,
+    FacebookMarketplace,
+    _clean_facebook_description,
+)
 from ai_marketplace_monitor.listing import Listing
 
 
@@ -191,3 +195,24 @@ def test_antikeyword_filtering_with_empty_description(
     assert (
         not result
     ), "Should reject listing when antikeywords found in title, even with empty description"
+
+
+def test_clean_facebook_description_removes_ad_blocks() -> None:
+    description = (
+        "Good unit, no issues\n"
+        "Ads\xa0.g284_0{max-inline-size:284px;min-inline-size:0px}"
+        "Sorry, we're having trouble playing this video.Learn more"
+        "OPPO OPPO Reno16 Series 5G Launch Event | OPPO Philippines"
+    )
+
+    assert _clean_facebook_description(description) == "Good unit, no issues"
+
+
+def test_clean_facebook_description_all_ad_noise_returns_empty() -> None:
+    description = (
+        "Ads\xa0.g284_0{max-inline-size:284px;min-inline-size:0px}"
+        "Sorry, we're having trouble playing this video.Learn more"
+        "RedDoorz New user? Save ₱150 now."
+    )
+
+    assert _clean_facebook_description(description) == ""
