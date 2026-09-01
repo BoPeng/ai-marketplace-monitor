@@ -46,7 +46,12 @@ from watchdog.observers import Observer
 
 # home directory for all settings and caches
 amm_home = Path.home() / ".ai-marketplace-monitor"
-amm_home.mkdir(parents=True, exist_ok=True)
+# mode is honored on POSIX for a newly-created directory; harmless no-op
+# elsewhere (e.g. Windows) and never retroactively applied to an existing
+# directory, so this is safe for existing installs too. This directory
+# holds credentials-adjacent files (cache, browser session state), so it
+# shouldn't be group/world readable.
+amm_home.mkdir(mode=0o700, parents=True, exist_ok=True)
 
 cache = Cache(amm_home)
 

@@ -4,7 +4,13 @@ from enum import Enum
 from logging import Logger
 from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
 
-from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
+from playwright.sync_api import (  # type: ignore
+    Browser,
+    BrowserContext,
+    ElementHandle,
+    Locator,
+    Page,
+)
 
 from .listing import Listing
 from .utils import (
@@ -13,9 +19,31 @@ from .utils import (
     KeyboardMonitor,
     MonitorConfig,
     Translator,
+    amm_home,
     convert_to_seconds,
     hilight,
 )
+
+# Where we persist the logged-in browser session (cookies, local storage)
+# so that a container/process restart can resume marketplace access
+# without triggering another login (and, for Facebook, another
+# "approve this login" prompt on the account owner's phone). Used as a
+# fallback when a persistent profile (below) isn't available.
+browser_state_file = amm_home / "browser_state.json"
+
+# A persistent Chromium profile directory: a much stronger form of
+# session continuity than browser_state_file above, since it retains
+# (most of) what a real installed browser would -- IndexedDB, cache,
+# and other device-fingerprint-relevant state, not just cookies and
+# local storage. Sites with fraud detection (e.g. Facebook) can still
+# flag a *new* browser context as an unrecognized device even when it's
+# carrying valid session cookies; a persistent profile looks like the
+# same actual browser across restarts instead. See
+# MarketplaceMonitor._launch_browser for when this is used -- it isn't
+# compatible with per-context proxy rotation, since a persistent
+# context's proxy is fixed for the life of the browser process.
+browser_profile_dir = amm_home / "browser_profile"
+browser_profile_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
 
 class MarketPlace(Enum):
@@ -455,7 +483,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def __init__(
         self: "Marketplace",
         name: str,
-        browser: Browser | None,
+        browser: Browser | BrowserContext | None,
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -481,7 +509,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         if translator is not None:
             self.translator = translator
 
-    def set_browser(self: "Marketplace", browser: Browser | None = None) -> None:
+    def set_browser(self: "Marketplace", browser: Browser | BrowserContext | None = None) -> None:
         if browser is not None:
             self.browser = browser
             self.page = None
@@ -513,14 +541,50 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             self.page = None
 
         if self.page is None:
-            context = self.browser.new_context(
-                proxy=(
+            if isinstance(self.browser, BrowserContext):
+                # Persistent-profile mode: self.browser already IS the
+                # (only) context for this process, with its full profile
+                # continuously saved to browser_profile_dir -- there's
+                # nothing further to load or configure per-page, and no
+                # separate storage_state save/restore is needed.
+                context: BrowserContext = self.browser
+            else:
+                proxy = (
                     None
                     if self.config.monitor_config is None
                     else self.config.monitor_config.get_proxy_options()
                 )
-            )
-            self.page = context.new_page()
+                use_saved_state = browser_state_file.exists()
+                try:
+                    context = self.browser.new_context(
+                        storage_state=str(browser_state_file) if use_saved_state else None,
+                        proxy=proxy,
+                    )
+                except Exception as e:
+                    if not use_saved_state:
+                        raise
+                    # The saved session is invalid/corrupted (e.g. malformed
+                    # JSON, or from an incompatible Playwright version) --
+                    # quarantine it so it doesn't keep failing on every future
+                    # restart, then fall back to a fresh, unauthenticated
+                    # context so monitoring can continue.
+                    if self.logger:
+                        self.logger.warning(
+                            f"""{hilight("[Browser]", "fail")} Saved browser session at {browser_state_file} could not be loaded ({e}); starting a fresh session instead."""
+                        )
+                    try:
+                        # .replace() (not .rename()) since a prior quarantine
+                        # file may already exist at the destination -- on
+                        # Windows, .rename() raises FileExistsError in that
+                        # case, leaving the invalid file in place to keep
+                        # failing on every future restart.
+                        browser_state_file.replace(
+                            browser_state_file.with_suffix(browser_state_file.suffix + ".invalid")
+                        )
+                    except OSError:
+                        pass
+                    context = self.browser.new_context(storage_state=None, proxy=proxy)
+            self.page = context.pages[0] if context.pages else context.new_page()
         return self.page
 
     def goto_url(self: "Marketplace", url: str, attempt: int = 0) -> None:

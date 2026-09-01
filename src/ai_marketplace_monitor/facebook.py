@@ -11,11 +11,11 @@ from urllib.parse import quote
 
 import humanize
 from currency_converter import CurrencyConverter  # type: ignore
-from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
+from playwright.sync_api import Browser, BrowserContext, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
-from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage
+from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage, browser_state_file
 from .utils import (
     BaseConfig,
     CounterItem,
@@ -290,7 +290,7 @@ class FacebookMarketplace(Marketplace):
     def __init__(
         self: "FacebookMarketplace",
         name: str,
-        browser: Browser | None,
+        browser: Browser | BrowserContext | None,
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -306,10 +306,66 @@ class FacebookMarketplace(Marketplace):
     def get_item_config(cls: Type["FacebookMarketplace"], **kwargs: Any) -> FacebookItemConfig:
         return FacebookItemConfig(**kwargs)
 
+    def _persist_session_state(self: "FacebookMarketplace") -> bool:
+        """Save cookies/storage to browser_state_file if authenticated.
+
+        Returns whether the session is currently authenticated (Facebook
+        sets the "c_user" cookie, holding the user's numeric id, only once
+        logged in). Safe to call whether or not a persistent browser
+        profile is in use: for a persistent profile this is a redundant
+        (harmless) backup snapshot, since the profile itself already
+        persists to disk continuously; for the storage_state fallback path
+        (multi-proxy rotation) it's the only persistence mechanism, so it
+        needs to be refreshed here too, not just after a fresh login.
+        """
+        assert self.page is not None
+        try:
+            is_logged_in = any(
+                cookie.get("name") == "c_user" for cookie in self.page.context.cookies()
+            )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Login]", "fail")} Could not check login status: {e}"""
+                )
+            return False
+
+        if is_logged_in:
+            try:
+                self.page.context.storage_state(path=browser_state_file)
+                try:
+                    browser_state_file.chmod(0o600)
+                except (OSError, NotImplementedError):
+                    # e.g. Windows, where POSIX permission bits don't apply
+                    pass
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Login]", "succ")} Saved browser session for reuse across restarts."""
+                    )
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Login]", "fail")} Could not save browser session: {e}"""
+                    )
+        return is_logged_in
+
     def login(self: "FacebookMarketplace") -> None:
         assert self.browser is not None
 
         self.page = self.create_page(swap_proxy=True)
+
+        # If a persistent browser profile (or a resumed storage_state) already
+        # carries a valid Facebook session, skip navigating to the login page
+        # and re-submitting credentials entirely. Facebook treats that
+        # explicit login form submission as a real login event -- and alerts
+        # the account owner about it -- even when it's just automation
+        # re-authenticating a session that was never actually logged out.
+        if self._persist_session_state():
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Login]", "succ")} Reusing an existing authenticated session -- skipping login."""
+                )
+            return
 
         # Navigate to the URL, no timeout
         self.goto_url(self.initial_url)
@@ -376,6 +432,18 @@ class FacebookMarketplace(Marketplace):
                     )
                 )
             doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
+
+        # Persist cookies/local storage so a future restart can reuse this
+        # session instead of logging in again -- repeated fresh logins are
+        # what trigger Facebook's "approve this login" prompt every time.
+        # Only actually saves if the session is authenticated -- otherwise,
+        # e.g. when login_wait_time is 0 or the login didn't complete in
+        # time, we'd persist a logged-out session that would just fail
+        # again on the next restart.
+        if not self._persist_session_state() and self.logger:
+            self.logger.warning(
+                f"""{hilight("[Login]", "fail")} Not logged in yet -- skipping browser session save."""
+            )
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
