@@ -580,6 +580,12 @@ def extract_price(price: str) -> str:
     if not price or price == "**unspecified**":
         return price
 
+    # Normalize thousands separators written with spaces or non-breaking spaces
+    # (French/European locales, e.g. Facebook Marketplace shows "1 875 C$").
+    # Without this, the [\d,]+ pattern below splits "1 875" into "1" and "875",
+    # so the price is mis-parsed (returned as "1 | 875" instead of "1875").
+    price = re.sub(r"(?<=\d)[\u00a0\u202f\s](?=\d)", "", price)
+
     # extract leading non-numeric characters as currency symbol
     matched = re.match(r"(\D*)\d+", price)
     if matched:
