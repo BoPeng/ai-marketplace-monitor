@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import logging
 import os
 import random
 import re
@@ -43,6 +44,14 @@ import rich.pretty
 from PIL import Image
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+
+# watchdog's inotify buffer logs every filesystem event at DEBUG level
+# ("in-event <InotifyEvent ...>"). Because the log file lives inside the
+# watched configuration directory, each emitted log line triggers a new
+# filesystem event that is itself logged, producing a runaway debug loop
+# (see issue #354). Cap watchdog's own logger so its internal chatter can
+# never feed back into the application log.
+logging.getLogger("watchdog").setLevel(logging.WARNING)
 
 # home directory for all settings and caches
 amm_home = Path.home() / ".ai-marketplace-monitor"
