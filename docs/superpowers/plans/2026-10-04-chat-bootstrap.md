@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `aimm --chat` — a UI-independent chat engine with section engines (field guides, playbook, interpret, converse), a shared commit path, playbooks (bundled + user), a scripted AI-setup engine, and a plain chat with the chosen AI.
+**Goal:** `aimm --chat` — a UI-independent chat engine with section builders (field guides, playbook, interpret, converse), a shared commit path, playbooks (bundled + user), a scripted AI-setup builder, and a plain chat with the chosen AI.
 
-**Architecture:** New package `ai_marketplace_monitor.chat`. The engine talks to front ends only through `ChatUI.say` / `ChatUI.ask` with JSON-serializable messages; `CLIChatUI` is the terminal front end and `ScriptedChatUI` drives tests. Section engines describe their fields with `FieldGuide`s and produce `SectionProposal`s that one `commit()` writes with `tomlkit`; new sections start from an existing one. The AI engine is code; the chat's instructions are assembled from Markdown playbooks.
+**Architecture:** New package `ai_marketplace_monitor.chat`. The engine talks to front ends only through `ChatUI.say` / `ChatUI.ask` with JSON-serializable messages; `CLIChatUI` is the terminal front end and `ScriptedChatUI` drives tests. Section builders describe their fields with `FieldGuide`s and produce `SectionProposal`s that one `commit()` writes with `tomlkit`; new sections start from an existing one. The AI builder is code; the chat's instructions are assembled from Markdown playbooks.
 
 **Tech Stack:** Python 3.10+, asyncio, `rich`, `tomlkit` (new), `openai` / `anthropic` SDKs, pytest with `asyncio_mode = "auto"`.
 
@@ -35,10 +35,10 @@
 | `chat/probe.py` | `ProbeResult`, `probe`, `scrub`, `model_matches` |
 | `chat/playbooks.py` | `Playbook`, `PlaybookSet`, `PlaybookError`, `load_playbooks`, `build_instructions` |
 | `chat/playbooks/AGENT.md`, `chat/playbooks/ai.md` | bundled playbooks |
-| `chat/sections.py` | `SectionRef`, `FieldGuide`, `InterpretResult`, `SectionProposal`, `ChatContext`, `SectionEngine` |
+| `chat/sections.py` | `SectionRef`, `FieldGuide`, `InterpretResult`, `SectionProposal`, `ChatContext`, `SectionBuilder` |
 | `chat/commit.py` | `CommitOutcome`, `commit`, `render_section`, `write_section`, `backup_file` |
-| `chat/engines/__init__.py` | `ENGINES` registry |
-| `chat/engines/ai.py` | `ProviderSpec`, `PROVIDERS`, `AI_FIELDS`, `AISetupOutcome`, `ScriptedAIEngine` |
+| `chat/builders/__init__.py` | `BUILDERS` registry |
+| `chat/builders/ai.py` | `ProviderSpec`, `PROVIDERS`, `AI_FIELDS`, `AISetupOutcome`, `ScriptedAIBuilder` |
 | `chat/session.py` | `run_chat`, `render_config` |
 | `config.py` (modify) | `resolve_config_files` |
 | `monitor.py` (modify) | use `resolve_config_files` |
@@ -1197,9 +1197,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/test_chat_playbooks.py`
 
 **Interfaces:**
-- Produces: `CHECKS = ("none", "probe", "test_message")`; `PlaybookError(ValueError)`; `Playbook(name, section, summary, body, check="none", house_rules=[])` with `.text() -> str`; `PlaybookSet(base: Playbook, sections: Dict[str, Playbook])`; `BUNDLED_DIR: Path`; `load_playbooks(user_dir: Path, bundled_dir: Path = BUNDLED_DIR, logger: logging.Logger | None = None) -> PlaybookSet`; `build_instructions(playbooks: PlaybookSet, focus: Sequence[str], config_text: str, details: Mapping[str, str] | None = None) -> str` (`details[section]`, e.g. an engine's field guide, is appended after that playbook).
+- Produces: `CHECKS = ("none", "probe", "test_message")`; `PlaybookError(ValueError)`; `Playbook(name, section, summary, body, check="none", house_rules=[])` with `.text() -> str`; `PlaybookSet(base: Playbook, sections: Dict[str, Playbook])`; `BUNDLED_DIR: Path`; `load_playbooks(user_dir: Path, bundled_dir: Path = BUNDLED_DIR, logger: logging.Logger | None = None) -> PlaybookSet`; `build_instructions(playbooks: PlaybookSet, focus: Sequence[str], config_text: str, details: Mapping[str, str] | None = None) -> str` (`details[section]`, e.g. a builder's field guide, is appended after that playbook).
 
-Frontmatter format (no YAML dependency): the file starts with a `---` line, then `key: value` lines, then a `---` line. A value in `[a, b, c]` form is a list of stripped strings; anything else is a stripped string. Bundled files must have `section` and `summary`; `check` must be one of `CHECKS`. Field descriptions are not in playbooks — they are the engines' `FieldGuide`s (Task 7/8).
+Frontmatter format (no YAML dependency): the file starts with a `---` line, then `key: value` lines, then a `---` line. A value in `[a, b, c]` form is a list of stripped strings; anything else is a stripped string. Bundled files must have `section` and `summary`; `check` must be one of `CHECKS`. Field descriptions are not in playbooks — they are the builders' `FieldGuide`s (Task 7/8).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1498,7 +1498,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: Section engines and the commit path
+### Task 7: Section builders and the commit path
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/chat/sections.py`, `src/ai_marketplace_monitor/chat/commit.py`
@@ -1507,7 +1507,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `ChatUI`, `Say`, `Confirm` (Task 1); `AIBackend` (`ai.py`); `read_toml` (Task 4); `PlaybookSet` (Task 6).
-- Produces (`sections.py`): `SectionRef(type, name=None)` with `.parse(text)` and `.label()`; `FieldGuide(name, derive, ask=None, inherit=True)`; `InterpretResult(values, notes=[], questions=[])`; `SectionProposal(ref, values, request, target_file)`; `ChatContext(files, default_file, playbooks, backup_dir, ai=None)`; `SectionEngine` base class with class attributes `section_type`, `playbook`, `uses_ai`, `fields`, and methods `guide_text() -> str`, `instructions(ctx) -> str`, `template_values(template) -> Dict[str, Any]`, `interpret(current, request, ctx) -> InterpretResult` (raises `NotImplementedError`), `async converse(ui, ref, ctx) -> SectionProposal | None` (raises `NotImplementedError`), `async after_commit(ui, proposal, ctx) -> Any` (returns `None`).
+- Produces (`sections.py`): `SectionRef(type, name=None)` with `.parse(text)` and `.label()`; `FieldGuide(name, derive, ask=None, inherit=True)`; `InterpretResult(values, notes=[], questions=[])`; `SectionProposal(ref, values, request, target_file)`; `ChatContext(files, default_file, playbooks, backup_dir, ai=None)`; `SectionBuilder` base class with class attributes `section_type`, `playbook`, `uses_ai`, `fields`, and methods `guide_text() -> str`, `instructions(ctx) -> str`, `template_values(template) -> Dict[str, Any]`, `interpret(current, request, ctx) -> InterpretResult` (raises `NotImplementedError`), `async converse(ui, ref, ctx) -> SectionProposal | None` (raises `NotImplementedError`), `async after_commit(ui, proposal, ctx) -> Any` (returns `None`).
 - Produces (`commit.py`): `CommitOutcome` enum (`WRITTEN`, `DECLINED`, `FAILED`); `render_section(proposal) -> str`; `backup_file(path, backup_dir) -> Path`; `write_section(path, type, name, values, request)`; `effective_section(files, type, name) -> Dict[str, Any]`; `async commit(ui, proposal, ctx) -> CommitOutcome`. On `WRITTEN`, `proposal.target_file` is in `ctx.files` (inserted first if it was the newly created default file).
 
 - [ ] **Step 1: Add the dependency**
@@ -1621,7 +1621,7 @@ async def test_override_by_later_file_detected(tmp_path: Path) -> None:
 Run: `uv run pytest tests/test_chat_commit.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
-- [ ] **Step 4: Write the failing tests for section engines**
+- [ ] **Step 4: Write the failing tests for section builders**
 
 ```python
 # tests/test_chat_sections.py
@@ -1633,13 +1633,13 @@ from ai_marketplace_monitor.chat.playbooks import load_playbooks
 from ai_marketplace_monitor.chat.sections import (
     ChatContext,
     FieldGuide,
-    SectionEngine,
+    SectionBuilder,
     SectionRef,
 )
 from ai_marketplace_monitor.chat.ui import ScriptedChatUI
 
 
-class DemoEngine(SectionEngine):
+class DemoBuilder(SectionBuilder):
     section_type = "ai"
     playbook = "ai"
     fields = (
@@ -1664,7 +1664,7 @@ def test_section_ref_parse() -> None:
 
 
 def test_guide_text() -> None:
-    text = DemoEngine().guide_text()
+    text = DemoBuilder().guide_text()
     assert text.startswith("# Field guide for [ai.*] sections")
     assert "- `model`: The model the user asked for. Ask: Which model?" in text
     assert "- `timeout`: Keep the default unless the user asks. (shared: copied" in text
@@ -1672,23 +1672,23 @@ def test_guide_text() -> None:
 
 def test_instructions_combine_playbook_and_guide(tmp_path: Path) -> None:
     ctx = context(tmp_path)
-    engine = DemoEngine()
-    text = engine.instructions(ctx)
+    builder = DemoBuilder()
+    text = builder.instructions(ctx)
     assert text.startswith(ctx.playbooks.sections["ai"].text())
-    assert text.endswith(engine.guide_text())
+    assert text.endswith(builder.guide_text())
 
 
 def test_template_values_keep_only_inherited_fields() -> None:
     template = {"model": "fast", "timeout": 30, "request": "theirs", "unknown": 1}
-    assert DemoEngine().template_values(template) == {"timeout": 30}
+    assert DemoBuilder().template_values(template) == {"timeout": 30}
 
 
 async def test_generic_interpret_and_converse_not_available_yet(tmp_path: Path) -> None:
     ctx = context(tmp_path)
     with pytest.raises(NotImplementedError):
-        DemoEngine().interpret({}, "use a fast model", ctx)
+        DemoBuilder().interpret({}, "use a fast model", ctx)
     with pytest.raises(NotImplementedError):
-        await DemoEngine().converse(ScriptedChatUI([]), SectionRef("ai"), ctx)
+        await DemoBuilder().converse(ScriptedChatUI([]), SectionRef("ai"), ctx)
 ```
 
 - [ ] **Step 5: Run tests to verify they fail**
@@ -1700,7 +1700,7 @@ Expected: FAIL — `ModuleNotFoundError: ... chat.sections`.
 
 ```python
 # src/ai_marketplace_monitor/chat/sections.py
-"""Section engines: everything aimm knows about creating or revising one section type."""
+"""Section builders: everything aimm knows about creating or revising one section type."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1757,12 +1757,12 @@ class ChatContext:
     ai: AIBackend | None = None  # the chat's AI; None until it is chosen
 
 
-class SectionEngine:
+class SectionBuilder:
     """Base class: one subclass per section type.
 
     Subclasses set ``section_type``, ``playbook`` (bundled playbook name), ``uses_ai``, and
     ``fields`` (how to derive each field and what to ask). The generic AI-backed
-    ``interpret`` and ``converse`` arrive with the first AI-driven engine; scripted engines
+    ``interpret`` and ``converse`` arrive with the first AI-driven builder; scripted builders
     override ``converse``.
     """
 
@@ -1771,7 +1771,7 @@ class SectionEngine:
     uses_ai: bool = True
     fields: Tuple[FieldGuide, ...] = ()
 
-    def guide_text(self: "SectionEngine") -> str:
+    def guide_text(self: "SectionBuilder") -> str:
         lines = [f"# Field guide for [{self.section_type}.*] sections", ""]
         for guide in self.fields:
             line = f"- `{guide.name}`: {guide.derive}"
@@ -1782,32 +1782,32 @@ class SectionEngine:
             lines.append(line)
         return "\n".join(lines)
 
-    def instructions(self: "SectionEngine", ctx: ChatContext) -> str:
+    def instructions(self: "SectionBuilder", ctx: ChatContext) -> str:
         playbook = ctx.playbooks.sections.get(self.playbook)
         parts = [playbook.text()] if playbook else []
         return "\n\n".join([*parts, self.guide_text()])
 
-    def template_values(self: "SectionEngine", template: Dict[str, Any]) -> Dict[str, Any]:
+    def template_values(self: "SectionBuilder", template: Dict[str, Any]) -> Dict[str, Any]:
         """Fields a new section copies from an existing section of the same type."""
         inherited = {g.name for g in self.fields if g.inherit}
         return {k: v for k, v in template.items() if k in inherited}
 
     def interpret(
-        self: "SectionEngine", current: Dict[str, Any], request: str, ctx: ChatContext
+        self: "SectionBuilder", current: Dict[str, Any], request: str, ctx: ChatContext
     ) -> InterpretResult:
         raise NotImplementedError(
             f"{type(self).__name__} has no interpret step; the AI-backed one comes later."
         )
 
     async def converse(
-        self: "SectionEngine", ui: ChatUI, ref: SectionRef, ctx: ChatContext
+        self: "SectionBuilder", ui: ChatUI, ref: SectionRef, ctx: ChatContext
     ) -> SectionProposal | None:
         raise NotImplementedError(
             f"{type(self).__name__} has no conversation; the AI-backed one comes later."
         )
 
     async def after_commit(
-        self: "SectionEngine", ui: ChatUI, proposal: SectionProposal, ctx: ChatContext
+        self: "SectionBuilder", ui: ChatUI, proposal: SectionProposal, ctx: ChatContext
     ) -> Any:
         return None
 ```
@@ -1936,36 +1936,36 @@ Run: `uvx 'ruff>=0.9.2,<0.17' check src tests && uv run --with mypy mypy src && 
 
 ```bash
 git add pyproject.toml uv.lock src/ai_marketplace_monitor/chat/sections.py src/ai_marketplace_monitor/chat/commit.py tests/test_chat_sections.py tests/test_chat_commit.py
-git commit -m "feat(chat): section engines and the shared commit path
+git commit -m "feat(chat): section builders and the shared commit path
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 8: Scripted AI engine
+### Task 8: Scripted AI builder
 
 **Files:**
-- Create: `src/ai_marketplace_monitor/chat/engines/__init__.py`, `src/ai_marketplace_monitor/chat/engines/ai.py`
-- Test: `tests/test_chat_ai_engine.py`
+- Create: `src/ai_marketplace_monitor/chat/builders/__init__.py`, `src/ai_marketplace_monitor/chat/builders/ai.py`
+- Test: `tests/test_chat_ai_builder.py`
 
 **Interfaces:**
-- Consumes: Tasks 1, 4, 5, 7 (`SectionEngine`, `FieldGuide`, `SectionProposal`, `SectionRef`, `ChatContext`); backends' `default_model`.
-- Produces: `ProviderSpec(key, label, hint, env_var, key_url)`; `PROVIDERS: List[ProviderSpec]` (unitysvc, openai, anthropic, ollama); `PROVIDER_LABELS: Dict[str, str]` (all six providers → display name); `UNITYSVC_TIERS = ["fast", "balanced", "coding", "premium"]`; `KEY_PATTERN`; `AI_FIELDS: Tuple[FieldGuide, ...]`; `AISetupOutcome(config: AIConfig | None, retry: bool = False)`; `ScriptedAIEngine(SectionEngine)` (`section_type = "ai"`, `playbook = "ai"`, `uses_ai = False`, `fields = AI_FIELDS`, `converse`, `after_commit -> AISetupOutcome`); `ENGINES: Dict[str, SectionEngine] = {"ai": ScriptedAIEngine()}` in `engines/__init__.py`.
+- Consumes: Tasks 1, 4, 5, 7 (`SectionBuilder`, `FieldGuide`, `SectionProposal`, `SectionRef`, `ChatContext`); backends' `default_model`.
+- Produces: `ProviderSpec(key, label, hint, env_var, key_url)`; `PROVIDERS: List[ProviderSpec]` (unitysvc, openai, anthropic, ollama); `PROVIDER_LABELS: Dict[str, str]` (all six providers → display name); `UNITYSVC_TIERS = ["fast", "balanced", "coding", "premium"]`; `KEY_PATTERN`; `AI_FIELDS: Tuple[FieldGuide, ...]`; `AISetupOutcome(config: AIConfig | None, retry: bool = False)`; `ScriptedAIBuilder(SectionBuilder)` (`section_type = "ai"`, `playbook = "ai"`, `uses_ai = False`, `fields = AI_FIELDS`, `converse`, `after_commit -> AISetupOutcome`); `BUILDERS: Dict[str, SectionBuilder] = {"ai": ScriptedAIBuilder()}` in `builders/__init__.py`.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_chat_ai_engine.py
+# tests/test_chat_ai_builder.py
 from dataclasses import fields
 from pathlib import Path
 
 import pytest
 
 from ai_marketplace_monitor.ai import AIConfig
-from ai_marketplace_monitor.chat.engines import ENGINES
-from ai_marketplace_monitor.chat.engines import ai as ai_module
-from ai_marketplace_monitor.chat.engines.ai import ScriptedAIEngine
+from ai_marketplace_monitor.chat.builders import BUILDERS
+from ai_marketplace_monitor.chat.builders import ai as ai_module
+from ai_marketplace_monitor.chat.builders.ai import ScriptedAIBuilder
 from ai_marketplace_monitor.chat.playbooks import load_playbooks
 from ai_marketplace_monitor.chat.probe import ProbeResult
 from ai_marketplace_monitor.chat.sections import ChatContext, SectionProposal, SectionRef
@@ -1989,19 +1989,19 @@ def context(tmp_path: Path, text: str | None = None) -> ChatContext:
 async def converse(
     answers: list[str], ctx: ChatContext, ref: SectionRef | None = None
 ) -> SectionProposal | None:
-    return await ScriptedAIEngine().converse(ScriptedChatUI(answers), ref or SectionRef("ai"), ctx)
+    return await ScriptedAIBuilder().converse(ScriptedChatUI(answers), ref or SectionRef("ai"), ctx)
 
 
-def test_registry_and_engine_attributes() -> None:
-    engine = ENGINES["ai"]
-    assert isinstance(engine, ScriptedAIEngine)
-    assert (engine.section_type, engine.playbook, engine.uses_ai) == ("ai", "ai", False)
+def test_registry_and_builder_attributes() -> None:
+    builder = BUILDERS["ai"]
+    assert isinstance(builder, ScriptedAIBuilder)
+    assert (builder.section_type, builder.playbook, builder.uses_ai) == ("ai", "ai", False)
 
 
 def test_field_guides_cover_every_ai_field() -> None:
-    guided = {g.name for g in ScriptedAIEngine.fields}
+    guided = {g.name for g in ScriptedAIBuilder.fields}
     assert {f.name for f in fields(AIConfig)} - {"name"} <= guided
-    inherited = {g.name for g in ScriptedAIEngine.fields if g.inherit}
+    inherited = {g.name for g in ScriptedAIBuilder.fields if g.inherit}
     assert inherited == {"max_retries", "timeout"}
 
 
@@ -2079,7 +2079,7 @@ async def test_named_ref_preselects_provider(tmp_path: Path) -> None:
 
 async def test_key_like_input_refused(tmp_path: Path) -> None:
     ui = ScriptedChatUI(["openai", "sk-abcdefghijklmnop", "gpt-5"])
-    proposal = await ScriptedAIEngine().converse(ui, SectionRef("ai"), context(tmp_path))
+    proposal = await ScriptedAIBuilder().converse(ui, SectionRef("ai"), context(tmp_path))
     assert proposal is not None and proposal.values["model"] == "gpt-5"
     [warning] = ui.said("warning")
     assert "sk-abcdefghijklmnop" not in warning and "environment variable" in warning
@@ -2103,7 +2103,7 @@ async def test_after_commit_env_set_probe_ok(
     )
     values = {"api_key": "${UNITYSVC_API_KEY}"}
     ctx, proposal = written(tmp_path, '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\n', values)
-    outcome = await ScriptedAIEngine().after_commit(ScriptedChatUI([]), proposal, ctx)
+    outcome = await ScriptedAIBuilder().after_commit(ScriptedChatUI([]), proposal, ctx)
     assert outcome.config is not None and outcome.config.name == "unitysvc"
 
 
@@ -2114,7 +2114,7 @@ async def test_after_commit_env_unset_gives_instructions(
     values = {"api_key": "${UNITYSVC_API_KEY}"}
     ctx, proposal = written(tmp_path, '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\n', values)
     ui = ScriptedChatUI([])
-    outcome = await ScriptedAIEngine().after_commit(ui, proposal, ctx)
+    outcome = await ScriptedAIBuilder().after_commit(ui, proposal, ctx)
     assert outcome.config is None and not outcome.retry
     text = "\n".join(ui.said())
     assert "https://unitysvc.com" in text
@@ -2135,33 +2135,33 @@ async def test_after_commit_probe_failure_offers_retry(
         values,
     )
     ui = ScriptedChatUI([])
-    outcome = await ScriptedAIEngine().after_commit(ui, proposal, ctx)
+    outcome = await ScriptedAIBuilder().after_commit(ui, proposal, ctx)
     assert outcome.config is None and outcome.retry
     assert ui.said("error") == ["Can't reach http://x:1/v1"]
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `uv run pytest tests/test_chat_ai_engine.py -v`
-Expected: FAIL — `ModuleNotFoundError: ... chat.engines`.
+Run: `uv run pytest tests/test_chat_ai_builder.py -v`
+Expected: FAIL — `ModuleNotFoundError: ... chat.builders`.
 
 - [ ] **Step 3: Implement**
 
 ```python
-# src/ai_marketplace_monitor/chat/engines/__init__.py
-"""Section engines, by section type."""
+# src/ai_marketplace_monitor/chat/builders/__init__.py
+"""Section builders, by section type."""
 
 from typing import Dict
 
-from ..sections import SectionEngine
-from .ai import ScriptedAIEngine
+from ..sections import SectionBuilder
+from .ai import ScriptedAIBuilder
 
-ENGINES: Dict[str, SectionEngine] = {"ai": ScriptedAIEngine()}
+BUILDERS: Dict[str, SectionBuilder] = {"ai": ScriptedAIBuilder()}
 ```
 
 ```python
-# src/ai_marketplace_monitor/chat/engines/ai.py
-"""Scripted engine for [ai.*] sections: no AI exists yet to drive a conversation."""
+# src/ai_marketplace_monitor/chat/builders/ai.py
+"""Scripted builder for [ai.*] sections: no AI exists yet to drive a conversation."""
 
 import asyncio
 import os
@@ -2173,7 +2173,7 @@ from ...ai import AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
 from ..ai_sections import AISection, env_var_name, load_ai_sections
 from ..messages import AskText, Choose, Option, Say
 from ..probe import probe
-from ..sections import ChatContext, FieldGuide, SectionEngine, SectionProposal, SectionRef
+from ..sections import ChatContext, FieldGuide, SectionBuilder, SectionProposal, SectionRef
 from ..ui import ChatUI
 
 KEY_PATTERN = re.compile(r"^(svcpass_|sk-ant-|sk-)\S{8,}")
@@ -2288,14 +2288,14 @@ def _new_name(provider: str, sections: List[AISection]) -> str:
     return name
 
 
-class ScriptedAIEngine(SectionEngine):
+class ScriptedAIBuilder(SectionBuilder):
     section_type = "ai"
     playbook = "ai"
     uses_ai = False
     fields = AI_FIELDS
 
     async def converse(
-        self: "ScriptedAIEngine", ui: ChatUI, ref: SectionRef, ctx: ChatContext
+        self: "ScriptedAIBuilder", ui: ChatUI, ref: SectionRef, ctx: ChatContext
     ) -> SectionProposal | None:
         sections = load_ai_sections(ctx.files)
         named = next((s for s in sections if s.name == ref.name), None) if ref.name else None
@@ -2348,7 +2348,7 @@ class ScriptedAIEngine(SectionEngine):
         )
 
     async def after_commit(
-        self: "ScriptedAIEngine", ui: ChatUI, proposal: SectionProposal, ctx: ChatContext
+        self: "ScriptedAIBuilder", ui: ChatUI, proposal: SectionProposal, ctx: ChatContext
     ) -> AISetupOutcome:
         var = env_var_name(proposal.values.get("api_key"))
         if var is None or var in os.environ:
@@ -2376,7 +2376,7 @@ class ScriptedAIEngine(SectionEngine):
 
 - [ ] **Step 4: Run tests**
 
-Run: `uv run pytest tests/test_chat_ai_engine.py -v`
+Run: `uv run pytest tests/test_chat_ai_builder.py -v`
 Expected: all PASS.
 
 - [ ] **Step 5: Lint, types, commit**
@@ -2385,8 +2385,8 @@ Run: `uvx 'ruff>=0.9.2,<0.17' check src tests && uv run --with mypy mypy src` (w
 
 ```bash
 git checkout -- uv.lock
-git add src/ai_marketplace_monitor/chat/engines/__init__.py src/ai_marketplace_monitor/chat/engines/ai.py tests/test_chat_ai_engine.py
-git commit -m "feat(chat): scripted AI engine with field guides and templates
+git add src/ai_marketplace_monitor/chat/builders/__init__.py src/ai_marketplace_monitor/chat/builders/ai.py tests/test_chat_ai_builder.py
+git commit -m "feat(chat): scripted AI builder with field guides and templates
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -2400,7 +2400,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/test_chat_session.py`
 
 **Interfaces:**
-- Consumes: everything above (`ENGINES`, `SectionEngine.converse` / `after_commit` / `guide_text`, `ChatContext.ai`); `redact` from `webui/secrets_redact.py`; `supported_ai_backends`. The session sets `ctx.ai` to the chosen backend before the chat starts.
+- Consumes: everything above (`BUILDERS`, `SectionBuilder.converse` / `after_commit` / `guide_text`, `ChatContext.ai`); `redact` from `webui/secrets_redact.py`; `supported_ai_backends`. The session sets `ctx.ai` to the chosen backend before the chat starts.
 - Produces: `render_config(files: List[Path]) -> str`; `async run_chat(ui, config_files: List[Path], target: str | None = None, *, home: Path | None = None) -> int` (`home` defaults to `amm_home`; the default file is `home / "config.toml"`, user playbooks `home / "playbooks"`, backups `home / "backups"`). `config_files` is the already-resolved read order.
 
 - [ ] **Step 1: Write the failing tests**
@@ -2414,7 +2414,7 @@ import pytest
 
 from ai_marketplace_monitor.ai import OpenAIBackend
 from ai_marketplace_monitor.chat import session as session_module
-from ai_marketplace_monitor.chat.engines import ai as ai_module
+from ai_marketplace_monitor.chat.builders import ai as ai_module
 from ai_marketplace_monitor.chat.probe import ProbeResult
 from ai_marketplace_monitor.chat.session import render_config, run_chat
 from ai_marketplace_monitor.chat.ui import CLOSE, ScriptedChatUI
@@ -2547,8 +2547,8 @@ from ..config import supported_ai_backends
 from ..utils import amm_home
 from ..webui.secrets_redact import redact
 from .ai_sections import AISection, ConfigReadError, load_ai_sections
-from .engines import ENGINES
-from .engines.ai import PROVIDER_LABELS
+from .builders import BUILDERS
+from .builders.ai import PROVIDER_LABELS
 from .commit import CommitOutcome, commit
 from .messages import AskText, Choose, Option, Say
 from .playbooks import build_instructions, load_playbooks
@@ -2598,9 +2598,9 @@ async def _check_sections(ui: ChatUI, ctx: ChatContext) -> List[Tuple[AISection,
 
 
 async def _edit_ai(ui: ChatUI, ctx: ChatContext, ref: SectionRef) -> AIConfig | None:
-    engine = ENGINES["ai"]
+    builder = BUILDERS["ai"]
     while True:
-        proposal = await engine.converse(ui, ref, ctx)
+        proposal = await builder.converse(ui, ref, ctx)
         if proposal is None:
             return None
         outcome = await commit(ui, proposal, ctx)
@@ -2608,7 +2608,7 @@ async def _edit_ai(ui: ChatUI, ctx: ChatContext, ref: SectionRef) -> AIConfig | 
             continue
         if outcome is CommitOutcome.FAILED:
             return None
-        result = await engine.after_commit(ui, proposal, ctx)
+        result = await builder.after_commit(ui, proposal, ctx)
         if result.config is not None:
             return result.config  # type: ignore[no-any-return]
         if not result.retry:
@@ -2645,7 +2645,7 @@ async def _chat(ui: ChatUI, ctx: ChatContext, config: AIConfig) -> None:
         ctx.playbooks,
         ["ai"],
         render_config(ctx.files),
-        {"ai": ENGINES["ai"].guide_text()},
+        {"ai": BUILDERS["ai"].guide_text()},
     )
     messages: List[Dict[str, str]] = [{"role": "system", "content": instructions}]
     await ui.say(Say(f"Chatting with {config.name} ({_model(config)}). {HELP}", markdown=True))

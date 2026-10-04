@@ -1,4 +1,4 @@
-# Design: `aimm --chat` — section engines, playbooks, AI bootstrap, and plain chat
+# Design: `aimm --chat` — section builders, playbooks, AI bootstrap, and plain chat
 
 **Date:** 2026-10-04
 **Status:** Approved (brainstorm), pending implementation plan
@@ -10,7 +10,7 @@ Add `aimm --chat`: interactive, conversation-based configuration for the CLI now
 web UI next.
 
 The central concept is **"chat to create or revise a section."** Every config section type
-has a **section engine** that knows its fields (how to derive each one and what to ask),
+has a **section builder** that knows its fields (how to derive each one and what to ask),
 its **playbook** (a Markdown instruction file, like `AGENT.md` / `CLAUDE.md`, that becomes
 part of the LLM chat instance), how to **interpret** a user's request into field values,
 and the conversation around it. New sections start from an existing one, so shared
@@ -19,12 +19,12 @@ verifies every proposal. Users can add their own playbooks to extend the bundled
 
 This spec delivers the framework and its first two consumers:
 
-1. The **AI engine** (scripted): determines which AI to use — the bootstrap — because no
+1. The **AI builder** (scripted): determines which AI to use — the bootstrap — because no
    AI exists yet to drive a conversation.
 2. A **plain chat** with the chosen AI, instructed by the playbooks, that can explain the
    user's configuration but not yet change it.
 
-LLM-driven engines for other sections are later specs; each will mostly be a field-guide
+LLM-driven builders for other sections are later specs; each will mostly be a field-guide
 table, a playbook, and tests.
 
 ## Goals
@@ -34,13 +34,13 @@ table, a playbook, and tests.
 - A user with working AI sections confirms one (or sets up another) in one step.
 - Every failure says exactly what to fix.
 - The engine is front-end independent: the CLI and the GUI run the same conversations.
-- Adding an LLM-driven engine for another section means describing its fields and writing
+- Adding an LLM-driven builder for another section means describing its fields and writing
   a playbook, not a new write path.
 
 ## Non-goals (later specs)
 
 - GUI chat panel (WebSocket front end) and per-section "Chat" buttons.
-- The generic AI-backed `interpret` and `converse`, tool calling, and engines + playbooks
+- The generic AI-backed `interpret` and `converse`, tool calling, and builders + playbooks
   for item, user, notification, marketplace, region, monitor, translation.
 - Writing through `normalize()` (#362); this spec writes single sections with `tomlkit`.
 - Persisting chat history; `prompt_toolkit` input.
@@ -56,13 +56,13 @@ New package `src/ai_marketplace_monitor/chat/`, one file per concern:
 | `cli_ui.py` | `CLIChatUI`, terminal front end built on `rich` |
 | `ai_sections.py` | Read `[ai.*]` sections across config files with ownership |
 | `probe.py` | Two-step AI usability check |
-| `sections.py` | `SectionRef`, `FieldGuide`, `InterpretResult`, `SectionProposal`, `ChatContext`, `SectionEngine` |
+| `sections.py` | `SectionRef`, `FieldGuide`, `InterpretResult`, `SectionProposal`, `ChatContext`, `SectionBuilder` |
 | `commit.py` | The single write path: preview, confirm, backup, write, verify |
 | `playbooks.py` | Playbook format, loader (bundled + user), instruction assembly |
 | `playbooks/AGENT.md` | Bundled base playbook (rules for every conversation) |
 | `playbooks/ai.md` | Bundled AI playbook (knowledge; the AI flow itself is code) |
-| `engines/__init__.py` | `ENGINES` registry |
-| `engines/ai.py` | `ScriptedAIEngine` |
+| `builders/__init__.py` | `BUILDERS` registry |
+| `builders/ai.py` | `ScriptedAIBuilder` |
 | `session.py` | `run_chat(ui, config_files, target)`: orchestration and the plain chat loop |
 
 Supporting changes outside the package:
@@ -141,9 +141,9 @@ class ChatUI(Protocol):
 - Input is read with `asyncio.to_thread(input)`; `KeyboardInterrupt` / `EOFError` →
   `ChatClosed`.
 
-## Section engines and commit
+## Section builders and commit
 
-A **section engine** defines everything aimm knows about one section type: which type it
+A **section builder** defines everything aimm knows about one section type: which type it
 is, which playbook instructs the LLM, how each field is derived and what must be asked,
 how a user's `request` becomes field values (**interpret**), the conversation around it
 (**converse**), and the follow-up after a write.
@@ -182,7 +182,7 @@ class ChatContext:
     backup_dir: Path          # ~/.ai-marketplace-monitor/backups
     ai: AIBackend | None = None   # the chat's AI; None until the AI is chosen
 
-class SectionEngine:
+class SectionBuilder:
     section_type: str                    # 1. section type
     playbook: str                        # 2. playbook name: "<playbook>.md" + user house rules
     uses_ai: bool = True                 # 4. interpret needs ctx.ai
@@ -197,34 +197,34 @@ class SectionEngine:
     def instructions(self, ctx: ChatContext) -> str: ...   # playbook text + guide_text()
     def template_values(self, template: Dict[str, Any]) -> Dict[str, Any]: ...  # inherit=True keys only
 
-ENGINES: Dict[str, SectionEngine] = {"ai": ScriptedAIEngine()}
+BUILDERS: Dict[str, SectionBuilder] = {"ai": ScriptedAIBuilder()}
 ```
 
-**Each engine describes its own fields.** `fields` is the per-field description the LLM
+**Each builder describes its own fields.** `fields` is the per-field description the LLM
 works from: how to derive the value from the request and context (`derive`), what to ask
 when it cannot (`ask`), and whether it is shared with sibling sections (`inherit`). It is
 structured so code can use it too, and a test requires it to cover every field of the
 section's config dataclass (except `name`). The playbook carries the narrative: what the
 section is for, rules, and worked examples. `instructions()` combines both.
 
-**New sections start from an existing one.** When an engine creates a new section and
+**New sections start from an existing one.** When a builder creates a new section and
 sections of that type exist, it starts from one of them (the **template**) and copies its
 `inherit=True` fields, so shared settings such as location, notify, and AI carry over;
 fields specific to the new section (e.g. an item's `search_phrases`) are `inherit=False`.
 The template is the section the user names, else the first existing one; LLM-driven
-engines will ask which to use when there are several. The preview in `commit` shows the
+builders will ask which to use when there are several. The preview in `commit` shows the
 copied values, so nothing is inherited silently.
 
 **Interpret** (request + current values → fields) is the reusable core: the chat calls it,
 and later the CLI and startup (for sections that have only a `request`) can call it
-without a conversation. Its generic, AI-backed implementation — `AGENT.md` + the engine's
+without a conversation. Its generic, AI-backed implementation — `AGENT.md` + the builder's
 `instructions()` + the current section + the request sent to `ctx.ai`, answer validated
 with the section's own config class and retried with the validation errors — and the
 generic `converse` (refine the request → interpret → ask its questions → repeat) arrive
-with the first AI-driven engine (item or user) in a later spec. In this spec the base
+with the first AI-driven builder (item or user) in a later spec. In this spec the base
 class raises `NotImplementedError` for both.
 
-**The AI engine is scripted.** `ScriptedAIEngine` sets `uses_ai = False` (no AI exists yet
+**The AI builder is scripted.** `ScriptedAIBuilder` sets `uses_ai = False` (no AI exists yet
 while it runs) and overrides `converse` with the fixed questions below; its `interpret` is
 never called. Its `fields` still describe every AI field, so the plain chat can explain
 them and new AI sections inherit `max_retries` / `timeout`.
@@ -247,7 +247,7 @@ said no; nothing written), or `FAILED` (written, but a later file overrides it).
    `Say(error)` naming that file and those keys → `FAILED`. Otherwise `WRITTEN`.
 
 When `normalize()` (#362) lands, step 4 becomes expand → apply → normalize → write; no
-engine changes.
+builder changes.
 
 ## Playbooks (`playbooks.py`)
 
@@ -264,10 +264,10 @@ check: probe              # none | probe | test_message
 ```
 
 - `section` and `summary` are required; `check` defaults to `none`. Field descriptions
-  live in the engine's `fields`, not in the playbook. Frontmatter is `key: value` lines
+  live in the builder's `fields`, not in the playbook. Frontmatter is `key: value` lines
   between `---` lines (no YAML dependency).
 - **Bundled playbooks** live in `chat/playbooks/` (package data). This spec ships
-  `AGENT.md` and `ai.md`; later specs add the other section types with their engines.
+  `AGENT.md` and `ai.md`; later specs add the other section types with their builders.
 - **User playbooks** live in `~/.ai-marketplace-monitor/playbooks/` with the same file
   names (`AGENT.md`, `item.md`, …). A user playbook is **appended** to the bundled one of
   the same name under a `## House rules (from <path>)` heading; its frontmatter is
@@ -289,7 +289,7 @@ check: probe              # none | probe | test_message
 - `request` is a short summary of what the user wants, never a transcript;
 - the user has the final word; say when unsure.
 
-`ai.md` (knowledge for the plain chat; the AI flow itself is `ScriptedAIEngine`):
+`ai.md` (knowledge for the plain chat; the AI flow itself is `ScriptedAIBuilder`):
 - the supported providers, their defaults, and when to choose each;
 - why UnitySVC is recommended (one key for the AI and for email through
   `smtp.svcpass.com`; tiers `fast` / `balanced` / `coding` / `premium` with automatic
@@ -299,12 +299,12 @@ check: probe              # none | probe | test_message
 ### Instruction assembly
 
 `build_instructions(playbooks, focus: Sequence[str], config_text: str, details: Mapping[str, str]) -> str`
-— `details[section]` (an engine's `guide_text()`) is appended after that playbook's body.
+— `details[section]` (a builder's `guide_text()`) is appended after that playbook's body.
 
 | Chat instance | Instructions |
 |---|---|
 | General (`aimm --chat`) | `AGENT.md` + the `summary` of every section playbook + the playbooks in focus with their field guides (this spec: `ai`) + the redacted config |
-| Scoped (later: `aimm --chat --section item.bike`, GUI "Chat" button) | `AGENT.md` + that engine's `instructions()` + its current values + context names (users, AI backends, regions) |
+| Scoped (later: `aimm --chat --section item.bike`, GUI "Chat" button) | `AGENT.md` + that builder's `instructions()` + its current values + context names (users, AI backends, regions) |
 
 Redacted config = each config file passed through `webui.secrets_redact.redact`, in a fenced
 block labeled with its path.
@@ -383,7 +383,7 @@ def probe(section: AISection, timeout: float = 15) -> ProbeResult
 **Secrets.** No `message` contains a key: provider error text is scrubbed of the section's
 resolved `api_key` value and of any `svcpass_…` / `sk-…` token.
 
-## `ScriptedAIEngine` (`engines/ai.py`)
+## `ScriptedAIBuilder` (`builders/ai.py`)
 
 ### `converse(ui, ref, ctx)`
 
@@ -429,7 +429,7 @@ Reached when no AI section works, when the user picks "Set up a different AI…"
 
    `request`: e.g. `"Use UnitySVC (balanced tier) for rating listings and chat."`
 
-**Field guides** (`ScriptedAIEngine.fields`):
+**Field guides** (`ScriptedAIBuilder.fields`):
 
 | Field | derive | ask | inherit |
 |---|---|---|---|
@@ -485,7 +485,7 @@ async def run_chat(ui: ChatUI, config_files: List[Path], target: str | None = No
      working section, then `new` ("Set up a different AI…") and `quit`; default: the first
      working section.
    - Nothing works, or `new` → step 3 with `SectionRef("ai", None)`.
-3. **Section edit** (AI): `proposal = await ENGINES["ai"].converse(...)`; `None` → return
+3. **Section edit** (AI): `proposal = await BUILDERS["ai"].converse(...)`; `None` → return
    0. `commit` `DECLINED` → back to `converse`; `FAILED` → return 0. Committed → `after_commit`: `config` set →
    step 4; `retry` → step 3; otherwise return 0.
 4. **Plain chat** with the chosen AI:
@@ -507,7 +507,7 @@ message as `system=`. History lives in memory only.
 
 `aimm --chat [--section SECTION]` (a plain flag plus a separate option: Typer's optional-value options would swallow a following flag, e.g. `--chat --verbose`):
 - no `--section` → general session (determine the AI, then plain chat);
-- `--section ai` or `--section ai.<name>` → go straight to the AI engine for that section, then plain chat;
+- `--section ai` or `--section ai.<name>` → go straight to the AI builder for that section, then plain chat;
 - any other section type → `Say(error, "Chatting about <type> sections isn't available yet")`,
   exit 1.
 
@@ -528,7 +528,7 @@ No test needs network access except the opt-in live test.
 | `tests/test_chat_commit.py` | preview shown; decline writes nothing; new section into a missing default file; update preserving comments, other sections, and `request`; backup created with mode 0600; override by a later file detected and reported |
 | `tests/test_chat_playbooks.py` | bundled playbooks parse with required frontmatter and valid `check`; user playbook appended under "House rules"; user `summary` override; orphan user playbook warned and ignored; malformed user frontmatter skipped; `build_instructions` contents for the general instance |
 | `tests/test_chat_sections.py` | `SectionRef.parse`; `guide_text()` rendering; `template_values()` keeps only `inherit=True` keys; base `interpret` / `converse` raise `NotImplementedError` |
-| `tests/test_chat_ai_engine.py` | `fields` covers every `AIConfig` field; `ScriptedChatUI` conversations: each provider's questions and resulting proposal; new section inherits `max_retries` / `timeout` from an existing one; existing section updated with its `${VAR}` kept; name collision suffix; key-looking input refused; quit; `after_commit` env-set → probe → config, env-unset → instructions, Ollama probe failure → setup again |
+| `tests/test_chat_ai_builder.py` | `fields` covers every `AIConfig` field; `ScriptedChatUI` conversations: each provider's questions and resulting proposal; new section inherits `max_retries` / `timeout` from an existing one; existing section updated with its `${VAR}` kept; name collision suffix; key-looking input refused; quit; `after_commit` env-set → probe → config, env-unset → instructions, Ollama probe failure → setup again |
 | `tests/test_chat_session.py` | pick a working AI → plain chat; nothing works → UnitySVC committed → restart instructions → exit 0; declined commit → back to converse; `/edit ai`; fake backend reply rendered as assistant Markdown; `/exit`; provider error then recovery; instructions contain `AGENT.md`, summaries, the AI field guide, and redacted config |
 | `tests/test_cli.py` (additions) | `--chat` calls `run_chat` and never constructs `MarketplaceMonitor`; `--chat --section item` exits 1 with "isn't available yet"; non-TTY exits 1 |
 | `tests/test_chat_live.py` | real UnitySVC probe with `balanced`; marked `live`, skipped unless `UNITYSVC_API_KEY` is set |
@@ -537,6 +537,6 @@ No test needs network access except the opt-in live test.
 
 - `docs/usage.rst`: `aimm --chat [--section SECTION]`, the AI setup flow, and user playbooks
   (`~/.ai-marketplace-monitor/playbooks/AGENT.md` for house rules that apply to every
-  chat; section playbooks take effect once that section's engine exists).
+  chat; section playbooks take effect once that section's builder exists).
 - `docs/README.md`: mention `aimm --chat` as the easiest way to get started.
 - `CHANGELOG.md`: Unreleased → Added.
