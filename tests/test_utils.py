@@ -1,8 +1,10 @@
-from typing import List
+import time
+from typing import Any, Iterator, List
 
 import pytest
 
-from ai_marketplace_monitor.utils import extract_price, is_substring
+from ai_marketplace_monitor import utils
+from ai_marketplace_monitor.utils import convert_to_seconds, extract_price, is_substring
 
 
 @pytest.mark.parametrize(
@@ -74,3 +76,19 @@ def test_extract_price_does_not_merge_across_newlines() -> None:
     # separates two distinct numbers and must not be collapsed into one.
     assert extract_price("1\n875 C$") == "1 | 875"
     assert extract_price("1\t875 C$") == "1 | 875"
+
+
+def test_convert_to_seconds_is_not_affected_by_a_clock_tick(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second ticking between parsing and subtracting must not turn 1d into 86399."""
+    real_localtime = time.localtime
+    ticks: Iterator[int] = iter(range(1_700_000_000, 1_700_000_100))
+
+    def ticking_localtime(*args: Any) -> time.struct_time:
+        # every argument-less call sees the clock one second later
+        return real_localtime(*args) if args else real_localtime(next(ticks))
+
+    monkeypatch.setattr(utils.time, "localtime", ticking_localtime)
+    assert convert_to_seconds("1d") == 86400
+    assert convert_to_seconds("1h 30m") == 5400
