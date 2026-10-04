@@ -24,7 +24,10 @@ def test_env_var_name() -> None:
 def test_merge_and_ownership(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
     a = write(tmp_path / "a.toml", '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\n')
-    b = write(tmp_path / "b.toml", '[ai.unitysvc]\nmodel = "fast"\n[ai.other]\nprovider = "openai"\napi_key = "k"\n')
+    b = write(
+        tmp_path / "b.toml",
+        '[ai.unitysvc]\nmodel = "fast"\n[ai.other]\nprovider = "openai"\napi_key = "k"\n',
+    )
     sections = load_ai_sections([a, b])
     assert [s.name for s in sections] == ["unitysvc", "other"]
     unitysvc = sections[0]

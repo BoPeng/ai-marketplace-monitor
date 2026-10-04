@@ -159,12 +159,16 @@ class ScriptedAIBuilder(SectionBuilder):
             tiers = [Option(t, t) for t in UNITYSVC_TIERS]
             values["model"] = await ui.ask(Choose("Which UnitySVC tier?", tiers, tier_default))
         elif choice == "ollama":
-            values["base_url"] = await _ask_text(ui, "Ollama URL", old.get("base_url") or OLLAMA_URL)
+            values["base_url"] = await _ask_text(
+                ui, "Ollama URL", old.get("base_url") or OLLAMA_URL
+            )
             model_default = old.get("model") or OllamaBackend.default_model
             values["model"] = await _ask_text(ui, "Model", model_default)
         else:
             backend = OpenAIBackend if choice == "openai" else AnthropicBackend
-            values["model"] = await _ask_text(ui, "Model", old.get("model") or backend.default_model)
+            values["model"] = await _ask_text(
+                ui, "Model", old.get("model") or backend.default_model
+            )
 
         if target is not None:
             # an updated section keeps its own shared settings

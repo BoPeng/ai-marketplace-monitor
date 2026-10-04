@@ -130,7 +130,7 @@ def test_render_config_masks_structurally(tmp_path: Path) -> None:
         'notification.tg = { telegram_token = "123:abc" }\n'
         'note = "svcpass_leakedvalue123"\n'
         '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\n'
-        "[smtp]\npassword = \"pa'ss\"\n",
+        '[smtp]\npassword = "pa\'ss"\n',
     )
     text = render_config([path])
     for leaked in ("pa'ss", "zzz", "123:abc", "svcpass_leakedvalue123"):
@@ -138,9 +138,7 @@ def test_render_config_masks_structurally(tmp_path: Path) -> None:
     assert "${UNITYSVC_API_KEY}" in text
 
 
-async def test_provider_error_scrubs_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_provider_error_scrubs_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
     ok(monkeypatch)
 

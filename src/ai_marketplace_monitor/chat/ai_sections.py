@@ -84,7 +84,9 @@ def load_ai_sections(files: List[Path]) -> List[AISection]:
     owners: Dict[str, List[Path]] = {}
     for path in files:
         for name, values in read_toml(path).get("ai", {}).items():
-            merged[name] = merge_dicts([copy.deepcopy(merged.get(name, {})), copy.deepcopy(values)])
+            merged[name] = merge_dicts(
+                [copy.deepcopy(merged.get(name, {})), copy.deepcopy(values)]
+            )
             owners.setdefault(name, []).append(path)
     sections = []
     for name, raw in merged.items():

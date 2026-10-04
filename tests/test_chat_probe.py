@@ -14,7 +14,9 @@ REQUEST = httpx.Request("GET", "https://api.svcpass.com/p/llm/models")
 
 
 def status_error(code: int, message: str = "boom") -> openai.APIStatusError:
-    return openai.APIStatusError(message, response=httpx.Response(code, request=REQUEST), body=None)
+    return openai.APIStatusError(
+        message, response=httpx.Response(code, request=REQUEST), body=None
+    )
 
 
 class FakeClient:
@@ -76,7 +78,11 @@ def test_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_key_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     use(monkeypatch, FakeClient(list_error=status_error(401)))
     result = probe(section())
-    assert (result.ok, result.step, result.message) == (False, "models", "Key rejected by unitysvc")
+    assert (result.ok, result.step, result.message) == (
+        False,
+        "models",
+        "Key rejected by unitysvc",
+    )
 
 
 def test_cannot_connect(monkeypatch: pytest.MonkeyPatch) -> None:

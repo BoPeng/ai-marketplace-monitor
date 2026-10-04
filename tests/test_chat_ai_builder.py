@@ -30,7 +30,9 @@ def context(tmp_path: Path, text: str | None = None) -> ChatContext:
 async def converse(
     answers: list[str], ctx: ChatContext, ref: SectionRef | None = None
 ) -> SectionProposal | None:
-    return await ScriptedAIBuilder().converse(ScriptedChatUI(answers), ref or SectionRef("ai"), ctx)
+    return await ScriptedAIBuilder().converse(
+        ScriptedChatUI(answers), ref or SectionRef("ai"), ctx
+    )
 
 
 def test_registry_and_builder_attributes() -> None:
@@ -167,7 +169,9 @@ async def test_after_commit_probe_failure_offers_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        ai_module, "probe", lambda s: ProbeResult(False, "models", "m", "Can't reach http://x:1/v1")
+        ai_module,
+        "probe",
+        lambda s: ProbeResult(False, "models", "m", "Can't reach http://x:1/v1"),
     )
     values = {"provider": "ollama", "base_url": "http://x:1/v1", "model": "m"}
     ctx, proposal = written(

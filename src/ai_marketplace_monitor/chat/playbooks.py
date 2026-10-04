@@ -122,9 +122,7 @@ def build_instructions(
     details: Mapping[str, str] | None = None,
 ) -> str:
     """System instructions: base rules, every summary, focused playbooks + details, config."""
-    summaries = "\n".join(
-        f"- `{p.section}`: {p.summary}" for p in playbooks.sections.values()
-    )
+    summaries = "\n".join(f"- `{p.section}`: {p.summary}" for p in playbooks.sections.values())
     parts = [playbooks.base.text(), f"# Section playbooks\n\n{summaries}"]
     for name in focus:
         if name in playbooks.sections:

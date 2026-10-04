@@ -76,7 +76,9 @@ def probe(section: AISection, timeout: float = 15.0) -> ProbeResult:
     default_model = getattr(backend_class, "default_model", "")
     model = str(section.raw.get("model") or default_model)
     if section.config is None or backend_class is None:
-        return ProbeResult(False, "config", model, section.problem or "Section could not be loaded")
+        return ProbeResult(
+            False, "config", model, section.problem or "Section could not be loaded"
+        )
 
     backend = backend_class(config=section.config)
     secret = section.config.api_key

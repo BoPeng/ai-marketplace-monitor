@@ -52,6 +52,4 @@ class ScriptedChatUI:
 
     def said(self: "ScriptedChatUI", kind: str | None = None) -> List[str]:
         """Texts of the Say messages, optionally only those of one kind."""
-        return [
-            m.text for m in self.transcript if isinstance(m, Say) and kind in (None, m.kind)
-        ]
+        return [m.text for m in self.transcript if isinstance(m, Say) and kind in (None, m.kind)]

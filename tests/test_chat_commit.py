@@ -112,7 +112,7 @@ async def test_override_names_only_conflicting_keys(tmp_path: Path) -> None:
 
 async def test_extra_key_in_earlier_file_detected(tmp_path: Path) -> None:
     earlier = tmp_path / "earlier.toml"
-    earlier.write_text('[ai.unitysvc]\ntimeout = 5\n')
+    earlier.write_text("[ai.unitysvc]\ntimeout = 5\n")
     target = tmp_path / "config.toml"
     target.write_text("")
     ctx = context(tmp_path, [earlier, target])
