@@ -220,3 +220,110 @@ def test_inline_value_replaced_by_load_hook_is_dropped() -> None:
     """)
     assert cfg["notification"]["ntfy"] == {"ntfy_server": "https://ntfy.example.com"}
     assert cfg["user"]["alice"] == {"ntfy_topic": "x", "notify_with": ["ntfy"]}
+
+
+def test_hook_forcing_section_merges_first() -> None:
+    # tg loads as UserConfig, whose hook forces message_format = "plain_text"; nt (ntfy)
+    # holds "markdown". tg cannot hold the effective value, so it is listed first.
+    cfg = _run("""
+    [user.alice]
+    ntfy_topic = "x"
+    telegram_chat_id = "1"
+    notify_with = ["tg", "nt"]
+
+    [notification.nt]
+    ntfy_server = "https://n.example.com"
+    message_format = "markdown"
+
+    [notification.tg]
+    telegram_token = "1:t"
+    """)
+    assert cfg["user"]["alice"]["notify_with"] == ["tg", "nt"]
+    assert cfg["notification"]["nt"]["message_format"] == "markdown"
+    assert cfg["notification"]["tg"] == {"telegram_token": "1:t"}
+    # Deterministic: normalizing the output again yields identical output.
+    again = copy.deepcopy(cfg)
+    normalize_notifications(again, Config.from_dicts(system_cfg(), cfg))
+    assert again == cfg
+
+
+def test_duplicate_notify_with_entries_collapse() -> None:
+    cfg = _run("""
+    [user.alice]
+    telegram_chat_id = "1"
+    notify_with = ["tg", "tg"]
+
+    [notification.tg]
+    telegram_token = "1:t"
+    """)
+    assert cfg["user"]["alice"] == {"telegram_chat_id": "1", "notify_with": ["tg"]}
+
+
+def test_notify_with_naming_disabled_section_drops_it() -> None:
+    cfg = _run("""
+    [user.alice]
+    email = "alice@example.com"
+    notify_with = ["gmail", "tg"]
+
+    [notification.gmail]
+    smtp_password = "pw"
+
+    [notification.tg]
+    enabled = false
+    telegram_token = "1:t"
+    telegram_chat_id = "1"
+    """)
+    assert cfg["user"]["alice"] == {"email": "alice@example.com", "notify_with": ["gmail"]}
+    assert cfg["notification"]["tg"] == {
+        "enabled": False,
+        "telegram_token": "1:t",
+        "telegram_chat_id": "1",
+    }
+
+
+def test_inline_channel_field_overridden_by_same_type_section() -> None:
+    cfg = _run("""
+    [user.alice]
+    telegram_chat_id = "1"
+    telegram_token = "9:inline"
+    notify_with = "tg"
+
+    [notification.tg]
+    telegram_token = "1:t"
+    """)
+    assert cfg["user"]["alice"] == {"telegram_chat_id": "1", "notify_with": ["tg"]}
+    assert cfg["notification"]["tg"] == {"telegram_token": "1:t"}
+
+
+def test_group_chat_id_overrides_users_own_values() -> None:
+    cfg = _run("""
+    [user.alice]
+    telegram_chat_id = "5"
+    notify_with = "tg"
+
+    [user.bob]
+    telegram_chat_id = "6"
+    notify_with = "tg"
+
+    [notification.tg]
+    telegram_token = "1:t"
+    telegram_chat_id = "-100"
+    """)
+    assert cfg["user"]["alice"]["telegram_chat_id"] == "-100"
+    assert cfg["user"]["bob"]["telegram_chat_id"] == "-100"
+    assert cfg["notification"] == {"tg": {"telegram_token": "1:t"}}
+
+
+def test_disabled_user_is_normalized_and_stays_disabled() -> None:
+    cfg = _run("""
+    [user.alice]
+    enabled = false
+    email = "alice@example.com"
+    smtp_password = "pw"
+    """)
+    assert cfg["user"]["alice"] == {
+        "enabled": False,
+        "email": "alice@example.com",
+        "notify_with": ["email"],
+    }
+    assert cfg["notification"]["email"] == {"smtp_password": "pw"}

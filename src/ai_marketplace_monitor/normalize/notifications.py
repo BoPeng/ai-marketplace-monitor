@@ -75,12 +75,15 @@ def _load_section(content: Dict[str, Any]) -> NotificationConfig:
 def _overridden(
     raw: Dict[str, Any], load: Callable[[Dict[str, Any]], NotificationConfig]
 ) -> Set[str]:
-    """Common fields whose raw value a ``handle_*`` hook replaces on load.
+    """Common fields whose raw value does not change what the source loads to.
 
-    E.g. ``UserConfig`` (and any section inferred as one) inherits Pushbullet's
-    ``handle_message_format``, which always sets ``"plain_text"``: a raw
-    ``message_format`` there has no effect, so it is not a winning raw value.
-    Placeholders are exempt (an unset variable also loads as if absent).
+    A field is returned when loading the source without it yields the same value as
+    loading it with it: either a ``handle_*`` hook replaces the raw value (e.g.
+    ``UserConfig``, and any section inferred as one, inherits Pushbullet's
+    ``handle_message_format``, which always sets ``"plain_text"``), or the raw value
+    equals the default the source would load to anyway (an explicit default). Such a
+    value is not a winning raw value and is dropped. Placeholders are exempt (an unset
+    variable also loads as if absent).
     """
     present = [f for f in COMMON_FIELDS if f in raw and not _is_placeholder(raw[f])]
     if not present:
@@ -125,10 +128,21 @@ def _declares(cls: Type[Any], name: str) -> bool:
     return any(f.name == name for f in fields(cls))
 
 
+def _holds(content: Dict[str, Any], name: str, value: Any) -> bool:
+    """Whether a section with ``content`` loads ``name = value`` unchanged."""
+    return bool(getattr(_load_section({**content, name: value}), name) == value)
+
+
 def _plan_user(
     user_raw: Dict[str, Any], winners: Dict[str, Any], effective: UserConfig
-) -> Tuple[Dict[str, Any], Dict[str, Dict[str, Any]]]:
-    """Canonical user section and per-type channel sections for one user."""
+) -> Tuple[Dict[str, Any], Dict[str, Dict[str, Any]], Set[str]]:
+    """Canonical user section, per-type channel sections, and forcing section types.
+
+    A section is *forcing* when its loaded class cannot hold the effective value of a
+    common field (a hook replaces it, e.g. ``message_format`` on a section inferred as
+    ``UserConfig``). The field is then not written there, and the caller merges forcing
+    sections first so a non-forcing section re-applies the effective value afterwards.
+    """
     user = {k: user_raw[k] for k in _USER_KEPT_FIELDS if k in user_raw}
     user.update({f: winners[f] for f in RECIPIENT_FIELDS if winners.get(f) is not None})
     sections: Dict[str, Dict[str, Any]] = {}
@@ -139,20 +153,26 @@ def _plan_user(
     # Values a section loads with when a common field is omitted (defaults, including
     # those set by handle_* hooks, e.g. message_format).
     baselines = {t: _load_section(c) for t, c in sections.items()}
+    forcing: Set[str] = set()
     for section_type, content in sections.items():
         baseline = baselines[section_type]
+        channel_content = dict(content)
         for f in COMMON_FIELDS:
             if not _declares(type(baseline), f):
                 continue
-            if winners.get(f) is not None:
-                content[f] = winners[f]
-            elif getattr(effective, f) != getattr(baseline, f):
-                content[f] = getattr(effective, f)
+            value = getattr(effective, f)
+            differs = getattr(baseline, f) != value
+            if winners.get(f) is None and not differs:
+                continue
+            if _holds(channel_content, f, value):
+                content[f] = winners[f] if winners.get(f) is not None else value
+            elif differs:
+                forcing.add(section_type)
     for f in COMMON_FIELDS:
         placed = any(_declares(type(b), f) for b in baselines.values())
         if not placed and winners.get(f) is not None:
             user[f] = winners[f]
-    return user, sections
+    return user, sections, forcing
 
 
 def _type_owners(sources: List[str], notif_raw: Dict[str, Any]) -> Dict[str, str]:
@@ -194,9 +214,10 @@ def normalize_notifications(cfg: Dict[str, Any], loaded: Config) -> None:
     for user_name, user_raw in cfg.get("user", {}).items():
         sources = _sources(user_raw, notif_raw)
         winners = _provenance(user_raw, sources, notif_raw, loaded.notification)
-        user, sections = _plan_user(user_raw, winners, loaded.user[user_name])
+        user, sections, forcing = _plan_user(user_raw, winners, loaded.user[user_name])
         owners = _type_owners(sources, notif_raw)
-        keys = []
+        forcing_keys: List[str] = []
+        keys: List[str] = []
         for section_type, content in sections.items():
             key = f"{section_type}:{json.dumps(content, sort_keys=True, default=str)}"
             group = groups.setdefault(
@@ -206,8 +227,9 @@ def normalize_notifications(cfg: Dict[str, Any], loaded: Config) -> None:
             owner = owners.get(section_type)
             if owner is not None and owner not in group["candidates"]:
                 group["candidates"].append(owner)
-            keys.append(key)
-        plans[user_name] = (user, keys)
+            (forcing_keys if section_type in forcing else keys).append(key)
+        # Forcing sections merge first; each group stays in the fixed type order.
+        plans[user_name] = (user, forcing_keys + keys)
 
     names = _name_groups(groups, notif_raw)
     claimed = {name: key for key, name in names.items()}
