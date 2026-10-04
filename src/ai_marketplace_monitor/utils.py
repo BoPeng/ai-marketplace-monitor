@@ -283,6 +283,8 @@ def hash_dict(obj: Dict[str, Any]) -> str:
 class BaseConfig:
     name: str
     enabled: bool | None = None
+    # free-text intent for this section; never used at runtime, never env-expanded
+    request: str | None = None
 
     def __post_init__(self: "BaseConfig") -> None:
         """Handle all methods that start with 'handle_' in the dataclass."""
@@ -290,10 +292,11 @@ class BaseConfig:
             # test the type of field f, if it is a string or a list of string
             # try to expand the string with environment variables
             fvalue = getattr(self, f.name)
-            if isinstance(fvalue, str):
-                setattr(self, f.name, self._value_from_environ(fvalue))
-            elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
-                setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
+            if f.name != "request":
+                if isinstance(fvalue, str):
+                    setattr(self, f.name, self._value_from_environ(fvalue))
+                elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
+                    setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
 
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
@@ -324,9 +327,18 @@ class BaseConfig:
         if not isinstance(self.enabled, bool):
             raise ValueError(f"Item {hilight(self.name)} enabled must be a boolean.")
 
+    def handle_request(self: "BaseConfig") -> None:
+        if self.request is None:
+            return
+        if not isinstance(self.request, str):
+            raise ValueError(f"Section {hilight(self.name)} request must be a string.")
+
     @property
     def hash(self: "BaseConfig") -> str:
-        return hash_dict(asdict(self))
+        # editing `request` must not invalidate cached AI results
+        values = asdict(self)
+        values.pop("request", None)
+        return hash_dict(values)
 
 
 @dataclass
@@ -724,7 +736,7 @@ class Translator:
 
 
 # keys of a [translation.*] section that are settings, not words to translate
-TRANSLATION_FIELDS: Tuple[str, ...] = ("enabled", "locale")
+TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")
 
 
 @dataclass

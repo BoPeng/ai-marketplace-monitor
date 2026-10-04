@@ -265,7 +265,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
                 for key, value in notification_config.__dict__.items():
                     # name is the notification name and should not override username
-                    if key not in ("type", "name") and value is not None:
+                    if key not in ("type", "name", "request") and value is not None:
                         if getattr(config, key) is not None:
                             if logger:
                                 logger.warning(

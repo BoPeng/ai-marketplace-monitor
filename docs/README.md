@@ -371,3 +371,4 @@ sections to be referred from elsewhere (e.g. `notify` a disable user is allowed 
 | Parameter | Required/Optional | Data Type | Description                                            |
 | --------- | ----------------- | --------- | ------------------------------------------------------ |
 | `enabled` | Optional          | Boolean   | Disable corresponding configuration if set to `false`. |
+| `request` | Optional          | String    | Your own description of what you want from this section. Not used when searching; reserved for AI-assisted configuration. Accepted by all sections. |
