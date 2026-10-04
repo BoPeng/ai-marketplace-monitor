@@ -59,8 +59,10 @@ lists, and each item self-contained.
 
 ### Module and API
 
-New module `src/ai_marketplace_monitor/normalize.py` — pure logic, no network, no web UI
-imports, no file writes.
+New package `src/ai_marketplace_monitor/normalize/` (imported as
+`ai_marketplace_monitor.normalize`, one focused file per concern) — pure logic, no
+network, no web UI imports, no file writes. Secret-key detection (`is_sensitive_key`)
+moves from `webui/secrets_redact.py` to `utils.py` so both can use it.
 
 ```python
 @dataclass
@@ -170,46 +172,73 @@ Field classification:
 
 User-only fields (`notify_with`, `remind`, `enabled`, `request`) stay in the user.
 
-For each user, iterating `notify_with` in order (or all notification sections when unset):
+"Type" of a field is decided by **which class declares it**, not by the class
+`NotificationConfig.get_config` infers for a section: inference walks subclasses and
+usually lands on `UserConfig` (e.g. a section with only `telegram_token` loads as a
+`UserConfig`), so a section's defaults are those of whatever class it actually loads as.
+Common fields are those declared on `NotificationConfig` / `PushNotificationConfig`;
+type-specific fields are the rest of `EmailNotificationConfig`,
+`PushbulletNotificationConfig`, `PushoverNotificationConfig`, `NtfyNotificationConfig`,
+`TelegramNotificationConfig` (minus the common ones they redeclare). Private fields
+(leading `_`) are never written.
 
-1. **Winner per field.** Sources, in precedence order: the user's raw section, then each
-   enabled notification section in order (including the dataclass defaults of its
-   inferred type). If the winner is a raw value, carry that raw value; if the winner is a
-   **default**, omit the field (the same default re-applies after normalization) and
-   record a `remove` change for any inline value it shadowed.
-2. **Active channels.** A channel type is active when all its `required_fields` are present
-   in the merged result.
-3. **Recipient fields** go into `[user.x]`, even if they came from a notification section
-   (e.g. a shared group `telegram_chat_id`).
-4. **Channel fields** go into `[notification.*]` sections. Users whose channel field-sets
-   for a type are identical share one section. Naming: reuse an existing section whose
-   channel content matches; else the type name (`email`, `telegram`, `pushbullet`,
-   `pushover`, `ntfy`); else `<type>_<user>`.
-5. **`notify_with`** is set to exactly the user's active-channel sections; `[]` if none
-   (`[]` means none, unset means all).
-6. **Leftovers:** notification sections that end up unreferenced, and disabled ones, are
-   kept unchanged. Normalize never deletes user-authored sections.
+For each user, with sources = the user's raw section, then each enabled notification
+section in `notify_with` order (all notification sections when unset):
+
+1. **Effective values `E`** are the user's fields after the real merge (the loaded
+   `Config.user[u]`). **Raw provenance `P[f]`** is the raw value from the source that wins
+   field `f` under the same precedence (later section wins whenever its loaded instance
+   has a non-`None` value, raw or default); `P[f]` is `None` when the winner is a default.
+   Placement decisions use `P` (so `${VAR}` placeholders whose variable is unset still
+   count as present); written values are `P[f]`, or `E[f]` where a default must be made
+   explicit.
+2. **Recipient fields** with `P[f]` present go into `[user.x]`, even if they came from a
+   notification section (e.g. a shared group `telegram_chat_id`).
+3. **One channel section per type** that has at least one type-specific channel field
+   with `P[f]` present, containing those fields.
+4. **Common fields:** in each channel section, write a common field when `P[f]` is present
+   or `E[f]` differs from the default of the class that section loads as; otherwise omit
+   it (the default re-applies). Thus every section applies exactly `E[f]` and the result
+   does not depend on section order. A shadowed inline value (e.g. `max_retries = 3`
+   overridden by a section default) is dropped with a `remove` change. If the user ends
+   up with **no** channel sections, common fields with `P[f]` present stay in the user.
+5. **Sharing and naming:** users whose sections for a type have identical content share
+   one section. Name, in order of preference: the existing section that supplied the
+   winning type-specific fields (if not already claimed by a different content); else the
+   type name (`email`, `telegram`, `pushbullet`, `pushover`, `ntfy`) if free; else
+   `<type>_<first user>`.
+6. **`notify_with`** is set to exactly the user's channel sections, in the fixed type order
+   email, pushbullet, pushover, ntfy, telegram; `[]` if none (`[]` means none, unset
+   means all).
+7. **Leftovers:** existing notification sections not claimed in step 5, and disabled ones,
+   are kept unchanged. Normalize never deletes user-authored sections.
 
 #### Marketplaces and items: push down
 
-Every item becomes self-contained:
+Every item becomes self-contained. Each item is bound to exactly one marketplace:
+its `marketplace` key, or else the **first** marketplace in the config
+(`Config.get_item_config` always sets `item.marketplace`, and `validate_items` / the
+monitor only pair an item with that marketplace).
 
 - For every common option (`MarketItemCommonConfig` / `FacebookMarketItemCommonConfig`
-  fields, including `notify` and `ai`) set on a marketplace, copy the marketplace's raw
-  value into each item that would fall back to it per `resolve_option`, then remove it
-  from the marketplace. Under the *truthy* rule an item's falsy value (e.g.
-  `min_price = 0`, `notify = []`) falls back, so it is replaced; under the *not-None*
-  rule an item's empty value (e.g. `seller_locations = []`, `ai = []`) is kept.
+  fields, including `notify` and `ai`) set on the bound marketplace, copy the
+  marketplace's raw value into each item that would fall back to it per
+  `resolve_option`, then remove it from the marketplace. Under the *truthy* rule an
+  item's falsy value (e.g. `notify = []`, `search_city = []`) falls back, so it is
+  replaced; under the *not-None* rule an item's empty value (e.g.
+  `seller_locations = []`, `ai = []`) is kept. (Prices are normalized to strings by the
+  loader, so `min_price = 0` is `"0"` and does not fall back.)
+- **Location keys:** if the item has its own `search_region`, its `search_city`,
+  `city_name`, `radius`, `currency` come from region expansion, so none of these five
+  keys is copied to it. Otherwise each is copied independently by the rule above. If the
+  copied result fails to load (e.g. a marketplace `radius` list whose length does not
+  match the item's own `search_city`), `NormalizeError` names the item and key.
 - **Explicit defaults:** after push-down, an item with no `notify` gets the list of all
   users; an item with no `ai` gets the list of all `[ai.*]` sections. If no AI sections
   exist, `ai` is omitted. `ai = []` is kept (it means "no AI").
 - **Marketplace-only keys stay:** `username`, `password`, `login_wait_time`, `language`,
   `market_type`, `enabled`, `request`. A marketplace's `request` remains the place for
   shared intent; a later `interpret` propagates it into items.
-- **Multiple marketplaces guard:** if an item without a `marketplace` key would be searched
-  in more than one enabled marketplace and those marketplaces would resolve any option
-  differently, push-down is ambiguous: raise `NormalizeError`. (Only Facebook exists
-  today, so this is a defensive check.)
 - **Accepted behavior change — AI prompt prices.** `get_prompt` reads `min_price` /
   `max_price` from the item only. Pushing a marketplace-level price into items makes it
   appear in the AI prompt, which it did not before. This is treated as a fix, not a
@@ -226,14 +255,21 @@ not touched (redaction for the LLM view is a later step).
 
 ### Behavior-equivalence check
 
-**`effective_view(config)`** returns a JSON-able dict, for every (marketplace, item) pair
-that will actually be searched (both enabled, item's `marketplace` matching or unset):
+**`effective_view(config)`** returns a JSON-able dict with, for every item (keyed by
+item name, under its bound marketplace `item.marketplace`):
 
+- `enabled` of the item and its marketplace;
 - every common option resolved through `resolve_option`, per use site (so the AI-prompt
-  price is a separate entry from the search price);
-- recipients: the resolved user list, and per user the active channel types and the
-  user's post-merge notification fields;
-- the resolved AI backend list.
+  price is a separate entry from the search price); `search_region` itself is not
+  compared, its expansion into the four location keys is;
+- item-only fields (`search_phrases`, `keywords`, `antikeywords`, `description`);
+- recipients: the resolved user list (`notify`, falling back to all users), and per user
+  the post-merge `UserConfig` fields except `name`, `request`, `notify_with`, and private
+  fields;
+- the resolved AI backend list (`None` → all `[ai.*]` names);
+
+plus, unchanged-by-design parts: marketplace-only fields per marketplace, `ai` and
+`monitor` sections (all fields except `request`).
 
 **`check_equivalent(system, before, after)`** builds both configs with
 `Config.from_dicts`, computes both effective views, and raises `NormalizeError` listing
@@ -282,8 +318,11 @@ the shared value, so the hoisted `radius` must be pushed back into every item).
      *truthy* and *not-None* rules yields the same value.
    - **Never hoist an option that has an item-only use site** in `resolve_option`
      (currently `min_price` / `max_price`, read only from the item by the AI prompt).
-   - With more than one enabled marketplace, only items with an explicit `marketplace`
-     key are grouped; items without it are left unchanged.
+   - Items are grouped by bound marketplace (explicit key, else the first marketplace).
+   - **Location keys are hoisted as a unit:** `search_region`, `search_city`,
+     `city_name`, `radius`, `currency` are hoisted only if every one of them present on
+     any item of the group is hoistable; otherwise none is (a marketplace with `radius`
+     but no `search_city` would not load).
 2. **Lists stay explicit.** `notify` and `ai` may be hoisted like any other option, but
    compaction never deletes them in favor of the implicit "all users" / "all AI" default.
 3. **Merge identical notification sections.** Two `[notification.*]` sections of the same
@@ -295,7 +334,7 @@ the shared value, so the hoisted `radius` must be pushed back into every item).
 
 ## Testing
 
-New `tests/test_normalize.py`, plus additions to existing test files.
+New `tests/test_normalize_*.py` files, plus additions to existing test files.
 
 - **Characterization first (TDD):** for every common option, pin current fallback
   behavior through the real code paths (facebook search-URL builder following
@@ -311,8 +350,10 @@ New `tests/test_normalize.py`, plus additions to existing test files.
   notification sections kept; marketplace `notify`/`ai` missing or `[]`; no AI sections;
   push-down past truthy-rule falsy item values and not-None-rule empty item values;
   marketplace-only keys stay; AI-prompt price change recorded; region references and
-  `${ENV}` / `"1h"` spelling preserved; bundled regions not copied; translation passthrough;
-  multiple-marketplace guard raises.
+  `${ENV}` / `"1h"` spelling preserved (including an unset `${VAR}` channel field);
+  bundled regions not copied; translation passthrough; item binds to the first
+  marketplace; item with own `search_region` gets no location keys; incompatible
+  location push-down raises `NormalizeError` naming the item.
 - **Properties on every case and on `docs/example_config.toml`, `docs/minimal_config.toml`,
   and the TOML examples in `docs/README.md`:** equivalence holds; idempotent; input not
   mutated.
@@ -325,8 +366,7 @@ New `tests/test_normalize.py`, plus additions to existing test files.
   no hoist with a single item; disabled item blocks a hoist when it differs;
   `min_price` / `max_price` never hoisted; `notify` / `ai` hoisted as explicit lists;
   identical notification sections merged and `notify_with` updated; sections with
-  different `request` not merged; multi-marketplace items without `marketplace` key left
-  alone.
+  different `request` not merged; location keys hoisted only as a unit.
 - **Compaction properties on every case and the bundled examples:** equivalence holds;
   idempotent; round-trip with `normalize` as stated above.
 - **Negative:** tampering with normalized output makes `check_equivalent` raise with the
