@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Spanish translation swapped the "About this vehicle" and "Seller's description" headings, so vehicle details and seller descriptions were not extracted from Spanish-language listings
+
 ## [0.10.2] - 2026-07-17
 
 ### Added
