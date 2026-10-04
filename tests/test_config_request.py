@@ -82,3 +82,5 @@ def test_request_does_not_change_hash() -> None:
     plain = FacebookItemConfig(name="bike", search_phrases=["bike"])
     with_request = FacebookItemConfig(name="bike", search_phrases=["bike"], request="anything")
     assert plain.hash == with_request.hash
+    other = FacebookItemConfig(name="bike", search_phrases=["scooter"])
+    assert plain.hash != other.hash
