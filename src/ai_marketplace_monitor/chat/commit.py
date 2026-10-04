@@ -6,12 +6,13 @@ from dataclasses import fields
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import tomlkit
+from tomlkit.exceptions import ParseError
 
 from ..utils import BaseConfig
-from .ai_sections import read_toml
+from .ai_sections import ConfigReadError, read_toml
 from .messages import Confirm, Say
 from .sections import ChatContext, SectionProposal
 from .ui import ChatUI
@@ -80,28 +81,47 @@ async def commit(ui: ChatUI, proposal: SectionProposal, ctx: ChatContext) -> Com
     await ui.say(Say(f"```toml\n{render_section(proposal)}```", markdown=True))
     if await ui.ask(Confirm(f"Write this to {path}?")) != "yes":
         return CommitOutcome.DECLINED
-    if path.exists():
-        backup_file(path, ctx.backup_dir)
-    write_section(path, ref.type, ref.name, proposal.values, proposal.request)
-    if path not in ctx.files:
-        ctx.files.insert(0, path)  # only the default file can be new; it is read first
+    try:
+        if path.exists():
+            backup_file(path, ctx.backup_dir)
+        write_section(path, ref.type, ref.name, proposal.values, proposal.request)
+        if path not in ctx.files:
+            ctx.files.insert(0, path)  # only the default file can be new; it is read first
+        conflicts = _conflicts(ctx.files, path, proposal)
+    except (ParseError, OSError, ConfigReadError) as e:
+        await ui.say(Say(f"Could not update {path}: {e}", kind="error"))
+        return CommitOutcome.FAILED
 
-    effective = effective_section(ctx.files, ref.type, ref.name)
-    effective.pop("request", None)
-    if effective == proposal.values:
+    if not conflicts:
         await ui.say(Say(f"Saved [{ref.label()}] to {path}.", kind="success"))
         return CommitOutcome.WRITTEN
-    later = ctx.files[ctx.files.index(path) + 1 :]
-    overrides = []
-    for other in later:
-        keys = sorted(read_toml(other).get(ref.type, {}).get(ref.name, {}))
-        if keys:
-            overrides.append(f"{other} ({', '.join(keys)})")
+    detail = "; ".join(f"{other} ({', '.join(keys)})" for other, keys in conflicts)
     await ui.say(
         Say(
-            f"Saved to {path}, but [{ref.label()}] is overridden by {'; '.join(overrides)}. "
-            "Remove those keys there for this change to take effect.",
+            f"Saved to {path}, but [{ref.label()}] is also set in {detail}, which overrides or "
+            "adds to it. Remove those keys there for this change to take effect.",
             kind="error",
         )
     )
     return CommitOutcome.FAILED
+
+
+def _conflicts(
+    files: List[Path], target: Path, proposal: SectionProposal
+) -> List[Tuple[Path, List[str]]]:
+    """Other files whose keys for this section differ from the proposal, with those keys."""
+    ref = proposal.ref
+    assert ref.name is not None
+    found = []
+    for other in files:
+        if other == target:
+            continue
+        section = read_toml(other).get(ref.type, {}).get(ref.name, {})
+        keys = sorted(
+            k
+            for k, v in section.items()
+            if k != "request" and (k not in proposal.values or proposal.values[k] != v)
+        )
+        if keys:
+            found.append((other, keys))
+    return found

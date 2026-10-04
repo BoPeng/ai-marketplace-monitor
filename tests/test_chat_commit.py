@@ -2,6 +2,8 @@ import stat
 from pathlib import Path
 from typing import List
 
+import pytest
+
 from ai_marketplace_monitor.chat.commit import CommitOutcome, commit, render_section
 from ai_marketplace_monitor.chat.playbooks import load_playbooks
 from ai_marketplace_monitor.chat.sections import ChatContext, SectionProposal, SectionRef
@@ -94,3 +96,50 @@ async def test_override_by_later_file_detected(tmp_path: Path) -> None:
     assert await commit(ui, proposal(first), ctx) is CommitOutcome.FAILED
     [error] = ui.said("error")
     assert str(later) in error and "model" in error
+
+
+async def test_override_names_only_conflicting_keys(tmp_path: Path) -> None:
+    first = tmp_path / "config.toml"
+    first.write_text("")
+    later = tmp_path / "later.toml"
+    later.write_text('[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\nmodel = "fast"\n')
+    ctx = context(tmp_path, [first, later])
+    ui = ScriptedChatUI(["yes"])
+    assert await commit(ui, proposal(first), ctx) is CommitOutcome.FAILED
+    [error] = ui.said("error")
+    assert "(model)" in error and "api_key" not in error
+
+
+async def test_extra_key_in_earlier_file_detected(tmp_path: Path) -> None:
+    earlier = tmp_path / "earlier.toml"
+    earlier.write_text('[ai.unitysvc]\ntimeout = 5\n')
+    target = tmp_path / "config.toml"
+    target.write_text("")
+    ctx = context(tmp_path, [earlier, target])
+    ui = ScriptedChatUI(["yes"])
+    assert await commit(ui, proposal(target), ctx) is CommitOutcome.FAILED
+    [error] = ui.said("error")
+    assert str(earlier) in error and "(timeout)" in error
+
+
+async def test_unparsable_target_fails_cleanly(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text("[ai.unitysvc\nbroken")
+    ctx = context(tmp_path, [path])
+    ui = ScriptedChatUI(["yes"])
+    assert await commit(ui, proposal(path), ctx) is CommitOutcome.FAILED
+    [error] = ui.said("error")
+    assert str(path) in error
+    assert path.read_text() == "[ai.unitysvc\nbroken"
+
+
+async def test_request_replaced_when_supported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("ai_marketplace_monitor.chat.commit.REQUEST_SUPPORTED", True)
+    path = tmp_path / "config.toml"
+    path.write_text(EXISTING)
+    ctx = context(tmp_path, [path])
+    assert await commit(ScriptedChatUI(["yes"]), proposal(path), ctx) is CommitOutcome.WRITTEN
+    text = path.read_text()
+    assert 'request = "Use UnitySVC."' in text and "keep me" not in text
