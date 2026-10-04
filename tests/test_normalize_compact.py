@@ -1,4 +1,3 @@
-# tests/test_normalize_compact.py
 from ai_marketplace_monitor.normalize import normalize
 from tests.normalize_util import parse, system_cfg
 
@@ -95,6 +94,8 @@ def test_disabled_item_blocks_hoist_when_it_differs() -> None:
     search_interval = "3h"
     """)
     assert "search_interval" not in cfg["marketplace"]["facebook"]
+    assert cfg["item"]["a"]["search_interval"] == "1h"
+    assert cfg["item"]["b"]["search_interval"] == "1h"
 
 
 def test_prices_never_hoisted() -> None:
@@ -187,3 +188,47 @@ def test_changes_are_relative_to_the_input() -> None:
     result = normalize(parse(text), system_cfg())
     sections = {c.section for c in result.changes}
     assert "item.a" in sections  # search_city and notify moved into the item
+
+
+TWO_ITEMS = """
+[marketplace.facebook]
+search_city = "houston"
+
+[item.a]
+search_phrases = "a"
+{extra}
+
+[item.b]
+search_phrases = "b"
+{extra}
+"""
+
+
+def test_falsy_value_of_truthy_option_is_not_hoisted() -> None:
+    cfg = _normalize(TWO_ITEMS.format(extra="rating = []"))
+    assert "rating" not in cfg["marketplace"]["facebook"]
+    assert cfg["item"]["a"]["rating"] == []
+
+
+def test_falsy_value_of_not_none_option_is_hoisted() -> None:
+    cfg = _normalize(TWO_ITEMS.format(extra="seller_locations = []"))
+    assert cfg["marketplace"]["facebook"]["seller_locations"] == []
+    assert "seller_locations" not in cfg["item"]["a"]
+
+
+def test_ai_is_hoisted_as_an_explicit_list() -> None:
+    cfg = normalize(
+        parse(
+            """
+            [ai.openai]
+            api_key = "k1"
+            [ai.deepseek]
+            api_key = "k2"
+            """
+            + USERS
+            + TWO_ITEMS.format(extra="")
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["marketplace"]["facebook"]["ai"] == ["openai", "deepseek"]
+    assert "ai" not in cfg["item"]["a"] and "ai" not in cfg["item"]["b"]
