@@ -753,3 +753,17 @@ class TranslationConfig(BaseConfig):
             raise ValueError(
                 f"Translation section {hilight(self.name)} translations must be strings."
             )
+
+
+# Key names treated as sensitive. Case-insensitive substring match,
+# applied to the TOML key (e.g. ``pushbullet_token`` matches ``token``).
+_SENSITIVE_SUBSTRINGS = ("password", "token", "api_key", "secret")
+# Exact-match keys that don't contain one of the substrings above but
+# are still sensitive (identifiers that reveal the user's identity).
+_SENSITIVE_EXACT = {"username", "api_secret"}
+
+
+def is_sensitive_key(key: str) -> bool:
+    """Whether a config key holds a secret that must never be displayed."""
+    k = key.lower()
+    return k in _SENSITIVE_EXACT or any(s in k for s in _SENSITIVE_SUBSTRINGS)
