@@ -1,7 +1,7 @@
 # tests/test_option_fallback.py
 """Pin how item options fall back to marketplace options at each runtime use site."""
 
-from typing import Any, List
+from typing import Any, List, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -160,7 +160,7 @@ def test_ai_prompt_price_uses_item(listing: Listing) -> None:
 def _monitor(*agent_names: str) -> MarketplaceMonitor:
     monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)
     monitor.logger = None
-    agents = []
+    agents: List[Any] = []
     for name in agent_names:
         agent = MagicMock()
         agent.config.name = name
@@ -174,7 +174,7 @@ def test_ai_empty_item_list_disables_ai(listing: Listing) -> None:
     monitor = _monitor("openai")
     result = monitor.evaluate_by_ai(listing, _item(ai=[]), _market(ai=["openai"]))
     assert isinstance(result, AIResponse)
-    monitor.ai_agents[0].evaluate.assert_not_called()
+    cast(MagicMock, monitor.ai_agents[0]).evaluate.assert_not_called()
 
 
 def test_ai_unset_item_uses_marketplace(listing: Listing) -> None:

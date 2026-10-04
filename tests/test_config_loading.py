@@ -12,11 +12,12 @@ from tests.normalize_util import EXAMPLES
 def _snapshot(cfg: Config) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for key, value in vars(cfg).items():
-        if is_dataclass(value):
+        if is_dataclass(value) and not isinstance(value, type):
             out[key] = asdict(value)
         else:
             out[key] = {
-                name: asdict(v) if is_dataclass(v) else vars(v) for name, v in value.items()
+                name: asdict(v) if is_dataclass(v) and not isinstance(v, type) else vars(v)
+                for name, v in value.items()
             }
     return out
 
