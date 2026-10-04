@@ -280,6 +280,9 @@ monitor only pair an item with that marketplace).
   keys is copied to it. Otherwise each is copied independently by the rule above. If the
   copied result fails to load (e.g. a marketplace `radius` list whose length does not
   match the item's own `search_city`), `NormalizeError` names the item and key.
+  Likewise, an item with its own `search_city` that would inherit `radius` / `currency`
+  from a marketplace's `search_region` raises `NormalizeError` naming the item (set them
+  on the item or give it its own `search_region`).
 - **Explicit defaults:** after push-down, an item with no `notify` gets the list of all
   users; an item with no `ai` gets the list of all `[ai.*]` sections. If no AI sections
   exist, `ai` is omitted. `ai = []` is kept (it means "no AI").
@@ -293,7 +296,8 @@ monitor only pair an item with that marketplace).
   it as a `set` change with a detail saying so.
 
 A consequence of explicit `notify`: users added **later** are not notified automatically;
-`interpret` / chat add them where intended.
+`interpret` / chat add them where intended. This holds in normalized (on-disk) files too,
+so a future CLI should warn when it adds explicit lists.
 
 #### Everything else
 
