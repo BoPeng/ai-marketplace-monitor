@@ -2,7 +2,7 @@ from typing import List
 
 import pytest
 
-from ai_marketplace_monitor.utils import is_substring
+from ai_marketplace_monitor.utils import extract_price, is_substring
 
 
 @pytest.mark.parametrize(
@@ -42,3 +42,35 @@ from ai_marketplace_monitor.utils import is_substring
 )
 def test_is_substring(var1: List[str] | str, var2: str, res: bool) -> None:
     assert is_substring(var1, var2) == res
+
+
+def test_extract_price_comma_thousands() -> None:
+    # US/UK format with a comma thousands separator must be preserved unchanged.
+    assert extract_price("$1,875.00") == "$1,875.00"
+    assert extract_price("$999") == "$999"
+
+
+def test_extract_price_space_thousands() -> None:
+    # French/European locales use a (non-breaking) space as thousands separator.
+    # Regression test: "1 875" used to be split and returned as "1 | 875".
+    assert extract_price("1 875 C$") == "1875"
+    assert extract_price("1\u00a0875\u00a0C$") == "1875"
+    assert extract_price("1\u202f875\u202fC$") == "1875"
+    assert extract_price("10 500 C$") == "10500"
+
+
+def test_extract_price_discounted_and_original() -> None:
+    # Facebook shows the current price followed by the struck-through original.
+    assert extract_price("1 875 C$2 000 C$") == "1875 | 2000"
+
+
+def test_extract_price_unspecified() -> None:
+    assert extract_price("**unspecified**") == "**unspecified**"
+    assert extract_price("") == ""
+
+
+def test_extract_price_does_not_merge_across_newlines() -> None:
+    # Only space, U+00A0 and U+202F are thousands separators. A newline or tab
+    # separates two distinct numbers and must not be collapsed into one.
+    assert extract_price("1\n875 C$") == "1 | 875"
+    assert extract_price("1\t875 C$") == "1 | 875"
