@@ -46,10 +46,14 @@ def _search_urls(item: FacebookItemConfig, market: FacebookMarketplaceConfig) ->
     [
         ("condition", None, ["new"], "itemCondition=new"),
         ("condition", ["used_good"], ["new"], "itemCondition=used_good"),
+        ("condition", [], ["new"], "itemCondition=new"),
         ("date_listed", None, [7], "daysSinceListed=7"),
         ("date_listed", [1], [7], "daysSinceListed=1"),
+        ("date_listed", [], [7], "daysSinceListed=7"),
         ("delivery_method", None, ["shipping"], "deliveryMethod=shipping"),
+        ("delivery_method", [], ["shipping"], "deliveryMethod=shipping"),
         ("availability", None, ["out"], "availability=out"),
+        ("availability", [], ["out"], "availability=out"),
         ("sort_by", None, "new", "sortBy=creation_time_descend"),
         ("max_price", None, "300", "maxPrice=300"),
         ("max_price", "200", "300", "maxPrice=200"),
@@ -73,6 +77,11 @@ def test_search_city_empty_item_list_falls_back_to_marketplace() -> None:
 def test_search_city_item_overrides_marketplace() -> None:
     url = _search_urls(_item(search_city=["dallas"]), _market(search_city=["houston"]))[0]
     assert url.startswith("https://www.facebook.com/marketplace/dallas/search?")
+
+
+def test_radius_empty_item_list_falls_back_to_marketplace() -> None:
+    url = _search_urls(_item(search_city=[], radius=[]), _market(search_city=["houston"], radius=[50]))[0]
+    assert "radius=50" in url
 
 
 def test_radius_from_marketplace_when_item_unset() -> None:
@@ -119,6 +128,18 @@ def test_prompt_unset_item_uses_marketplace(listing: Listing) -> None:
 
 def test_extra_prompt_unset_item_uses_marketplace(listing: Listing) -> None:
     assert "MARKET EXTRA" in _prompt(_item(), _market(extra_prompt="MARKET EXTRA"), listing)
+
+
+def test_extra_prompt_empty_item_string_wins(listing: Listing) -> None:
+    assert "MARKET EXTRA" not in _prompt(
+        _item(extra_prompt=""), _market(extra_prompt="MARKET EXTRA"), listing
+    )
+
+
+def test_rating_prompt_empty_item_string_wins(listing: Listing) -> None:
+    assert "MARKET RATING" not in _prompt(
+        _item(rating_prompt=""), _market(rating_prompt="MARKET RATING"), listing
+    )
 
 
 def test_rating_prompt_unset_item_uses_marketplace(listing: Listing) -> None:
