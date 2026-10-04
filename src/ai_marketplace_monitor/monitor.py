@@ -15,7 +15,7 @@ from rich.prompt import Prompt
 from .ai import AIBackend, AIResponse
 from .config import Config, supported_ai_backends, supported_marketplaces
 from .listing import Listing
-from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
+from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig, resolve_option
 from .notification import NotificationStatus
 from .user import User
 from .utils import (
@@ -168,8 +168,8 @@ class MarketplaceMonitor:
         listing_ratings = []
         # users to notify is determined from item, then marketplace, then all users
         assert self.config is not None
-        users_to_notify = (
-            item_config.notify or marketplace_config.notify or list(self.config.user.keys())
+        users_to_notify = resolve_option("notify", item_config, marketplace_config) or list(
+            self.config.user.keys()
         )
         for listing in marketplace.search(item_config):
             # duplicated ID should not happen, but sellers could repost the same listing,
@@ -229,16 +229,12 @@ class MarketplaceMonitor:
                             item=item_config.name,
                         ),
                     )
-            if item_config.rating:
-                acceptable_rating = item_config.rating[
-                    0 if item_config.searched_count == 0 else -1
-                ]
-            elif marketplace_config.rating:
-                acceptable_rating = marketplace_config.rating[
-                    0 if item_config.searched_count == 0 else -1
-                ]
-            else:
-                acceptable_rating = 3
+            rating_values = resolve_option("rating", item_config, marketplace_config)
+            acceptable_rating = (
+                rating_values[0 if item_config.searched_count == 0 else -1]
+                if rating_values
+                else 3
+            )
 
             if res.score < acceptable_rating:
                 if self.logger:
@@ -359,7 +355,7 @@ class MarketplaceMonitor:
                     # interval (in minutes) can be defined both for the marketplace
                     # if there is any configuration file change, stop sleeping and search again
                     scheduled = None
-                    start_at_list = item_config.start_at or marketplace_config.start_at
+                    start_at_list = resolve_option("start_at", item_config, marketplace_config)
                     if start_at_list is not None and start_at_list:
                         for start_at in start_at_list:
                             if start_at.startswith("*:*:"):
@@ -387,14 +383,12 @@ class MarketplaceMonitor:
                                 scheduled = schedule.every().day.at(start_at)
                     else:
                         search_interval = max(
-                            item_config.search_interval
-                            or marketplace_config.search_interval
+                            resolve_option("search_interval", item_config, marketplace_config)
                             or 30 * 60,
                             1,
                         )
                         max_search_interval = max(
-                            item_config.max_search_interval
-                            or marketplace_config.max_search_interval
+                            resolve_option("max_search_interval", item_config, marketplace_config)
                             or 60 * 60,
                             search_interval,
                         )
@@ -726,10 +720,8 @@ class MarketplaceMonitor:
                             f"""{hilight("[AI]", rating.style)} {rating.name or "AI"} concludes {hilight(f"{rating.conclusion} ({rating.score}): {rating.comment}", rating.style)} for listing {hilight(listing.title)}."""
                         )
                 # notification status?
-                users_to_notify = (
-                    item_config.notify
-                    or marketplace_config.notify
-                    or list(self.config.user.keys())
+                users_to_notify = resolve_option("notify", item_config, marketplace_config) or list(
+                    self.config.user.keys()
                 )
                 # for notification usages
                 listing.name = item_config.name
@@ -768,12 +760,7 @@ class MarketplaceMonitor:
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
     ) -> AIResponse:
-        if item_config.ai is not None:
-            ai_agents = item_config.ai
-        elif marketplace_config.ai is not None:
-            ai_agents = marketplace_config.ai
-        else:
-            ai_agents = None
+        ai_agents = resolve_option("ai", item_config, marketplace_config)
         #
         for agent in self.ai_agents:
             if ai_agents is not None and agent.config.name not in ai_agents:

@@ -15,7 +15,7 @@ from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
-from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage
+from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage, resolve_option
 from .utils import (
     BaseConfig,
     CounterItem,
@@ -386,60 +386,56 @@ class FacebookMarketplace(Marketplace):
 
         options = []
 
-        condition = item_config.condition or self.config.condition
+        condition = resolve_option("condition", item_config, self.config)
         if condition:
             options.append(f"itemCondition={'%2C'.join(condition)}")
 
         # availability can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
-        if item_config.date_listed:
-            date_listed = item_config.date_listed[0 if item_config.searched_count == 0 else -1]
-        elif self.config.date_listed:
-            date_listed = self.config.date_listed[0 if item_config.searched_count == 0 else -1]
-        else:
-            date_listed = DateListed.ANYTIME.value
+        date_listed_values = resolve_option("date_listed", item_config, self.config)
+        date_listed = (
+            date_listed_values[0 if item_config.searched_count == 0 else -1]
+            if date_listed_values
+            else DateListed.ANYTIME.value
+        )
         if date_listed is not None and date_listed != DateListed.ANYTIME.value:
             options.append(f"daysSinceListed={date_listed}")
 
         # delivery_method can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
-        if item_config.delivery_method:
-            delivery_method = item_config.delivery_method[
-                0 if item_config.searched_count == 0 else -1
-            ]
-        elif self.config.delivery_method:
-            delivery_method = self.config.delivery_method[
-                0 if item_config.searched_count == 0 else -1
-            ]
-        else:
-            delivery_method = DeliveryMethod.ALL.value
+        delivery_values = resolve_option("delivery_method", item_config, self.config)
+        delivery_method = (
+            delivery_values[0 if item_config.searched_count == 0 else -1]
+            if delivery_values
+            else DeliveryMethod.ALL.value
+        )
         if delivery_method is not None and delivery_method != DeliveryMethod.ALL.value:
             options.append(f"deliveryMethod={delivery_method}")
 
         # availability can take values from item_config, or marketplace config and will
         # use the first or second value depending on how many times the item has been searched.
-        if item_config.availability:
-            availability = item_config.availability[0 if item_config.searched_count == 0 else -1]
-        elif self.config.availability:
-            availability = self.config.availability[0 if item_config.searched_count == 0 else -1]
-        else:
-            availability = Availability.ALL.value
+        availability_values = resolve_option("availability", item_config, self.config)
+        availability = (
+            availability_values[0 if item_config.searched_count == 0 else -1]
+            if availability_values
+            else Availability.ALL.value
+        )
         if availability is not None and availability != Availability.ALL.value:
             options.append(f"availability={availability}")
 
         # sort order does not depend on the search city, so it is appended once here.
         # `suggested` is facebook's default and needs no parameter.
-        sort_by = item_config.sort_by or self.config.sort_by
+        sort_by = resolve_option("sort_by", item_config, self.config)
         if sort_by and sort_by != SortBy.SUGGESTED.value:
             options.append(f"sortBy={SORT_BY_PARAM[sort_by]}")
 
         # search multiple keywords and cities
         # there is a small chance that search by different keywords and city will return the same items.
         found = {}
-        search_city = item_config.search_city or self.config.search_city or []
-        city_name = item_config.city_name or self.config.city_name or []
-        radiuses = item_config.radius or self.config.radius
-        currencies = item_config.currency or self.config.currency
+        search_city = resolve_option("search_city", item_config, self.config) or []
+        city_name = resolve_option("city_name", item_config, self.config) or []
+        radiuses = resolve_option("radius", item_config, self.config)
+        currencies = resolve_option("currency", item_config, self.config)
 
         # this should not happen because `Config.validate_items` has checked this
         if not search_city:
@@ -463,7 +459,7 @@ class FacebookMarketplace(Marketplace):
                     options.pop()
                 options.append(f"radius={radius}")
 
-            max_price = item_config.max_price or self.config.max_price
+            max_price = resolve_option("max_price", item_config, self.config)
             if max_price:
                 if max_price.isdigit():
                     options.append(f"maxPrice={max_price}")
@@ -478,7 +474,7 @@ class FacebookMarketplace(Marketplace):
                             )
                     options.append(f"maxPrice={price}")
 
-            min_price = item_config.min_price or self.config.min_price
+            min_price = resolve_option("min_price", item_config, self.config)
             if min_price:
                 if min_price.isdigit():
                     options.append(f"minPrice={min_price}")
@@ -493,7 +489,7 @@ class FacebookMarketplace(Marketplace):
                             )
                     options.append(f"minPrice={price}")
 
-            category = item_config.category or self.config.category
+            category = resolve_option("category", item_config, self.config)
             if category:
                 options.append(f"category={category}")
                 if category == Category.FREE_STUFF.value or category == Category.FREE.value:
@@ -650,10 +646,7 @@ class FacebookMarketplace(Marketplace):
             return False
 
         # get locations from either marketplace config or item config
-        if item_config.seller_locations is not None:
-            allowed_locations = item_config.seller_locations
-        else:
-            allowed_locations = self.config.seller_locations or []
+        allowed_locations = resolve_option("seller_locations", item_config, self.config) or []
         if allowed_locations and not is_substring(
             allowed_locations, item.location, logger=self.logger
         ):
@@ -664,10 +657,7 @@ class FacebookMarketplace(Marketplace):
             return False
 
         # get exclude_sellers from both item_config or config
-        if item_config.exclude_sellers is not None:
-            exclude_sellers = item_config.exclude_sellers
-        else:
-            exclude_sellers = self.config.exclude_sellers or []
+        exclude_sellers = resolve_option("exclude_sellers", item_config, self.config) or []
         if (
             item.seller
             and exclude_sellers

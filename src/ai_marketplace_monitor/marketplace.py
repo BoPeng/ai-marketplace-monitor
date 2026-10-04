@@ -2,7 +2,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, Callable, Generator, Generic, List, Type, TypeVar
+from typing import Any, Callable, Dict, Generator, Generic, List, Tuple, Type, TypeVar
 
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
@@ -20,6 +20,58 @@ from .utils import (
 
 class MarketPlace(Enum):
     FACEBOOK = "facebook"
+
+
+class Fallback(Enum):
+    """How an item option falls back to the marketplace option."""
+
+    TRUTHY = "truthy"  # item.x or marketplace.x
+    NOT_NONE = "not_none"  # item.x if item.x is not None else marketplace.x
+    ITEM_ONLY = "item_only"  # marketplace value ignored
+
+
+COMMON_OPTION_FALLBACK: Dict[str, Fallback] = {
+    "ai": Fallback.NOT_NONE,
+    "exclude_sellers": Fallback.NOT_NONE,
+    "seller_locations": Fallback.NOT_NONE,
+    "prompt": Fallback.NOT_NONE,
+    "extra_prompt": Fallback.NOT_NONE,
+    "rating_prompt": Fallback.NOT_NONE,
+    "notify": Fallback.TRUTHY,
+    "search_city": Fallback.TRUTHY,
+    "city_name": Fallback.TRUTHY,
+    "radius": Fallback.TRUTHY,
+    "currency": Fallback.TRUTHY,
+    "search_interval": Fallback.TRUTHY,
+    "max_search_interval": Fallback.TRUTHY,
+    "start_at": Fallback.TRUTHY,
+    "max_price": Fallback.TRUTHY,
+    "min_price": Fallback.TRUTHY,
+    "rating": Fallback.TRUTHY,
+    "availability": Fallback.TRUTHY,
+    "condition": Fallback.TRUTHY,
+    "date_listed": Fallback.TRUTHY,
+    "delivery_method": Fallback.TRUTHY,
+    "category": Fallback.TRUTHY,
+    "sort_by": Fallback.TRUTHY,
+}
+
+# use sites that deviate from COMMON_OPTION_FALLBACK
+SITE_FALLBACK: Dict[Tuple[str, str], Fallback] = {
+    ("ai_prompt", "min_price"): Fallback.ITEM_ONLY,
+    ("ai_prompt", "max_price"): Fallback.ITEM_ONLY,
+}
+
+
+def resolve_option(key: str, item: Any, marketplace: Any, site: str = "search") -> Any:
+    """Value of a common option for an item, falling back to its marketplace."""
+    rule = SITE_FALLBACK.get((site, key), COMMON_OPTION_FALLBACK[key])
+    value = getattr(item, key)
+    if rule is Fallback.ITEM_ONLY:
+        return value
+    if rule is Fallback.NOT_NONE:
+        return value if value is not None else getattr(marketplace, key)
+    return value or getattr(marketplace, key)
 
 
 @dataclass

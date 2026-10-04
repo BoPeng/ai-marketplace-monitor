@@ -10,7 +10,7 @@ from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
-from .marketplace import TItemConfig, TMarketplaceConfig
+from .marketplace import TItemConfig, TMarketplaceConfig, resolve_option
 from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
 
 
@@ -191,8 +191,8 @@ class AIBackend(Generic[TAIConfig]):
         if item_config.description:
             prompt += f"""Description: "{item_config.description}", """
         #
-        max_price = item_config.max_price or 0
-        min_price = item_config.min_price or 0
+        max_price = resolve_option("max_price", item_config, marketplace_config, site="ai_prompt") or 0
+        min_price = resolve_option("min_price", item_config, marketplace_config, site="ai_prompt") or 0
         if max_price and min_price:
             prompt += f"""Price range: {min_price} to {max_price}. """
         elif max_price:
@@ -209,10 +209,9 @@ class AIBackend(Generic[TAIConfig]):
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
         )
         # prompt
-        if item_config.prompt is not None:
-            prompt += item_config.prompt
-        elif marketplace_config.prompt is not None:
-            prompt += marketplace_config.prompt
+        custom_prompt = resolve_option("prompt", item_config, marketplace_config)
+        if custom_prompt is not None:
+            prompt += custom_prompt
         else:
             prompt += (
                 "Evaluate how well this listing matches the user's criteria. Assess the description, MSRP, model year, "
@@ -220,15 +219,13 @@ class AIBackend(Generic[TAIConfig]):
             )
         # extra_prompt
         prompt += "\n"
-        if item_config.extra_prompt is not None:
-            prompt += f"\n{item_config.extra_prompt.strip()}\n"
-        elif marketplace_config.extra_prompt is not None:
-            prompt += f"\n{marketplace_config.extra_prompt.strip()}\n"
+        extra_prompt = resolve_option("extra_prompt", item_config, marketplace_config)
+        if extra_prompt is not None:
+            prompt += f"\n{extra_prompt.strip()}\n"
         # rating_prompt
-        if item_config.rating_prompt is not None:
-            prompt += f"\n{item_config.rating_prompt.strip()}\n"
-        elif marketplace_config.rating_prompt is not None:
-            prompt += f"\n{marketplace_config.rating_prompt.strip()}\n"
+        rating_prompt = resolve_option("rating_prompt", item_config, marketplace_config)
+        if rating_prompt is not None:
+            prompt += f"\n{rating_prompt.strip()}\n"
         else:
             prompt += (
                 "\nRate from 1 to 5 based on the following: \n"
