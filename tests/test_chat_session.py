@@ -121,3 +121,50 @@ def test_render_config(tmp_path: Path) -> None:
     assert render_config([]) == (
         "# The user's current configuration\n\n(no configuration files yet)"
     )
+
+
+def test_render_config_masks_structurally(tmp_path: Path) -> None:
+    path = config(
+        tmp_path,
+        'user.password = "zzz"\n'
+        'notification.tg = { telegram_token = "123:abc" }\n'
+        'note = "svcpass_leakedvalue123"\n'
+        '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\n'
+        "[smtp]\npassword = \"pa'ss\"\n",
+    )
+    text = render_config([path])
+    for leaked in ("pa'ss", "zzz", "123:abc", "svcpass_leakedvalue123"):
+        assert leaked not in text
+    assert "${UNITYSVC_API_KEY}" in text
+
+
+async def test_provider_error_scrubs_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
+    ok(monkeypatch)
+
+    def leaky(self: OpenAIBackend, messages: List[Dict[str, str]]) -> str:
+        raise RuntimeError("401 for key svcpass_test")
+
+    monkeypatch.setattr(OpenAIBackend, "chat", leaky)
+    ui = ScriptedChatUI(["unitysvc", "hello", CLOSE])
+    assert await run_chat(ui, [config(tmp_path, WORKING)], home=tmp_path / "home") == 0
+    assert ui.said("error")
+    assert all("svcpass_test" not in t for t in ui.said("error"))
+
+
+async def test_closed_at_setup_prompt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ok(monkeypatch, ok=False)
+    home = tmp_path / "home"
+    assert await run_chat(ScriptedChatUI(["unitysvc", CLOSE]), [], home=home) == 0
+    assert not (home / "config.toml").exists()
+
+
+async def test_closed_inside_edit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
+    ok(monkeypatch)
+    path = config(tmp_path, WORKING)
+    ui = ScriptedChatUI(["unitysvc", "/edit ai", CLOSE])
+    assert await run_chat(ui, [path], home=tmp_path / "home") == 0
+    assert path.read_text() == WORKING

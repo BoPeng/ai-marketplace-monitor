@@ -2,13 +2,21 @@
 
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
+
+import tomlkit
 
 from ..ai import AIConfig
 from ..config import supported_ai_backends
 from ..utils import amm_home
-from ..webui.secrets_redact import redact
-from .ai_sections import AISection, ConfigReadError, load_ai_sections
+from ..webui.secrets_redact import _is_sensitive
+from .ai_sections import (
+    AISection,
+    ConfigReadError,
+    env_var_name,
+    load_ai_sections,
+    read_toml,
+)
 from .builders import BUILDERS
 from .builders.ai import PROVIDER_LABELS
 from .commit import CommitOutcome, commit
@@ -24,12 +32,28 @@ HELP = (
 )
 
 
+_MASK = "<REDACTED>"
+
+
+def _mask(value: Any, sensitive: bool = False) -> Any:
+    """Copy of parsed TOML data with secrets masked, judged by key and by shape."""
+    if isinstance(value, dict):
+        return {k: _mask(v, sensitive or _is_sensitive(str(k))) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask(v, sensitive) for v in value]
+    if isinstance(value, str):
+        if env_var_name(value):
+            return value
+        return _MASK if sensitive else scrub(value, None)
+    return _MASK if sensitive and not isinstance(value, bool) else value
+
+
 def render_config(files: List[Path]) -> str:
     """The user's config files with secrets masked, for the chat instructions."""
     blocks = []
     for path in files:
-        redacted, _ = redact(path.read_text(encoding="utf-8"))
-        blocks.append(f"`{path}`:\n\n```toml\n{redacted.rstrip()}\n```")
+        masked = tomlkit.dumps(_mask(read_toml(path)))
+        blocks.append(f"`{path}`:\n\n```toml\n{masked.rstrip()}\n```")
     body = "\n\n".join(blocks) if blocks else "(no configuration files yet)"
     return f"# The user's current configuration\n\n{body}"
 
