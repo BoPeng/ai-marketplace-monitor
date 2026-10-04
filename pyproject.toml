@@ -43,6 +43,7 @@ dependencies = [
   "itsdangerous>=2.1",
   "bcrypt>=4.0",
   "python-multipart>=0.0.9",
+  "tomlkit>=0.13",
 ]
 
 [project.urls]
