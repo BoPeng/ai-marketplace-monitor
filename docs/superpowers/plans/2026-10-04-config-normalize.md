@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a `request` field to every `BaseConfig` section and an internal `ai_marketplace_monitor.normalize` package whose `normalize()` / `compact()` rewrite a parsed user config into a canonical (AI-facing) or compact (human-facing) form with provably identical runtime behavior.
+**Goal:** Add a `request` field to every config section (making `[translation.*]` a `BaseConfig` too) and an internal `ai_marketplace_monitor.normalize` package whose `normalize()` / `compact()` rewrite a parsed user config into a canonical (AI-facing) or compact (human-facing) form with provably identical runtime behavior.
 
 **Architecture:** Pure functions over the parsed-but-unprocessed TOML dict. A shared `resolve_option` helper becomes the single definition of how item options fall back to marketplace options; runtime call sites and the normalizer both use it. Every `normalize`/`compact` call loads input and output through the real `Config` loader (new `Config.from_dicts`) and compares an `effective_view` of each, raising `NormalizeError` on any behavior difference except the one documented AI-prompt-price fix.
 
@@ -15,7 +15,7 @@
 - Branch: `config-normalize`. Commit after every task; end each commit message with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - No file writes, no network, no `webui` imports inside `src/ai_marketplace_monitor/normalize/`.
 - `normalize`/`compact` never mutate their input dicts; raw values are copied verbatim (`"1h"` stays `"1h"`, `${VAR}` stays a placeholder).
-- Section type order: `monitor`, `ai`, `marketplace`, `user`, `notification`, `region`, `item`, `translation`. Within a type: input order, never sorted. Within a section: `request`, `enabled`, then dataclass field order, then unknown keys in input order.
+- Section type order: `monitor`, `ai`, `marketplace`, `user`, `notification`, `region`, `item`, `translation`. Within a type: input order, never sorted. Within a section: `request`, `enabled`, then dataclass field order, then unknown keys in input order (for `[translation.*]`: `request`, `enabled`, `locale`, then the words in input order).
 - The only allowed effective-behavior difference: `item.<name>.ai_prompt:min_price` / `ai_prompt:max_price` may change, and only to the value the search uses.
 - Code style: every function fully annotated (ruff `ANN`), methods annotate `self: "ClassName"`, package `__init__.py` needs a docstring (ruff `D104`), line length 99. Run `uv run ruff check src tests` and `uv run mypy src` before each commit.
 - Test runner: `uv run pytest`. Full suite must stay green after every task.
@@ -24,9 +24,9 @@
 
 | File | Responsibility |
 |---|---|
-| `src/ai_marketplace_monitor/utils.py` (modify) | `BaseConfig.request`, `handle_request`, hash exclusion; `is_sensitive_key` (moved from webui) |
+| `src/ai_marketplace_monitor/utils.py` (modify) | `BaseConfig.request`, `handle_request`, hash exclusion; `TranslationConfig`, `TRANSLATION_FIELDS`, `Translator.dictionary`; `is_sensitive_key` (moved from webui) |
 | `src/ai_marketplace_monitor/webui/secrets_redact.py` (modify) | import `is_sensitive_key` instead of defining it |
-| `src/ai_marketplace_monitor/config.py` (modify) | `SYSTEM_CONFIG`, `load_config_dicts`, `Config.from_dicts`, `Config._load`; skip `request` in notification merge |
+| `src/ai_marketplace_monitor/config.py` (modify) | `SYSTEM_CONFIG`, `load_config_dicts`, `Config.from_dicts`, `Config._load`; skip `request` in notification merge; translations via `TranslationConfig` |
 | `src/ai_marketplace_monitor/marketplace.py` (modify) | `Fallback`, `COMMON_OPTION_FALLBACK`, `SITE_FALLBACK`, `resolve_option` |
 | `src/ai_marketplace_monitor/facebook.py`, `monitor.py`, `ai.py` (modify) | call `resolve_option` instead of inline fallbacks |
 | `src/ai_marketplace_monitor/normalize/__init__.py` | public exports |
@@ -38,7 +38,7 @@
 | `src/ai_marketplace_monitor/normalize/compact.py` | `compact()` |
 | `docs/README.md`, `docs/example_config.toml`, `CHANGELOG.md` (modify) | docs, fix invalid example, changelog |
 | `tests/normalize_util.py` | shared test helpers (`parse`, `system_cfg`, `dumps`) |
-| `tests/test_config_request.py`, `tests/test_config_loading.py`, `tests/test_option_fallback.py`, `tests/test_resolve_option.py`, `tests/test_normalize_model.py`, `tests/test_normalize_effective.py`, `tests/test_normalize_notifications.py`, `tests/test_normalize_pushdown.py`, `tests/test_normalize_compact.py`, `tests/test_normalize_properties.py` | tests |
+| `tests/test_config_request.py`, `tests/test_config_translation.py`, `tests/test_config_loading.py`, `tests/test_option_fallback.py`, `tests/test_resolve_option.py`, `tests/test_normalize_model.py`, `tests/test_normalize_effective.py`, `tests/test_normalize_notifications.py`, `tests/test_normalize_pushdown.py`, `tests/test_normalize_compact.py`, `tests/test_normalize_properties.py` | tests |
 
 ---
 
@@ -199,7 +199,7 @@ In `config.py` `expand_notifications`, change `if key not in ("type", "name") an
 In `docs/README.md`, add a row under the `enabled` row of the "Additional options" table:
 
 ```markdown
-| `request` | Optional          | String    | Your own description of what you want from this section. Not used when searching; reserved for AI-assisted configuration. Accepted by all sections except `translation`. |
+| `request` | Optional          | String    | Your own description of what you want from this section. Not used when searching; reserved for AI-assisted configuration. Accepted by all sections. |
 ```
 
 - [ ] **Step 4: Run tests**
@@ -216,7 +216,202 @@ git commit -m "feat: add request field to every config section (#362)"
 
 ---
 
-### Task 2: `load_config_dicts` and `Config.from_dicts`
+### Task 2: Translation sections become `BaseConfig`
+
+**Files:**
+- Modify: `src/ai_marketplace_monitor/utils.py` (`Translator` near line 710; add `TRANSLATION_FIELDS`, `TranslationConfig`)
+- Modify: `src/ai_marketplace_monitor/config.py` (`get_translator_config`, and the language check in `get_marketplace_config`)
+- Modify: `docs/README.md` ("Translators" section, near line 330)
+- Test: `tests/test_config_translation.py`
+
+**Interfaces:**
+- Consumes: `BaseConfig.request` (Task 1).
+- Produces (in `ai_marketplace_monitor.utils`):
+  - `TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")`
+  - `@dataclass TranslationConfig(BaseConfig)` with `locale: str | None = None`, `dictionary: Dict[str, str]` (default empty)
+  - `Translator.dictionary -> Dict[str, str]` (read-only copy)
+- `Config.translator` keeps its type `Dict[str, Translator]` but now holds **enabled** translations only.
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+# tests/test_config_translation.py
+from pathlib import Path
+
+import pytest
+
+from ai_marketplace_monitor.config import Config
+
+BASE = """
+[marketplace.facebook]
+search_city = "houston"
+
+[user.u]
+pushbullet_token = "x"
+
+[item.bike]
+search_phrases = "bike"
+"""
+
+
+def _load(tmp_path: Path, text: str) -> Config:
+    path = tmp_path / "config.toml"
+    path.write_text(BASE + text)
+    return Config([path])
+
+
+def test_request_and_enabled_are_not_words(tmp_path: Path) -> None:
+    cfg = _load(tmp_path, """
+    [translation.de]
+    request = "I search Facebook Marketplace in Germany"
+    enabled = true
+    locale = "German"
+    Condition = "Zustand"
+    """)
+    translator = cfg.translator["de"]
+    assert translator("Condition") == "Zustand"
+    assert translator.dictionary == {"Condition": "Zustand"}
+    assert translator.locale == "German"
+
+
+def test_disabled_translation_is_dropped(tmp_path: Path) -> None:
+    cfg = _load(tmp_path, """
+    [translation.de]
+    enabled = false
+    locale = "German"
+    Condition = "Zustand"
+    """)
+    assert "de" not in cfg.translator
+    assert "es" in cfg.translator  # bundled translations still load
+
+
+def test_marketplace_language_needs_an_enabled_translation(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(
+        BASE.replace('[marketplace.facebook]\n', '[marketplace.facebook]\nlanguage = "de"\n')
+        + '[translation.de]\nenabled = false\nlocale = "German"\nCondition = "Zustand"\n'
+    )
+    with pytest.raises(ValueError, match="Translation for language de is not supported"):
+        Config([path])
+
+
+def test_missing_locale_keeps_its_error(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must contain a locale"):
+        _load(tmp_path, '[translation.de]\nCondition = "Zustand"\n')
+
+
+def test_non_string_word_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must be strings"):
+        _load(tmp_path, '[translation.de]\nlocale = "German"\nCondition = 3\n')
+
+
+def test_bundled_translations_unchanged(tmp_path: Path) -> None:
+    cfg = _load(tmp_path, "")
+    assert cfg.translator["es"]("Condition") == "Estado"
+    assert cfg.translator["sv"].locale == "Swedish"
+    assert cfg.translator["zh"]("Unknown word") == "Unknown word"
+```
+
+`_load` passes indented TOML; TOML allows leading whitespace before keys and table headers, so no dedent is needed.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `uv run pytest tests/test_config_translation.py -v`
+Expected: FAIL — `AttributeError: 'Translator' object has no attribute 'dictionary'` (and the `enabled`/`request` tests fail because those keys are treated as words).
+
+- [ ] **Step 3: Implement**
+
+In `utils.py`, extend `Translator` and add the config class right after it (`field` and `Tuple` must be imported from `dataclasses` / `typing` if they are not already):
+
+```python
+class Translator:
+    def __init__(
+        self: "Translator", locale: str | None = None, dictionary: Dict[str, str] | None = None
+    ) -> None:
+        self.locale = locale
+        self._dictionary: Dict[str, str] = copy.deepcopy(dictionary or {})
+
+    def __call__(self: "Translator", word: str) -> str:
+        """Return translated version"""
+        return self._dictionary.get(word, word)
+
+    @property
+    def dictionary(self: "Translator") -> Dict[str, str]:
+        return dict(self._dictionary)
+
+
+# keys of a [translation.*] section that are settings, not words to translate
+TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")
+
+
+@dataclass
+class TranslationConfig(BaseConfig):
+    locale: str | None = None
+    dictionary: Dict[str, str] = field(default_factory=dict)
+
+    def handle_locale(self: "TranslationConfig") -> None:
+        if not isinstance(self.locale, str):
+            raise ValueError(f"Translation section {hilight(self.name)} must contain a locale.")
+
+    def handle_dictionary(self: "TranslationConfig") -> None:
+        if not all(isinstance(v, str) for v in self.dictionary.values()):
+            raise ValueError(
+                f"Translation section {hilight(self.name)} translations must be strings."
+            )
+```
+
+In `config.py`, import `TRANSLATION_FIELDS, TranslationConfig` from `.utils` and replace `get_translator_config`:
+
+```python
+    def get_translator_config(self: "Config", config: Dict[str, Any]) -> None:
+        if not isinstance(config.get("translation", {}), dict):
+            raise ValueError("translation section must be a dictionary.")
+
+        self.translator = {}
+        for key, value in config.get("translation", {}).items():
+            translation = TranslationConfig(
+                name=key,
+                dictionary={k: v for k, v in value.items() if k not in TRANSLATION_FIELDS},
+                **{k: v for k, v in value.items() if k in TRANSLATION_FIELDS},
+            )
+            if translation.enabled is False:
+                continue
+            self.translator[key] = Translator(
+                locale=translation.locale, dictionary=translation.dictionary
+            )
+```
+
+In `get_marketplace_config`, change the language check to use enabled translations:
+
+```python
+            if lan.split("_")[0] not in {x.split("_")[0] for x in self.translator}:
+                raise ValueError(f"Translation for language {lan} is not supported.")
+```
+
+In `docs/README.md`, add to the Translators parameter table:
+
+```markdown
+| `request`                         | Optional          | String    | Your own description of this translation (e.g. which country you search in). Not a word to translate. |
+| `enabled`                         | Optional          | Boolean   | Set to `false` to ignore this translation.                 |
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `uv run pytest tests/test_config_translation.py tests/test_config_request.py -v && uv run pytest -q`
+Expected: all PASS.
+
+- [ ] **Step 5: Static checks and commit**
+
+Run: `uv run ruff check src tests && uv run mypy src`
+
+```bash
+git add src/ai_marketplace_monitor/utils.py src/ai_marketplace_monitor/config.py docs/README.md tests/test_config_translation.py
+git commit -m "feat: translation sections accept request and enabled (#362)"
+```
+
+---
+
+### Task 3: `load_config_dicts` and `Config.from_dicts`
 
 **Files:**
 - Modify: `src/ai_marketplace_monitor/config.py:1-97`
@@ -410,9 +605,9 @@ git commit -m "refactor: add load_config_dicts and Config.from_dicts (#362)"
 
 ---
 
-### Task 3: Characterization tests for item → marketplace option fallback
+### Task 4: Characterization tests for item → marketplace option fallback
 
-These pin **current** behavior through real code paths; they must pass on unmodified code. They guard the refactor in Task 4.
+These pin **current** behavior through real code paths; they must pass on unmodified code. They guard the refactor in Task 5.
 
 **Files:**
 - Test: `tests/test_option_fallback.py`
@@ -588,7 +783,7 @@ def test_ai_unset_everywhere_uses_all_agents(listing: Listing) -> None:
     assert monitor.evaluate_by_ai(listing, _item(), _market()) == "openai"
 ```
 
-The remaining `monitor.py` sites (`notify`, `rating`, `start_at`, `search_interval`, `max_search_interval`) live inside long scheduling/search loops that cannot be driven without a browser; they are covered by the rule table in Task 4 plus a line-by-line review that each replacement is the same expression.
+The remaining `monitor.py` sites (`notify`, `rating`, `start_at`, `search_interval`, `max_search_interval`) live inside long scheduling/search loops that cannot be driven without a browser; they are covered by the rule table in Task 5 plus a line-by-line review that each replacement is the same expression.
 
 - [ ] **Step 2: Run tests (must pass on current code)**
 
@@ -604,7 +799,7 @@ git commit -m "test: characterize item/marketplace option fallback (#362)"
 
 ---
 
-### Task 4: `resolve_option` and call-site refactor
+### Task 5: `resolve_option` and call-site refactor
 
 **Files:**
 - Modify: `src/ai_marketplace_monitor/marketplace.py` (add after the imports / before `MarketItemCommonConfig`)
@@ -928,7 +1123,7 @@ git commit -m "refactor: resolve item/marketplace options through resolve_option
 
 ---
 
-### Task 5: `normalize` package — model, ordering, change descriptions
+### Task 6: `normalize` package — model, ordering, change descriptions
 
 **Files:**
 - Modify: `src/ai_marketplace_monitor/utils.py` (add `is_sensitive_key`)
@@ -1006,9 +1201,18 @@ def test_monitor_is_a_flat_section() -> None:
     assert list(out["monitor"]) == ["request", "proxy_bypass"]
 
 
-def test_translation_keeps_input_key_order() -> None:
-    cfg = {"translation": {"de": {"Condition": "Zustand", "locale": "de_DE"}}}
-    assert list(order_config(cfg)["translation"]["de"]) == ["Condition", "locale"]
+def test_translation_settings_first_then_words_in_input_order() -> None:
+    cfg = {
+        "translation": {
+            "de": {"Details": "Details", "Condition": "Zustand", "locale": "de_DE", "request": "r"}
+        }
+    }
+    assert list(order_config(cfg)["translation"]["de"]) == [
+        "request",
+        "locale",
+        "Details",
+        "Condition",
+    ]
 
 
 def test_describe_changes_reports_set_remove_add_and_masks_secrets() -> None:
@@ -1095,7 +1299,7 @@ from ..facebook import FacebookItemConfig, FacebookMarketItemCommonConfig, Faceb
 from ..marketplace import SITE_FALLBACK, MarketItemCommonConfig
 from ..region import RegionConfig
 from ..user import UserConfig
-from ..utils import BaseConfig, MonitorConfig, is_sensitive_key
+from ..utils import BaseConfig, MonitorConfig, TranslationConfig, is_sensitive_key
 
 SECTION_ORDER: Tuple[str, ...] = (
     "monitor",
@@ -1120,8 +1324,9 @@ LOCATION_KEYS: Tuple[str, ...] = ("search_region", "search_city", "city_name", "
 AI_PROMPT_ITEM_ONLY: Tuple[str, ...] = tuple(k for (site, k) in SITE_FALLBACK if site == "ai_prompt")
 MASK = "<REDACTED>"
 
-# runtime-only dataclass fields that never appear in a config file
-_RUNTIME_FIELDS = {"searched_count", "monitor_config"}
+# dataclass fields that never appear as config keys (runtime state, or the
+# translation `dictionary`, whose entries are the section's remaining keys)
+_RUNTIME_FIELDS = {"searched_count", "monitor_config", "dictionary"}
 _FIELD_ORDER: Dict[str, List[str]] = {
     section: [f.name for f in fields(cls) if f.name not in _RUNTIME_FIELDS]
     for section, cls in {
@@ -1133,6 +1338,7 @@ _FIELD_ORDER: Dict[str, List[str]] = {
         "notification": UserConfig,
         "region": RegionConfig,
         "item": FacebookItemConfig,
+        "translation": TranslationConfig,
     }.items()
 }
 
@@ -1256,7 +1462,7 @@ git commit -m "feat(normalize): add model, ordering, and change descriptions (#3
 
 ---
 
-### Task 6: `effective_view` and `check_equivalent`
+### Task 7: `effective_view` and `check_equivalent`
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/normalize/effective.py`
@@ -1264,9 +1470,9 @@ git commit -m "feat(normalize): add model, ordering, and change descriptions (#3
 - Test: `tests/test_normalize_effective.py`
 
 **Interfaces:**
-- Consumes: `Config.from_dicts` (Task 2), `resolve_option` (Task 4), `COMMON_OPTIONS`, `AI_PROMPT_ITEM_ONLY`, `NormalizeError`, `mask` (Task 5).
+- Consumes: `Config.from_dicts` (Task 3), `resolve_option` (Task 5), `COMMON_OPTIONS`, `AI_PROMPT_ITEM_ONLY`, `NormalizeError`, `mask` (Task 6).
 - Produces:
-  - `effective_view(config: Config) -> Dict[str, Any]` with keys `"marketplace"`, `"ai"`, `"monitor"`, `"item"`; each `view["item"][name]` holds `"marketplace"`, `"enabled"`, `"search_phrases"`, `"keywords"`, `"antikeywords"`, `"description"`, every common option except `search_region`/`notify`/`ai`, `"ai_prompt:min_price"`, `"ai_prompt:max_price"`, `"notify"` (dict user → user view), `"ai"` (list).
+  - `effective_view(config: Config) -> Dict[str, Any]` with keys `"marketplace"`, `"ai"`, `"monitor"`, `"translation"` (enabled translations: `locale`, `dictionary`), `"item"`; each `view["item"][name]` holds `"marketplace"`, `"enabled"`, `"search_phrases"`, `"keywords"`, `"antikeywords"`, `"description"`, every common option except `search_region`/`notify`/`ai`, `"ai_prompt:min_price"`, `"ai_prompt:max_price"`, `"notify"` (dict user → user view), `"ai"` (list).
   - `check_equivalent(system_cfg: Dict[str, Any], before: Dict[str, Any], after: Dict[str, Any]) -> List[str]` — returns the allowed differing paths (dotted strings); raises `NormalizeError` otherwise.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1418,6 +1624,10 @@ def effective_view(config: Config) -> Dict[str, Any]:
         },
         "ai": {n: {k: v for k, v in asdict(a).items() if k != "request"} for n, a in config.ai.items()},
         "monitor": {k: v for k, v in asdict(config.monitor).items() if k != "request"},
+        "translation": {
+            n: {"locale": t.locale, "dictionary": t.dictionary}
+            for n, t in config.translator.items()
+        },
         "item": {name: _item_view(config, name) for name in config.item},
     }
     return json.loads(json.dumps(view, default=str))
@@ -1499,7 +1709,7 @@ git commit -m "feat(normalize): add effective_view and check_equivalent (#362)"
 
 ---
 
-### Task 7: Canonical users and notification sections
+### Task 8: Canonical users and notification sections
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/normalize/notifications.py`
@@ -1948,7 +2158,7 @@ git commit -m "feat(normalize): canonical users and notification sections (#362)
 
 ---
 
-### Task 8: Push-down and `normalize()`
+### Task 9: Push-down and `normalize()`
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/normalize/pushdown.py`, `src/ai_marketplace_monitor/normalize/core.py`
@@ -1956,7 +2166,7 @@ git commit -m "feat(normalize): canonical users and notification sections (#362)
 - Test: `tests/test_normalize_pushdown.py`, `tests/test_normalize_properties.py`
 
 **Interfaces:**
-- Consumes: `normalize_notifications` (Task 7), `check_equivalent` (Task 6), `order_config`, `describe_changes`, `COMMON_OPTIONS`, `LOCATION_KEYS`, `AI_PROMPT_ITEM_ONLY` (Task 5), `COMMON_OPTION_FALLBACK`, `Fallback` (Task 4).
+- Consumes: `normalize_notifications` (Task 8), `check_equivalent` (Task 7), `order_config`, `describe_changes`, `COMMON_OPTIONS`, `LOCATION_KEYS`, `AI_PROMPT_ITEM_ONLY` (Task 6), `COMMON_OPTION_FALLBACK`, `Fallback` (Task 5).
 - Produces:
   - `bound_marketplace(item_raw: Dict[str, Any], marketplaces: Dict[str, Any]) -> str`
   - `push_down(cfg: Dict[str, Any]) -> Dict[Tuple[str, Optional[str]], str]` (in place; returns change notes)
@@ -2372,7 +2582,7 @@ git commit -m "feat(normalize): push options into items and add normalize() (#36
 
 ---
 
-### Task 9: `compact()`
+### Task 10: `compact()`
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/normalize/compact.py`
@@ -2663,7 +2873,7 @@ git commit -m "feat(normalize): add compact() (#362)"
 
 ---
 
-### Task 10: Changelog and final verification
+### Task 11: Changelog and final verification
 
 **Files:**
 - Modify: `CHANGELOG.md` (under `## [Unreleased]`)
@@ -2672,7 +2882,8 @@ git commit -m "feat(normalize): add compact() (#362)"
 
 ```markdown
 ### Added
-- Option `request` on every config section (except `translation`) to record, in your own words, what the section is for; reserved for upcoming AI-assisted configuration ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
+- Option `request` on every config section to record, in your own words, what the section is for; reserved for upcoming AI-assisted configuration ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
+- Translation sections accept `enabled = false` to ignore a translation ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
 
 ### Fixed
 - `docs/example_config.toml` used an invalid `search_city` value and could not be loaded

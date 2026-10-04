@@ -43,9 +43,37 @@ lists, and each item self-contained.
 ## Part 1: the `request` field
 
 - Add `request: str | None = None` to `BaseConfig` (`utils.py`). This covers `ai`,
-  `marketplace`, `item`, `user`, `notification`, `region`, and `monitor` sections.
-  `[translation.*]` sections are not `BaseConfig` and are excluded (their keys are
-  arbitrary page words; a `request` key there would be read as a word to translate).
+  `marketplace`, `item`, `user`, `notification`, `region`, and `monitor` sections, and
+  `translation` once it becomes a `BaseConfig` (below).
+- **Translation sections become `BaseConfig`.** Today `[translation.*]` is loaded into a
+  plain `Translator` (`locale` plus every other key as a word mapping), so it has neither
+  `request` nor `enabled`. Translations are a natural LLM task (a later `interpret` can
+  generate `[translation.de]` from `request = "I search Facebook Marketplace in Germany"`),
+  so add:
+
+  ```python
+  TRANSLATION_FIELDS = ("request", "enabled", "locale")
+
+  @dataclass
+  class TranslationConfig(BaseConfig):
+      locale: str | None = None
+      dictionary: Dict[str, str] = field(default_factory=dict)
+  ```
+
+  The loader sends `TRANSLATION_FIELDS` keys to the fields and every other key to
+  `dictionary`. Translatable keys are a fixed set of Facebook UI strings, none of which is
+  `request`, `enabled`, or `locale`, so there is no collision. `handle_locale` keeps the
+  existing "must contain a locale" error; `handle_dictionary` requires string values.
+  `Translator` stays the runtime lookup object, built from an enabled `TranslationConfig`
+  (and gains a read-only `dictionary` property); no lookup site changes.
+  `enabled = false` drops the section from `Config.translator`, and the marketplace
+  `language` check uses `Config.translator` (enabled translations), so a marketplace
+  whose language is only covered by a disabled translation fails with the existing
+  "Translation for language ... is not supported" error.
+  Risk for the later `interpret` step (not this work): translated strings must equal
+  Facebook's exact UI text, and a wrong one silently falls back to English (the bundled
+  Spanish translation had two headings swapped, fixed separately in #364), so generated
+  translations need user confirmation.
 - `handle_request` rejects any non-string value.
 - `request` is **not** `${VAR}`-expanded in `BaseConfig.__post_init__`.
 - `request` is **not** copied by `Config.expand_notifications` (add it to the excluded
@@ -147,7 +175,9 @@ normalization or compaction. Preserving a user's file layout is the job of the l
 3. **Fixed key order within a section:** `request`, then `enabled`, then the remaining
    fields in the declaration order of the section's config dataclass (for marketplaces
    and items, the Facebook dataclasses, base-class fields first). Any key not declared on
-   the dataclass (none should survive validation) goes last in input order. A fixed key
+   the dataclass (none should survive validation) goes last in input order. For
+   `[translation.*]` that means `request`, `enabled`, `locale`, then the translated words
+   in input order (their order carries no meaning, and the words are user data). A fixed key
    order makes the canonical form a function of content only, so a section an LLM
    returns with keys in arbitrary order normalizes back to an identically ordered dict (compare with
    `json.dumps` without `sort_keys`; plain `==` ignores order) and the before/after diff shows only real edits.
@@ -269,7 +299,8 @@ item name, under its bound marketplace `item.marketplace`):
 - the resolved AI backend list (`None` → all `[ai.*]` names);
 
 plus, unchanged-by-design parts: marketplace-only fields per marketplace, `ai` and
-`monitor` sections (all fields except `request`).
+`monitor` sections (all fields except `request`), and each enabled translation's `locale`
+and `dictionary`.
 
 **`check_equivalent(system, before, after)`** builds both configs with
 `Config.from_dicts`, computes both effective views, and raises `NormalizeError` listing
@@ -343,6 +374,10 @@ New `tests/test_normalize_*.py` files, plus additions to existing test files.
   sites to `resolve_option` only with these green before and after.
 - **`request`:** accepted on each `BaseConfig` section type; non-string rejected; not
   `${}`-expanded; not merged into users; excluded from `BaseConfig.hash`.
+- **Translation sections:** `request` and `enabled` are not treated as words;
+  `enabled = false` removes the translation and a marketplace relying on it fails the
+  language check; a missing `locale` keeps its error; non-string values rejected;
+  bundled translations look up exactly as before.
 - **`Config.from_dicts`:** equals file-based loading on the bundled examples.
 - **Rules, one case each:** inline single user; shared SMTP with per-user `email`; group
   `telegram_chat_id` in a notification section; `notify_with` unset vs `[]`; default
