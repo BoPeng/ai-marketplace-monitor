@@ -234,19 +234,28 @@ section in `notify_with` order (all notification sections when unset):
    notification section (e.g. a shared group `telegram_chat_id`).
 3. **One channel section per type** that has at least one type-specific channel field
    with `P[f]` present, containing those fields.
-4. **Common fields:** in each channel section, write a common field when `P[f]` is present
-   or `E[f]` differs from the default of the class that section loads as; otherwise omit
-   it (the default re-applies). Thus every section applies exactly `E[f]` and the result
-   does not depend on section order. A shadowed inline value (e.g. `max_retries = 3`
-   overridden by a section default) is dropped with a `remove` change. If the user ends
-   up with **no** channel sections, common fields with `P[f]` present stay in the user.
+4. **Common fields:** in each channel section, write a common field only when the value
+   the section would load to differs from `E[f]`; "default" means the value the section
+   actually loads with (a real load, not the dataclass default, since `handle_*` hooks
+   can set values, e.g. `message_format` becomes `"plain_text"`). Explicit values equal
+   to that loaded value are dropped (no runtime effect; disk always holds normalized
+   output). Raw values that loading always overrides (e.g. an inline user
+   `message_format = "markdown"`, which a `UserConfig` load forces to `"plain_text"`) count
+   as not set. If a section's loaded class **cannot hold** `E[f]` (its hook forces another
+   value), `f` is not written there and the section is a **forcing** section (see step 6).
+   Every non-forcing section then applies exactly `E[f]`. A shadowed inline value (e.g.
+   `max_retries = 3` overridden by a section default) is dropped and reported as a
+   removed key in the change list. If the user ends up with **no** channel sections,
+   common fields with `P[f]` present stay in the user.
 5. **Sharing and naming:** users whose sections for a type have identical content share
    one section. Name, in order of preference: the existing section that supplied the
    winning type-specific fields (if not already claimed by a different content); else the
    type name (`email`, `telegram`, `pushbullet`, `pushover`, `ntfy`) if free; else
    `<type>_<first user>`.
-6. **`notify_with`** is set to exactly the user's channel sections, in the fixed type order
-   email, pushbullet, pushover, ntfy, telegram; `[]` if none (`[]` means none, unset
+6. **`notify_with`** is set to exactly the user's channel sections: forcing sections first,
+   then the rest, each group in the fixed type order email, pushbullet, pushover, ntfy,
+   telegram (so a section that forces e.g. `message_format = "plain_text"` is merged before
+   the section that carries the user's real value); `[]` if none (`[]` means none, unset
    means all).
 7. **Leftovers:** existing notification sections not claimed in step 5, and disabled ones,
    are kept unchanged. Normalize never deletes user-authored sections.
