@@ -31,6 +31,7 @@ from .utils import (
     MonitorConfig,
     TranslationConfig,
     Translator,
+    amm_home,
     hilight,
     merge_dicts,
 )
@@ -65,6 +66,17 @@ def load_config_dicts(
     system = _load_toml(SYSTEM_CONFIG, logger)
     user = merge_dicts([_load_toml(f, logger) for f in config_files])
     return system, user
+
+
+def resolve_config_files(config_files: List[Path] | None) -> List[Path]:
+    """Config files in read order: the default file (if it exists), then each given file."""
+    for file_path in config_files or []:
+        if not file_path.exists():
+            raise FileNotFoundError(f"Config file {file_path} not found.")
+    default_config = amm_home / "config.toml"
+    return ([default_config] if default_config.exists() else []) + [
+        x.expanduser().resolve() for x in config_files or []
+    ]
 
 
 class ConfigItem(Enum):
