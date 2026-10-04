@@ -32,6 +32,11 @@ def scrub(text: str, secret: str | None) -> str:
     return _TOKEN.sub("<REDACTED>", text)
 
 
+def looks_like_secret(text: str) -> bool:
+    """True when the text contains something shaped like an API key."""
+    return _TOKEN.search(text) is not None
+
+
 def _normalize(model: str) -> str:
     return model.removeprefix("models/").removesuffix(":latest")
 

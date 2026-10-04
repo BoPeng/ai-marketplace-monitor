@@ -87,7 +87,7 @@ async def commit(ui: ChatUI, proposal: SectionProposal, ctx: ChatContext) -> Com
         write_section(path, ref.type, ref.name, proposal.values, proposal.request)
         if path not in ctx.files:
             ctx.files.insert(0, path)  # only the default file can be new; it is read first
-        conflicts = _conflicts(ctx.files, path, proposal)
+        conflicts = _conflicts(ctx.files, proposal)
     except (ParseError, OSError, ConfigReadError) as e:
         await ui.say(Say(f"Could not update {path}: {e}", kind="error"))
         return CommitOutcome.FAILED
@@ -106,22 +106,21 @@ async def commit(ui: ChatUI, proposal: SectionProposal, ctx: ChatContext) -> Com
     return CommitOutcome.FAILED
 
 
-def _conflicts(
-    files: List[Path], target: Path, proposal: SectionProposal
-) -> List[Tuple[Path, List[str]]]:
-    """Other files whose keys for this section differ from the proposal, with those keys."""
+def _conflicts(files: List[Path], proposal: SectionProposal) -> List[Tuple[Path, List[str]]]:
+    """Files whose keys make the effective section differ from the proposal, with those keys.
+
+    Later files override earlier ones, so each mismatched key is attributed to the last file
+    (in read order) that defines it.
+    """
     ref = proposal.ref
     assert ref.name is not None
-    found = []
-    for other in files:
-        if other == target:
-            continue
-        section = read_toml(other).get(ref.type, {}).get(ref.name, {})
-        keys = sorted(
-            k
-            for k, v in section.items()
-            if k != "request" and (k not in proposal.values or proposal.values[k] != v)
-        )
-        if keys:
-            found.append((other, keys))
-    return found
+    effective = effective_section(files, ref.type, ref.name)
+    wanted = proposal.values
+    bad = {
+        k for k, v in effective.items() if k != "request" and (k not in wanted or wanted[k] != v)
+    }
+    by_file: Dict[Path, List[str]] = {}
+    for key in sorted(bad):
+        owner = [f for f in files if key in read_toml(f).get(ref.type, {}).get(ref.name, {})][-1]
+        by_file.setdefault(owner, []).append(key)
+    return [(f, by_file[f]) for f in files if f in by_file]

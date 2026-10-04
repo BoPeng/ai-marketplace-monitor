@@ -103,7 +103,7 @@ def load_playbooks(
                 continue
             try:
                 meta, body = split_frontmatter(path.read_text(encoding="utf-8"), path)
-            except PlaybookError as e:
+            except (PlaybookError, OSError, UnicodeDecodeError) as e:
                 _warn(logger, f"Ignoring playbook {path}: {e}")
                 continue
             for key in set(meta) - {"summary"}:

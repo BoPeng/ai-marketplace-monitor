@@ -411,8 +411,9 @@ def test_chat_runs_session_without_monitor(monkeypatch: pytest.MonkeyPatch) -> N
     assert calls and calls[0][1] == "ai.unitysvc"
 
 
-def test_chat_other_section_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_chat_other_section_exits_1(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(chat_cli_ui, "CLIChatUI", lambda: ScriptedChatUI([]))
+    monkeypatch.setattr("ai_marketplace_monitor.chat.session.amm_home", tmp_path)
     result = runner.invoke(cli.app, ["--chat", "--section", "item"])
     assert result.exit_code == 1
 

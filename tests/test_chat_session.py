@@ -168,3 +168,30 @@ async def test_closed_inside_edit(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     ui = ScriptedChatUI(["unitysvc", "/edit ai", CLOSE])
     assert await run_chat(ui, [path], home=tmp_path / "home") == 0
     assert path.read_text() == WORKING
+
+
+def test_render_config_masks_identifiers(tmp_path: Path) -> None:
+    path = config(
+        tmp_path,
+        '[user.u]\npushover_user_key = "uQiRzpo4DXghDmr9QzzfQu27cmVRsG"\n'
+        'telegram_chat_id = "987654321"\n',
+    )
+    text = render_config([path])
+    assert "uQiRzpo4" not in text and "987654321" not in text
+
+
+async def test_pasted_key_is_not_sent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, chats: List[List[Dict[str, str]]]
+) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "plainsecretvalue")
+    ok(monkeypatch)
+    ui = ScriptedChatUI(
+        ["unitysvc", "here: sk-abcdef123456", "mine is plainsecretvalue", "hello", "/exit"]
+    )
+    assert await run_chat(ui, [config(tmp_path, WORKING)], home=tmp_path / "home") == 0
+    sent = [m["content"] for call in chats for m in call if m["role"] == "user"]
+    assert sent == ["hello"]
+    warnings = ui.said("warning")
+    assert len(warnings) == 2 and "environment" in warnings[0]
+    every = [t for kind in ("warning", "error", "assistant") for t in ui.said(kind)]
+    assert all("sk-abcdef" not in t and "plainsecretvalue" not in t for t in every)

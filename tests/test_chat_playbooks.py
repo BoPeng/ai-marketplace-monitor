@@ -42,6 +42,17 @@ def test_orphan_and_malformed_user_playbooks_skipped(
     assert playbooks.sections["ai"].house_rules == []
 
 
+def test_unreadable_user_playbook_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    (tmp_path / "ai.md").write_bytes(b"\xff\xfe\x00bad")
+    (tmp_path / "AGENT.md").write_text("Be brief.\n")
+    with caplog.at_level(logging.WARNING):
+        playbooks = load_playbooks(user_dir=tmp_path, logger=logging.getLogger("test"))
+    assert "ai.md" in caplog.text
+    assert playbooks.base.house_rules and playbooks.sections["ai"].house_rules == []
+
+
 def test_missing_user_dir_is_fine(tmp_path: Path) -> None:
     assert load_playbooks(user_dir=tmp_path / "nope").sections["ai"].house_rules == []
 

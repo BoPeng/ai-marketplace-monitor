@@ -22,7 +22,7 @@ from .builders.ai import PROVIDER_LABELS
 from .commit import CommitOutcome, commit
 from .messages import AskText, Choose, Option, Say
 from .playbooks import build_instructions, load_playbooks
-from .probe import ProbeResult, probe, scrub
+from .probe import ProbeResult, looks_like_secret, probe, scrub
 from .sections import ChatContext, SectionRef
 from .ui import ChatClosed, ChatUI
 
@@ -35,10 +35,15 @@ HELP = (
 _MASK = "<REDACTED>"
 
 
+def _key_sensitive(key: str) -> bool:
+    lowered = key.lower()
+    return _is_sensitive(key) or lowered.endswith(("key", "chat_id"))
+
+
 def _mask(value: Any, sensitive: bool = False) -> Any:
     """Copy of parsed TOML data with secrets masked, judged by key and by shape."""
     if isinstance(value, dict):
-        return {k: _mask(v, sensitive or _is_sensitive(str(k))) for k, v in value.items()}
+        return {k: _mask(v, sensitive or _key_sensitive(str(k))) for k, v in value.items()}
     if isinstance(value, list):
         return [_mask(v, sensitive) for v in value]
     if isinstance(value, str):
@@ -159,6 +164,15 @@ async def _chat(ui: ChatUI, ctx: ChatContext, config: AIConfig) -> None:
         if text.startswith("/"):
             await ui.say(
                 Say(f"Unknown command {text.split()[0]}. {HELP}", kind="warning", markdown=True)
+            )
+            continue
+        if looks_like_secret(text) or (config.api_key and config.api_key in text):
+            await ui.say(
+                Say(
+                    "That looks like an API key, so it was not sent. Keep keys in environment "
+                    "variables and refer to them as ${NAME}.",
+                    kind="warning",
+                )
             )
             continue
         messages.append({"role": "user", "content": text})

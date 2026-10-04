@@ -122,6 +122,16 @@ async def test_extra_key_in_earlier_file_detected(tmp_path: Path) -> None:
     assert str(earlier) in error and "(timeout)" in error
 
 
+async def test_override_by_earlier_file_is_not_a_conflict(tmp_path: Path) -> None:
+    first = tmp_path / "config.toml"
+    first.write_text('[ai.openai]\nmodel = "gpt-4o"\n')
+    extra = tmp_path / "extra.toml"
+    extra.write_text('[ai.openai]\nmodel = "gpt-4o-mini"\n')
+    ctx = context(tmp_path, [first, extra])
+    prop = SectionProposal(SectionRef("ai", "openai"), {"model": "gpt-4.1"}, "x", extra)
+    assert await commit(ScriptedChatUI(["yes"]), prop, ctx) is CommitOutcome.WRITTEN
+
+
 async def test_unparsable_target_fails_cleanly(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text("[ai.unitysvc\nbroken")
