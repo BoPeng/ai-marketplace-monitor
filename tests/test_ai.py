@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from ai_marketplace_monitor.ai import OpenAIBackend, OpenAIConfig, OllamaBackend, OllamaConfig
+from ai_marketplace_monitor.ai import OllamaBackend, OllamaConfig, OpenAIBackend, OpenAIConfig
 from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 from ai_marketplace_monitor.listing import Listing
 
@@ -130,9 +130,7 @@ def test_openai_evaluate_sends_image_payload(
     )
     response = SimpleNamespace(
         choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(content="Rating 1: Reject. Test evaluation.")
-            )
+            SimpleNamespace(message=SimpleNamespace(content="Rating 1: Reject. Test evaluation."))
         ]
     )
     create = MagicMock(return_value=response)
