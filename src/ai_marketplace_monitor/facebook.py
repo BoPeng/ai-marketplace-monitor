@@ -1384,12 +1384,19 @@ def parse_listing(
         FacebookRegularItemPage,
     ]
 
+    # a layout that matches but fails to extract a description is kept only as a
+    # fallback, so that a later layout that does extract the description is preferred
+    fallback: Listing | None = None
     for page_model in supported_facebook_item_layouts:
         try:
-            return page_model(page, translator, logger).parse(post_url)
+            listing = page_model(page, translator, logger).parse(post_url)
         except KeyboardInterrupt:
             raise
         except Exception:
             # try next page ayout
             continue
-    return None
+        if listing.description:
+            return listing
+        if fallback is None:
+            fallback = listing
+    return fallback

@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 from pytest_playwright.pytest_playwright import CreateContextCallback  # type: ignore
 
+import ai_marketplace_monitor.facebook as facebook_module
 from ai_marketplace_monitor.facebook import FacebookSearchResultPage, parse_listing
+from ai_marketplace_monitor.listing import Listing
 
 
 def test_search_page(
@@ -77,3 +79,66 @@ def test_listing_page(
     assert listing.seller == seller, f"Seller of {filename} should be {listing.seller}"
     assert listing.image, f"Image of {filename} should not be empty"
     assert listing.post_url, f"post_url of {filename} should not be empty"
+
+
+def _fake_layout(description: str | None) -> type:
+    """A page layout that fails (None) or parses with the given description."""
+
+    class FakeLayout:
+        def __init__(self, *args: object) -> None:
+            pass
+
+        def parse(self, post_url: str) -> Listing:
+            if description is None:
+                raise ValueError("Layout mismatch")
+            return Listing(
+                marketplace="facebook",
+                name="",
+                id="1",
+                title="title",
+                image="",
+                price="$1",
+                post_url=post_url,
+                location="",
+                condition="",
+                description=description,
+                seller="",
+            )
+
+    return FakeLayout
+
+
+def test_parse_listing_prefers_layout_with_description(monkeypatch: pytest.MonkeyPatch) -> None:
+    layouts = [_fake_layout(None), _fake_layout(""), _fake_layout("real description")]
+    for name, layout in zip(
+        [
+            "FacebookRentalItemPage",
+            "FacebookAutoItemWithAboutAndDescriptionPage",
+            "FacebookAutoItemWithDescriptionPage",
+        ],
+        layouts,
+    ):
+        monkeypatch.setattr(facebook_module, name, layout)
+    for name in ["FacebookFlexItemPage", "FacebookRegularItemPage"]:
+        monkeypatch.setattr(facebook_module, name, _fake_layout(None))
+
+    listing = parse_listing(None, "post_url")  # type: ignore[arg-type]
+
+    assert listing is not None
+    assert listing.description == "real description"
+
+
+def test_parse_listing_falls_back_to_empty_description(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in [
+        "FacebookRentalItemPage",
+        "FacebookAutoItemWithAboutAndDescriptionPage",
+        "FacebookAutoItemWithDescriptionPage",
+        "FacebookRegularItemPage",
+    ]:
+        monkeypatch.setattr(facebook_module, name, _fake_layout(None))
+    monkeypatch.setattr(facebook_module, "FacebookFlexItemPage", _fake_layout(""))
+
+    listing = parse_listing(None, "post_url")  # type: ignore[arg-type]
+
+    assert listing is not None
+    assert listing.description == ""
