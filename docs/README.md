@@ -336,6 +336,7 @@ This section currently accept the following values for Facebook Marketplace.
 | Parameter                         | Required/Optional | Data Type | Description                                                |
 | --------------------------------- | ----------------- | --------- | ---------------------------------------------------------- |
 | `locale`                          | Required          | String    | locale of the translation                                  |
+| `enabled`                         | Optional          | Boolean   | Set to `false` to ignore this translation.                 |
 | `Collection of Marketplace items` | Optional          | String    | The "arial-label" for search results.                      |
 | `Condition`                       | Optional          | String    | Subtitle "condition" of an listing item.                   |
 | `Description`                     | Optional          | String    | Title "description" for a rental item.                     |
