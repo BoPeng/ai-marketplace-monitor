@@ -82,6 +82,28 @@ pip install 'ai-marketplace-monitor[pynput]'
 
 You can disable this feature by define environment variable `DISABLE_PYNPUT=true` if `pynput` is already installed.
 
+Interactive setup and chat
+--------------------------
+
+Run ``aimm --chat`` to check which AI services in your configuration work, choose one,
+or set one up, and then ask questions about your configuration in plain language.
+
+When no AI works yet, the chat offers UnitySVC (recommended: one key covers the AI and
+email notifications), OpenAI, Anthropic, or Ollama. It writes the ``[ai.*]`` section for
+you, with the key referenced as an environment variable such as ``${UNITYSVC_API_KEY}``;
+the key itself is never written to the file. Set the variable, then run ``aimm --chat``
+again. Every write shows the change first, asks for confirmation, and keeps a backup in
+``~/.ai-marketplace-monitor/backups/``.
+
+Use ``aimm --chat --section ai`` (or ``--section ai.<name>``) to go straight to setting up
+or changing an AI section. Inside the chat, type ``/edit ai`` to do the same, ``/help``
+for commands, and ``/exit`` to leave.
+
+House rules: put your own instructions in ``~/.ai-marketplace-monitor/playbooks/AGENT.md``
+(for example "answer in French" or "I only buy within 30 miles"). They are added to the
+built-in instructions of every chat. Section-specific files such as ``ai.md`` extend the
+instructions for that section in the same way.
+
 Cost Considerations
 ------------------
 

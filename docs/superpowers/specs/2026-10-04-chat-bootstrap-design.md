@@ -138,7 +138,8 @@ class ChatUI(Protocol):
 - `Choose`: numbered list (`1) UnitySVC — recommended — one key for the AI and email`),
   then a number prompt; empty input selects `default`; invalid input re-asks.
 - `AskText` / `Confirm`: prompt with the default shown.
-- Input is read with `asyncio.to_thread(input)`; `KeyboardInterrupt` / `EOFError` →
+- Input is read synchronously with `input()` (the chat is a single sequential
+  conversation, so blocking the event loop is harmless); `KeyboardInterrupt` / `EOFError` →
   `ChatClosed`.
 
 ## Section builders and commit
@@ -500,7 +501,8 @@ async def run_chat(ui: ChatUI, config_files: List[Path], target: str | None = No
 5. `ChatClosed` anywhere → return 0. `ConfigReadError` → `Say(error)`, return 1.
 
 `AIBackend.chat` sends the full message list with no `max_tokens` cap (reasoning models
-need room); uses `config.model or default_model`; `AnthropicBackend` passes the system
+need room), except `AnthropicBackend`, which passes `max_tokens=4096` because the Anthropic
+API requires it; uses `config.model or default_model`; `AnthropicBackend` passes the system
 message as `system=`. History lives in memory only.
 
 ## CLI

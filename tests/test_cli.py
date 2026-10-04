@@ -1,7 +1,8 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
 from dataclasses import asdict
-from typing import Callable, List, Tuple, Type, Union
+from pathlib import Path
+from typing import Any, Callable, List, Optional, Tuple, Type, Union
 
 import pytest
 from pytest import TempPathFactory
@@ -9,6 +10,9 @@ from typer.testing import CliRunner
 
 import ai_marketplace_monitor
 from ai_marketplace_monitor import cli
+from ai_marketplace_monitor.chat import cli_ui as chat_cli_ui
+from ai_marketplace_monitor.chat import session as chat_session
+from ai_marketplace_monitor.chat.ui import ScriptedChatUI
 from ai_marketplace_monitor.config import Config
 
 runner = CliRunner()
@@ -387,3 +391,38 @@ def test_price_conversion(config_file: Callable) -> None:
 
     assert config.item["name"].max_price == "300 USD"
     assert config.item["name"].currency == ["EUR"]
+
+
+def test_chat_runs_session_without_monitor(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: List[Any] = []
+
+    async def fake_run_chat(ui: Any, files: List[Path], target: Optional[str] = None) -> int:
+        calls.append((files, target))
+        return 0
+
+    def no_monitor(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("the monitor must not start for --chat")
+
+    monkeypatch.setattr(chat_session, "run_chat", fake_run_chat)
+    monkeypatch.setattr(chat_cli_ui, "CLIChatUI", lambda: ScriptedChatUI([]))
+    monkeypatch.setattr("ai_marketplace_monitor.monitor.MarketplaceMonitor", no_monitor)
+    result = runner.invoke(cli.app, ["--chat", "--section", "ai.unitysvc"])
+    assert result.exit_code == 0
+    assert calls and calls[0][1] == "ai.unitysvc"
+
+
+def test_chat_other_section_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_cli_ui, "CLIChatUI", lambda: ScriptedChatUI([]))
+    result = runner.invoke(cli.app, ["--chat", "--section", "item"])
+    assert result.exit_code == 1
+
+
+def test_chat_needs_terminal() -> None:
+    result = runner.invoke(cli.app, ["--chat"])
+    assert result.exit_code == 1
+    assert "interactive terminal" in result.output
+
+
+def test_section_requires_chat() -> None:
+    result = runner.invoke(cli.app, ["--section", "ai"])
+    assert result.exit_code == 1

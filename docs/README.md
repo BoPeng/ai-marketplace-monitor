@@ -84,6 +84,8 @@ A typical section for UnitySVC looks like the following, with the key kept in th
 api_key = '${UNITYSVC_API_KEY}'
 ```
 
+The easiest way to set up an AI service is `aimm --chat`: it checks your `[ai.*]` sections, helps you add one if none works, and writes the section with the key referenced as an environment variable.
+
 ### Marketplaces
 
 One or more sections `marketplace.name` show the options for interacting with various marketplaces.

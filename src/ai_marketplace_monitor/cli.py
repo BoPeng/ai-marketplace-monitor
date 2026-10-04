@@ -100,6 +100,22 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _run_chat(config_files: Optional[List[Path]], section: Optional[str]) -> int:
+    """Run `aimm --chat`; return the exit code."""
+    import asyncio
+
+    from .chat import cli_ui, session
+    from .config import resolve_config_files
+
+    try:
+        ui = cli_ui.CLIChatUI()
+        files = resolve_config_files(config_files)
+    except (RuntimeError, FileNotFoundError) as e:
+        rich.print(f"[red]{e}[/red]")
+        return 1
+    return asyncio.run(session.run_chat(ui, files, section))
+
+
 @app.command()
 def main(
     config_files: Annotated[
@@ -128,6 +144,20 @@ def main(
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
     ] = False,
+    chat: Annotated[
+        bool,
+        typer.Option(
+            "--chat",
+            help="Start an interactive chat that sets up the AI and answers questions about your configuration.",
+        ),
+    ] = False,
+    section: Annotated[
+        Optional[str],
+        typer.Option(
+            "--section",
+            help="With --chat: the config section to work on, e.g. 'ai' or 'ai.unitysvc'.",
+        ),
+    ] = None,
     items: Annotated[
         List[str] | None,
         typer.Option(
@@ -225,6 +255,12 @@ def main(
             sys.exit(1)
         logger.info(f"""{hilight("[Clear Cache]", "succ")} Cache cleared.""")
         sys.exit(0)
+
+    if section is not None and not chat:
+        logger.error(f"""{hilight("[Chat]", "fail")} --section can only be used with --chat.""")
+        sys.exit(1)
+    if chat:
+        sys.exit(_run_chat(config_files, section))
 
     # make --version a bit faster by lazy loading of MarketplaceMonitor
     from .monitor import MarketplaceMonitor

@@ -112,6 +112,7 @@ directory = "htmlcov"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = ["live: calls real external services; skipped unless credentials are set"]
 filterwarnings = [
   # Suppress AsyncMock coroutine warnings in Telegram notification tests
   # These warnings occur when testing sync methods that wrap async operations with asyncio.run()
