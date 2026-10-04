@@ -79,3 +79,34 @@ def test_invalid_after_config_raises() -> None:
     after["item"]["bike"]["search_city"] = "Not Valid"
     with pytest.raises(NormalizeError, match="does not load"):
         check_equivalent(system_cfg(), parse(BASE), after)
+
+
+def test_dropped_notify_user_does_not_leak_secrets() -> None:
+    after = parse(BASE)
+    after["item"]["bike"]["notify"] = ["alice"]
+    with pytest.raises(NormalizeError) as info:
+        check_equivalent(system_cfg(), parse(BASE), after)
+    message = str(info.value)
+    assert "abc" not in message
+    assert "<REDACTED>" in message
+
+
+def test_removed_ai_section_does_not_leak_secrets() -> None:
+    after = parse(BASE)
+    del after["ai"]
+    with pytest.raises(NormalizeError) as info:
+        check_equivalent(system_cfg(), parse(BASE), after)
+    message = str(info.value)
+    assert "sk-test" not in message
+    assert "<REDACTED>" in message
+
+
+def test_effective_view_includes_marketplace_and_translation() -> None:
+    cfg = parse(BASE)
+    cfg["marketplace"]["facebook"]["username"] = "me@example.com"
+    view = effective_view(Config.from_dicts(system_cfg(), cfg))
+    facebook = view["marketplace"]["facebook"]
+    assert facebook["username"] == "me@example.com"
+    assert "login_wait_time" in facebook
+    assert view["translation"]["es"]["locale"] == "Spanish"
+    assert view["translation"]["es"]["dictionary"]

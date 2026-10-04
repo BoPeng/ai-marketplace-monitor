@@ -83,9 +83,18 @@ def _is_allowed(path: KeyPath, after_view: Dict[str, Any]) -> bool:
     return key in AI_PROMPT_ITEM_ONLY and entry[path[2]] == entry[key]
 
 
+def _mask_deep(value: Any) -> Any:
+    """Mask sensitive values at every depth of nested dicts and lists."""
+    if isinstance(value, dict):
+        return {k: mask(k, _mask_deep(v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask_deep(v) for v in value]
+    return value
+
+
 def _format(path: KeyPath, old: Any, new: Any) -> str:
     key = next((p for p in reversed(path) if mask(p, "x") != "x"), path[-1])
-    return f"{'.'.join(path)}: {mask(key, old)!r} -> {mask(key, new)!r}"
+    return f"{'.'.join(path)}: {mask(key, _mask_deep(old))!r} -> {mask(key, _mask_deep(new))!r}"
 
 
 def check_equivalent(
