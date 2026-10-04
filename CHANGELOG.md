@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Translation sections accept `enabled = false` to ignore a translation
+- UnitySVC AI provider (`[ai.unitysvc]` or `provider = "unitysvc"`), using UnitySVC's OpenAI-compatible `llm` platform service with the `balanced` tier by default
 - Option `request` on every config section to record, in your own words, what the section is for; reserved for upcoming AI-assisted configuration ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
 
 ### Fixed

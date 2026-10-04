@@ -19,6 +19,7 @@ from .ai import (
     OllamaBackend,
     OpenAIBackend,
     TAIConfig,
+    UnitySVCBackend,
 )
 from .facebook import FacebookMarketplace
 from .marketplace import TItemConfig, TMarketplaceConfig
@@ -41,6 +42,7 @@ supported_ai_backends = {
     "openai": OpenAIBackend,
     "anthropic": AnthropicBackend,
     "ollama": OllamaBackend,
+    "unitysvc": UnitySVCBackend,
 }
 
 SYSTEM_CONFIG = Path(__file__).parent / "config.toml"
