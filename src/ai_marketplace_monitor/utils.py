@@ -6,7 +6,7 @@ import os
 import random
 import re
 import time
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from logging import Logger
 from pathlib import Path
@@ -717,3 +717,27 @@ class Translator:
     def __call__(self: "Translator", word: str) -> str:
         """Return translated version"""
         return self._dictionary.get(word, word)
+
+    @property
+    def dictionary(self: "Translator") -> Dict[str, str]:
+        return dict(self._dictionary)
+
+
+# keys of a [translation.*] section that are settings, not words to translate
+TRANSLATION_FIELDS: Tuple[str, ...] = ("enabled", "locale")
+
+
+@dataclass
+class TranslationConfig(BaseConfig):
+    locale: str | None = None
+    dictionary: Dict[str, str] = field(default_factory=dict)
+
+    def handle_locale(self: "TranslationConfig") -> None:
+        if not isinstance(self.locale, str):
+            raise ValueError(f"Translation section {hilight(self.name)} must contain a locale.")
+
+    def handle_dictionary(self: "TranslationConfig") -> None:
+        if not all(isinstance(v, str) for v in self.dictionary.values()):
+            raise ValueError(
+                f"Translation section {hilight(self.name)} translations must be strings."
+            )
