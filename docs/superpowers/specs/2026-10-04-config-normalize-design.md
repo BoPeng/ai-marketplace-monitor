@@ -360,8 +360,10 @@ entry point is `normalize()`.
    a common option to the **same raw value**, set that value on the marketplace and remove
    it from the items. Values that differ stay on the items; there are no partial
    ("most common value") hoists.
-   - Because an item loses only a value equal to the hoisted one, fallback under both the
-     *truthy* and *not-None* rules yields the same value.
+   - Because an item loses only a value equal to the hoisted one, fallback yields the same
+     value under the *not-None* rule, and under the *truthy* rule **only for truthy
+     values**: a shared falsy value (e.g. `rating = []`) of a truthy-rule option is never
+     hoisted, since `[] or None` (item keeps it) and `None or []` (hoisted) differ.
    - **Never hoist an option that has an item-only use site** in `resolve_option`
      (currently `min_price` / `max_price`, read only from the item by the AI prompt).
    - Items are grouped by bound marketplace (explicit key, else the first marketplace).
