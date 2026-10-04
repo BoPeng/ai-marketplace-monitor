@@ -1,10 +1,11 @@
+import copy
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from itertools import chain
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Generic, List
+from typing import Any, Dict, Generic, List, Tuple
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -42,6 +43,27 @@ supported_ai_backends = {
     "ollama": OllamaBackend,
 }
 
+SYSTEM_CONFIG = Path(__file__).parent / "config.toml"
+
+
+def _load_toml(path: Path, logger: Logger | None = None) -> Dict[str, Any]:
+    if logger:
+        logger.debug(f"""{hilight("[Monitor]", "succ")} config file {hilight(str(path))}""")
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        raise ValueError(f"Error parsing config file {path}: {e}") from e
+
+
+def load_config_dicts(
+    config_files: List[Path], logger: Logger | None = None
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Return (bundled system config, merged user config) as parsed, unprocessed dicts."""
+    system = _load_toml(SYSTEM_CONFIG, logger)
+    user = merge_dicts([_load_toml(f, logger) for f in config_files])
+    return system, user
+
 
 class ConfigItem(Enum):
     MONITOR = "monitor"
@@ -66,22 +88,26 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     region: Dict[str, RegionConfig] = field(init=False)
 
     def __init__(self: "Config", config_files: List[Path], logger: Logger | None = None) -> None:
-        configs = []
-        system_config = Path(__file__).parent / "config.toml"
+        system, user = load_config_dicts(config_files, logger)
+        self._load(system, user, logger)
 
-        for config_file in [system_config, *config_files]:
-            try:
-                if logger:
-                    logger.debug(
-                        f"""{hilight("[Monitor]", "succ")} config file {hilight(str(config_file))}"""
-                    )
-                with open(config_file, "rb") as f:
-                    configs.append(tomllib.load(f))
-            except tomllib.TOMLDecodeError as e:
-                raise ValueError(f"Error parsing config file {config_file}: {e}") from e
-        #
-        # merge the list of configs into a single dictionary, including dictionaries in the values
-        config = merge_dicts(configs)
+    @classmethod
+    def from_dicts(
+        cls: type["Config"],
+        system: Dict[str, Any],
+        user: Dict[str, Any],
+        logger: Logger | None = None,
+    ) -> "Config":
+        """Build a Config from already-parsed dicts without mutating them."""
+        obj = cls.__new__(cls)
+        obj._load(system, user, logger)
+        return obj
+
+    def _load(
+        self: "Config", system: Dict[str, Any], user: Dict[str, Any], logger: Logger | None
+    ) -> None:
+        # merge_dicts mutates nested dicts in place, so work on copies
+        config = merge_dicts([copy.deepcopy(system), copy.deepcopy(user)])
 
         self.validate_sections(config)
         self.get_translator_config(config)
