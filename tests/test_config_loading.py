@@ -37,7 +37,9 @@ def test_from_dicts_does_not_mutate_inputs() -> None:
 
 def test_load_config_dicts_merges_user_files(tmp_path: Path) -> None:
     first = tmp_path / "a.toml"
-    first.write_text('[marketplace.facebook]\nsearch_city = "houston"\n[user.u]\npushbullet_token = "x"\n')
+    first.write_text(
+        '[marketplace.facebook]\nsearch_city = "houston"\n[user.u]\npushbullet_token = "x"\n'
+    )
     second = tmp_path / "b.toml"
     second.write_text('[item.bike]\nsearch_phrases = "bike"\n')
     system, user = load_config_dicts([first, second])

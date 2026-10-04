@@ -36,8 +36,16 @@ COMMON_OPTIONS: Tuple[str, ...] = tuple(
         if f.name not in _BASE_FIELDS
     )
 )
-LOCATION_KEYS: Tuple[str, ...] = ("search_region", "search_city", "city_name", "radius", "currency")
-AI_PROMPT_ITEM_ONLY: Tuple[str, ...] = tuple(k for (site, k) in SITE_FALLBACK if site == "ai_prompt")
+LOCATION_KEYS: Tuple[str, ...] = (
+    "search_region",
+    "search_city",
+    "city_name",
+    "radius",
+    "currency",
+)
+AI_PROMPT_ITEM_ONLY: Tuple[str, ...] = tuple(
+    k for (site, k) in SITE_FALLBACK if site == "ai_prompt"
+)
 MASK = "<REDACTED>"
 
 # dataclass fields that never appear as config keys (runtime state, or the
@@ -168,9 +176,7 @@ def describe_changes(
             detail = notes.get((label, None), "section removed")
             changes.append(Change(label, "remove", None, detail))
         else:
-            changes.extend(
-                _key_changes(label, old_sections[label], new_sections[label], notes)
-            )
+            changes.extend(_key_changes(label, old_sections[label], new_sections[label], notes))
     if not changes and json.dumps(before, default=str) != json.dumps(after, default=str):
         changes.append(Change("*", "set", None, "reordered sections and keys"))
     return changes

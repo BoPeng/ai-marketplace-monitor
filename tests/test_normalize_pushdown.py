@@ -17,7 +17,9 @@ def _expand(text: str) -> dict:
 
 
 def test_common_options_move_into_items_and_lists_become_explicit() -> None:
-    cfg = _expand(USERS + """
+    cfg = _expand(
+        USERS
+        + """
     [ai.openai]
     api_key = "sk-test"
 
@@ -29,7 +31,8 @@ def test_common_options_move_into_items_and_lists_become_explicit() -> None:
 
     [item.bike]
     search_phrases = "bike"
-    """)
+    """
+    )
     assert cfg["marketplace"]["facebook"] == {"login_wait_time": 60, "username": "me"}
     bike = cfg["item"]["bike"]
     assert bike["search_city"] == "houston"
@@ -56,7 +59,9 @@ def test_marketplace_empty_notify_means_all_users() -> None:
 
 
 def test_truthy_rule_replaces_empty_item_value() -> None:
-    cfg = _expand(USERS + """
+    cfg = _expand(
+        USERS
+        + """
     [marketplace.facebook]
     search_city = "houston"
     notify = "alice"
@@ -64,12 +69,15 @@ def test_truthy_rule_replaces_empty_item_value() -> None:
     [item.bike]
     search_phrases = "bike"
     notify = []
-    """)
+    """
+    )
     assert cfg["item"]["bike"]["notify"] == "alice"
 
 
 def test_not_none_rule_keeps_empty_item_value() -> None:
-    cfg = _expand(USERS + """
+    cfg = _expand(
+        USERS
+        + """
     [ai.openai]
     api_key = "sk-test"
 
@@ -82,20 +90,27 @@ def test_not_none_rule_keeps_empty_item_value() -> None:
     search_phrases = "bike"
     seller_locations = []
     ai = []
-    """)
+    """
+    )
     assert cfg["item"]["bike"]["seller_locations"] == []
     assert cfg["item"]["bike"]["ai"] == []
 
 
 def test_marketplace_price_reaches_ai_prompt_and_is_reported() -> None:
-    result = expand(parse(USERS + """
+    result = expand(
+        parse(
+            USERS
+            + """
     [marketplace.facebook]
     search_city = "houston"
     max_price = "300"
 
     [item.bike]
     search_phrases = "bike"
-    """), system_cfg())
+    """
+        ),
+        system_cfg(),
+    )
     assert result.config["item"]["bike"]["max_price"] == "300"
     details = [
         c.detail for c in result.changes if c.key == "max_price" and c.section == "item.bike"
@@ -113,7 +128,9 @@ def test_bundled_region_is_referenced_not_copied() -> None:
 
 
 def test_item_with_own_region_gets_no_location_keys() -> None:
-    cfg = _expand(USERS + """
+    cfg = _expand(
+        USERS
+        + """
     [marketplace.facebook]
     search_city = "houston"
     radius = 50
@@ -121,25 +138,31 @@ def test_item_with_own_region_gets_no_location_keys() -> None:
     [item.bike]
     search_phrases = "bike"
     search_region = "usa"
-    """)
+    """
+    )
     bike = cfg["item"]["bike"]
     assert "search_city" not in bike and "radius" not in bike
 
 
 def test_own_city_inheriting_region_radius_raises() -> None:
     with pytest.raises(NormalizeError, match="bike"):
-        _expand(USERS + """
+        _expand(
+            USERS
+            + """
         [marketplace.facebook]
         search_region = "usa"
 
         [item.bike]
         search_phrases = "bike"
         search_city = "dallas"
-        """)
+        """
+        )
 
 
 def test_item_binds_to_first_marketplace() -> None:
-    cfg = _expand(USERS + """
+    cfg = _expand(
+        USERS
+        + """
     [marketplace.facebook]
     search_city = "houston"
 
@@ -148,12 +171,15 @@ def test_item_binds_to_first_marketplace() -> None:
 
     [item.bike]
     search_phrases = "bike"
-    """)
+    """
+    )
     assert cfg["item"]["bike"]["search_city"] == "houston"
 
 
 def test_translation_passes_through() -> None:
-    cfg = _expand(USERS + """
+    cfg = _expand(
+        USERS
+        + """
     [marketplace.facebook]
     search_city = "houston"
 
@@ -163,7 +189,8 @@ def test_translation_passes_through() -> None:
     [translation.de]
     locale = "de_DE"
     Condition = "Zustand"
-    """)
+    """
+    )
     assert cfg["translation"] == {"de": {"locale": "de_DE", "Condition": "Zustand"}}
 
 
@@ -173,7 +200,10 @@ def test_invalid_input_raises() -> None:
 
 
 def test_marketplace_region_overrides_its_own_city() -> None:
-    result = expand(parse(USERS + """
+    result = expand(
+        parse(
+            USERS
+            + """
     [marketplace.facebook]
     search_region = "usa"
     search_city = "houston"
@@ -181,10 +211,12 @@ def test_marketplace_region_overrides_its_own_city() -> None:
 
     [item.bike]
     search_phrases = "bike"
-    """), system_cfg())
+    """
+        ),
+        system_cfg(),
+    )
     bike = result.config["item"]["bike"]
     assert bike["search_region"] == "usa"
     assert "search_city" not in bike and "radius" not in bike
     details = {c.key: c.detail for c in result.changes if c.section == "marketplace.facebook"}
     assert "overridden by search_region" in details["search_city"]
-

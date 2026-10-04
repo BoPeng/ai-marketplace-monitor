@@ -22,9 +22,7 @@ _MISSING = "<missing>"
 
 def _user_view(user: UserConfig) -> Dict[str, Any]:
     return {
-        k: v
-        for k, v in asdict(user).items()
-        if k not in _USER_EXCLUDE and not k.startswith("_")
+        k: v for k, v in asdict(user).items() if k not in _USER_EXCLUDE and not k.startswith("_")
     }
 
 
@@ -55,8 +53,7 @@ def effective_view(config: Config) -> Dict[str, Any]:
             for n, m in config.marketplace.items()
         },
         "ai": {
-            n: {k: v for k, v in asdict(a).items() if k != "request"}
-            for n, a in config.ai.items()
+            n: {k: v for k, v in asdict(a).items() if k != "request"} for n, a in config.ai.items()
         },
         "monitor": {k: v for k, v in asdict(config.monitor).items() if k != "request"},
         "translation": {

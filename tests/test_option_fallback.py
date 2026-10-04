@@ -31,10 +31,11 @@ def _search_urls(item: FacebookItemConfig, market: FacebookMarketplaceConfig) ->
     mp.page = MagicMock()
     urls: List[str] = []
     # ruff targets py39, so no parenthesized context managers
-    with patch.object(mp, "goto_url", side_effect=urls.append), patch(
-        "ai_marketplace_monitor.facebook.FacebookSearchResultPage"
-    ) as page_cls, patch("ai_marketplace_monitor.facebook.time.sleep"), patch(
-        "ai_marketplace_monitor.facebook.counter"
+    with (
+        patch.object(mp, "goto_url", side_effect=urls.append),
+        patch("ai_marketplace_monitor.facebook.FacebookSearchResultPage") as page_cls,
+        patch("ai_marketplace_monitor.facebook.time.sleep"),
+        patch("ai_marketplace_monitor.facebook.counter"),
     ):
         page_cls.return_value.get_listings.return_value = []
         list(mp.search(item))
@@ -80,7 +81,9 @@ def test_search_city_item_overrides_marketplace() -> None:
 
 
 def test_radius_empty_item_list_falls_back_to_marketplace() -> None:
-    url = _search_urls(_item(search_city=[], radius=[]), _market(search_city=["houston"], radius=[50]))[0]
+    url = _search_urls(
+        _item(search_city=[], radius=[]), _market(search_city=["houston"], radius=[50])
+    )[0]
     assert "radius=50" in url
 
 
@@ -111,15 +114,15 @@ def test_exclude_sellers_unset_item_uses_marketplace(listing: Listing) -> None:
     assert not _check(_item(), _market(exclude_sellers=["some guy"]), listing)
 
 
-def _prompt(
-    item: FacebookItemConfig, market: FacebookMarketplaceConfig, listing: Listing
-) -> str:
+def _prompt(item: FacebookItemConfig, market: FacebookMarketplaceConfig, listing: Listing) -> str:
     config = OllamaConfig(name="ollama", base_url="http://localhost:11434", model="m")
     return OllamaBackend(config, logger=None).get_prompt(listing, item, market)
 
 
 def test_prompt_empty_item_string_wins(listing: Listing) -> None:
-    assert "MARKET PROMPT" not in _prompt(_item(prompt=""), _market(prompt="MARKET PROMPT"), listing)
+    assert "MARKET PROMPT" not in _prompt(
+        _item(prompt=""), _market(prompt="MARKET PROMPT"), listing
+    )
 
 
 def test_prompt_unset_item_uses_marketplace(listing: Listing) -> None:

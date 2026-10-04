@@ -191,8 +191,12 @@ class AIBackend(Generic[TAIConfig]):
         if item_config.description:
             prompt += f"""Description: "{item_config.description}", """
         #
-        max_price = resolve_option("max_price", item_config, marketplace_config, site="ai_prompt") or 0
-        min_price = resolve_option("min_price", item_config, marketplace_config, site="ai_prompt") or 0
+        max_price = (
+            resolve_option("max_price", item_config, marketplace_config, site="ai_prompt") or 0
+        )
+        min_price = (
+            resolve_option("min_price", item_config, marketplace_config, site="ai_prompt") or 0
+        )
         if max_price and min_price:
             prompt += f"""Price range: {min_price} to {max_price}. """
         elif max_price:

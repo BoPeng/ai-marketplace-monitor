@@ -231,9 +231,7 @@ class MarketplaceMonitor:
                     )
             rating_values = resolve_option("rating", item_config, marketplace_config)
             acceptable_rating = (
-                rating_values[0 if item_config.searched_count == 0 else -1]
-                if rating_values
-                else 3
+                rating_values[0 if item_config.searched_count == 0 else -1] if rating_values else 3
             )
 
             if res.score < acceptable_rating:
@@ -720,9 +718,9 @@ class MarketplaceMonitor:
                             f"""{hilight("[AI]", rating.style)} {rating.name or "AI"} concludes {hilight(f"{rating.conclusion} ({rating.score}): {rating.comment}", rating.style)} for listing {hilight(listing.title)}."""
                         )
                 # notification status?
-                users_to_notify = resolve_option("notify", item_config, marketplace_config) or list(
-                    self.config.user.keys()
-                )
+                users_to_notify = resolve_option(
+                    "notify", item_config, marketplace_config
+                ) or list(self.config.user.keys())
                 # for notification usages
                 listing.name = item_config.name
                 for user in users_to_notify:

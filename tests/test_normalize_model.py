@@ -75,7 +75,10 @@ def test_describe_changes_reports_set_remove_add_and_masks_secrets() -> None:
     }
     changes = describe_changes(before, after)
     assert Change("user.u", "set", "email", "email: 'e' -> 'e2'") in changes
-    assert Change("user.u", "set", "smtp_password", "smtp_password: '<REDACTED>' -> '<REDACTED>'") in changes
+    assert (
+        Change("user.u", "set", "smtp_password", "smtp_password: '<REDACTED>' -> '<REDACTED>'")
+        in changes
+    )
     assert Change("notification.email", "add", None, "new section") in changes
 
 

@@ -14,7 +14,10 @@ else:
 from ai_marketplace_monitor.config import SYSTEM_CONFIG
 
 ROOT = Path(__file__).parent.parent
-EXAMPLES: List[Path] = [ROOT / "docs" / "minimal_config.toml", ROOT / "docs" / "example_config.toml"]
+EXAMPLES: List[Path] = [
+    ROOT / "docs" / "minimal_config.toml",
+    ROOT / "docs" / "example_config.toml",
+]
 
 
 def parse(text: str) -> Dict[str, Any]:
