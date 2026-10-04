@@ -12,6 +12,7 @@
 
 ## Global Constraints
 
+- **Prerequisite:** BoPeng/ai-marketplace-monitor#364 (Spanish translation fix + `TranslationConfig`) must be merged into `main`, and `main` merged into `config-normalize`, before Task 1.
 - Branch: `config-normalize`. Commit after every task; end each commit message with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - No file writes, no network, no `webui` imports inside `src/ai_marketplace_monitor/normalize/`.
 - `normalize`/`compact` never mutate their input dicts; raw values are copied verbatim (`"1h"` stays `"1h"`, `${VAR}` stays a placeholder).
@@ -24,9 +25,9 @@
 
 | File | Responsibility |
 |---|---|
-| `src/ai_marketplace_monitor/utils.py` (modify) | `BaseConfig.request`, `handle_request`, hash exclusion; `TranslationConfig`, `TRANSLATION_FIELDS`, `Translator.dictionary`; `is_sensitive_key` (moved from webui) |
+| `src/ai_marketplace_monitor/utils.py` (modify) | `BaseConfig.request`, `handle_request`, hash exclusion; `TRANSLATION_FIELDS` gains `request` (`TranslationConfig` itself comes from #364); `is_sensitive_key` (moved from webui) |
 | `src/ai_marketplace_monitor/webui/secrets_redact.py` (modify) | import `is_sensitive_key` instead of defining it |
-| `src/ai_marketplace_monitor/config.py` (modify) | `SYSTEM_CONFIG`, `load_config_dicts`, `Config.from_dicts`, `Config._load`; skip `request` in notification merge; translations via `TranslationConfig` |
+| `src/ai_marketplace_monitor/config.py` (modify) | `SYSTEM_CONFIG`, `load_config_dicts`, `Config.from_dicts`, `Config._load`; skip `request` in notification merge |
 | `src/ai_marketplace_monitor/marketplace.py` (modify) | `Fallback`, `COMMON_OPTION_FALLBACK`, `SITE_FALLBACK`, `resolve_option` |
 | `src/ai_marketplace_monitor/facebook.py`, `monitor.py`, `ai.py` (modify) | call `resolve_option` instead of inline fallbacks |
 | `src/ai_marketplace_monitor/normalize/__init__.py` | public exports |
@@ -38,7 +39,7 @@
 | `src/ai_marketplace_monitor/normalize/compact.py` | `compact()` |
 | `docs/README.md`, `docs/example_config.toml`, `CHANGELOG.md` (modify) | docs, fix invalid example, changelog |
 | `tests/normalize_util.py` | shared test helpers (`parse`, `system_cfg`, `dumps`) |
-| `tests/test_config_request.py`, `tests/test_config_translation.py`, `tests/test_config_loading.py`, `tests/test_option_fallback.py`, `tests/test_resolve_option.py`, `tests/test_normalize_model.py`, `tests/test_normalize_effective.py`, `tests/test_normalize_notifications.py`, `tests/test_normalize_pushdown.py`, `tests/test_normalize_compact.py`, `tests/test_normalize_properties.py` | tests |
+| `tests/test_config_request.py`, `tests/test_config_loading.py`, `tests/test_option_fallback.py`, `tests/test_resolve_option.py`, `tests/test_normalize_model.py`, `tests/test_normalize_effective.py`, `tests/test_normalize_notifications.py`, `tests/test_normalize_pushdown.py`, `tests/test_normalize_compact.py`, `tests/test_normalize_properties.py` | tests |
 
 ---
 
@@ -47,6 +48,7 @@
 **Files:**
 - Modify: `src/ai_marketplace_monitor/utils.py:282-329` (`BaseConfig`)
 - Modify: `src/ai_marketplace_monitor/config.py:261` (`expand_notifications` excluded keys)
+- Modify: `src/ai_marketplace_monitor/utils.py` (`TRANSLATION_FIELDS`, from #364)
 - Modify: `docs/README.md` ("Additional options" table near line 370)
 - Test: `tests/test_config_request.py`
 
@@ -129,6 +131,14 @@ def test_request_is_not_env_expanded(monkeypatch: pytest.MonkeyPatch) -> None:
     assert item.request == "${AIMM_TEST_REQUEST}"
 
 
+def test_translation_request_is_not_a_word(tmp_path: Path) -> None:
+    cfg = _load(
+        tmp_path,
+        BASE + '[translation.de]\nrequest = "Germany"\nlocale = "German"\nCondition = "Zustand"\n',
+    )
+    assert cfg.translator["de"].dictionary == {"Condition": "Zustand"}
+
+
 def test_request_does_not_change_hash() -> None:
     plain = FacebookItemConfig(name="bike", search_phrases=["bike"])
     with_request = FacebookItemConfig(name="bike", search_phrases=["bike"], request="anything")
@@ -190,6 +200,12 @@ Replace the `hash` property:
         return hash_dict(values)
 ```
 
+In `utils.py`, make `request` a translation setting rather than a word (`TRANSLATION_FIELDS` comes from #364):
+
+```python
+TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")
+```
+
 In `config.py` `expand_notifications`, change `if key not in ("type", "name") and value is not None:` to:
 
 ```python
@@ -216,198 +232,20 @@ git commit -m "feat: add request field to every config section (#362)"
 
 ---
 
-### Task 2: Translation sections become `BaseConfig`
+### Task 2: Translation sections become `BaseConfig` — done in #364
 
-**Files:**
-- Modify: `src/ai_marketplace_monitor/utils.py` (`Translator` near line 710; add `TRANSLATION_FIELDS`, `TranslationConfig`)
-- Modify: `src/ai_marketplace_monitor/config.py` (`get_translator_config`, and the language check in `get_marketplace_config`)
-- Modify: `docs/README.md` ("Translators" section, near line 330)
-- Test: `tests/test_config_translation.py`
+Implemented and tested in BoPeng/ai-marketplace-monitor#364 (see **Prerequisite** under Global Constraints). Nothing to do here beyond verifying it is present.
 
-**Interfaces:**
-- Consumes: `BaseConfig.request` (Task 1).
-- Produces (in `ai_marketplace_monitor.utils`):
-  - `TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")`
-  - `@dataclass TranslationConfig(BaseConfig)` with `locale: str | None = None`, `dictionary: Dict[str, str]` (default empty)
-  - `Translator.dictionary -> Dict[str, str]` (read-only copy)
-- `Config.translator` keeps its type `Dict[str, Translator]` but now holds **enabled** translations only.
+**Interfaces (provided by #364, used by later tasks):**
+- `ai_marketplace_monitor.utils.TRANSLATION_FIELDS: Tuple[str, ...]` — `("enabled", "locale")` in #364; Task 1 makes it `("request", "enabled", "locale")`
+- `@dataclass TranslationConfig(BaseConfig)` with `locale: str | None = None`, `dictionary: Dict[str, str]`
+- `Translator.dictionary -> Dict[str, str]` (read-only copy)
+- `Config.translator: Dict[str, Translator]` holds **enabled** translations only
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Verify**
 
-```python
-# tests/test_config_translation.py
-from pathlib import Path
-
-import pytest
-
-from ai_marketplace_monitor.config import Config
-
-BASE = """
-[marketplace.facebook]
-search_city = "houston"
-
-[user.u]
-pushbullet_token = "x"
-
-[item.bike]
-search_phrases = "bike"
-"""
-
-
-def _load(tmp_path: Path, text: str) -> Config:
-    path = tmp_path / "config.toml"
-    path.write_text(BASE + text)
-    return Config([path])
-
-
-def test_request_and_enabled_are_not_words(tmp_path: Path) -> None:
-    cfg = _load(tmp_path, """
-    [translation.de]
-    request = "I search Facebook Marketplace in Germany"
-    enabled = true
-    locale = "German"
-    Condition = "Zustand"
-    """)
-    translator = cfg.translator["de"]
-    assert translator("Condition") == "Zustand"
-    assert translator.dictionary == {"Condition": "Zustand"}
-    assert translator.locale == "German"
-
-
-def test_disabled_translation_is_dropped(tmp_path: Path) -> None:
-    cfg = _load(tmp_path, """
-    [translation.de]
-    enabled = false
-    locale = "German"
-    Condition = "Zustand"
-    """)
-    assert "de" not in cfg.translator
-    assert "es" in cfg.translator  # bundled translations still load
-
-
-def test_marketplace_language_needs_an_enabled_translation(tmp_path: Path) -> None:
-    path = tmp_path / "config.toml"
-    path.write_text(
-        BASE.replace('[marketplace.facebook]\n', '[marketplace.facebook]\nlanguage = "de"\n')
-        + '[translation.de]\nenabled = false\nlocale = "German"\nCondition = "Zustand"\n'
-    )
-    with pytest.raises(ValueError, match="Translation for language de is not supported"):
-        Config([path])
-
-
-def test_missing_locale_keeps_its_error(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="must contain a locale"):
-        _load(tmp_path, '[translation.de]\nCondition = "Zustand"\n')
-
-
-def test_non_string_word_rejected(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="must be strings"):
-        _load(tmp_path, '[translation.de]\nlocale = "German"\nCondition = 3\n')
-
-
-def test_bundled_translations_unchanged(tmp_path: Path) -> None:
-    cfg = _load(tmp_path, "")
-    assert cfg.translator["es"]("Condition") == "Estado"
-    assert cfg.translator["sv"].locale == "Swedish"
-    assert cfg.translator["zh"]("Unknown word") == "Unknown word"
-```
-
-`_load` passes indented TOML; TOML allows leading whitespace before keys and table headers, so no dedent is needed.
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `uv run pytest tests/test_config_translation.py -v`
-Expected: FAIL — `AttributeError: 'Translator' object has no attribute 'dictionary'` (and the `enabled`/`request` tests fail because those keys are treated as words).
-
-- [ ] **Step 3: Implement**
-
-In `utils.py`, extend `Translator` and add the config class right after it (`field` and `Tuple` must be imported from `dataclasses` / `typing` if they are not already):
-
-```python
-class Translator:
-    def __init__(
-        self: "Translator", locale: str | None = None, dictionary: Dict[str, str] | None = None
-    ) -> None:
-        self.locale = locale
-        self._dictionary: Dict[str, str] = copy.deepcopy(dictionary or {})
-
-    def __call__(self: "Translator", word: str) -> str:
-        """Return translated version"""
-        return self._dictionary.get(word, word)
-
-    @property
-    def dictionary(self: "Translator") -> Dict[str, str]:
-        return dict(self._dictionary)
-
-
-# keys of a [translation.*] section that are settings, not words to translate
-TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")
-
-
-@dataclass
-class TranslationConfig(BaseConfig):
-    locale: str | None = None
-    dictionary: Dict[str, str] = field(default_factory=dict)
-
-    def handle_locale(self: "TranslationConfig") -> None:
-        if not isinstance(self.locale, str):
-            raise ValueError(f"Translation section {hilight(self.name)} must contain a locale.")
-
-    def handle_dictionary(self: "TranslationConfig") -> None:
-        if not all(isinstance(v, str) for v in self.dictionary.values()):
-            raise ValueError(
-                f"Translation section {hilight(self.name)} translations must be strings."
-            )
-```
-
-In `config.py`, import `TRANSLATION_FIELDS, TranslationConfig` from `.utils` and replace `get_translator_config`:
-
-```python
-    def get_translator_config(self: "Config", config: Dict[str, Any]) -> None:
-        if not isinstance(config.get("translation", {}), dict):
-            raise ValueError("translation section must be a dictionary.")
-
-        self.translator = {}
-        for key, value in config.get("translation", {}).items():
-            translation = TranslationConfig(
-                name=key,
-                dictionary={k: v for k, v in value.items() if k not in TRANSLATION_FIELDS},
-                **{k: v for k, v in value.items() if k in TRANSLATION_FIELDS},
-            )
-            if translation.enabled is False:
-                continue
-            self.translator[key] = Translator(
-                locale=translation.locale, dictionary=translation.dictionary
-            )
-```
-
-In `get_marketplace_config`, change the language check to use enabled translations:
-
-```python
-            if lan.split("_")[0] not in {x.split("_")[0] for x in self.translator}:
-                raise ValueError(f"Translation for language {lan} is not supported.")
-```
-
-In `docs/README.md`, add to the Translators parameter table:
-
-```markdown
-| `request`                         | Optional          | String    | Your own description of this translation (e.g. which country you search in). Not a word to translate. |
-| `enabled`                         | Optional          | Boolean   | Set to `false` to ignore this translation.                 |
-```
-
-- [ ] **Step 4: Run tests**
-
-Run: `uv run pytest tests/test_config_translation.py tests/test_config_request.py -v && uv run pytest -q`
-Expected: all PASS.
-
-- [ ] **Step 5: Static checks and commit**
-
-Run: `uv run ruff check src tests && uv run mypy src`
-
-```bash
-git add src/ai_marketplace_monitor/utils.py src/ai_marketplace_monitor/config.py docs/README.md tests/test_config_translation.py
-git commit -m "feat: translation sections accept request and enabled (#362)"
-```
+Run: `uv run pytest tests/test_translations.py -v`
+Expected: PASS (includes `test_translation_section_is_a_base_config`).
 
 ---
 
@@ -2883,7 +2721,6 @@ git commit -m "feat(normalize): add compact() (#362)"
 ```markdown
 ### Added
 - Option `request` on every config section to record, in your own words, what the section is for; reserved for upcoming AI-assisted configuration ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
-- Translation sections accept `enabled = false` to ignore a translation ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
 
 ### Fixed
 - `docs/example_config.toml` used an invalid `search_city` value and could not be loaded

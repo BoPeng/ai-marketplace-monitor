@@ -45,7 +45,7 @@ lists, and each item self-contained.
 - Add `request: str | None = None` to `BaseConfig` (`utils.py`). This covers `ai`,
   `marketplace`, `item`, `user`, `notification`, `region`, and `monitor` sections, and
   `translation` once it becomes a `BaseConfig` (below).
-- **Translation sections become `BaseConfig`.** Today `[translation.*]` is loaded into a
+- **Translation sections become `BaseConfig`** (implemented in #364, with `TRANSLATION_FIELDS = ("enabled", "locale")`; this work adds `"request"`). Today `[translation.*]` is loaded into a
   plain `Translator` (`locale` plus every other key as a word mapping), so it has neither
   `request` nor `enabled`. Translations are a natural LLM task (a later `interpret` can
   generate `[translation.de]` from `request = "I search Facebook Marketplace in Germany"`),
