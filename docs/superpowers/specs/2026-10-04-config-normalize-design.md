@@ -1,4 +1,4 @@
-# Design: Config normalization, compaction, and the `request` field
+# Design: Config expansion, normalization, and the `request` field
 
 **Date:** 2026-10-04
 **Status:** Approved (brainstorm), pending implementation plan
@@ -10,19 +10,27 @@ chat panel — all out of scope here) with two pieces:
 
 1. A **`request` field** on every config section that is built on `BaseConfig`, holding
    the user's free-text intent for that section.
-2. An **internal `normalize()` function** that converts a valid user config into a
-   single **canonical form** with the same runtime behavior, so an LLM only ever reads and
-   writes one predictable shape. A behavior-equivalence check runs on every call.
-3. A **`compact()` function**, the behavioral inverse of `normalize()`, that removes
-   repetition from a canonical config so humans can read and review it.
+2. **`expand()`**: converts a valid user config into a single explicit, repetitive
+   **expanded form** with the same runtime behavior, so an LLM only ever reads and edits
+   one predictable shape. It exists only in memory and is **never written to disk**.
+3. **`normalize()` = compact(expand(x))**: removes the repetition again (Part 3). This is
+   the **only form ever written to disk**. Because it is computed from the expanded form,
+   every valid config that behaves the same normalizes to the same text, whatever layout
+   the user started from.
+
+A behavior-equivalence check runs on every `expand` and `normalize` call.
 
 ```
-file ──normalize──► canonical ──(later: AI edits)──► canonical' ──compact──► human-readable
-                         └──────── effective_view ────────┘──► behavior diff for review
+disk ──expand──► expanded ──(later: AI edits)──► expanded' ──normalize──► disk
+   (compact)          └────────── effective_view ──────────┘──► behavior diff for review
 ```
 
-No files are written by this work. An explicit `aimm --normalize` command (rewrite the
-user's file with `tomlkit`, with backups) is a later step built on this function.
+No files are written by this work. Writing `normalize()` output back to the user's file
+(with backups) is a later step. Consequence of "disk is always normalized": the first
+save rewrites a hand-written file into the normalized layout, and a one-value edit can
+move a key between a marketplace and its items (e.g. one item's `radius` diverging from
+the shared value pushes `radius` back into every item). Review therefore relies on the
+behavior diff, not the TOML diff.
 
 ## Motivation
 
@@ -37,7 +45,7 @@ implicit "everyone" defaults:
 
 An LLM editing such a file produces inconsistent output and, worse, edits whose effect
 reaches other sections (adding `[notification.telegram]` silently notifies every user
-without `notify_with`). The canonical form removes both problems: one spelling, explicit
+without `notify_with`). The expanded form removes both problems: one spelling, explicit
 lists, and each item self-contained.
 
 ## Part 1: the `request` field
@@ -83,7 +91,7 @@ lists, and each item self-contained.
 - Nothing at runtime reads `request`.
 - Document `request` in the "Additional options" table of `docs/README.md`.
 
-## Part 2: normalization
+## Part 2: expansion
 
 ### Module and API
 
@@ -102,14 +110,14 @@ class Change:
 
 @dataclass
 class NormalizeResult:
-    config: dict          # canonical user config; system (bundled) sections excluded
-    changes: list[Change] # empty -> input was already canonical
+    config: dict          # expanded or normalized user config; system (bundled) sections excluded
+    changes: list[Change] # empty -> input was already in that form
 
 class NormalizeError(ValueError): ...
 
 def load_config_dicts(files: list[Path]) -> tuple[dict, dict]:   # (system, merged user)
-def normalize(user_cfg: dict, system_cfg: dict) -> NormalizeResult
-def compact(user_cfg: dict, system_cfg: dict) -> NormalizeResult   # see "Part 3"
+def expand(user_cfg: dict, system_cfg: dict) -> NormalizeResult     # in memory only
+def normalize(user_cfg: dict, system_cfg: dict) -> NormalizeResult  # compact(expand(x)); see Part 3
 def effective_view(config: Config) -> dict
 def check_equivalent(system_cfg: dict, before: dict, after: dict) -> None  # raises NormalizeError
 ```
@@ -118,15 +126,15 @@ Contract:
 
 - **Input must be a valid config** (loads with `Config`); otherwise `NormalizeError` with
   the loader's message. Sections that have only a `request` ("pending") are a later step.
-- **Input is not mutated.** `merge_dicts` mutates nested dicts, so `normalize` deep-copies.
-- **Idempotent:** `normalize(normalize(x).config).changes == []`.
+- **Input is not mutated.** `merge_dicts` mutates nested dicts, so `expand` deep-copies.
+- **Idempotent:** `expand(expand(x).config).changes == []`.
 - **Raw values are preserved verbatim:** `"1h"` stays `"1h"`, `${ENV}` stays a
-  placeholder, literal secrets stay literal. Normalize operates on the parsed-but-
+  placeholder, literal secrets stay literal. Expansion operates on the parsed-but-
   unprocessed dict, never on loaded `Config` objects (which have converted durations,
   expanded secrets, and expanded regions).
 - **Bundled sections** (`config.toml` regions and translations) are consulted but never
   copied into the output.
-- **Equivalence is always checked**: `normalize` calls `check_equivalent` before returning
+- **Equivalence is always checked**: `expand` calls `check_equivalent` before returning
   and raises `NormalizeError` on any difference.
 
 ### Supporting refactors (behavior-preserving)
@@ -151,7 +159,7 @@ Contract:
    `facebook.py`, `monitor.py`, and `ai.py` are switched to the helper. The plan must
    enumerate every call site; the list above is indicative.
 
-### Canonical form: rules
+### Expanded form: rules
 
 `request` always stays in the section where it was written.
 
@@ -159,8 +167,8 @@ Contract:
 
 The parsed dict (`tomllib`) already groups sections by type, so an interleaved file
 layout (e.g. `[notification.telegram]` placed next to `[user.alice]`) cannot survive
-normalization or compaction. Preserving a user's file layout is the job of the later
-`apply_changes` step, not of these functions. Both `normalize` and `compact` emit:
+expansion or compaction, and is not preserved on disk either (disk always holds
+`normalize()` output). Both `expand` and `normalize` emit:
 
 1. **Fixed type order:** `monitor`, `ai`, `marketplace`, `user`, `notification`,
    `region`, `item`, `translation`.
@@ -168,7 +176,7 @@ normalization or compaction. Preserving a user's file layout is the job of the l
    behavior-relevant: an item without a `marketplace` key binds to the *first*
    marketplace (`Config.get_item_config`), items are scheduled and searched in config
    order, and notification sections are merged in order when `notify_with` is unset
-   (normalize makes it explicit, but the input's order decides which value wins). The
+   (expansion makes it explicit, but the input's order decides which value wins). The
    order is the merged-input order. New sections (e.g. a `[notification.email]` split out
    of inline user settings) are appended after existing sections of their type; a merged
    notification section (compaction) keeps the position of the first of the two.
@@ -178,7 +186,7 @@ normalization or compaction. Preserving a user's file layout is the job of the l
    the dataclass (none should survive validation) goes last in input order. For
    `[translation.*]` that means `request`, `enabled`, `locale`, then the translated words
    in input order (their order carries no meaning, and the words are user data). A fixed key
-   order makes the canonical form a function of content only, so a section an LLM
+   order makes the output a function of content only, so a section an LLM
    returns with keys in arbitrary order normalizes back to an identically ordered dict (compare with
    `json.dumps` without `sort_keys`; plain `==` ignores order) and the before/after diff shows only real edits.
 
@@ -272,7 +280,7 @@ monitor only pair an item with that marketplace).
 - **Accepted behavior change — AI prompt prices.** `get_prompt` reads `min_price` /
   `max_price` from the item only. Pushing a marketplace-level price into items makes it
   appear in the AI prompt, which it did not before. This is treated as a fix, not a
-  regression: `check_equivalent` allows exactly this difference, and `normalize` records
+  regression: `check_equivalent` allows exactly this difference, and `expand` records
   it as a `set` change with a detail saying so.
 
 A consequence of explicit `notify`: users added **later** are not notified automatically;
@@ -317,25 +325,23 @@ changes section contents, so the first run after a normalized config is applied
 re-evaluates cached listings once (extra AI calls). Notifications are not duplicated —
 `USER_NOTIFIED` is keyed by listing. Hashing effective values instead is out of scope.
 
-## Part 3: compaction
+## Part 3: compaction and `normalize()`
 
 Canonical form is easy for an LLM but repetitive for people (every item repeats
-`search_city`, `radius`, `notify`, ...). `compact()` produces the human-oriented form used
-for configs created from scratch (e.g. by the future chat) and for a future
-`aimm --normalize --compact`. Edits to an *existing* file will instead use a
-layout-preserving `apply_changes` (out of scope, see below), because compaction alone
-can turn a one-value edit into a many-section diff (e.g. one item's `radius` changes from
-the shared value, so the hoisted `radius` must be pushed back into every item).
+`search_city`, `radius`, `notify`, ...). Compaction turns the expanded form into the
+normalized form that is written to disk. `compact()` is an internal step; the public
+entry point is `normalize()`.
 
 ### Contract
 
-- Accepts any valid user config; it calls `normalize()` first, then compacts. `changes`
-  are reported relative to the input.
-- Same guarantees as `normalize`: input not mutated, raw values verbatim, bundled sections
-  not copied, deterministic output order, and `check_equivalent` always runs (with the
-  same single allowed AI-prompt-price difference when the input was not canonical).
-- Idempotent: `compact(compact(x).config).changes == []`.
-- Round-trip: `compact(normalize(compact(x).config).config).config == compact(x).config`.
+- `normalize()` accepts any valid user config; it calls `expand()`, then compacts.
+  `changes` are reported relative to the input.
+- Same guarantees as `expand`: input not mutated, raw values verbatim, bundled sections
+  not copied, deterministic output order, and `check_equivalent` always runs against the
+  original input (with the same single allowed AI-prompt-price difference).
+- Idempotent: `normalize(normalize(x).config).changes == []`.
+- Canonical: `normalize(expand(x).config).config == normalize(x).config` (so an AI edit of
+  the expanded form normalizes back to exactly what was on disk when nothing changed).
 
 ### Rules
 
@@ -396,25 +402,23 @@ New `tests/test_normalize_*.py` files, plus additions to existing test files.
 - **Ordering:** type order is fixed regardless of input order; marketplace and item order
   is preserved (an item without `marketplace` stays bound to the same marketplace);
   split-out notification sections are appended after existing ones; a config whose
-  sections have their keys shuffled normalizes (and compacts) to output identical to the unshuffled one, compared
+  sections have their keys shuffled expands (and normalizes) to output identical to the unshuffled one, compared
   order-sensitively via `json.dumps`.
 - **Compaction, one case each:** hoist when all items agree; no hoist when one differs;
   no hoist with a single item; disabled item blocks a hoist when it differs;
   `min_price` / `max_price` never hoisted; `notify` / `ai` hoisted as explicit lists;
   identical notification sections merged and `notify_with` updated; sections with
   different `request` not merged; location keys hoisted only as a unit.
-- **Compaction properties on every case and the bundled examples:** equivalence holds;
-  idempotent; round-trip with `normalize` as stated above.
-- **Negative:** tampering with normalized output makes `check_equivalent` raise with the
+- **`normalize` properties on every case and the bundled examples:** equivalence holds;
+  idempotent; canonical as stated above.
+- **Negative:** tampering with expanded output makes `check_equivalent` raise with the
   right path and masked secrets.
 
 ## Out of scope (later steps)
 
-- `aimm --normalize [--compact]`, `tomlkit` write-back to the originating file, and
-  backups.
-- `apply_changes(original_raw, canonical_before, canonical_after)`: apply only the
-  semantic delta of an AI edit onto the user's existing file layout (minimal diff),
-  guarded by `check_equivalent`. Belongs with write-back.
+- `aimm --normalize`, writing `normalize()` output back to the originating file, and
+  backups. (A layout-preserving `apply_changes` is dropped: disk always holds normalized
+  output.)
 - LLM view with secret redaction.
 - `interpret`, pending (request-only) sections, request staleness hash.
 - `aimm --chat` and the GUI chat panel.
