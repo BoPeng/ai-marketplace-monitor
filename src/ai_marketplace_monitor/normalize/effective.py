@@ -8,7 +8,7 @@ from ..config import Config
 from ..facebook import FacebookItemConfig
 from ..marketplace import resolve_option
 from ..user import UserConfig
-from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, _BASE_FIELDS, NormalizeError, mask, plain
+from .model import _BASE_FIELDS, AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, NormalizeError, mask, plain
 
 _USER_EXCLUDE = {"name", "request", "notify_with"}
 _MARKETPLACE_EXCLUDE = {*COMMON_OPTIONS, "name", "request", "monitor_config"}
