@@ -123,9 +123,32 @@ Contract:
 
 ### Canonical form: rules
 
-Output section order: `monitor`, `ai`, `marketplace`, `user`, `notification`, `region`,
-`item`, `translation`. Within a section, original key order is kept and added keys are
-appended. `request` always stays in the section where it was written.
+`request` always stays in the section where it was written.
+
+#### Ordering
+
+The parsed dict (`tomllib`) already groups sections by type, so an interleaved file
+layout (e.g. `[notification.telegram]` placed next to `[user.alice]`) cannot survive
+normalization or compaction. Preserving a user's file layout is the job of the later
+`apply_changes` step, not of these functions. Both `normalize` and `compact` emit:
+
+1. **Fixed type order:** `monitor`, `ai`, `marketplace`, `user`, `notification`,
+   `region`, `item`, `translation`.
+2. **Stable order within a type — never sorted.** Within-type order is
+   behavior-relevant: an item without a `marketplace` key binds to the *first*
+   marketplace (`Config.get_item_config`), items are scheduled and searched in config
+   order, and notification sections are merged in order when `notify_with` is unset
+   (normalize makes it explicit, but the input's order decides which value wins). The
+   order is the merged-input order. New sections (e.g. a `[notification.email]` split out
+   of inline user settings) are appended after existing sections of their type; a merged
+   notification section (compaction) keeps the position of the first of the two.
+3. **Fixed key order within a section:** `request`, then `enabled`, then the remaining
+   fields in the declaration order of the section's config dataclass (for marketplaces
+   and items, the Facebook dataclasses, base-class fields first). Any key not declared on
+   the dataclass (none should survive validation) goes last in input order. A fixed key
+   order makes the canonical form a function of content only, so a section an LLM
+   returns with keys in arbitrary order normalizes back to an identically ordered dict (compare with
+   `json.dumps` without `sort_keys`; plain `==` ignores order) and the before/after diff shows only real edits.
 
 #### Users and notifications
 
@@ -293,6 +316,11 @@ New `tests/test_normalize.py`, plus additions to existing test files.
 - **Properties on every case and on `docs/example_config.toml`, `docs/minimal_config.toml`,
   and the TOML examples in `docs/README.md`:** equivalence holds; idempotent; input not
   mutated.
+- **Ordering:** type order is fixed regardless of input order; marketplace and item order
+  is preserved (an item without `marketplace` stays bound to the same marketplace);
+  split-out notification sections are appended after existing ones; a config whose
+  sections have their keys shuffled normalizes (and compacts) to output identical to the unshuffled one, compared
+  order-sensitively via `json.dumps`.
 - **Compaction, one case each:** hoist when all items agree; no hoist when one differs;
   no hoist with a single item; disabled item blocks a hoist when it differs;
   `min_price` / `max_price` never hoisted; `notify` / `ai` hoisted as explicit lists;
