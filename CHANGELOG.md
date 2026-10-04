@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Translation sections accept `enabled = false` to ignore a translation
+- UnitySVC AI provider (`[ai.unitysvc]` or `provider = "unitysvc"`), using UnitySVC's OpenAI-compatible `llm` platform service with the `balanced` tier by default
 
 ### Fixed
 - Spanish translation swapped the "About this vehicle" and "Seller's description" headings, so vehicle details and seller descriptions were not extracted from Spanish-language listings

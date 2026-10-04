@@ -20,6 +20,7 @@ class AIServiceProvider(Enum):
     GEMINI = "Gemini"
     ANTHROPIC = "Anthropic"
     OLLAMA = "Ollama"
+    UNITYSVC = "UnitySVC"
 
 
 @dataclass
@@ -153,6 +154,15 @@ class OllamaConfig(OpenAIConfig):
     def handle_model(self: "OllamaConfig") -> None:
         if self.model is None:
             raise ValueError("Ollama requires a string model.")
+
+
+@dataclass
+class UnitySVCConfig(OpenAIConfig):
+    def handle_api_key(self: "UnitySVCConfig") -> None:
+        if self.api_key is None:
+            raise ValueError(
+                'UnitySVC requires a string api_key, e.g. api_key = "${UNITYSVC_API_KEY}".'
+            )
 
 
 @dataclass
@@ -391,6 +401,20 @@ class OllamaBackend(OpenAIBackend):
     @classmethod
     def get_config(cls: Type["OllamaBackend"], **kwargs: Any) -> OllamaConfig:
         return OllamaConfig(**kwargs)
+
+
+class UnitySVCBackend(OpenAIBackend):
+    """UnitySVC's `llm` platform service, reached through its OpenAI-compatible endpoint.
+
+    `model` selects a capability tier, and UnitySVC picks the provider and fails over.
+    """
+
+    default_model = "balanced"
+    base_url = "https://api.svcpass.com/p/llm"
+
+    @classmethod
+    def get_config(cls: Type["UnitySVCBackend"], **kwargs: Any) -> UnitySVCConfig:
+        return UnitySVCConfig(**kwargs)
 
 
 class AnthropicBackend(AIBackend):
