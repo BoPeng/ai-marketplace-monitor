@@ -3,8 +3,8 @@
 import copy
 from typing import Any, Dict, List, Tuple
 
-from ..marketplace import COMMON_OPTION_FALLBACK, Fallback
-from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, LOCATION_KEYS
+from ..marketplace import Fallback
+from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, LOCATION_KEYS, OPTION_FALLBACK
 from .pushdown import Notes, bound_marketplace
 
 _ABSENT = object()
@@ -15,7 +15,7 @@ def _shared(key: str, group: List[Dict[str, Any]]) -> bool:
     if values[0] is _ABSENT or any(v != values[0] for v in values):
         return False
     # item.x or marketplace.x: a falsy shared value would be replaced by the marketplace's
-    return not (COMMON_OPTION_FALLBACK.get(key) is Fallback.TRUTHY and not values[0])
+    return not (OPTION_FALLBACK.get(key) is Fallback.TRUTHY and not values[0])
 
 
 def _hoist(cfg: Dict[str, Any], notes: Notes) -> None:

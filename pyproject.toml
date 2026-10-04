@@ -182,6 +182,13 @@ unfixable = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
 
+[tool.ruff.lint.flake8-bugbear]
+# field factories that only wrap dataclasses.field(...) with metadata (RUF009)
+extend-immutable-calls = [
+  "ai_marketplace_monitor.marketplace.option",
+  "ai_marketplace_monitor.notification.notification_field",
+]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 

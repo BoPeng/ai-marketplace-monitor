@@ -15,7 +15,15 @@ from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
-from .marketplace import ItemConfig, Marketplace, MarketplaceConfig, WebPage, resolve_option
+from .marketplace import (
+    Fallback,
+    ItemConfig,
+    Marketplace,
+    MarketplaceConfig,
+    WebPage,
+    option,
+    resolve_option,
+)
 from .utils import (
     BaseConfig,
     CounterItem,
@@ -105,13 +113,13 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     in both marketplace and item sections, specific to facebook marketplace
     """
 
-    seller_locations: List[str] | None = None
-    availability: List[str] | None = None
-    condition: List[str] | None = None
-    date_listed: List[int] | None = None
-    delivery_method: List[str] | None = None
-    category: str | None = None
-    sort_by: str | None = None
+    seller_locations: List[str] | None = option(Fallback.NOT_NONE)
+    availability: List[str] | None = option(Fallback.TRUTHY)
+    condition: List[str] | None = option(Fallback.TRUTHY)
+    date_listed: List[int] | None = option(Fallback.TRUTHY)
+    delivery_method: List[str] | None = option(Fallback.TRUTHY)
+    category: str | None = option(Fallback.TRUTHY)
+    sort_by: str | None = option(Fallback.TRUTHY)
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.seller_locations is None:

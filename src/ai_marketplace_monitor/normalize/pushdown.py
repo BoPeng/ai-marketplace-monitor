@@ -3,8 +3,14 @@
 import copy
 from typing import Any, Dict, Optional, Set, Tuple
 
-from ..marketplace import COMMON_OPTION_FALLBACK, Fallback
-from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, LOCATION_KEYS, NormalizeError
+from ..marketplace import Fallback
+from .model import (
+    AI_PROMPT_ITEM_ONLY,
+    COMMON_OPTIONS,
+    LOCATION_KEYS,
+    OPTION_FALLBACK,
+    NormalizeError,
+)
 
 Notes = Dict[Tuple[str, Optional[str]], str]
 
@@ -17,7 +23,7 @@ def bound_marketplace(item_raw: Dict[str, Any], marketplaces: Dict[str, Any]) ->
 def _falls_back(key: str, item_raw: Dict[str, Any]) -> bool:
     if key not in item_raw:
         return True
-    return COMMON_OPTION_FALLBACK.get(key) is Fallback.TRUTHY and not item_raw[key]
+    return OPTION_FALLBACK.get(key) is Fallback.TRUTHY and not item_raw[key]
 
 
 def _location_keys(
@@ -80,7 +86,7 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
             if key not in market:
                 continue
             del market[key]
-            if has_region and key in LOCATION_KEYS[1:]:
+            if has_region and key in LOCATION_KEYS and key != "search_region":
                 detail = f"{key} removed: overridden by search_region"
             else:
                 detail = f"{key} moved into items"

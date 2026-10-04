@@ -6,7 +6,14 @@ from typing import Any, Callable, Dict, List, Set, Tuple, Type
 
 from ..config import Config
 from ..email_notify import EmailNotificationConfig
-from ..notification import NotificationConfig, PushNotificationConfig
+from ..notification import (
+    CHANNEL,
+    COMMON,
+    RECIPIENT,
+    NotificationConfig,
+    PushNotificationConfig,
+    fields_with_role,
+)
 from ..ntfy import NtfyNotificationConfig
 from ..pushbullet import PushbulletNotificationConfig
 from ..pushover import PushoverNotificationConfig
@@ -20,28 +27,13 @@ TYPE_CLASSES: Dict[str, Type[NotificationConfig]] = {
     "ntfy": NtfyNotificationConfig,
     "telegram": TelegramNotificationConfig,
 }
-_BASE_FIELDS = {"name", "enabled", "request"}
-COMMON_FIELDS: Tuple[str, ...] = tuple(
-    f.name
-    for f in fields(PushNotificationConfig)
-    if f.name not in _BASE_FIELDS and not f.name.startswith("_")
-)
-RECIPIENT_FIELDS: Tuple[str, ...] = (
-    "email",
-    "telegram_chat_id",
-    "pushover_user_key",
-    "ntfy_topic",
+# field roles, read from the dataclass metadata of the notification classes
+COMMON_FIELDS: Tuple[str, ...] = fields_with_role(PushNotificationConfig, COMMON)
+RECIPIENT_FIELDS: Tuple[str, ...] = tuple(
+    dict.fromkeys(f for cls in TYPE_CLASSES.values() for f in fields_with_role(cls, RECIPIENT))
 )
 CHANNEL_FIELDS: Dict[str, Tuple[str, ...]] = {
-    t: tuple(
-        f.name
-        for f in fields(cls)
-        if f.name not in _BASE_FIELDS
-        and f.name not in COMMON_FIELDS
-        and f.name not in RECIPIENT_FIELDS
-        and not f.name.startswith("_")
-    )
-    for t, cls in TYPE_CLASSES.items()
+    t: fields_with_role(cls, CHANNEL) for t, cls in TYPE_CLASSES.items()
 }
 _USER_KEPT_FIELDS = ("enabled", "request", "remind")
 _MERGE_SKIPPED = ("type", "name", "request")

@@ -4,7 +4,7 @@ from typing import ClassVar, List
 
 from pushbullet import Pushbullet  # type: ignore
 
-from .notification import PushNotificationConfig
+from .notification import CHANNEL, PushNotificationConfig, notification_field
 from .utils import hilight
 
 
@@ -13,9 +13,9 @@ class PushbulletNotificationConfig(PushNotificationConfig):
     notify_method = "pushbullet"
     required_fields: ClassVar[List[str]] = ["pushbullet_token"]
 
-    pushbullet_token: str | None = None
-    pushbullet_proxy_type: str | None = None
-    pushbullet_proxy_server: str | None = None
+    pushbullet_token: str | None = notification_field(CHANNEL)
+    pushbullet_proxy_type: str | None = notification_field(CHANNEL)
+    pushbullet_proxy_server: str | None = notification_field(CHANNEL)
 
     def handle_pushbullet_token(self: "PushbulletNotificationConfig") -> None:
         if self.pushbullet_token is None:

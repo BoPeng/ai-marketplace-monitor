@@ -1,60 +1,51 @@
-from dataclasses import fields
-from types import SimpleNamespace
+from dataclasses import dataclass, fields
+from typing import Any
 
-import pytest
-
-from ai_marketplace_monitor.facebook import FacebookMarketItemCommonConfig
+from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketItemCommonConfig
 from ai_marketplace_monitor.marketplace import (
-    COMMON_OPTION_FALLBACK,
     Fallback,
     MarketItemCommonConfig,
+    option,
+    option_fallbacks,
     resolve_option,
 )
 from ai_marketplace_monitor.utils import BaseConfig
 
 
-def test_table_covers_every_common_option_except_search_region() -> None:
+@dataclass
+class _Options:
+    """Stand-in config declaring one option per rule."""
+
+    truthy: Any = option(Fallback.TRUTHY)
+    not_none: Any = option(Fallback.NOT_NONE)
+    price: Any = option(Fallback.TRUTHY, item_only_in=("ai_prompt",))
+
+
+def test_every_common_option_except_search_region_declares_a_rule() -> None:
     base = {f.name for f in fields(BaseConfig)}
     common = {
         f.name
         for cls in (MarketItemCommonConfig, FacebookMarketItemCommonConfig)
         for f in fields(cls)
     } - base
-    assert set(COMMON_OPTION_FALLBACK) == common - {"search_region"}
+    assert set(option_fallbacks(FacebookItemConfig)) == common - {"search_region"}
 
 
-@pytest.mark.parametrize(
-    "key", [k for k, rule in COMMON_OPTION_FALLBACK.items() if rule is Fallback.TRUTHY]
-)
-def test_truthy_rule(key: str) -> None:
-    market = SimpleNamespace(**{key: ["m"]})
-    assert resolve_option(key, SimpleNamespace(**{key: None}), market) == ["m"]
-    assert resolve_option(key, SimpleNamespace(**{key: []}), market) == ["m"]
-    assert resolve_option(key, SimpleNamespace(**{key: ["i"]}), market) == ["i"]
+def test_truthy_rule() -> None:
+    market = _Options(truthy=["m"])
+    assert resolve_option("truthy", _Options(truthy=None), market) == ["m"]
+    assert resolve_option("truthy", _Options(truthy=[]), market) == ["m"]
+    assert resolve_option("truthy", _Options(truthy=["i"]), market) == ["i"]
 
 
-@pytest.mark.parametrize(
-    "key", [k for k, rule in COMMON_OPTION_FALLBACK.items() if rule is Fallback.NOT_NONE]
-)
-def test_not_none_rule(key: str) -> None:
-    market = SimpleNamespace(**{key: ["m"]})
-    assert resolve_option(key, SimpleNamespace(**{key: None}), market) == ["m"]
-    assert resolve_option(key, SimpleNamespace(**{key: []}), market) == []
+def test_not_none_rule() -> None:
+    market = _Options(not_none=["m"])
+    assert resolve_option("not_none", _Options(not_none=None), market) == ["m"]
+    assert resolve_option("not_none", _Options(not_none=[]), market) == []
+    assert resolve_option("not_none", _Options(not_none=["i"]), market) == ["i"]
 
 
-def test_expected_not_none_keys() -> None:
-    not_none = {k for k, rule in COMMON_OPTION_FALLBACK.items() if rule is Fallback.NOT_NONE}
-    assert not_none == {
-        "ai",
-        "exclude_sellers",
-        "seller_locations",
-        "prompt",
-        "extra_prompt",
-        "rating_prompt",
-    }
-
-
-def test_ai_prompt_site_prices_are_item_only() -> None:
-    item, market = SimpleNamespace(min_price=None), SimpleNamespace(min_price="100")
-    assert resolve_option("min_price", item, market, site="ai_prompt") is None
-    assert resolve_option("min_price", item, market) == "100"
+def test_item_only_site() -> None:
+    item, market = _Options(price=None), _Options(price="100")
+    assert resolve_option("price", item, market, site="ai_prompt") is None
+    assert resolve_option("price", item, market) == "100"

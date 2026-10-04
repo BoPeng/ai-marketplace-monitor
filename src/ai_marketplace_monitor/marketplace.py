@@ -1,8 +1,20 @@
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
+from functools import lru_cache
 from logging import Logger
-from typing import Any, Callable, Dict, Generator, Generic, List, Tuple, Type, TypeVar
+from types import MappingProxyType
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Generic,
+    List,
+    Mapping,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
@@ -30,42 +42,55 @@ class Fallback(Enum):
     ITEM_ONLY = "item_only"  # marketplace value ignored
 
 
-COMMON_OPTION_FALLBACK: Dict[str, Fallback] = {
-    "ai": Fallback.NOT_NONE,
-    "exclude_sellers": Fallback.NOT_NONE,
-    "seller_locations": Fallback.NOT_NONE,
-    "prompt": Fallback.NOT_NONE,
-    "extra_prompt": Fallback.NOT_NONE,
-    "rating_prompt": Fallback.NOT_NONE,
-    "notify": Fallback.TRUTHY,
-    "search_city": Fallback.TRUTHY,
-    "city_name": Fallback.TRUTHY,
-    "radius": Fallback.TRUTHY,
-    "currency": Fallback.TRUTHY,
-    "search_interval": Fallback.TRUTHY,
-    "max_search_interval": Fallback.TRUTHY,
-    "start_at": Fallback.TRUTHY,
-    "max_price": Fallback.TRUTHY,
-    "min_price": Fallback.TRUTHY,
-    "rating": Fallback.TRUTHY,
-    "availability": Fallback.TRUTHY,
-    "condition": Fallback.TRUTHY,
-    "date_listed": Fallback.TRUTHY,
-    "delivery_method": Fallback.TRUTHY,
-    "category": Fallback.TRUTHY,
-    "sort_by": Fallback.TRUTHY,
-}
+# dataclass metadata keys for options shared by marketplaces and items
+FALLBACK = "fallback"  # Fallback rule: how an item value falls back to the marketplace
+ITEM_ONLY_IN = "item_only_in"  # use sites that read only the item value
+LOCATION = "location"  # option belongs to the search_region / search_city group
 
-# use sites that deviate from COMMON_OPTION_FALLBACK
-SITE_FALLBACK: Dict[Tuple[str, str], Fallback] = {
-    ("ai_prompt", "min_price"): Fallback.ITEM_ONLY,
-    ("ai_prompt", "max_price"): Fallback.ITEM_ONLY,
-}
+
+def option(
+    fallback: Fallback | None,
+    *,
+    item_only_in: Tuple[str, ...] = (),
+    location: bool = False,
+) -> Any:
+    """Declare a common option (default None) together with its fallback facts."""
+    return field(
+        default=None,
+        metadata={FALLBACK: fallback, ITEM_ONLY_IN: item_only_in, LOCATION: location},
+    )
+
+
+@lru_cache(maxsize=None)
+def option_fallbacks(cls: type) -> Mapping[str, Fallback]:
+    """Fallback rule of every common option declared on a config class."""
+    return MappingProxyType(
+        {f.name: f.metadata[FALLBACK] for f in fields(cls) if f.metadata.get(FALLBACK)}
+    )
+
+
+@lru_cache(maxsize=None)
+def site_fallbacks(cls: type) -> Mapping[Tuple[str, str], Fallback]:
+    """Use sites whose rule deviates from the option's own fallback rule."""
+    return MappingProxyType(
+        {
+            (site, f.name): Fallback.ITEM_ONLY
+            for f in fields(cls)
+            for site in f.metadata.get(ITEM_ONLY_IN, ())
+        }
+    )
+
+
+@lru_cache(maxsize=None)
+def location_keys(cls: type) -> Tuple[str, ...]:
+    """Options that make up the search location (region, cities, radius, currency)."""
+    return tuple(f.name for f in fields(cls) if f.metadata.get(LOCATION))
 
 
 def resolve_option(key: str, item: Any, marketplace: Any, site: str = "search") -> Any:
     """Value of a common option for an item, falling back to its marketplace."""
-    rule = SITE_FALLBACK.get((site, key), COMMON_OPTION_FALLBACK[key])
+    cls: Any = type(item)  # a dataclass type, hashable for the lru_cache lookups
+    rule = site_fallbacks(cls).get((site, key), option_fallbacks(cls)[key])
     value = getattr(item, key)
     if rule is Fallback.ITEM_ONLY:
         return value
@@ -82,24 +107,26 @@ class MarketItemCommonConfig(BaseConfig):
     in both marketplace and item sections, generic to all marketplaces
     """
 
-    ai: List[str] | None = None
-    exclude_sellers: List[str] | None = None
-    notify: List[str] | None = None
-    search_city: List[str] | None = None
-    city_name: List[str] | None = None
+    ai: List[str] | None = option(Fallback.NOT_NONE)
+    exclude_sellers: List[str] | None = option(Fallback.NOT_NONE)
+    notify: List[str] | None = option(Fallback.TRUTHY)
+    search_city: List[str] | None = option(Fallback.TRUTHY, location=True)
+    city_name: List[str] | None = option(Fallback.TRUTHY, location=True)
     # radius must be processed after search_city
-    radius: List[int] | None = None
-    currency: List[str] | None = None
-    search_interval: int | None = None
-    max_search_interval: int | None = None
-    start_at: List[str] | None = None
-    search_region: List[str] | None = None
-    max_price: str | None = None
-    min_price: str | None = None
-    rating: List[int] | None = None
-    prompt: str | None = None
-    extra_prompt: str | None = None
-    rating_prompt: str | None = None
+    radius: List[int] | None = option(Fallback.TRUTHY, location=True)
+    currency: List[str] | None = option(Fallback.TRUTHY, location=True)
+    search_interval: int | None = option(Fallback.TRUTHY)
+    max_search_interval: int | None = option(Fallback.TRUTHY)
+    start_at: List[str] | None = option(Fallback.TRUTHY)
+    # never resolved at runtime: Config.expand_regions turns it into the location keys
+    search_region: List[str] | None = option(None, location=True)
+    # the AI prompt reads prices from the item only
+    max_price: str | None = option(Fallback.TRUTHY, item_only_in=("ai_prompt",))
+    min_price: str | None = option(Fallback.TRUTHY, item_only_in=("ai_prompt",))
+    rating: List[int] | None = option(Fallback.TRUTHY)
+    prompt: str | None = option(Fallback.NOT_NONE)
+    extra_prompt: str | None = option(Fallback.NOT_NONE)
+    rating_prompt: str | None = option(Fallback.NOT_NONE)
 
     def handle_ai(self: "MarketItemCommonConfig") -> None:
         if self.ai is None:

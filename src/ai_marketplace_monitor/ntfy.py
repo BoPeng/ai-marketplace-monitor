@@ -4,7 +4,13 @@ from typing import ClassVar, List
 
 import requests  # type: ignore
 
-from .notification import PushNotificationConfig
+from .notification import (
+    CHANNEL,
+    COMMON,
+    RECIPIENT,
+    PushNotificationConfig,
+    notification_field,
+)
 from .utils import hilight
 
 
@@ -13,9 +19,9 @@ class NtfyNotificationConfig(PushNotificationConfig):
     notify_method = "ntfy"
     required_fields: ClassVar[List[str]] = ["ntfy_server", "ntfy_topic"]
 
-    message_format: str | None = None
-    ntfy_server: str | None = None
-    ntfy_topic: str | None = None
+    message_format: str | None = notification_field(COMMON)
+    ntfy_server: str | None = notification_field(CHANNEL)
+    ntfy_topic: str | None = notification_field(RECIPIENT)
 
     def handle_ntfy_server(self: "NtfyNotificationConfig") -> None:
         if self.ntfy_server is None:

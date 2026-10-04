@@ -159,6 +159,20 @@ Contract:
    `facebook.py`, `monitor.py`, and `ai.py` are switched to the helper. The plan must
    enumerate every call site; the list above is indicative.
 
+3. **Field facts live on the fields** (dataclass metadata), not in separate tables:
+   - common options are declared with `option(rule, item_only_in=..., location=...)`
+     (`marketplace.py`), and `option_fallbacks(cls)`, `site_fallbacks(cls)`,
+     `location_keys(cls)` read them; `resolve_option` takes the rules from the item's
+     own class;
+   - notification fields are declared with `notification_field(role)` where role is
+     `recipient`, `channel` or `common` (`notification.py`), read by
+     `fields_with_role(cls, role)`.
+
+   A new option or notification field therefore declares its normalization behavior
+   where it is defined, and tests fail if one is declared without a rule/role. Secret
+   detection stays name-based (`is_sensitive_key`), because the web UI redacts raw TOML
+   keys that may not belong to any config class.
+
 ### Expanded form: rules
 
 `request` always stays in the section where it was written.

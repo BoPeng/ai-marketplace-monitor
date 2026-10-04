@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from rich.text import Text
 
@@ -12,7 +12,13 @@ from ..facebook import (
     FacebookMarketItemCommonConfig,
     FacebookMarketplaceConfig,
 )
-from ..marketplace import SITE_FALLBACK, MarketItemCommonConfig
+from ..marketplace import (
+    Fallback,
+    MarketItemCommonConfig,
+    location_keys,
+    option_fallbacks,
+    site_fallbacks,
+)
 from ..region import RegionConfig
 from ..user import UserConfig
 from ..utils import BaseConfig, MonitorConfig, TranslationConfig, is_sensitive_key
@@ -36,15 +42,11 @@ COMMON_OPTIONS: Tuple[str, ...] = tuple(
         if f.name not in _BASE_FIELDS
     )
 )
-LOCATION_KEYS: Tuple[str, ...] = (
-    "search_region",
-    "search_city",
-    "city_name",
-    "radius",
-    "currency",
-)
+# field facts, read from the dataclass metadata of the item config
+OPTION_FALLBACK: Mapping[str, Fallback] = option_fallbacks(FacebookItemConfig)
+LOCATION_KEYS: Tuple[str, ...] = location_keys(FacebookItemConfig)
 AI_PROMPT_ITEM_ONLY: Tuple[str, ...] = tuple(
-    k for (site, k) in SITE_FALLBACK if site == "ai_prompt"
+    k for (site, k) in site_fallbacks(FacebookItemConfig) if site == "ai_prompt"
 )
 MASK = "<REDACTED>"
 
