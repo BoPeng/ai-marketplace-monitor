@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, List, Optional, Tuple
 
+from rich.text import Text
+
 from ..ai import AIConfig
 from ..facebook import (
     FacebookItemConfig,
@@ -59,6 +61,14 @@ _FIELD_ORDER: Dict[str, List[str]] = {
 
 class NormalizeError(ValueError):
     """Normalization is impossible or would change runtime behavior."""
+
+
+def plain(e: BaseException) -> str:
+    """Error text without rich markup (loader errors embed tags such as [cyan])."""
+    try:
+        return Text.from_markup(str(e)).plain
+    except Exception:
+        return str(e)
 
 
 @dataclass

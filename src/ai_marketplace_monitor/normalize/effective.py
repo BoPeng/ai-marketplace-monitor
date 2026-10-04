@@ -1,17 +1,22 @@
 """What a config actually does, and a check that two configs do the same thing."""
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from typing import Any, Dict, List, Tuple
 
 from ..config import Config
+from ..facebook import FacebookItemConfig
 from ..marketplace import resolve_option
 from ..user import UserConfig
-from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, NormalizeError, mask
+from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, _BASE_FIELDS, NormalizeError, mask, plain
 
 _USER_EXCLUDE = {"name", "request", "notify_with"}
 _MARKETPLACE_EXCLUDE = {*COMMON_OPTIONS, "name", "request", "monitor_config"}
-_ITEM_ONLY_FIELDS = ("search_phrases", "keywords", "antikeywords", "description")
+_ITEM_ONLY_FIELDS = tuple(
+    f.name
+    for f in fields(FacebookItemConfig)
+    if f.name not in {*COMMON_OPTIONS, *_BASE_FIELDS, "searched_count", "marketplace"}
+)
 _MISSING = "<missing>"
 
 
@@ -104,11 +109,11 @@ def check_equivalent(
     try:
         before_view = effective_view(Config.from_dicts(system_cfg, before))
     except Exception as e:
-        raise NormalizeError(f"Config is not valid: {e}") from e
+        raise NormalizeError(f"Config is not valid: {plain(e)}") from e
     try:
         after_view = effective_view(Config.from_dicts(system_cfg, after))
     except Exception as e:
-        raise NormalizeError(f"Normalized config does not load: {e}") from e
+        raise NormalizeError(f"Normalized config does not load: {plain(e)}") from e
     allowed: List[str] = []
     errors: List[str] = []
     for path, old, new in _diff(before_view, after_view):

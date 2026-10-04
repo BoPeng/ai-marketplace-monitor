@@ -1,4 +1,6 @@
-from ai_marketplace_monitor.normalize import normalize
+import pytest
+
+from ai_marketplace_monitor.normalize import NormalizeError, normalize
 from tests.normalize_util import parse, system_cfg
 
 USERS = """
@@ -232,3 +234,35 @@ def test_ai_is_hoisted_as_an_explicit_list() -> None:
     ).config
     assert cfg["marketplace"]["facebook"]["ai"] == ["openai", "deepseek"]
     assert "ai" not in cfg["item"]["a"] and "ai" not in cfg["item"]["b"]
+
+
+def test_normalize_error_has_no_rich_markup() -> None:
+    cfg = parse(USERS + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [item.a]
+    search_phrases = "a"
+    notify = "zz"
+    """)
+    with pytest.raises(NormalizeError) as exc:
+        normalize(cfg, system_cfg())
+    assert "[cyan]" not in str(exc.value)
+    assert "zz" in str(exc.value)
+
+
+def test_normalize_change_list_keeps_expand_notes() -> None:
+    result = normalize(
+        parse(USERS + """
+    [marketplace.facebook]
+    search_city = "houston"
+    max_price = 100
+
+    [item.a]
+    search_phrases = "a"
+    """),
+        system_cfg(),
+    )
+    changes = [c for c in result.changes if c.section == "item.a" and c.key == "max_price"]
+    assert changes
+    assert "AI prompt" in changes[0].detail
