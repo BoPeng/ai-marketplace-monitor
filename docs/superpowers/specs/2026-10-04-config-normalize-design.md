@@ -354,8 +354,9 @@ New `tests/test_normalize_*.py` files, plus additions to existing test files.
   bundled regions not copied; translation passthrough; item binds to the first
   marketplace; item with own `search_region` gets no location keys; incompatible
   location push-down raises `NormalizeError` naming the item.
-- **Properties on every case and on `docs/example_config.toml`, `docs/minimal_config.toml`,
-  and the TOML examples in `docs/README.md`:** equivalence holds; idempotent; input not
+- **Properties on every case and on `docs/example_config.toml` (whose `search_city =
+  'another city'` is invalid today and is fixed to `'anothercity'`) and
+  `docs/minimal_config.toml`:** equivalence holds; idempotent; input not
   mutated.
 - **Ordering:** type order is fixed regardless of input order; marketplace and item order
   is preserved (an item without `marketplace` stays bound to the same marketplace);
