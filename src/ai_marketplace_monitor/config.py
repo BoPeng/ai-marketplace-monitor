@@ -24,7 +24,14 @@ from .marketplace import TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
-from .utils import MonitorConfig, Translator, hilight, merge_dicts
+from .utils import (
+    TRANSLATION_FIELDS,
+    MonitorConfig,
+    TranslationConfig,
+    Translator,
+    hilight,
+    merge_dicts,
+)
 
 supported_marketplaces = {"facebook": FacebookMarketplace}
 supported_ai_backends = {
@@ -97,11 +104,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
         self.translator = {}
         for key, value in config.get("translation", {}).items():
-            if "locale" not in value:
-                raise ValueError(f"Translation section {hilight(key)} must contain a locale.")
+            translation = TranslationConfig(
+                name=key,
+                dictionary={k: v for k, v in value.items() if k not in TRANSLATION_FIELDS},
+                **{k: v for k, v in value.items() if k in TRANSLATION_FIELDS},
+            )
+            if translation.enabled is False:
+                continue
             self.translator[key] = Translator(
-                locale=value["locale"],
-                dictionary={k: v for k, v in value.items() if k != "locale"},
+                locale=translation.locale, dictionary=translation.dictionary
             )
 
     def get_monitor_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -155,9 +166,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             if lan is None:
                 continue
             # no exact match is required
-            if lan.split("_")[0] not in {
-                x.split("_")[0] for x in config[ConfigItem.TRANSLATION.value].keys()
-            }:
+            if lan.split("_")[0] not in {x.split("_")[0] for x in self.translator}:
                 raise ValueError(f"Translation for language {lan} is not supported.")
 
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:

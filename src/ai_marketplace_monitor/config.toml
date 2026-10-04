@@ -319,8 +319,8 @@ locale = "Spanish"
 'Description' = 'Descripción'
 'Details' = 'Detalles'
 'Location is approximate' = 'La ubicación es aproximada'
-"About this vehicle" = 'Descripción del vendedor'
-"Seller's description" = 'Información sobre este vehículo'
+"About this vehicle" = 'Información sobre este vehículo'
+"Seller's description" = 'Descripción del vendedor'
 "Browse Marketplace" = 'Explorar Marketplace'
 
 [translation.zh]
