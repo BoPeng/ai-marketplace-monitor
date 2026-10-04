@@ -165,3 +165,43 @@ def test_openai_evaluate_raises_provider_failure_after_retries(
 
     with pytest.raises(RuntimeError, match="failed to evaluate"):
         ai.evaluate(listing, item_config, marketplace_config)
+
+
+def test_openai_image_detail_defaults_to_low() -> None:
+    assert OpenAIConfig(name="openai-test", api_key="test").image_detail == "low"
+
+
+def test_openai_evaluate_falls_back_to_text_when_image_rejected(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+) -> None:
+    suffix = uuid4().hex
+    listing.id = f"openai-fallback-test-{suffix}"
+    listing.title = f"OpenAI image fallback test {suffix}"
+    listing.image = "https://example.com/expired.jpg"
+    item_config.name = f"test-{suffix}"
+    ai = OpenAIBackend(
+        OpenAIConfig(
+            name=f"openai-fallback-test-{suffix}",
+            api_key="test",
+            use_images=True,
+            max_retries=1,
+        )
+    )
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content="Rating 4: Good match. Test evaluation.")
+            )
+        ]
+    )
+    create = MagicMock(side_effect=[RuntimeError("image not supported"), response])
+    ai.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    res = ai.evaluate(listing, item_config, marketplace_config)
+
+    assert res.score == 4
+    assert create.call_count == 2
+    assert isinstance(create.call_args_list[0].kwargs["messages"][1]["content"], list)
+    assert isinstance(create.call_args_list[1].kwargs["messages"][1]["content"], str)
