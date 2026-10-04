@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 import pytest
 
 from ai_marketplace_monitor.config import load_config_dicts
-from ai_marketplace_monitor.normalize import expand
+from ai_marketplace_monitor.normalize import expand, normalize
 from tests.normalize_util import EXAMPLES, dumps, parse, system_cfg
 
 CASES: List[str] = [
@@ -85,3 +85,21 @@ def test_item_order_is_preserved() -> None:
 def test_example_config_expands() -> None:
     result = expand(load_config_dicts([EXAMPLES[1]])[1], system_cfg())
     assert result.config["user"]["user1"]["notify_with"] == ["gmail", "pushbullet", "pushover"]
+
+
+@pytest.mark.parametrize("user_cfg", _inputs())
+def test_normalize_is_idempotent_pure_and_canonical(user_cfg: Dict[str, Any]) -> None:
+    before = copy.deepcopy(user_cfg)
+    first = normalize(user_cfg, system_cfg())
+    assert user_cfg == before
+    assert normalize(first.config, system_cfg()).changes == []
+    # an untouched expanded form normalizes back to exactly what is on disk
+    expanded = expand(user_cfg, system_cfg()).config
+    assert dumps(normalize(expanded, system_cfg()).config) == dumps(first.config)
+
+
+@pytest.mark.parametrize("user_cfg", _inputs())
+def test_normalize_ignores_key_order(user_cfg: Dict[str, Any]) -> None:
+    a = normalize(user_cfg, system_cfg()).config
+    b = normalize(_shuffled(user_cfg), system_cfg()).config
+    assert dumps(a) == dumps(b)

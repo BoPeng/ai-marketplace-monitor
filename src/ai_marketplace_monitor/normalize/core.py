@@ -4,6 +4,7 @@ import copy
 from typing import Any, Dict
 
 from ..config import Config
+from .compact import compact
 from .effective import check_equivalent
 from .model import NormalizeError, NormalizeResult, describe_changes, order_config
 from .notifications import normalize_notifications
@@ -20,5 +21,13 @@ def expand(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeRes
     normalize_notifications(cfg, loaded)
     notes = push_down(cfg)
     result = order_config(cfg)
+    check_equivalent(system_cfg, user_cfg, result)
+    return NormalizeResult(result, describe_changes(user_cfg, result, notes))
+
+
+def normalize(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult:
+    """compact(expand(x)): the only form ever written to disk; never mutates the input."""
+    compacted, notes = compact(expand(user_cfg, system_cfg).config)
+    result = order_config(compacted)
     check_equivalent(system_cfg, user_cfg, result)
     return NormalizeResult(result, describe_changes(user_cfg, result, notes))
