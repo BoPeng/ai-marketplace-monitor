@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a `request` field to every config section (making `[translation.*]` a `BaseConfig` too) and an internal `ai_marketplace_monitor.normalize` package whose `normalize()` / `compact()` rewrite a parsed user config into a canonical (AI-facing) or compact (human-facing) form with provably identical runtime behavior.
+**Goal:** Add a `request` field to every config section (making `[translation.*]` a `BaseConfig` too) and an internal `ai_marketplace_monitor.normalize` package: `expand()` produces the explicit form an AI reads and edits (memory only), and `normalize()` = compact(expand(x)) produces the only form ever written to disk, both with provably identical runtime behavior.
 
-**Architecture:** Pure functions over the parsed-but-unprocessed TOML dict. A shared `resolve_option` helper becomes the single definition of how item options fall back to marketplace options; runtime call sites and the normalizer both use it. Every `normalize`/`compact` call loads input and output through the real `Config` loader (new `Config.from_dicts`) and compares an `effective_view` of each, raising `NormalizeError` on any behavior difference except the one documented AI-prompt-price fix.
+**Architecture:** Pure functions over the parsed-but-unprocessed TOML dict. A shared `resolve_option` helper becomes the single definition of how item options fall back to marketplace options; runtime call sites and the normalizer both use it. Every `expand`/`normalize` call loads input and output through the real `Config` loader (new `Config.from_dicts`) and compares an `effective_view` of each, raising `NormalizeError` on any behavior difference except the one documented AI-prompt-price fix.
 
 **Tech Stack:** Python 3.10+ dataclasses, `tomllib`/`tomli`, pytest (`uv run pytest`), ruff, mypy (`uv run mypy src`).
 
@@ -15,7 +15,7 @@
 - **Prerequisite:** BoPeng/ai-marketplace-monitor#364 (Spanish translation fix + `TranslationConfig`) must be merged into `main`, and `main` merged into `config-normalize`, before Task 1.
 - Branch: `config-normalize`. Commit after every task; end each commit message with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - No file writes, no network, no `webui` imports inside `src/ai_marketplace_monitor/normalize/`.
-- `normalize`/`compact` never mutate their input dicts; raw values are copied verbatim (`"1h"` stays `"1h"`, `${VAR}` stays a placeholder).
+- `expand`/`normalize`/`compact` never mutate their input dicts; raw values are copied verbatim (`"1h"` stays `"1h"`, `${VAR}` stays a placeholder).
 - Section type order: `monitor`, `ai`, `marketplace`, `user`, `notification`, `region`, `item`, `translation`. Within a type: input order, never sorted. Within a section: `request`, `enabled`, then dataclass field order, then unknown keys in input order (for `[translation.*]`: `request`, `enabled`, `locale`, then the words in input order).
 - The only allowed effective-behavior difference: `item.<name>.ai_prompt:min_price` / `ai_prompt:max_price` may change, and only to the value the search uses.
 - Code style: every function fully annotated (ruff `ANN`), methods annotate `self: "ClassName"`, package `__init__.py` needs a docstring (ruff `D104`), line length 99. Run `uv run ruff check src tests` and `uv run mypy src` before each commit.
@@ -35,8 +35,8 @@
 | `src/ai_marketplace_monitor/normalize/effective.py` | `effective_view`, `check_equivalent` |
 | `src/ai_marketplace_monitor/normalize/notifications.py` | canonical users + `[notification.*]` |
 | `src/ai_marketplace_monitor/normalize/pushdown.py` | marketplace → item push-down, `bound_marketplace` |
-| `src/ai_marketplace_monitor/normalize/core.py` | `normalize()` orchestration |
-| `src/ai_marketplace_monitor/normalize/compact.py` | `compact()` |
+| `src/ai_marketplace_monitor/normalize/core.py` | `expand()` and `normalize()` |
+| `src/ai_marketplace_monitor/normalize/compact.py` | `compact()`, the internal second step of `normalize()` |
 | `docs/README.md`, `docs/example_config.toml`, `CHANGELOG.md` (modify) | docs, fix invalid example, changelog |
 | `tests/normalize_util.py` | shared test helpers (`parse`, `system_cfg`, `dumps`) |
 | `tests/test_config_request.py`, `tests/test_config_loading.py`, `tests/test_option_fallback.py`, `tests/test_resolve_option.py`, `tests/test_normalize_model.py`, `tests/test_normalize_effective.py`, `tests/test_normalize_notifications.py`, `tests/test_normalize_pushdown.py`, `tests/test_normalize_compact.py`, `tests/test_normalize_properties.py` | tests |
@@ -1996,7 +1996,7 @@ git commit -m "feat(normalize): canonical users and notification sections (#362)
 
 ---
 
-### Task 9: Push-down and `normalize()`
+### Task 9: Push-down and `expand()`
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/normalize/pushdown.py`, `src/ai_marketplace_monitor/normalize/core.py`
@@ -2008,7 +2008,7 @@ git commit -m "feat(normalize): canonical users and notification sections (#362)
 - Produces:
   - `bound_marketplace(item_raw: Dict[str, Any], marketplaces: Dict[str, Any]) -> str`
   - `push_down(cfg: Dict[str, Any]) -> Dict[Tuple[str, Optional[str]], str]` (in place; returns change notes)
-  - `normalize(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult`
+  - `expand(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult`
 
 - [ ] **Step 1: Write the failing push-down tests**
 
@@ -2016,7 +2016,7 @@ git commit -m "feat(normalize): canonical users and notification sections (#362)
 # tests/test_normalize_pushdown.py
 import pytest
 
-from ai_marketplace_monitor.normalize import NormalizeError, normalize
+from ai_marketplace_monitor.normalize import NormalizeError, expand
 from tests.normalize_util import parse, system_cfg
 
 USERS = """
@@ -2028,12 +2028,12 @@ pushbullet_token = "b"
 """
 
 
-def _norm(text: str) -> dict:
-    return normalize(parse(text), system_cfg()).config
+def _expand(text: str) -> dict:
+    return expand(parse(text), system_cfg()).config
 
 
 def test_common_options_move_into_items_and_lists_become_explicit() -> None:
-    cfg = _norm(USERS + """
+    cfg = _expand(USERS + """
     [ai.openai]
     api_key = "sk-test"
 
@@ -2055,17 +2055,17 @@ def test_common_options_move_into_items_and_lists_become_explicit() -> None:
 
 
 def test_no_ai_sections_means_no_ai_key() -> None:
-    cfg = _norm(USERS + '[marketplace.facebook]\nsearch_city = "houston"\n[item.bike]\nsearch_phrases = "bike"\n')
+    cfg = _expand(USERS + '[marketplace.facebook]\nsearch_city = "houston"\n[item.bike]\nsearch_phrases = "bike"\n')
     assert "ai" not in cfg["item"]["bike"]
 
 
 def test_marketplace_empty_notify_means_all_users() -> None:
-    cfg = _norm(USERS + '[marketplace.facebook]\nsearch_city = "houston"\nnotify = []\n[item.bike]\nsearch_phrases = "bike"\n')
+    cfg = _expand(USERS + '[marketplace.facebook]\nsearch_city = "houston"\nnotify = []\n[item.bike]\nsearch_phrases = "bike"\n')
     assert cfg["item"]["bike"]["notify"] == ["alice", "bob"]
 
 
 def test_truthy_rule_replaces_empty_item_value() -> None:
-    cfg = _norm(USERS + """
+    cfg = _expand(USERS + """
     [marketplace.facebook]
     search_city = "houston"
     notify = "alice"
@@ -2078,7 +2078,7 @@ def test_truthy_rule_replaces_empty_item_value() -> None:
 
 
 def test_not_none_rule_keeps_empty_item_value() -> None:
-    cfg = _norm(USERS + """
+    cfg = _expand(USERS + """
     [ai.openai]
     api_key = "sk-test"
 
@@ -2097,7 +2097,7 @@ def test_not_none_rule_keeps_empty_item_value() -> None:
 
 
 def test_marketplace_price_reaches_ai_prompt_and_is_reported() -> None:
-    result = normalize(parse(USERS + """
+    result = expand(parse(USERS + """
     [marketplace.facebook]
     search_city = "houston"
     max_price = "300"
@@ -2111,13 +2111,13 @@ def test_marketplace_price_reaches_ai_prompt_and_is_reported() -> None:
 
 
 def test_bundled_region_is_referenced_not_copied() -> None:
-    cfg = _norm(USERS + '[marketplace.facebook]\nsearch_region = "usa"\n[item.bike]\nsearch_phrases = "bike"\n')
+    cfg = _expand(USERS + '[marketplace.facebook]\nsearch_region = "usa"\n[item.bike]\nsearch_phrases = "bike"\n')
     assert cfg["item"]["bike"]["search_region"] == "usa"
     assert "region" not in cfg
 
 
 def test_item_with_own_region_gets_no_location_keys() -> None:
-    cfg = _norm(USERS + """
+    cfg = _expand(USERS + """
     [marketplace.facebook]
     search_city = "houston"
     radius = 50
@@ -2132,7 +2132,7 @@ def test_item_with_own_region_gets_no_location_keys() -> None:
 
 def test_own_city_inheriting_region_radius_raises() -> None:
     with pytest.raises(NormalizeError, match="bike"):
-        _norm(USERS + """
+        _expand(USERS + """
         [marketplace.facebook]
         search_region = "usa"
 
@@ -2143,7 +2143,7 @@ def test_own_city_inheriting_region_radius_raises() -> None:
 
 
 def test_item_binds_to_first_marketplace() -> None:
-    cfg = _norm(USERS + """
+    cfg = _expand(USERS + """
     [marketplace.facebook]
     search_city = "houston"
 
@@ -2157,7 +2157,7 @@ def test_item_binds_to_first_marketplace() -> None:
 
 
 def test_translation_passes_through() -> None:
-    cfg = _norm(USERS + """
+    cfg = _expand(USERS + """
     [marketplace.facebook]
     search_city = "houston"
 
@@ -2173,7 +2173,7 @@ def test_translation_passes_through() -> None:
 
 def test_invalid_input_raises() -> None:
     with pytest.raises(NormalizeError, match="not valid"):
-        _norm(USERS + '[marketplace.facebook]\n[item.bike]\nsearch_phrases = "bike"\n')
+        _expand(USERS + '[marketplace.facebook]\n[item.bike]\nsearch_phrases = "bike"\n')
 ```
 
 - [ ] **Step 2: Write the failing property tests**
@@ -2186,7 +2186,7 @@ from typing import Any, Dict, List
 import pytest
 
 from ai_marketplace_monitor.config import load_config_dicts
-from ai_marketplace_monitor.normalize import normalize
+from ai_marketplace_monitor.normalize import expand
 from tests.normalize_util import EXAMPLES, dumps, parse, system_cfg
 
 CASES: List[str] = [
@@ -2231,11 +2231,11 @@ def _inputs() -> List[Dict[str, Any]]:
 
 
 @pytest.mark.parametrize("user_cfg", _inputs())
-def test_normalize_is_idempotent_and_pure(user_cfg: Dict[str, Any]) -> None:
+def test_expand_is_idempotent_and_pure(user_cfg: Dict[str, Any]) -> None:
     before = copy.deepcopy(user_cfg)
-    first = normalize(user_cfg, system_cfg())
+    first = expand(user_cfg, system_cfg())
     assert user_cfg == before
-    second = normalize(first.config, system_cfg())
+    second = expand(first.config, system_cfg())
     assert second.changes == []
     assert dumps(second.config) == dumps(first.config)
 
@@ -2254,25 +2254,25 @@ def _shuffled(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 @pytest.mark.parametrize("user_cfg", _inputs())
 def test_key_order_does_not_matter(user_cfg: Dict[str, Any]) -> None:
-    a = normalize(user_cfg, system_cfg()).config
-    b = normalize(_shuffled(user_cfg), system_cfg()).config
+    a = expand(user_cfg, system_cfg()).config
+    b = expand(_shuffled(user_cfg), system_cfg()).config
     assert dumps(a) == dumps(b)
 
 
 def test_item_order_is_preserved() -> None:
-    cfg = normalize(parse(CASES[0] + '[item.alpha]\nsearch_phrases = "a"\n'), system_cfg()).config
+    cfg = expand(parse(CASES[0] + '[item.alpha]\nsearch_phrases = "a"\n'), system_cfg()).config
     assert list(cfg["item"]) == ["bike", "alpha"]
 
 
-def test_example_config_normalizes() -> None:
-    result = normalize(load_config_dicts([EXAMPLES[1]])[1], system_cfg())
+def test_example_config_expands() -> None:
+    result = expand(load_config_dicts([EXAMPLES[1]])[1], system_cfg())
     assert result.config["user"]["user1"]["notify_with"] == ["gmail", "pushbullet", "pushover"]
 ```
 
 - [ ] **Step 3: Run tests to verify they fail**
 
 Run: `uv run pytest tests/test_normalize_pushdown.py tests/test_normalize_properties.py -v`
-Expected: FAIL — `ImportError: cannot import name 'normalize'`.
+Expected: FAIL — `ImportError: cannot import name 'expand'`.
 
 - [ ] **Step 4: Implement push-down**
 
@@ -2355,11 +2355,11 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
     return notes
 ```
 
-- [ ] **Step 5: Implement `normalize()`**
+- [ ] **Step 5: Implement `expand()`**
 
 ```python
 # src/ai_marketplace_monitor/normalize/core.py
-"""normalize(): canonical, behavior-equivalent form of a user config."""
+"""expand() and normalize(): the two behavior-equivalent forms of a user config."""
 
 import copy
 from typing import Any, Dict
@@ -2371,8 +2371,8 @@ from .notifications import normalize_notifications
 from .pushdown import push_down
 
 
-def normalize(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult:
-    """Return the canonical form of a valid user config; never mutates the input."""
+def expand(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult:
+    """Return the expanded form of a valid user config (memory only); never mutates the input."""
     cfg = copy.deepcopy(user_cfg)
     try:
         loaded = Config.from_dicts(system_cfg, cfg)
@@ -2388,9 +2388,9 @@ def normalize(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> Normalize
 Update `normalize/__init__.py`:
 
 ```python
-"""Config normalization: canonical form for AI editing, compact form for people."""
+"""Config normalization: expand() for AI editing (normalize() follows in Task 10)."""
 
-from .core import normalize
+from .core import expand
 from .effective import check_equivalent, effective_view
 from .model import Change, NormalizeError, NormalizeResult
 
@@ -2400,7 +2400,7 @@ __all__ = [
     "NormalizeResult",
     "check_equivalent",
     "effective_view",
-    "normalize",
+    "expand",
 ]
 ```
 
@@ -2415,27 +2415,31 @@ Run: `uv run pytest -q && uv run ruff check src tests && uv run mypy src`
 
 ```bash
 git add src/ai_marketplace_monitor/normalize tests/test_normalize_pushdown.py tests/test_normalize_properties.py
-git commit -m "feat(normalize): push options into items and add normalize() (#362)"
+git commit -m "feat(normalize): push options into items and add expand() (#362)"
 ```
 
 ---
 
-### Task 10: `compact()`
+### Task 10: `compact()` and `normalize()`
+
+`normalize(x)` = compact(expand(x)) is the only form ever written to disk; `compact` is an internal step that never runs on its own input without `expand` first.
 
 **Files:**
 - Create: `src/ai_marketplace_monitor/normalize/compact.py`
-- Modify: `src/ai_marketplace_monitor/normalize/__init__.py`, `tests/test_normalize_properties.py`
+- Modify: `src/ai_marketplace_monitor/normalize/core.py` (add `normalize`), `src/ai_marketplace_monitor/normalize/__init__.py`, `tests/test_normalize_properties.py`
 - Test: `tests/test_normalize_compact.py`
 
 **Interfaces:**
-- Consumes: `normalize`, `check_equivalent`, `order_config`, `describe_changes`, `bound_marketplace`, `COMMON_OPTIONS`, `LOCATION_KEYS`, `AI_PROMPT_ITEM_ONLY`.
-- Produces: `compact(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult`.
+- Consumes: `expand` (Task 9), `check_equivalent`, `order_config`, `describe_changes`, `bound_marketplace`, `Notes`, `COMMON_OPTIONS`, `LOCATION_KEYS`, `AI_PROMPT_ITEM_ONLY`.
+- Produces:
+  - `compact(expanded: Dict[str, Any]) -> Tuple[Dict[str, Any], Notes]` (internal; does not mutate its input; no validation of its own)
+  - `normalize(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult` (public; changes reported relative to `user_cfg`)
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_normalize_compact.py
-from ai_marketplace_monitor.normalize import compact
+from ai_marketplace_monitor.normalize import normalize
 from tests.normalize_util import parse, system_cfg
 
 USERS = """
@@ -2444,12 +2448,12 @@ pushbullet_token = "a"
 """
 
 
-def _compact(text: str) -> dict:
-    return compact(parse(USERS + text), system_cfg()).config
+def _normalize(text: str) -> dict:
+    return normalize(parse(USERS + text), system_cfg()).config
 
 
 def test_hoists_values_shared_by_all_items() -> None:
-    cfg = _compact("""
+    cfg = _normalize("""
     [marketplace.facebook]
     search_city = "houston"
     search_interval = "1h"
@@ -2469,7 +2473,7 @@ def test_hoists_values_shared_by_all_items() -> None:
 
 
 def test_differing_values_stay_on_items() -> None:
-    cfg = _compact("""
+    cfg = _normalize("""
     [marketplace.facebook]
     search_city = "houston"
 
@@ -2485,14 +2489,33 @@ def test_differing_values_stay_on_items() -> None:
     assert cfg["item"]["b"]["search_interval"] == "2h"
 
 
+def test_hand_written_marketplace_value_moves_down_when_an_item_differs() -> None:
+    # disk always holds normalize() output, so a value shared by all but one item
+    # does not stay on the marketplace with an override
+    cfg = _normalize("""
+    [marketplace.facebook]
+    search_city = "houston"
+    search_interval = "1h"
+
+    [item.a]
+    search_phrases = "a"
+
+    [item.b]
+    search_phrases = "b"
+    search_interval = "2h"
+    """)
+    assert "search_interval" not in cfg["marketplace"]["facebook"]
+    assert cfg["item"]["a"]["search_interval"] == "1h"
+
+
 def test_single_item_is_not_hoisted() -> None:
-    cfg = _compact('[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n')
+    cfg = _normalize('[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n')
     assert cfg["marketplace"]["facebook"] == {}
     assert cfg["item"]["a"]["search_city"] == "houston"
 
 
 def test_disabled_item_blocks_hoist_when_it_differs() -> None:
-    cfg = _compact("""
+    cfg = _normalize("""
     [marketplace.facebook]
     search_city = "houston"
 
@@ -2513,7 +2536,7 @@ def test_disabled_item_blocks_hoist_when_it_differs() -> None:
 
 
 def test_prices_never_hoisted() -> None:
-    cfg = _compact("""
+    cfg = _normalize("""
     [marketplace.facebook]
     search_city = "houston"
     max_price = "300"
@@ -2529,7 +2552,7 @@ def test_prices_never_hoisted() -> None:
 
 
 def test_location_keys_hoisted_only_as_a_unit() -> None:
-    cfg = _compact("""
+    cfg = _normalize("""
     [marketplace.facebook]
     search_city = "houston"
     radius = 50
@@ -2547,7 +2570,7 @@ def test_location_keys_hoisted_only_as_a_unit() -> None:
 
 
 def test_identical_leftover_notification_sections_are_merged() -> None:
-    cfg = compact(parse("""
+    cfg = normalize(parse("""
     [marketplace.facebook]
     search_city = "houston"
 
@@ -2573,7 +2596,7 @@ def test_identical_leftover_notification_sections_are_merged() -> None:
 
 
 def test_sections_with_different_request_are_not_merged() -> None:
-    cfg = compact(parse("""
+    cfg = normalize(parse("""
     [marketplace.facebook]
     search_city = "houston"
 
@@ -2592,46 +2615,51 @@ def test_sections_with_different_request_are_not_merged() -> None:
     search_phrases = "a"
     """), system_cfg()).config
     assert set(cfg["notification"]) == {"gmail1", "gmail2"}
+
+
+def test_changes_are_relative_to_the_input() -> None:
+    text = USERS + '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n'
+    result = normalize(parse(text), system_cfg())
+    sections = {c.section for c in result.changes}
+    assert "item.a" in sections  # search_city and notify moved into the item
 ```
 
-In `tests/test_normalize_properties.py`, change the import line to `from ai_marketplace_monitor.normalize import compact, normalize` and append:
+In `tests/test_normalize_properties.py`, change the import line to `from ai_marketplace_monitor.normalize import expand, normalize` and append:
 
 ```python
 @pytest.mark.parametrize("user_cfg", _inputs())
-def test_compact_is_idempotent_pure_and_round_trips(user_cfg: Dict[str, Any]) -> None:
+def test_normalize_is_idempotent_pure_and_canonical(user_cfg: Dict[str, Any]) -> None:
     before = copy.deepcopy(user_cfg)
-    first = compact(user_cfg, system_cfg())
+    first = normalize(user_cfg, system_cfg())
     assert user_cfg == before
-    assert compact(first.config, system_cfg()).changes == []
-    renormalized = normalize(first.config, system_cfg()).config
-    assert dumps(compact(renormalized, system_cfg()).config) == dumps(first.config)
-```
+    assert normalize(first.config, system_cfg()).changes == []
+    # an untouched expanded form normalizes back to exactly what is on disk
+    expanded = expand(user_cfg, system_cfg()).config
+    assert dumps(normalize(expanded, system_cfg()).config) == dumps(first.config)
 
+
+@pytest.mark.parametrize("user_cfg", _inputs())
+def test_normalize_ignores_key_order(user_cfg: Dict[str, Any]) -> None:
+    a = normalize(user_cfg, system_cfg()).config
+    b = normalize(_shuffled(user_cfg), system_cfg()).config
+    assert dumps(a) == dumps(b)
+```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/test_normalize_compact.py -v`
-Expected: FAIL — `ImportError: cannot import name 'compact'`.
+Expected: FAIL — `ImportError: cannot import name 'normalize'`.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 3: Implement `compact`**
 
 ```python
 # src/ai_marketplace_monitor/normalize/compact.py
-"""compact(): canonical form minus repetition, for people to read and review."""
+"""Remove the repetition of the expanded form (internal step of normalize())."""
 
 import copy
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
-from .core import normalize
-from .effective import check_equivalent
-from .model import (
-    AI_PROMPT_ITEM_ONLY,
-    COMMON_OPTIONS,
-    LOCATION_KEYS,
-    NormalizeResult,
-    describe_changes,
-    order_config,
-)
+from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, LOCATION_KEYS
 from .pushdown import Notes, bound_marketplace
 
 _ABSENT = object()
@@ -2682,31 +2710,62 @@ def _merge_notifications(cfg: Dict[str, Any], notes: Notes) -> None:
             user["notify_with"] = list(dict.fromkeys(replace.get(n, n) for n in user["notify_with"]))
 
 
-def compact(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult:
-    """Return the compact form of a valid user config; never mutates the input."""
-    cfg = copy.deepcopy(normalize(user_cfg, system_cfg).config)
+def compact(expanded: Dict[str, Any]) -> Tuple[Dict[str, Any], Notes]:
+    """Hoist values shared by all items of a marketplace and merge identical sections."""
+    cfg = copy.deepcopy(expanded)
     notes: Notes = {}
     _hoist(cfg, notes)
     _merge_notifications(cfg, notes)
-    result = order_config(cfg)
+    return cfg, notes
+```
+
+- [ ] **Step 4: Implement `normalize`**
+
+Append to `src/ai_marketplace_monitor/normalize/core.py` (add `from .compact import compact` to its imports):
+
+```python
+def normalize(user_cfg: Dict[str, Any], system_cfg: Dict[str, Any]) -> NormalizeResult:
+    """compact(expand(x)): the only form ever written to disk; never mutates the input."""
+    compacted, notes = compact(expand(user_cfg, system_cfg).config)
+    result = order_config(compacted)
     check_equivalent(system_cfg, user_cfg, result)
     return NormalizeResult(result, describe_changes(user_cfg, result, notes))
 ```
 
-Update `normalize/__init__.py` to add `from .compact import compact` and `"compact"` to `__all__`.
+Change notes from the expand step are not carried over: `describe_changes` compares the original input with the final output, and keys that were pushed into items and hoisted straight back show no change.
 
-- [ ] **Step 4: Run tests**
+Update `normalize/__init__.py`:
+
+```python
+"""Config normalization: expand() for AI editing, normalize() for what is written to disk."""
+
+from .core import expand, normalize
+from .effective import check_equivalent, effective_view
+from .model import Change, NormalizeError, NormalizeResult
+
+__all__ = [
+    "Change",
+    "NormalizeError",
+    "NormalizeResult",
+    "check_equivalent",
+    "effective_view",
+    "expand",
+    "normalize",
+]
+```
+
+- [ ] **Step 5: Run tests**
 
 Run: `uv run pytest tests/test_normalize_compact.py tests/test_normalize_properties.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Static checks and commit**
+- [ ] **Step 6: Static checks and commit**
 
 Run: `uv run pytest -q && uv run ruff check src tests && uv run mypy src`
 
 ```bash
 git add src/ai_marketplace_monitor/normalize tests/test_normalize_compact.py tests/test_normalize_properties.py
-git commit -m "feat(normalize): add compact() (#362)"
+git commit -m "feat(normalize): add normalize() = compact(expand()) (#362)"
 ```
 
 ---
@@ -2734,7 +2793,7 @@ Expected: all tests pass; no lint or type errors.
 Then, a manual smoke check against the real loader:
 
 ```bash
-uv run python -c "from ai_marketplace_monitor.config import load_config_dicts; from ai_marketplace_monitor.normalize import normalize, compact; from pathlib import Path; s,u=load_config_dicts([Path('docs/example_config.toml')]); print(normalize(u,s).config); print(compact(u,s).config)"
+uv run python -c "from ai_marketplace_monitor.config import load_config_dicts; from ai_marketplace_monitor.normalize import expand, normalize; from pathlib import Path; s,u=load_config_dicts([Path('docs/example_config.toml')]); print(expand(u,s).config); print(normalize(u,s).config)"
 ```
 
 Expected: two dicts printed, no exception; `user1` has `notify_with = ['gmail', 'pushbullet', 'pushover']`.
