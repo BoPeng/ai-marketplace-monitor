@@ -264,7 +264,7 @@ Instead of the HTTP API, you can send aimm's regular email notifications through
     email = 'me@example.com'
     notify_with = 'unitysvc_email'
 
-- ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To use another UnitySVC email service, such as an email relay, set ``smtp_username`` to the SMTP username shown on that service's catalog page, or to ``a/<alias>`` for one of your aliases.
+- ``smtp_username`` is usually ``notify``, which delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. It can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases.
 - Set ``smtp_from`` to an email address; otherwise aimm would use the SMTP username as the sender address. ``email`` is still required by the email backend, so set it to the address you want in the ``To`` header.
 
 AI Prompt Customization
