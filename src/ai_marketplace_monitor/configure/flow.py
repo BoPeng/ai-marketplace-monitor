@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List
 
-from .ai_setup import configure_ai, load_ai_sections, probe_sections
+from ..ai import AIBackend
+from ..config import supported_ai_backends
+from .ai_setup import AISection, configure_ai, load_ai_sections, probe_sections
 from .ui import Choice, SetupClosedError, SetupUI
 from .writer import ConfigReadError
 
@@ -45,17 +47,29 @@ def validate_section_address(section: str) -> None:
 
 async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
     """Return true when an enabled AI section works, checking them in order (first = default)."""
+    return await _first_usable_ai(ui, config_files) is not None
+
+
+async def find_usable_ai(ui: SetupUI, config_files: List[Path]) -> AIBackend | None:
+    """The backend of the AI section aimm would use (the default, or the first that works)."""
+    section = await _first_usable_ai(ui, config_files)
+    if section is None or section.config is None:
+        return None
+    return supported_ai_backends[section.provider](config=section.config)
+
+
+async def _first_usable_ai(ui: SetupUI, config_files: List[Path]) -> AISection | None:
     try:
         sections = [section for section in load_ai_sections(config_files) if section.enabled]
     except ConfigReadError as e:
         await ui.say(str(e), kind="error")
-        return False
+        return None
     if not sections:
         await ui.say(
             "Configure a working AI service first with `aimm-configure ai`.",
             kind="error",
         )
-        return False
+        return None
 
     # aimm uses the first AI section; check the others only if it does not work
     for index, section in enumerate(sections):
@@ -69,14 +83,14 @@ async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
                     kind="warning",
                 )
             await ui.say(f"Using [ai.{section.name}] ({result.model}).", kind="success")
-            return True
+            return section
         await ui.say(f"[ai.{section.name}] - {result.message}", kind="warning")
 
     await ui.say(
         "No usable AI service is available; run `aimm-configure ai` first.",
         kind="error",
     )
-    return False
+    return None
 
 
 async def configure_section(

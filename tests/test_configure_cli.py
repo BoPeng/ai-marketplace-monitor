@@ -175,3 +175,27 @@ async def test_require_usable_ai_checks_the_default_first(
     assert seen == checked
     fallback = any("Your default AI [ai.first] does not work" in m for m in ui.said("warning"))
     assert fallback is not first_ok
+
+
+async def test_find_usable_ai_returns_backend_of_first_working_section(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_marketplace_monitor.ai import UnitySVCBackend, UnitySVCConfig
+    from ai_marketplace_monitor.configure.ai_setup import AISection, ProbeResult
+
+    good = AISection(
+        "unitysvc", {"api_key": "x"}, [], config=UnitySVCConfig(name="unitysvc", api_key="x")
+    )
+    bad = AISection("openai", {}, [], problem="no key")
+    monkeypatch.setattr(flow, "load_ai_sections", lambda files: [bad, good])
+
+    async def probe(batch: List[Any]) -> List[ProbeResult]:
+        ok = batch[0].name == "unitysvc"
+        return [ProbeResult(ok, "request", "balanced", "" if ok else "no key")]
+
+    monkeypatch.setattr(flow, "probe_sections", probe)
+    ui = ScriptedSetupUI([])
+    backend = await flow.find_usable_ai(ui, [])
+    assert isinstance(backend, UnitySVCBackend)
+    assert backend.config.name == "unitysvc"
+    assert "Using [ai.unitysvc] (balanced)." in ui.said("success")
