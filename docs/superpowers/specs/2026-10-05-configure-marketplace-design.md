@@ -28,6 +28,19 @@ Decisions made while designing:
 | Shared fields with existing items | Items without their own value inherit the new marketplace value; items with their own value keep it. The marketplace builder never edits items (revised: an "apply to every item" option was removed after it changed an item the user meant to keep) |
 | Write path | Only the changed sections, edited key by key in place (tomlkit) in the file that defines each; comments and other sections untouched. Revised after a live run: the earlier whole-file normalized rewrite moved settings in unrelated sections and dropped comments |
 
+## The pattern for every section builder
+
+Each `aimm-configure` subcommand modifies **one** existing section or creates one new section, and
+nothing else:
+
+- **Writes:** only `[<type>.<name>]`, edited in place in the file that defines it.
+  `commit_sections(..., only=[(type, name)])` refuses a result that differs anywhere else, so a
+  builder cannot change another part of the config even by mistake.
+- **LLM input:** only that section (empty for a new one) and the names it may use as values
+  (e.g. users for `notify`); never other sections' contents. This keeps the conversation focused.
+- aimm itself (not the LLM) may read other sections to validate the result and to inform the
+  user (e.g. which items keep their own values).
+
 ## Goals and non-goals
 
 Goals:
@@ -297,8 +310,8 @@ Each round is one LLM turn, `llm.run_turn(ai, instructions, situation, history)`
   rules, and the field-guide table grouped by `FieldGroup`.
 - **Situation** (rebuilt every turn): new or existing; the current draft (secrets masked) and its
   `request`; what is still required (`missing()`); the context (names of users, AI services,
-  regions, translations, and this marketplace's items). The LLM is given only this section and
-  names, never other sections' values.
+  regions, translations): the values it may reference. The LLM is given only this section and
+  those names, never other sections' contents.
 - **History:** previous LLM messages and user replies, in order.
 
 The reply (`action`, `message`, `request`, `values`, `unset`) is parsed and the candidate draft validated (`validate()`: the

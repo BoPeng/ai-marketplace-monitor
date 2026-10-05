@@ -281,8 +281,14 @@ class SectionBuilder:
             # only the AI's summary changed; nothing the user asked for
             await ui.say("Nothing changed; your config is left as it is.", kind="success")
             return 0
+        # a builder changes its own section only; commit_sections refuses anything else
         outcome = await commit_sections(
-            ui, self.apply(ctx, draft), ctx.user_cfg, ctx.files, ctx.backup_dir
+            ui,
+            self.apply(ctx, draft),
+            ctx.user_cfg,
+            ctx.files,
+            ctx.backup_dir,
+            only=[(self.section_type, draft.name)],
         )
         if outcome is CommitOutcome.WRITTEN:
             return 0

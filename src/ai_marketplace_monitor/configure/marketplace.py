@@ -265,6 +265,8 @@ class MarketplaceBuilder(SectionBuilder):
     def context(
         self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
     ) -> Dict[str, Any]:
+        """Names the LLM may use as values; nothing else of the config is shown to it."""
+
         def names(section: str, *cfgs: Dict[str, Any]) -> List[str]:
             return list(dict.fromkeys(n for cfg in cfgs for n in cfg.get(section, {})))
 
@@ -273,10 +275,6 @@ class MarketplaceBuilder(SectionBuilder):
             "ai_services": names("ai", ctx.user_cfg),
             "regions": names("region", ctx.system_cfg, ctx.user_cfg),
             "translations": names("translation", ctx.system_cfg, ctx.user_cfg),
-            "other_marketplaces": [
-                n for n in ctx.user_cfg.get("marketplace", {}) if n != draft.name
-            ],
-            "items_of_this_marketplace": list(self.items(ctx.user_cfg, draft.name)),
         }
 
     # --- checks ----------------------------------------------------------------------------

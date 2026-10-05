@@ -459,7 +459,8 @@ def test_llm_sees_only_the_marketplace_section_and_names(tmp_path: Path) -> None
     prompt = llm.build_messages(B, ctx, draft, [], [])[1]["content"]
     assert '"search_city": "houston"' in prompt
     assert "dallas" not in prompt and "pushbullet_token" not in prompt and "abc" not in prompt
-    assert '"items_of_this_marketplace": [\n      "bike",' in prompt
+    assert "bike" not in prompt and "sofa" not in prompt  # no items, not even names
+    assert '"users": [\n      "me"' in prompt  # names the section may reference
 
 
 async def test_city_name_is_not_added_to_an_existing_city(tmp_path: Path) -> None:
@@ -477,3 +478,17 @@ async def test_city_name_is_not_added_to_an_existing_city(tmp_path: Path) -> Non
     draft = B.view(ctx, "facebook")
     draft.values = {"search_city": ["austin"], "city_name": ["Austin"]}
     assert B.validate(ctx, draft) == []  # a new city may bring its name
+
+
+async def test_builder_writes_refuse_other_sections(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.writer import CommitOutcome, commit_sections
+
+    ctx = make_ctx(tmp_path, ITEMS)
+    new = B.apply(ctx, B.view(ctx, "facebook"))
+    new["item"]["bike"]["max_price"] = "1"  # a change outside the builder's section
+    ui = ScriptedSetupUI([])
+    outcome = await commit_sections(
+        ui, new, ctx.user_cfg, ctx.files, ctx.backup_dir, only=[("marketplace", "facebook")]
+    )
+    assert outcome is CommitOutcome.FAILED
+    assert "Refusing to write" in ui.said("error")[0] and "[item.bike]" in ui.said("error")[0]

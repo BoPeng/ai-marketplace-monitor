@@ -45,8 +45,8 @@ Start from its `request` and values; find out what the user wants to change; kee
 ### Items
 
 This section never changes items. A marketplace value is a default: items without their own
-value use it, and items with their own value keep it. You only see this marketplace's section and
-the names of its items; do not discuss or offer to change items' own values. If the user wants to
+value use it, and items with their own value keep it. You do not see items; do not discuss or
+offer to change their values. If the user wants to
 change an item, tell them this only sets marketplace defaults; an item's own values are changed in
 that item's section.
 

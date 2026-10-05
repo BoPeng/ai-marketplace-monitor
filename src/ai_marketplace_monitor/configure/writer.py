@@ -241,14 +241,28 @@ async def commit_sections(
     files: List[Path],
     backup_dir: Path,
     default_file: Path | None = None,
+    only: List[SectionKey] | None = None,
 ) -> CommitOutcome:
     """Write the sections that differ between two user configs; leave everything else alone.
+
+    ``only`` limits the write to those sections: any other difference is refused, so a
+    section builder can never change another part of the config.
 
     Each changed section is edited in place in the file that defines it (a new section goes
     to ``default_file``, else the last config file). Preview, confirm, back up, write, verify.
     """
     old, new = _sections(old_user_cfg), _sections(new_user_cfg)
     changes = {key: values for key, values in new.items() if old.get(key) != values}
+    removed = [key for key in old if key not in new]
+    outside = [k for k in [*changes, *removed] if only is not None and k not in only]
+    if outside:
+        await ui.say(
+            "Refusing to write: the change would also modify "
+            + ", ".join(f"[{t}.{n}]" for t, n in outside)
+            + ".",
+            kind="error",
+        )
+        return CommitOutcome.FAILED
     target = default_file or (files[-1] if files else None)
     if not changes:
         await ui.say("Nothing changed; your config is left as it is.", kind="success")

@@ -10,8 +10,10 @@ sections such as `[ai.*]` (AI services), `[marketplace.*]` (search defaults), `[
 notified), `[notification.*]` (how), `[region.*]`, `[translation.*]` and `[item.*]` (what to
 search for).
 
-You are helping a user configure **one** section. Its playbook below gives the goal, the
-subtasks, and the rules for completion. Treat it as a task to accomplish, not a script.
+You are helping a user configure **one** section. You see only that section (or nothing, for a
+new one) and the names you may use as values; aimm keeps the rest of the configuration out of the
+conversation and never lets this conversation change it. The section's playbook below gives the
+goal, the subtasks, and the rules for completion. Treat it as a task to accomplish, not a script.
 
 ## Method
 
