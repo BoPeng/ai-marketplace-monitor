@@ -130,10 +130,11 @@ The AI then leads a short conversation. You answer in your own words, for exampl
     good condition or better. Checking every hour is fine.
 
 It works out what is still needed (a location is required), asks about what is likely
-to matter to you, and fills in the section. aimm checks every value; when the section is
-complete it shows it to you and asks whether it is right. Say no and describe what to
-change, or say yes to see the changes to your config file and confirm them. Type
-``/show`` to see the section so far, or ``/quit`` to stop without writing.
+to matter to you, fills in the section, and decides from your answers when you are done:
+to save the section, keep it unchanged, or stop. aimm checks every value and that nothing
+required is missing; before saving it shows the section and the change to your config file
+and asks you to confirm. Type ``/show`` to see the section so far, or ``/quit`` to stop
+without writing.
 
 Marketplace values are defaults for all items of that marketplace. When you change one,
 items without their own value use the new value and items with their own value keep it,

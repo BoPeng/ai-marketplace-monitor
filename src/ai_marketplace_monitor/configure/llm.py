@@ -9,7 +9,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, List
 
 from .ai_setup import run_in_daemon_thread, scrub
-from .sections import SectionDraft, TurnError, TurnResult, is_reference
+from .sections import ACTIONS, SectionDraft, TurnError, TurnResult, is_reference
 
 if TYPE_CHECKING:
     from .sections import BuilderContext, SectionBuilder
@@ -100,6 +100,8 @@ def merge_reply(
             problems.append(f"`{key}` is not a field of this section.")
         elif builder.guide(key).secret and not is_reference(value):
             problems.append(f"`{key}` is secret: only a ${{VAR}} reference may be set.")
+        elif key in draft.values and builder.same_value(key, draft.values[key], value):
+            continue  # the same value in another form: keep the user's own form
         else:
             new.values[key] = value
     for key in unset:
@@ -156,11 +158,15 @@ async def run_turn(
         errors += builder.validate(ctx, candidate) if not errors else []
         if errors:
             continue
+        action = reply.get("action", "ask")
+        if action not in ACTIONS:
+            errors = [f"`action` must be one of {', '.join(ACTIONS)}."]
+            continue
         message = reply.get("message")
         return TurnResult(
             draft=candidate,
             message=message.strip() if isinstance(message, str) and message.strip() else "",
-            complete=reply.get("complete") is True,
+            action=action,
         )
     raise TurnError(
         "The AI couldn't turn that into a valid section"

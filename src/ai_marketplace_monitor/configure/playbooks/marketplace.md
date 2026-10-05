@@ -16,7 +16,8 @@ marketplace itself.
 Where to search. Infer the city and how far to search from what the user says; ask only if no
 place is mentioned. `search_city` is the city's slug in Facebook's URL
 (`facebook.com/marketplace/<slug>/`), usually the city name in lowercase without spaces, e.g.
-`houston`, `sanfrancisco`, `nyc`; add `city_name` with the readable name. `radius` is the search
+`houston`, `sanfrancisco`, `nyc`. When you set a new city, also set `city_name` with its readable
+name; leave an existing city as it is. `radius` is the search
 distance. A whole country or area maps to a defined region (`search_region`), which replaces the
 city settings; only use region names from the context.
 

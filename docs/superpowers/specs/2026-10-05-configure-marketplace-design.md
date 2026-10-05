@@ -24,7 +24,7 @@ Decisions made while designing:
 | Field facts | Each field's group (own / shared with items / location) comes from dataclass metadata; field guides add only human guidance |
 | LLM protocol | Structured JSON turns, validated by aimm; provider-agnostic, no tool calling |
 | Start | aimm (not the LLM) shows existing marketplaces with their `request` and settings, and asks whether to update one or create a new one |
-| Conversation | The LLM gets a task (complete the section: required fields first, then optional fields the user cares about), decides what is missing and what to ask, and writes every message; aimm validates, enforces completeness, and asks the user to confirm the finished section |
+| Conversation | The LLM gets a task (complete the section: required fields first, then optional fields the user cares about), decides what is missing and what to ask, writes every message, and decides how the conversation ends (`ask` / `save` / `no_change` / `cancel`); aimm validates, enforces completeness, and asks the user to confirm the file change |
 | Shared fields with existing items | Items without their own value inherit the new marketplace value; items with their own value keep it (inheritance does this; items are edited only for "apply to every item") |
 | Write path | Only the changed sections, edited key by key in place (tomlkit) in the file that defines each; comments and other sections untouched. Revised after a live run: the earlier whole-file normalized rewrite moved settings in unrelated sections and dropped comments |
 
@@ -92,7 +92,7 @@ class SectionDraft:
 class TurnResult:
     draft: SectionDraft
     message: str                           # what the LLM says to the user (questions included)
-    complete: bool                         # the LLM considers the section done
+    action: str                            # "ask" | "save" | "no_change" | "cancel", by the LLM
 
 
 class SectionBuilder:
@@ -192,13 +192,14 @@ config>
   choices. Do not walk through fields one by one.
 - Set every value you can infer from what the user said; do not ask about what you can infer.
 - Reply only with one JSON object:
-  `{"message": str, "request": str, "values": {field: value}, "unset": [field],
-  "complete": bool}`. `message` is shown to the user as is: your questions, or a short summary of
-  what you set and why.
+  `{"action": "ask" | "save" | "no_change" | "cancel", "message": str, "request": str,
+  "values": {field: value}, "unset": [field]}`. `message` is shown to the user as is: your
+  question, or a short summary of the section.
 - `request` is a one- or two-sentence summary of everything the user has asked for so far, in the
   user's terms. Never a transcript.
-- Set `complete: true` when nothing required is missing and the user has no open requests. aimm
-  checks completeness itself and shows the section to the user for confirmation.
+- You decide how the conversation continues from what the user says: `ask` for more, `save`
+  when the section is complete and the user is happy, `no_change` to keep it, `cancel` to stop.
+  aimm checks completeness itself before saving, and asks the user to confirm the file change.
 - Never invent, ask for, or repeat secrets. Fields marked secret may only be set to a `${VAR}`
   reference, and only when the user asks.
 - Only reference names listed in the context (users, AI services, regions, translations).
@@ -300,29 +301,24 @@ Each round is one LLM turn, `llm.run_turn(ai, instructions, situation, history)`
   regions, translations, and this marketplace's items); SHARED fields that vary across items.
 - **History:** previous LLM messages and user replies, in order.
 
-The reply (`message`, `request`, `values`, `unset`, `complete`, and for marketplaces an optional
+The reply (`action`, `message`, `request`, `values`, `unset`, and for marketplaces an optional
 `apply_to_all_items: [field]`) is parsed and the candidate draft validated (`validate()`: the
-config class loads it, referenced names exist, secret fields hold only `${VAR}` references). Bad
-JSON or validation errors go back to the LLM, up to 2 retries; if it still fails the user is told
-"I couldn't turn that into a valid section; please try saying it differently" and the draft is
-unchanged.
+config class loads it, referenced names exist, secret fields hold only `${VAR}` references, the
+whole config still loads). Bad JSON, an unknown `action` or validation errors go back to the LLM,
+up to 2 retries; if it still fails the user is told "I couldn't turn that into a valid section;
+please try saying it differently" and the draft is unchanged.
 
-Then:
+**The LLM decides how the conversation continues** through `action`; aimm only carries it out,
+and never interprets the user's words itself. Every user reply goes to the LLM.
 
-1. **The LLM is not done** (`complete` false, or `missing()` not empty): show `message` and read
-   the user's reply (`ui.ask_text`); the reply goes into the history; next turn. If the LLM claims
-   `complete` while `missing()` is not empty, aimm tells the LLM what is missing in the next turn
-   instead of showing a review.
-2. **The section is complete** (`complete` true and `missing()` empty): show `message`, then the
-   section (`describe()`: `request` + TOML, and which items would change), and ask
-   "Is this right?" (`ui.confirm`, default yes).
-   - Yes: `apply()`, then commit (section 4).
-   - No: ask "What would you like to change?" and continue the conversation with the answer.
-3. A declined write returns to step 2's question.
+| `action` | aimm does |
+|---|---|
+| `ask` | show `message` (the question), read the reply, next turn |
+| `save` | if `missing()` is not empty, tell the LLM what is missing (next turn, no user prompt); otherwise show `message` and the section (`describe()`), then `commit_sections` (diff and one "Write these changes?" confirmation). Declined: ask "What would you like to change?" and continue |
+| `no_change`, `cancel` | show `message`, write nothing, exit 0 |
 
-The first turn is the LLM's: for a new section it opens the conversation itself (introducing what
-a marketplace controls in a sentence or two and asking its first questions); for an existing one
-it starts from the `request` and values and asks what to change.
+For a new section the first turn is the LLM's: it opens the conversation itself; for an existing
+one it starts from the `request` and values and asks what to change.
 
 Commands in any reply: `/show` displays the current draft, `/quit` (or Ctrl-C) exits 0 without
 writing. After 15 LLM turns aimm stops calling the LLM: it shows the draft and offers to save it
@@ -400,7 +396,7 @@ The section-4A normalize changes (item-less marketplaces keep options; `partial=
 - `run_turn`: JSON parsing, validation errors fed back, retry limit, secrets masked in the
   prompt, secret fields set to non-`${VAR}` values dropped.
 - Completeness: `missing()` for no location / shared location / per-item locations; an LLM
-  `complete` claim with missing fields does not reach the review.
+  `save` with missing fields goes back to the LLM, not to the user.
 - Start: existing marketplaces listed with `request` and settings; choose existing / new / quit.
 - `apply`: no items; items all inheriting; an item with its own value; a varying field; location
   keys as a group.

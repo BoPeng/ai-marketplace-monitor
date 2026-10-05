@@ -230,7 +230,7 @@ async def test_configure_marketplace_end_to_end(
             reply(
                 "Searching Austin within 25 miles.",
                 {"search_city": ["austin"], "radius": [25]},
-                complete=True,
+                action="save",
                 request="Search around Austin within 25 miles.",
             )
         ]

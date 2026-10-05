@@ -171,10 +171,10 @@ def test_secrets_are_masked(tmp_path: Path) -> None:
 
 # --- run_turn ----------------------------------------------------------------------------------
 async def test_run_turn_parses_fenced_json_and_merges(tmp_path: Path) -> None:
-    text = '```json\n{"message": "Set Houston.", "request": "Houston", "values": {"search_city": ["houston"]}, "complete": true}\n```'
+    text = '```json\n{"message": "Set Houston.", "request": "Houston", "values": {"search_city": ["houston"]}, "action": "save"}\n```'
     ctx = make_ctx(tmp_path, BASE, [text])
     result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
-    assert result.complete and result.message == "Set Houston."
+    assert result.action == "save" and result.message == "Set Houston."
     assert result.draft.values == {"search_city": ["houston"]}
     assert result.draft.request == "Houston"
     system = ctx.ai.calls[0][0]["content"]  # type: ignore[attr-defined]
@@ -237,12 +237,12 @@ async def test_new_marketplace_conversation_writes_normalized_file(tmp_path: Pat
                     "radius": [40],
                     "condition": ["used_like_new", "used_good"],
                 },
-                complete=True,
+                action="save",
                 request="Search around Houston within 40 miles for good used items.",
             ),
         ],
     )
-    ui = ScriptedSetupUI(["Houston, about 40 miles, good used stuff", "yes", "yes"])
+    ui = ScriptedSetupUI(["Houston, about 40 miles, good used stuff", "yes"])
     assert await B.converse(ui, ctx, None) == 0
 
     written = tomllib.loads(ctx.files[0].read_text())
@@ -253,19 +253,19 @@ async def test_new_marketplace_conversation_writes_normalized_file(tmp_path: Pat
         "condition": ["used_like_new", "used_good"],
     }
     assert written["ai"]["unitysvc"]["api_key"] == "svcpass_testkey"
-    assert ui.questions == ["You", "Is this right?", "Write these changes?"]
+    assert ui.questions == ["You", "Write these changes?"]
     assert any("No marketplace is configured yet" in m for m in ui.said())
     # the user's words reached the LLM
     assert "Houston, about 40 miles" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
     assert list((tmp_path / "backups").iterdir())
 
 
-async def test_complete_claim_with_missing_location_goes_back_to_the_llm(tmp_path: Path) -> None:
+async def test_save_with_missing_location_goes_back_to_the_llm(tmp_path: Path) -> None:
     ctx = make_ctx(
         tmp_path,
         BASE,
         [
-            reply("All set!", {"condition": ["new"]}, complete=True),
+            reply("All set!", {"condition": ["new"]}, action="save"),
             reply("Which city?"),
         ],
     )
@@ -276,27 +276,25 @@ async def test_complete_claim_with_missing_location_goes_back_to_the_llm(tmp_pat
     assert ui.questions == ["You"]  # no review was shown
 
 
-async def test_existing_marketplace_no_at_review_then_change(tmp_path: Path) -> None:
+async def test_existing_marketplace_change_then_declined_write(tmp_path: Path) -> None:
     ctx = make_ctx(
         tmp_path,
         BASE + '\n[marketplace.facebook]\nrequest = "Houston"\nsearch_city = "houston"\n',
         [
-            reply("Anything to change?", complete=True, request="Houston"),
+            reply("Anything to change?", request="Houston"),
             reply(
                 "Now shipping too.",
                 {"delivery_method": ["all"]},
-                complete=True,
+                action="save",
                 request="Houston, ship or pick up",
             ),
         ],
     )
-    ui = ScriptedSetupUI(["facebook", "no", "include shipping", "yes", "no", "/quit"])
+    ui = ScriptedSetupUI(["facebook", "include shipping", "no", "/quit"])
     assert await B.converse(ui, ctx, None) == 0
     assert ui.questions == [
         "Update one of these, or create a new marketplace?",
-        "Is this right?",
-        "What would you like to change?",
-        "Is this right?",
+        "You",
         "Write these changes?",
         "What would you like to change?",
     ]
@@ -338,21 +336,44 @@ max_price = 300
 )
 
 
-async def test_no_means_done_when_the_section_is_complete(tmp_path: Path) -> None:
-    ctx = make_ctx(tmp_path, ONE_ITEM, [reply("You search Houston. Anything to change?")])
+async def test_no_goes_to_the_llm_which_decides_to_keep_the_section(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path,
+        ONE_ITEM,
+        [
+            reply("You search Houston. Anything to change?"),
+            reply("Okay, I'll keep it as it is.", action="no_change"),
+        ],
+    )
     before = ctx.files[0].read_text()
-    ui = ScriptedSetupUI(["facebook", "no", "yes"])
+    ui = ScriptedSetupUI(["facebook", "no"])
     assert await B.converse(ui, ctx, None) == 0
-    assert len(ctx.ai.calls) == 1  # type: ignore[attr-defined]  # "no" skipped the AI
-    assert ui.questions == [
-        "Update one of these, or create a new marketplace?",
-        "You",
-        "Is this right?",
-    ]
+    assert len(ctx.ai.calls) == 2  # type: ignore[attr-defined]  # "no" went to the AI
+    assert "User: no" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
+    assert ui.questions == ["Update one of these, or create a new marketplace?", "You"]
+    assert "Okay, I'll keep it as it is." in ui.said()
+    assert "Nothing was written." in ui.said("success")
+    assert ui.said("progress") == ["Thinking...", "Thinking..."]
+    assert ctx.ai.timeouts == [llm.TURN_TIMEOUT, llm.TURN_TIMEOUT]  # type: ignore[attr-defined]
+    assert ctx.files[0].read_text() == before
+
+
+async def test_save_without_changes_writes_nothing(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path, ONE_ITEM, [reply("Saving as is.", action="save", request="new summary")]
+    )
+    before = ctx.files[0].read_text()
+    ui = ScriptedSetupUI(["facebook"])
+    assert await B.converse(ui, ctx, None) == 0
     assert "Nothing changed; your config is left as it is." in ui.said("success")
     assert ctx.files[0].read_text() == before
-    assert ui.said("progress") == ["Thinking..."]
-    assert ctx.ai.timeouts == [llm.TURN_TIMEOUT]  # type: ignore[attr-defined]
+
+
+async def test_unknown_action_is_sent_back(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, BASE, [reply(action="finish"), reply("Which city?")])
+    result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
+    assert result.action == "ask"
+    assert "`action` must be one of" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
 
 
 async def test_no_still_goes_to_the_ai_while_something_is_missing(tmp_path: Path) -> None:
@@ -399,3 +420,13 @@ async def test_service_failure_offers_retry_with_the_same_message(tmp_path: Path
     assert "Press Enter to try again, or type something else (/quit to stop)" in ui.questions
     last = ctx.ai.calls[-1][1]["content"]  # type: ignore[attr-defined]
     assert last.count("User: Austin") == 1 and "User: \n" not in last
+
+
+async def test_same_value_in_another_form_is_not_a_change(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path, ONE_ITEM, [reply("Saving.", {"search_city": ["houston"]}, action="save")]
+    )
+    result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
+    assert result.draft.values == {"search_city": "houston"}  # the user's own form is kept
+    assert B.same_value("search_city", "austin", ["austin"])
+    assert not B.same_value("search_city", "austin", ["dallas"])

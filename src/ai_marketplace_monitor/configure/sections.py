@@ -8,6 +8,7 @@ confirms the finished section before it is written.
 from __future__ import annotations
 
 import copy
+import warnings
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from pathlib import Path
@@ -24,22 +25,6 @@ if TYPE_CHECKING:
 
 # dataclass fields that are never configured through a builder
 _NOT_CONFIGURED = {"name", "request", "monitor_config"}
-# replies that mean "nothing to change": with a complete section, go straight to review
-_DONE_REPLIES = {
-    "no",
-    "nope",
-    "nothing",
-    "none",
-    "no thanks",
-    "no, thanks",
-    "nothing else",
-    "that's all",
-    "thats all",
-    "that's it",
-    "all good",
-    "looks good",
-    "done",
-}
 
 
 class FieldGroup(Enum):
@@ -78,7 +63,11 @@ class SectionDraft:
 class TurnResult:
     draft: SectionDraft
     message: str
-    complete: bool
+    action: str  # one of ACTIONS, decided by the LLM
+
+
+# what the LLM asks aimm to do after a turn
+ACTIONS = ("ask", "save", "no_change", "cancel")
 
 
 class TurnError(Exception):
@@ -160,6 +149,21 @@ class SectionBuilder:
             out.append("")
         return "\n".join(out)
 
+    def same_value(self: "SectionBuilder", key: str, old: Any, new: Any) -> bool:
+        """Whether two raw values load to the same thing (e.g. ``"x"`` and ``["x"]``)."""
+        if old == new:
+            return True
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                loaded = [
+                    getattr(self.config_class(name="_", **{key: v}), key)  # type: ignore[call-arg]
+                    for v in (old, new)
+                ]
+        except Exception:
+            return False
+        return loaded[0] == loaded[1]
+
     def masked(self: "SectionBuilder", values: Dict[str, Any]) -> Dict[str, Any]:
         """Values safe to show the LLM: secret fields only as ``${VAR}`` references."""
         out = {}
@@ -219,22 +223,6 @@ class SectionBuilder:
             history: List[Exchange] = []
             feedback: List[str] = []
             for _ in range(self.max_turns):
-                if (
-                    history
-                    and history[-1].role == "user"
-                    and history[-1].text.strip().lower().rstrip(".!") in _DONE_REPLIES
-                    and not self.missing(ctx, draft)
-                    and not self.validate(ctx, draft)
-                ):
-                    # the user has nothing to add; skip the AI and show the section
-                    code = await self._review(ui, ctx, draft)
-                    if code is not None:
-                        return code
-                    reply = await self._reply(ui, ctx, draft, "What would you like to change?")
-                    if reply is None:
-                        return 0
-                    history.append(Exchange("user", reply))
-                    continue
                 await ui.say("Thinking...", kind="progress")
                 try:
                     result = await self.run_turn(ctx, draft, history, feedback)
@@ -254,18 +242,22 @@ class SectionBuilder:
                     continue
                 draft = result.draft
                 history.append(Exchange("assistant", result.message))
-                missing = self.missing(ctx, draft)
-                if result.complete and missing:
-                    # the LLM thinks it is done; tell it what is still required instead
-                    feedback = [f"Still required: {m}" for m in missing]
-                    continue
                 feedback = []
-                if result.complete:
+                if result.action == "save":
+                    missing = self.missing(ctx, draft)
+                    if missing:
+                        # aimm decides completeness: send the LLM back, not the user
+                        feedback = [f"Cannot save yet. Still required: {m}" for m in missing]
+                        continue
                     await ui.say(result.message)
-                    code = await self._review(ui, ctx, draft)
+                    code = await self._save(ui, ctx, draft)
                     if code is not None:
                         return code
                     reply = await self._reply(ui, ctx, draft, "What would you like to change?")
+                elif result.action in ("no_change", "cancel"):
+                    await ui.say(result.message)
+                    await ui.say("Nothing was written.", kind="success")
+                    return 0
                 else:
                     await ui.say(result.message)
                     reply = await self._reply(ui, ctx, draft, "You")
@@ -274,20 +266,18 @@ class SectionBuilder:
                 history.append(Exchange("user", reply))
             await ui.say(f"Stopping after {self.max_turns} turns with the AI.", kind="warning")
             if not self.missing(ctx, draft) and not self.validate(ctx, draft):
-                code = await self._review(ui, ctx, draft)
+                code = await self._save(ui, ctx, draft)
                 if code is not None:
                     return code
             return 0
         except SetupClosedError:
             return 0
 
-    async def _review(
+    async def _save(
         self: "SectionBuilder", ui: SetupUI, ctx: BuilderContext, draft: SectionDraft
     ) -> int | None:
-        """Show the section; on confirmation write it. None means "keep talking"."""
+        """Show the section and write it after one confirmation. None means "keep talking"."""
         await ui.say(self.describe(ctx, draft), markdown=True)
-        if not await ui.confirm("Is this right?", default=True):
-            return None
         if not draft.is_new and draft.values == draft.original and not draft.all_items:
             # only the AI's summary changed; nothing the user asked for
             await ui.say("Nothing changed; your config is left as it is.", kind="success")

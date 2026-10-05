@@ -58,14 +58,14 @@ def make_ctx(tmp_path: Path, text: str, replies: List[Any] | None = None) -> Bui
 def reply(
     message: str = "ok",
     values: Dict[str, Any] | None = None,
-    complete: bool = False,
+    action: str = "ask",
     **extra: Any,
 ) -> Dict[str, Any]:
     return {
+        "action": action,
         "message": message,
         "request": extra.pop("request", "r"),
         "values": values or {},
         "unset": extra.pop("unset", []),
-        "complete": complete,
         **extra,
     }
