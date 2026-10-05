@@ -1380,8 +1380,10 @@ def parse_listing(
         FacebookRentalItemPage,
         FacebookAutoItemWithAboutAndDescriptionPage,
         FacebookAutoItemWithDescriptionPage,
-        FacebookFlexItemPage,
+        # the specific (ul/li) layout before the generic one: Flex also matches the older
+        # pages, where it may pick up a wrong description; if Regular finds none, Flex is next
         FacebookRegularItemPage,
+        FacebookFlexItemPage,
     ]
 
     # a layout that matches but fails to extract a description is kept only as a

@@ -142,3 +142,20 @@ def test_parse_listing_falls_back_to_empty_description(monkeypatch: pytest.Monke
 
     assert listing is not None
     assert listing.description == ""
+
+
+def test_parse_listing_prefers_the_specific_layout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ul/li layout comes before the generic one, which also matches older pages."""
+    for name in [
+        "FacebookRentalItemPage",
+        "FacebookAutoItemWithAboutAndDescriptionPage",
+        "FacebookAutoItemWithDescriptionPage",
+    ]:
+        monkeypatch.setattr(facebook_module, name, _fake_layout(None))
+    monkeypatch.setattr(facebook_module, "FacebookRegularItemPage", _fake_layout("from ul/li"))
+    monkeypatch.setattr(facebook_module, "FacebookFlexItemPage", _fake_layout("guessed"))
+
+    listing = parse_listing(None, "post_url")  # type: ignore[arg-type]
+
+    assert listing is not None
+    assert listing.description == "from ul/li"

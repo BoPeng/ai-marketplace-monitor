@@ -275,3 +275,13 @@ async def test_a_new_section_is_followed_by_a_blank_line(tmp_path: Path) -> None
     ui = ScriptedSetupUI(["yes"])
     assert await commit_sections(ui, new, old, [path], tmp_path / "b") is CommitOutcome.WRITTEN
     assert '[ai.fast]\nmodel = "fast"\n\n[user.me]' in path.read_text()
+
+
+async def test_image_options_can_be_set(tmp_path: Path) -> None:
+    ws = await ws_for(tmp_path, BASE)
+    draft, problems = A.change(
+        A.view(ws, "unitysvc"), {"use_images": True, "image_detail": "low"}, [], None
+    )
+    assert problems == [] and A.validate(ws, draft) == []
+    draft.values["image_detail"] = "huge"
+    assert "image_detail" in A.validate(ws, draft)[0]

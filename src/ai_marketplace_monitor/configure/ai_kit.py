@@ -69,6 +69,19 @@ AI_GUIDES: Tuple[FieldGuide, ...] = (
         "a URL starting with https:// or http://",
         "UnitySVC: https://api.svcpass.com/p/llm; Ollama: required",
     ),
+    FieldGuide(
+        "use_images",
+        "only if the user wants the AI to look at the listing's main photo; needs a vision "
+        "model, is ignored by Anthropic, and adds image tokens to every new evaluation",
+        "`true` or `false`",
+        "false (text only)",
+    ),
+    FieldGuide(
+        "image_detail",
+        "with use_images: how closely the photo is read; `high` can double the cost per listing",
+        '`"low"` (about 85 tokens), `"high"`, `"auto"` or `"original"`',
+        '`"low"`',
+    ),
     FieldGuide("timeout", "only on request: seconds to wait for a reply", "integer", "none"),
     FieldGuide("max_retries", "only on request: attempts per request", "integer", "10"),
     FieldGuide("enabled", "only to turn this AI off without removing it", "`false`", "on"),
