@@ -115,19 +115,30 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         system: Dict[str, Any],
         user: Dict[str, Any],
         logger: Logger | None = None,
+        *,
+        partial: bool = False,
     ) -> "Config":
-        """Build a Config from already-parsed dicts without mutating them."""
+        """Build a Config from already-parsed dicts without mutating them.
+
+        ``partial`` accepts a config that does not yet have every section the monitor needs
+        (marketplace, user, item), as while it is being written with ``aimm-configure``.
+        """
         obj = cls.__new__(cls)
-        obj._load(system, user, logger)
+        obj._load(system, user, logger, partial=partial)
         return obj
 
     def _load(
-        self: "Config", system: Dict[str, Any], user: Dict[str, Any], logger: Logger | None
+        self: "Config",
+        system: Dict[str, Any],
+        user: Dict[str, Any],
+        logger: Logger | None,
+        *,
+        partial: bool = False,
     ) -> None:
         # merge_dicts mutates nested dicts in place, so work on copies
         config = merge_dicts([copy.deepcopy(system), copy.deepcopy(user)])
 
-        self.validate_sections(config)
+        self.validate_sections(config, partial=partial)
         self.get_translator_config(config)
         self.get_monitor_config(config)
         self.get_ai_config(config)
@@ -196,7 +207,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     def get_marketplace_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each marketplace
         self.marketplace = {}
-        for marketplace_name, marketplace_config in config["marketplace"].items():
+        for marketplace_name, marketplace_config in config.get("marketplace", {}).items():
             market_type = marketplace_config.get("market_type", "facebook")
             if market_type not in supported_marketplaces:
                 raise ValueError(
@@ -216,7 +227,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user
         self.user: Dict[str, UserConfig] = {}
-        for user_name, user_config in config["user"].items():
+        for user_name, user_config in config.get("user", {}).items():
             self.user[user_name] = User.get_config(name=user_name, **user_config)
 
     def get_region_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -229,15 +240,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         # check for required fields in each user
 
         self.item = {}
-        for item_name, item_config in config["item"].items():
+        for item_name, item_config in config.get("item", {}).items():
             # if marketplace is specified, it must exist
             if "marketplace" in item_config:
-                if item_config["marketplace"] not in config["marketplace"]:
+                if item_config["marketplace"] not in config.get("marketplace", {}):
                     raise ValueError(
                         f"Item {hilight(item_name)} specifies a marketplace that does not exist."
                     )
 
-            for marketplace_name, markerplace_config in config["marketplace"].items():
+            for marketplace_name, markerplace_config in config.get("marketplace", {}).items():
                 marketplace_class = supported_marketplaces[
                     markerplace_config.get("market_type", "facebook")
                 ]
@@ -253,9 +264,11 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     )
                     break
 
-    def validate_sections(self: "Config", config: Dict[str, Any]) -> None:
+    def validate_sections(
+        self: "Config", config: Dict[str, Any], *, partial: bool = False
+    ) -> None:
         # check for required sections
-        for required_section in ["marketplace", "user", "item"]:
+        for required_section in [] if partial else ["marketplace", "user", "item"]:
             if required_section not in config:
                 raise ValueError(f"Config file does not contain a {required_section} section.")
 

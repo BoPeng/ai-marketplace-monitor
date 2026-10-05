@@ -115,7 +115,8 @@ def order_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Fixed type order, input order within a type, canonical key order within a section."""
     out: Dict[str, Any] = {}
     for section_type in [*SECTION_ORDER, *(t for t in cfg if t not in SECTION_ORDER)]:
-        if section_type not in cfg:
+        # an empty group (e.g. no users yet in a partial config) is not written
+        if not cfg.get(section_type):
             continue
         body = cfg[section_type]
         if section_type == "monitor":

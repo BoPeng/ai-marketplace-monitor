@@ -83,7 +83,11 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
         if "ai" not in item and ais:
             item["ai"] = list(ais)
             notes[(label, "ai")] = "ai made explicit: all AI backends"
+    bound = {bound_marketplace(item, markets) for item in cfg.get("item", {}).values()}
     for market_name, market in markets.items():
+        # a marketplace without items keeps its options as defaults for future items
+        if market_name not in bound:
+            continue
         has_region = "search_region" in market
         for key in COMMON_OPTIONS:
             if key not in market:

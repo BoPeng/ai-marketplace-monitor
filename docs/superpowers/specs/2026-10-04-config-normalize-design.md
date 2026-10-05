@@ -284,7 +284,9 @@ monitor only pair an item with that marketplace).
 - For every common option (`MarketItemCommonConfig` / `FacebookMarketItemCommonConfig`
   fields, including `notify` and `ai`) set on the bound marketplace, copy the
   marketplace's raw value into each item that would fall back to it per
-  `resolve_option`, then remove it from the marketplace. Under the *truthy* rule an
+  `resolve_option`, then remove it from the marketplace. A marketplace with **no items**
+  keeps its common options, as the defaults its future items will inherit (they have no
+  runtime effect until an item exists). Under the *truthy* rule an
   item's falsy value (e.g. `notify = []`, `search_city = []`) falls back, so it is
   replaced; under the *not-None* rule an item's empty value (e.g.
   `seller_locations = []`, `ai = []`) is kept. (Prices are normalized to strings by the
@@ -315,7 +317,9 @@ so a future CLI should warn when it adds explicit lists.
 
 #### Everything else
 
-`ai`, `region`, `monitor`, and `translation` sections pass through unchanged. Secrets are
+`ai`, `region`, `monitor`, and `translation` sections pass through unchanged. Empty
+section groups are dropped. With `partial=True` (used by `aimm-configure`), a config without
+the `marketplace`, `user` or `item` sections the monitor needs is still accepted. Secrets are
 not touched (redaction for the LLM view is a later step).
 
 ### Behavior-equivalence check
