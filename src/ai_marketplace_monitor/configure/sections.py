@@ -27,6 +27,9 @@ if TYPE_CHECKING:
 _NOT_CONFIGURED = {"name", "request", "monitor_config"}
 
 
+_UNSET = object()
+
+
 class FieldGroup(Enum):
     OWN = "own"  # belongs to the section only
     SHARED = "shared"  # default for the section's items (option(...) fields)
@@ -54,6 +57,15 @@ class SectionDraft:
 
     def copy(self: "SectionDraft") -> "SectionDraft":
         return copy.deepcopy(self)
+
+    def unsaved_changes(self: "SectionDraft") -> Dict[str, Any]:
+        """Fields changed in this conversation: {field: new value, or None if removed}."""
+        keys = dict.fromkeys([*self.original, *self.values])
+        return {
+            k: self.values.get(k)
+            for k in keys
+            if self.values.get(k, _UNSET) != self.original.get(k, _UNSET)
+        }
 
 
 @dataclass
@@ -251,6 +263,18 @@ class SectionBuilder:
                     if code is not None:
                         return code
                     reply = await self._reply(ui, ctx, draft, "What would you like to change?")
+                elif result.action == "no_change" and draft.unsaved_changes():
+                    # never drop the user's changes silently: make the LLM save or cancel
+                    pending = ", ".join(
+                        f"{k}: {v!r}" for k, v in self.masked(draft.unsaved_changes()).items()
+                    )
+                    feedback = [
+                        (
+                            f"There are unsaved changes ({pending}). Use `save` to keep them, "
+                            "or `cancel` only if the user wants to discard them."
+                        )
+                    ]
+                    continue
                 elif result.action in ("no_change", "cancel"):
                     await ui.say(result.message)
                     await ui.say("Nothing was written.", kind="success")

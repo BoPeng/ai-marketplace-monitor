@@ -9,6 +9,10 @@ only supported marketplace) and fits how this user shops. Its shared values appl
 this marketplace unless an item sets its own value; its own values (language, login) apply to the
 marketplace itself.
 
+The main settings to list whenever you ask what to set or change: where to search (city and distance, or a
+region), a price range, condition, pickup or shipping, how recent listings are, how often to
+search, and who is notified / which AI rates listings.
+
 ## Subtasks
 
 ### Location (required)

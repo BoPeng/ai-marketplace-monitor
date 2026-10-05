@@ -61,7 +61,9 @@ def build_messages(
         "section": f"{builder.section_type}.{draft.name}",
         "new": draft.is_new,
         "request": draft.request,
+        "saved_values": builder.masked(draft.original),
         "values": builder.masked(draft.values),
+        "unsaved_changes": builder.masked(draft.unsaved_changes()),
         "still_required": builder.missing(ctx, draft),
         "context": builder.context(ctx, draft),
     }

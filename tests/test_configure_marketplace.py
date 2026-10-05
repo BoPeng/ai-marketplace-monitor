@@ -491,3 +491,33 @@ async def test_builder_writes_refuse_other_sections(tmp_path: Path) -> None:
     )
     assert outcome is CommitOutcome.FAILED
     assert "Refusing to write" in ui.said("error")[0] and "[item.bike]" in ui.said("error")[0]
+
+
+async def test_no_change_with_unsaved_changes_goes_back_to_the_llm(tmp_path: Path) -> None:
+    # the reported case: max_price set in this conversation, then "no" -> must not be dropped
+    ctx = make_ctx(
+        tmp_path,
+        ONE_ITEM,
+        [
+            reply("What would you like to change?"),
+            reply("Max price set. Anything else?", {"max_price": "1000"}),
+            reply("Already 1000, nothing to change.", action="no_change"),
+            reply("Saving max price $1000.", action="save", request="Max price $1000."),
+        ],
+    )
+    ui = ScriptedSetupUI(["facebook", "set max price to $1000", "no", "yes"])
+    assert await B.converse(ui, ctx, None) == 0
+    third = ctx.ai.calls[3][1]["content"]  # type: ignore[attr-defined]
+    assert "There are unsaved changes (max_price: '1000')" in third
+    assert (
+        tomllib.loads(ctx.files[0].read_text())["marketplace"]["facebook"]["max_price"] == "1000"
+    )
+
+
+def test_situation_separates_saved_and_unsaved_values(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, ONE_ITEM)
+    draft = B.view(ctx, "facebook")
+    draft.values["max_price"] = "1000"
+    prompt = llm.build_messages(B, ctx, draft, [], [])[1]["content"]
+    assert '"saved_values": {\n    "search_city": "houston"\n  }' in prompt
+    assert '"unsaved_changes": {\n    "max_price": "1000"\n  }' in prompt
