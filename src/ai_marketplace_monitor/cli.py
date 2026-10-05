@@ -1,6 +1,8 @@
 """Console script for ai-marketplace-monitor."""
 
+import json
 import logging
+import re
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -13,9 +15,12 @@ from rich.panel import Panel
 from rich.text import Text
 
 from . import __version__
+from .config import load_config_dicts
+from .normalize import expand, normalize
 from .utils import CacheType, amm_home, cache, counter, hilight
 
 app = typer.Typer()
+_BARE_TOML_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 _DEFAULT_CONFIG_TEMPLATE = """\
@@ -61,6 +66,52 @@ def _seed_default_config(path: Path, logger: logging.Logger) -> None:
         )
 
 
+def _config_files_with_default(config_files: List[Path] | None) -> List[Path]:
+    default_config = amm_home / "config.toml"
+    return ([default_config] if default_config.exists() else []) + [
+        path.expanduser().resolve() for path in config_files or []
+    ]
+
+
+def _toml_key(value: str) -> str:
+    if _BARE_TOML_KEY.match(value):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_value(v) for v in value) + "]"
+    raise TypeError(f"Cannot write {type(value).__name__} value {value!r} as TOML")
+
+
+def _dump_config_toml(cfg: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for section_type, body in cfg.items():
+        if section_type == "monitor":
+            lines.append("[monitor]")
+            lines.extend(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in body.items())
+            lines.append("")
+            continue
+        for name, section in body.items():
+            lines.append(f"[{_toml_key(section_type)}.{_toml_key(name)}]")
+            lines.extend(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in section.items())
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _print_normalized_config(config_files: List[Path] | None, *, expanded: bool) -> None:
+    system_cfg, user_cfg = load_config_dicts(_config_files_with_default(config_files))
+    result = expand(user_cfg, system_cfg) if expanded else normalize(user_cfg, system_cfg)
+    typer.echo(_dump_config_toml(result.config), nl=False)
+
+
 def _print_webui_banner(info: Any) -> None:
     """Print a prominent panel showing how to reach the web UI."""
     text = Text()
@@ -100,22 +151,6 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def _run_chat(config_files: Optional[List[Path]], section: Optional[str]) -> int:
-    """Run `aimm --chat`; return the exit code."""
-    import asyncio
-
-    from .chat import cli_ui, session
-    from .config import resolve_config_files
-
-    try:
-        ui = cli_ui.CLIChatUI()
-        files = resolve_config_files(config_files)
-    except (RuntimeError, FileNotFoundError) as e:
-        rich.print(f"[red]{e}[/red]")
-        return 1
-    return asyncio.run(session.run_chat(ui, files, section))
-
-
 @app.command()
 def main(
     config_files: Annotated[
@@ -123,6 +158,7 @@ def main(
         typer.Option(
             "-r",
             "--config",
+            "--config-file",
             help="Path to one or more configuration files in TOML format. `~/.ai-marketplace-monitor/config.toml will always be read.",
         ),
     ] = None,
@@ -144,20 +180,6 @@ def main(
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
     ] = False,
-    chat: Annotated[
-        bool,
-        typer.Option(
-            "--chat",
-            help="Start an interactive chat that sets up the AI and answers questions about your configuration.",
-        ),
-    ] = False,
-    section: Annotated[
-        Optional[str],
-        typer.Option(
-            "--section",
-            help="With --chat: the config section to work on, e.g. 'ai' or 'ai.unitysvc'.",
-        ),
-    ] = None,
     items: Annotated[
         List[str] | None,
         typer.Option(
@@ -195,11 +217,36 @@ def main(
             help="Number of log messages to retain in the web UI ring buffer.",
         ),
     ] = 2000,
+    normalize_config: Annotated[
+        bool,
+        typer.Option(
+            "--normalize-config",
+            help="Print compact normalized config to stdout and exit without writing files.",
+        ),
+    ] = False,
+    expand_config: Annotated[
+        bool,
+        typer.Option(
+            "--expand-config",
+            help="Print expanded config to stdout and exit without writing files.",
+        ),
+    ] = False,
     version: Annotated[
         Optional[bool], typer.Option("--version", callback=version_callback, is_eager=True)
     ] = None,
 ) -> None:
     """Console script for AI Marketplace Monitor."""
+    if normalize_config and expand_config:
+        typer.echo("Choose only one of --normalize-config and --expand-config.", err=True)
+        raise typer.Exit(1)
+    if normalize_config or expand_config:
+        try:
+            _print_normalized_config(config_files, expanded=expand_config)
+        except Exception as e:
+            typer.echo(f"Config normalization failed: {e}", err=True)
+            raise typer.Exit(1) from e
+        raise typer.Exit()
+
     log_broadcast_handler = None
     log_handlers: list[logging.Handler] = [
         RichHandler(
@@ -255,12 +302,6 @@ def main(
             sys.exit(1)
         logger.info(f"""{hilight("[Clear Cache]", "succ")} Cache cleared.""")
         sys.exit(0)
-
-    if section is not None and not chat:
-        logger.error(f"""{hilight("[Chat]", "fail")} --section can only be used with --chat.""")
-        sys.exit(1)
-    if chat:
-        sys.exit(_run_chat(config_files, section))
 
     # make --version a bit faster by lazy loading of MarketplaceMonitor
     from .monitor import MarketplaceMonitor

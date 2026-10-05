@@ -8,10 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `aimm --chat`: interactive setup that checks which AI services work, sets one up (UnitySVC recommended), and chats about your configuration; user house rules in `~/.ai-marketplace-monitor/playbooks/`
+- `aimm-configure`: interactive setup that checks `[ai.*]` sections and writes an AI service configuration with API keys kept in environment variables
+
+## [0.10.3] - 2026-10-05
+
+### Added
 - Translation sections accept `enabled = false` to ignore a translation
 - UnitySVC AI provider (`[ai.unitysvc]` or `provider = "unitysvc"`), using UnitySVC's OpenAI-compatible `llm` platform service with the `balanced` tier by default
 - Option `request` on every config section to record, in your own words, what the section is for; reserved for upcoming AI-assisted configuration ([#362](https://github.com/BoPeng/ai-marketplace-monitor/issues/362))
+- `--normalize-config` and `--expand-config` CLI inspection modes, plus `--config-file` as an alias for `--config`, for checking canonical and expanded config output without writing files ([#369](https://github.com/BoPeng/ai-marketplace-monitor/pull/369))
+
+### Changed
+- Config normalization now compacts user-specified defaults back to the minimal canonical form while preserving non-default selections and behavior-relevant order ([#369](https://github.com/BoPeng/ai-marketplace-monitor/pull/369))
+- Expanded configs now make each item's bound marketplace explicit so item sections are self-contained for AI-assisted edits ([#369](https://github.com/BoPeng/ai-marketplace-monitor/pull/369))
 
 ### Fixed
 - Spanish translation swapped the "About this vehicle" and "Seller's description" headings, so vehicle details and seller descriptions were not extracted from Spanish-language listings
@@ -238,5 +247,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.3...HEAD
+[0.10.3]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.2...v0.10.3
 [0.1.0]: https://github.com/BoPeng/ai-marketplace-monitor/compare/releases/tag/v0.1.0

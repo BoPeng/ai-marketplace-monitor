@@ -60,10 +60,100 @@ def _merge_notifications(cfg: Dict[str, Any], notes: Notes) -> None:
             user["notify_with"] = list(dict.fromkeys(merged))
 
 
+def _remove_default_marketplace_bindings(cfg: Dict[str, Any], notes: Notes) -> None:
+    markets: Dict[str, Any] = cfg.get("marketplace", {})
+    if not markets:
+        return
+    default_market = next(iter(markets))
+    for item_name, item in cfg.get("item", {}).items():
+        if item.get("marketplace") == default_market:
+            del item["marketplace"]
+            notes[(f"item.{item_name}", "marketplace")] = (
+                f"marketplace omitted: defaults to {default_market}"
+            )
+
+
+def _drop_explicit_defaults(cfg: Dict[str, Any], notes: Notes) -> None:
+    """Drop raw values that are identical to runtime defaults."""
+    for section_type in (
+        "ai",
+        "marketplace",
+        "user",
+        "notification",
+        "region",
+        "item",
+        "translation",
+    ):
+        for name, section in cfg.get(section_type, {}).items():
+            label = f"{section_type}.{name}"
+            if section.get("enabled") is True:
+                del section["enabled"]
+                notes[(label, "enabled")] = "enabled omitted: defaults to true"
+    for name, ai in cfg.get("ai", {}).items():
+        if ai.get("max_retries") == 10:
+            del ai["max_retries"]
+            notes[(f"ai.{name}", "max_retries")] = "max_retries omitted: defaults to 10"
+    for name, market in cfg.get("marketplace", {}).items():
+        if market.get("market_type") == "facebook":
+            del market["market_type"]
+            notes[(f"marketplace.{name}", "market_type")] = (
+                "market_type omitted: defaults to facebook"
+            )
+
+
+def _default_item_notify(market: Dict[str, Any], users: List[str]) -> List[str]:
+    return market.get("notify") or users
+
+
+def _default_item_ai(market: Dict[str, Any], ais: List[str]) -> List[str]:
+    return market["ai"] if "ai" in market else ais
+
+
+def _drop_implicit_all_lists(cfg: Dict[str, Any], notes: Notes) -> None:
+    """Drop lists that exactly restate their inherited default set."""
+    users = list(cfg.get("user", {}))
+    ais = list(cfg.get("ai", {}))
+    markets: Dict[str, Any] = cfg.get("marketplace", {})
+
+    for name, market in markets.items():
+        label = f"marketplace.{name}"
+        if market.get("notify") == users:
+            del market["notify"]
+            notes[(label, "notify")] = "notify omitted: defaults to all users"
+        if market.get("ai") == ais:
+            del market["ai"]
+            notes[(label, "ai")] = "ai omitted: defaults to all AI backends"
+
+    for name, item in cfg.get("item", {}).items():
+        market = markets[bound_marketplace(item, markets)]
+        label = f"item.{name}"
+        if item.get("notify") == _default_item_notify(market, users):
+            del item["notify"]
+            notes[(label, "notify")] = "notify omitted: inherits the same users"
+        if item.get("ai") == _default_item_ai(market, ais):
+            del item["ai"]
+            notes[(label, "ai")] = "ai omitted: inherits the same AI backends"
+
+    enabled_notifications = [
+        name
+        for name, notification in cfg.get("notification", {}).items()
+        if notification.get("enabled") is not False
+    ]
+    for name, user in cfg.get("user", {}).items():
+        if user.get("notify_with") == enabled_notifications:
+            del user["notify_with"]
+            notes[(f"user.{name}", "notify_with")] = (
+                "notify_with omitted: defaults to all enabled notifications"
+            )
+
+
 def compact(expanded: Dict[str, Any]) -> Tuple[Dict[str, Any], Notes]:
     """Hoist values shared by all items of a marketplace and merge identical sections."""
     cfg = copy.deepcopy(expanded)
     notes: Notes = {}
     _hoist(cfg, notes)
     _merge_notifications(cfg, notes)
+    _remove_default_marketplace_bindings(cfg, notes)
+    _drop_explicit_defaults(cfg, notes)
+    _drop_implicit_all_lists(cfg, notes)
     return cfg, notes

@@ -1,7 +1,7 @@
 [project]
 readme = "README.md"
 name = "ai-marketplace-monitor"
-version = "0.10.2"
+version = "0.10.3"
 description = "An AI-based tool for monitoring facebook marketplace"
 authors = [{ name = "Bo Peng", email = "ben.bob@gmail.com" }]
 requires-python = ">=3.10"
@@ -55,6 +55,7 @@ Documentation = "https://ai-marketplace-monitor.readthedocs.io"
 [project.scripts]
 ai-marketplace-monitor = "ai_marketplace_monitor.cli:app"
 aimm = "ai_marketplace_monitor.cli:app"
+aimm-configure = "ai_marketplace_monitor.configure_cli:app"
 
 [project.optional-dependencies]
 pynput = ["pynput>=1.7.0"]
@@ -112,7 +113,6 @@ directory = "htmlcov"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-markers = ["live: calls real external services; skipped unless credentials are set"]
 filterwarnings = [
   # Suppress AsyncMock coroutine warnings in Telegram notification tests
   # These warnings occur when testing sync methods that wrap async operations with asyncio.run()

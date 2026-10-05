@@ -174,6 +174,38 @@ def test_item_binds_to_first_marketplace() -> None:
     """
     )
     assert cfg["item"]["bike"]["search_city"] == "houston"
+    assert cfg["item"]["bike"]["marketplace"] == "facebook"
+
+
+def test_explicit_default_marketplace_matches_implicit_binding() -> None:
+    implicit = _expand(
+        USERS
+        + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [marketplace.second]
+    search_city = "dallas"
+
+    [item.bike]
+    search_phrases = "bike"
+    """
+    )
+    explicit = _expand(
+        USERS
+        + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [marketplace.second]
+    search_city = "dallas"
+
+    [item.bike]
+    marketplace = "facebook"
+    search_phrases = "bike"
+    """
+    )
+    assert explicit == implicit
 
 
 def test_translation_passes_through() -> None:

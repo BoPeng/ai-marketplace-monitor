@@ -3,7 +3,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
 from diskcache import Cache  # type: ignore
 from openai import OpenAI  # type: ignore
@@ -12,9 +12,6 @@ from rich.pretty import pretty_repr
 from .listing import Listing
 from .marketplace import TItemConfig, TMarketplaceConfig, resolve_option
 from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
-
-# the Anthropic API requires max_tokens; OpenAI-compatible chat calls stay uncapped
-ANTHROPIC_CHAT_MAX_TOKENS = 4096
 
 
 class AIServiceProvider(Enum):
@@ -267,10 +264,6 @@ class AIBackend(Generic[TAIConfig]):
     ) -> AIResponse:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
-    def chat(self: "AIBackend", messages: List[Dict[str, str]]) -> str:
-        """Send a conversation (system/user/assistant messages); return the reply text."""
-        raise NotImplementedError("chat must be implemented by subclasses.")
-
 
 class OpenAIBackend(AIBackend):
     default_model = "gpt-4o"
@@ -294,14 +287,6 @@ class OpenAIBackend(AIBackend):
             )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
-
-    def chat(self: "OpenAIBackend", messages: List[Dict[str, str]]) -> str:
-        self.connect()
-        assert self.client is not None
-        response = self.client.chat.completions.create(
-            model=self.config.model or self.default_model, messages=messages
-        )
-        return response.choices[0].message.content or ""
 
     def evaluate(
         self: "OpenAIBackend",
@@ -450,21 +435,6 @@ class AnthropicBackend(AIBackend):
             )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
-
-    def chat(self: "AnthropicBackend", messages: List[Dict[str, str]]) -> str:
-        self.connect()
-        assert self.client is not None
-        system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
-        conversation = [m for m in messages if m["role"] != "system"]
-        response = self.client.messages.create(
-            model=self.config.model or self.default_model,
-            max_tokens=ANTHROPIC_CHAT_MAX_TOKENS,
-            system=system,
-            messages=conversation,
-        )
-        return "".join(
-            block.text for block in response.content if getattr(block, "type", "") == "text"
-        )
 
     def evaluate(
         self: "AnthropicBackend",
