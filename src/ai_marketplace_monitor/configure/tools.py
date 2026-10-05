@@ -35,8 +35,9 @@ class Outcome(Enum):
 @dataclass
 class ToolExecutor:
     ws: Workspace
-    # a single-section command: section tools work on this section only
-    only: SectionKey | None = None
+    # a single-section command: section tools work on these sections only (the chosen
+    # section, and companions such as an item's marketplace)
+    only: Set[SectionKey] | None = None
     # runs `aimm-configure ai` (offered by the aimm-configure wrapper only); returns exit code
     setup_ai: Callable[[], Awaitable[int]] | None = None
     done: bool = False
@@ -76,6 +77,7 @@ class ToolExecutor:
                     await self.show_drafts()
                     continue
                 self.steps_without_user = 0
+                self.ws.user_said.append(reply)
                 return reply
         except SetupClosedError:
             self.closed = True
@@ -124,8 +126,13 @@ class ToolExecutor:
     ) -> Tuple[Toolkit | None, str | None]:
         if section_type not in self.ws.toolkits:
             return None, f"[{section_type}.*] sections cannot be configured here."
-        if self.only is not None and (section_type, name) != self.only:
-            return None, f"Only [{self.only[0]}.{self.only[1]}] can be changed in this session."
+        if (
+            self.only is not None
+            and (section_type, name) not in self.only
+            and (section_type, "*") not in self.only
+        ):
+            allowed = ", ".join(f"[{t}.{n}]" for t, n in sorted(self.only))
+            return None, f"Only {allowed} can be changed in this session."
         if not name or not isinstance(name, str):
             return None, "A section name is required."
         return self.ws.toolkits[section_type], None
@@ -146,9 +153,11 @@ class ToolExecutor:
         toolkit, error = self._toolkit(section_type, name)
         if toolkit is None:
             return {"ok": False, "errors": [error]}
+        draft = self.ws.draft(section_type, name)
         return {
             "ok": True,
             **self._summary(toolkit, (section_type, name)),
+            **toolkit.show_extra(self.ws, draft),
             "can_reference": toolkit.context(self.ws),
         }
 
@@ -216,12 +225,14 @@ class ToolExecutor:
                 "errors": [f"[{section_type}.*] sections cannot be configured here."],
             }
         toolkit = self.ws.toolkits[section_type]
-        self.guides_read.add(section_type)
+        # types that share a playbook (users and notifications) are read together
+        types = [t for t, k in self.ws.toolkits.items() if k.playbook == toolkit.playbook]
+        self.guides_read.update(types)
         return {
             "ok": True,
             "section_type": section_type,
             "playbook": self.ws.playbooks[toolkit.playbook].text(),
-            "fields": toolkit.guide_table(),
+            "fields": "\n\n".join(self.ws.toolkits[t].guide_table() for t in types),
         }
 
     def session_state(self: "ToolExecutor") -> Dict[str, Any]:
@@ -291,13 +302,27 @@ class ToolExecutor:
             self.failed = True
             return {"ok": False, "errors": ["The change could not be written (see the message)."]}
         self.saved = True
+        notes = [
+            note
+            for draft in pending
+            for note in self.ws.toolkits[draft.section_type].after_save(self.ws, draft)
+        ]
+        for note in notes:
+            await self.ws.ui.say(note, kind="warning", markdown=True)
         for draft in pending:
             del self.ws.drafts[draft.key]
         try:
             await self.ws.load()
         except ConfigLoadError as e:
             await self.ws.ui.say(str(e), kind="error")
-        return {"ok": True, "saved": True, "sections": [d.label for d in pending]}
+        result: Dict[str, Any] = {
+            "ok": True,
+            "saved": True,
+            "sections": [d.label for d in pending],
+        }
+        if notes:
+            result["shown_to_user"] = notes
+        return result
 
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False

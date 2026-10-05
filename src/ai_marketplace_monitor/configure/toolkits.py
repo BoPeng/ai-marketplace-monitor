@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .workspace import Workspace
 
 # dataclass fields that are never configured through a toolkit
-_NOT_CONFIGURED = {"name", "request", "monitor_config"}
+_NOT_CONFIGURED = {"name", "request", "monitor_config", "searched_count"}
 _UNSET = object()
 
 
@@ -218,6 +218,29 @@ class Toolkit:
 
     def describe(self: "Toolkit", draft: SectionDraft) -> str:
         raise NotImplementedError
+
+    def show_extra(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
+        """Read-only context added to ``section_show`` (none by default)."""
+        return {}
+
+    def companions(self: "Toolkit", ws: "Workspace", name: str) -> List[Tuple[str, str]]:
+        """Other sections a single-section command may also change (none by default).
+
+        A name of ``"*"`` allows any section of that type.
+        """
+        return []
+
+    def can_apply(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        """Whether this draft is part of the config when other sections are checked.
+
+        By default only complete drafts are: a half-filled section is not saved as it is, so
+        it must not make other sections fail.
+        """
+        return not self.missing(ws, draft)
+
+    def after_save(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
+        """Notes for the user once the section is written (none by default)."""
+        return []
 
     def apply(self: "Toolkit", user_cfg: Dict[str, Any], draft: SectionDraft) -> Dict[str, Any]:
         """``user_cfg`` with only this section replaced (the input is not changed)."""

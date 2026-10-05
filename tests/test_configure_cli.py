@@ -10,24 +10,37 @@ from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
 runner = CliRunner()
 
 
-async def test_configure_section_item_requires_usable_ai() -> None:
-    ui = ScriptedSetupUI([])
-
-    assert await flow.configure_section(ui, [], "item.gopro") == 1
-    assert "Configure a working AI service first" in ui.said("error")[0]
+async def test_configure_section_rejects_other_types() -> None:
+    with pytest.raises(flow.ConfigureAddressError, match="are supported"):
+        await flow.configure_section(ScriptedSetupUI([]), [], "region.x")
 
 
-async def test_configure_section_item_is_reserved_after_ai_ready(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "section, target",
+    [
+        ("item.gopro", ("item", "gopro")),
+        ("notification", ("notification", None)),
+        ("user.alice", ("user", "alice")),
+    ],
+)
+async def test_configure_section_toolkits(
+    monkeypatch: pytest.MonkeyPatch, section: str, target: Any
 ) -> None:
-    async def fake_require_usable_ai(ui: Any, config_files: List[Path]) -> bool:
-        return True
+    async def fake_ai(ui: Any, files: List[Path], home: Any = None) -> str:
+        return "backend"
 
-    monkeypatch.setattr(flow, "require_usable_ai", fake_require_usable_ai)
-    ui = ScriptedSetupUI([])
+    runs: List[Dict[str, Any]] = []
 
-    assert await flow.configure_section(ui, [], "item.gopro") == 1
-    assert "not implemented yet" in ui.said("error")[0]
+    async def fake_run_session(ui: Any, files: List[Path], ai: Any, kits: Any, **kw: Any) -> int:
+        runs.append({"ai": ai, "kits": sorted(kits), **kw})
+        return 0
+
+    monkeypatch.setattr(flow, "ai_for_configure", fake_ai)
+    monkeypatch.setattr(flow, "run_session", fake_run_session)
+    assert await flow.configure_section(ScriptedSetupUI([]), [], section) == 0
+    # an item also gets its marketplace; users and notifications come together
+    kits = ["item", "marketplace"] if section.startswith("item") else ["notification", "user"]
+    assert runs == [{"ai": "backend", "kits": kits, "home": None, "target": target}]
 
 
 def test_configure_cli_dispatches_to_front_door(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,10 +80,10 @@ def test_configure_cli_dispatches_explicit_section(monkeypatch: pytest.MonkeyPat
 
 
 def test_configure_cli_rejects_unimplemented_sections() -> None:
-    result = runner.invoke(cli.app, ["user.me"])
+    result = runner.invoke(cli.app, ["region.x"])
 
     assert result.exit_code == 1
-    assert "Only 'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>'" in result.output
+    assert "are supported" in result.output
 
 
 def test_configure_cli_needs_terminal() -> None:
@@ -109,29 +122,6 @@ def test_ctrl_c_during_setup_exits_cleanly(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result.exit_code == 0
     assert "Cancelled." in result.output
-
-
-@pytest.mark.parametrize("first_ok, checked", [(True, ["first"]), (False, ["first", "second"])])
-async def test_require_usable_ai_checks_the_default_first(
-    monkeypatch: pytest.MonkeyPatch, first_ok: bool, checked: List[str]
-) -> None:
-    from ai_marketplace_monitor.configure.ai_setup import AISection, ProbeResult
-
-    sections = [AISection("first", {}, []), AISection("second", {}, [])]
-    monkeypatch.setattr(flow, "load_ai_sections", lambda files: sections)
-    seen: List[str] = []
-
-    async def probe(batch: List[AISection]) -> List[ProbeResult]:
-        seen.extend(s.name for s in batch)
-        ok = first_ok or batch[0].name == "second"
-        return [ProbeResult(ok, "request", "m", "" if ok else "broken")]
-
-    monkeypatch.setattr(flow, "probe_sections", probe)
-    ui = ScriptedSetupUI([])
-    assert await flow.require_usable_ai(ui, []) is True
-    assert seen == checked
-    fallback = any("Your default AI [ai.first] does not work" in m for m in ui.said("warning"))
-    assert fallback is not first_ok
 
 
 @pytest.mark.parametrize("address", ["marketplace", "marketplace.facebook", "item", "item.bike"])
@@ -180,14 +170,17 @@ def read(path: Path) -> Dict[str, Any]:
 async def test_configure_marketplace_end_to_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tests.configure_util import BASE
+    from tests.configure_util import BASE, url
 
     config = tmp_path / "config.toml"
     config.write_text(BASE, encoding="utf-8")
     made = use_fake_model(
         monkeypatch,
         [
-            [("section_show", {"section_type": "marketplace", "name": "home"})],
+            [
+                ("section_show", {"section_type": "marketplace", "name": "home"}),
+                ("ask_user", {"message": "Paste a Marketplace URL for your location."}),
+            ],
             [
                 (
                     "section_update",
@@ -203,7 +196,7 @@ async def test_configure_marketplace_end_to_end(
             [("finish", {"message": "Done."})],
         ],
     )
-    ui = ScriptedSetupUI(["yes"])
+    ui = ScriptedSetupUI([url("austin") + " and 25 miles", "yes"])
     assert await flow.configure_section(ui, [config], "marketplace.home", home=tmp_path) == 0
     assert read(config)["marketplace"]["home"] == {
         "search_city": ["austin"],

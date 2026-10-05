@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from ..ai import AIBackend
 from ..config import supported_ai_backends
 from ..utils import amm_home
 from .agent import ServiceError, run_agent
-from .ai_setup import AISection, configure_ai, load_ai_sections, probe_sections
+from .ai_setup import configure_ai, load_ai_sections
+from .item import ItemToolkit
 from .marketplace import MarketplaceToolkit
+from .notify import NotificationToolkit, UserToolkit
 from .toolkits import Toolkit
 from .tools import Outcome, ToolExecutor
 from .ui import SetupClosedError, SetupUI
@@ -38,7 +40,10 @@ def ai_section_name(section: str) -> str | None:
     raise ConfigureAddressError("Only 'ai' and 'ai.<name>' are supported for now.")
 
 
-_SUPPORTED = "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', and 'item.<name>'"
+_SUPPORTED = (
+    "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', 'item.<name>', "
+    "'notification', 'notification.<name>', 'user', and 'user.<name>'"
+)
 
 
 def section_name(section: str) -> str | None:
@@ -57,15 +62,10 @@ def validate_section_address(section: str) -> None:
     if family == "ai":
         ai_section_name(section)
         return
-    if family in ("marketplace", "item"):
+    if family in ("marketplace", "item", "notification", "user"):
         section_name(section)
         return
     raise ConfigureAddressError(f"Only {_SUPPORTED} are supported for now.")
-
-
-async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
-    """Return true when an enabled AI section works, checking them in order (first = default)."""
-    return await _first_usable_ai(ui, config_files) is not None
 
 
 def default_ai(config_files: List[Path]) -> Tuple[AIBackend | None, str]:
@@ -114,41 +114,6 @@ async def ai_for_configure(
     return backend
 
 
-async def _first_usable_ai(ui: SetupUI, config_files: List[Path]) -> AISection | None:
-    try:
-        sections = [section for section in load_ai_sections(config_files) if section.enabled]
-    except ConfigReadError as e:
-        await ui.say(str(e), kind="error")
-        return None
-    if not sections:
-        await ui.say(
-            "Configure a working AI service first with `aimm-configure ai`.",
-            kind="error",
-        )
-        return None
-
-    # aimm uses the first AI section; check the others only if it does not work
-    for index, section in enumerate(sections):
-        await ui.say(f"Checking [ai.{section.name}]...")
-        [result] = await probe_sections([section])
-        if result.ok:
-            if index:
-                await ui.say(
-                    f"Your default AI [ai.{sections[0].name}] does not work; using "
-                    f"[ai.{section.name}]. Run `aimm-configure ai` to fix it.",
-                    kind="warning",
-                )
-            await ui.say(f"Using [ai.{section.name}] ({result.model}).", kind="success")
-            return section
-        await ui.say(f"[ai.{section.name}] - {result.message}", kind="warning")
-
-    await ui.say(
-        "No usable AI service is available; run `aimm-configure ai` first.",
-        kind="error",
-    )
-    return None
-
-
 async def configure_section(
     ui: SetupUI,
     config_files: List[Path],
@@ -166,49 +131,56 @@ async def configure_section(
             section_name=ai_section_name(section),
             home=home,
         )
-    if family in toolkits():
-        try:
-            ai = await ai_for_configure(ui, config_files, home=home)
-        except SetupClosedError:
-            return 0
-        if ai is None:
-            return 1
-        return await run_session(
-            ui,
-            config_files,
-            ai,
-            {family: toolkits()[family]},
-            home=home,
-            target=(family, section_name(section)),
-        )
-    if not await require_usable_ai(ui, config_files):
+    kits = {family: toolkits()[family]}
+    if family == "item":  # an item may need its marketplace created or given a location
+        kits["marketplace"] = toolkits()["marketplace"]
+    if family in ("notification", "user"):  # users and notifications are set up together
+        kits = {t: toolkits()[t] for t in ("notification", "user")}
+    try:
+        ai = await ai_for_configure(ui, config_files, home=home)
+    except SetupClosedError:
+        return 0
+    if ai is None:
         return 1
-    await ui.say(
-        f"Configuring `{family}` sections is not implemented yet.",
-        kind="error",
-        markdown=True,
+    return await run_session(
+        ui,
+        config_files,
+        ai,
+        kits,
+        home=home,
+        target=(family, section_name(section)),
     )
-    return 1
 
 
 def toolkits() -> Dict[str, Toolkit]:
     """The section types aimm-configure can edit with the AI, by type."""
-    return {"marketplace": MarketplaceToolkit()}
+    return {
+        "marketplace": MarketplaceToolkit(),
+        "item": ItemToolkit(),
+        "notification": NotificationToolkit(),
+        "user": UserToolkit(),
+    }
 
 
-def system_prompt(ws: Workspace, only_type: str | None) -> str:
-    """The instructions: AGENT.md plus one type's guide, or the router and the type list.
+def system_prompt(ws: Workspace, only_types: List[str] | None) -> str:
+    """The instructions: AGENT.md plus the command's guides, or the router and the type list.
 
-    A single-section command gets its section type's playbook and fields directly;
-    aimm-configure gets the router playbook and reads guides with section_guide.
+    A single-section command gets its section types' playbooks and fields directly (an item
+    command also gets the marketplace's, for the item's marketplace); aimm-configure gets the
+    router playbook and reads guides with section_guide.
     """
     parts = [ws.playbooks["AGENT"].text()]
-    if only_type is not None:
-        toolkit = ws.toolkits[only_type]
-        parts.append(
-            f"# Task: [{only_type}.*] sections\n\n{ws.playbooks[toolkit.playbook].text()}"
-        )
-        parts.append(toolkit.guide_table())
+    if only_types is not None:
+        added: Set[str] = set()  # users and notifications share one playbook
+        for section_type in only_types:
+            toolkit = ws.toolkits[section_type]
+            if toolkit.playbook not in added:
+                added.add(toolkit.playbook)
+                parts.append(
+                    f"# Task: [{section_type}.*] sections\n\n"
+                    f"{ws.playbooks[toolkit.playbook].text()}"
+                )
+            parts.append(toolkit.guide_table())
     else:
         parts.append(f"# The aimm-configure command\n\n{ws.playbooks['router'].text()}")
         listing = "\n".join(
@@ -230,7 +202,10 @@ async def run_session(
     home: Path | None = None,
     target: Tuple[str, str | None] | None = None,
 ) -> int:
-    """Run the AI over a set of toolkits; ``target`` limits it to one section. Exit code."""
+    """Run the AI over a set of toolkits and return an exit code.
+
+    ``target`` limits it to one section and the sections it depends on (its companions).
+    """
     from .mirascope_model import MirascopeModelSession
 
     home = home or amm_home
@@ -238,20 +213,22 @@ async def run_session(
     ws = Workspace(ui=ui, files=list(config_files), home=home, toolkits=kits)
     try:
         await ws.load(["router"] if router else [])
-        only = None
+        only: List[Tuple[str, str]] | None = None
         if target is not None:
             section_type, name = target
             chosen = await kits[section_type].choose_target(ui, ws, name)
             if chosen is None:
                 return 0
-            only = (section_type, chosen)
+            only = [(section_type, chosen), *kits[section_type].companions(ws, chosen)]
 
         async def setup_ai() -> int:
             return await configure_ai(ui, config_files, home=home)
 
-        executor = ToolExecutor(ws, only=only, setup_ai=setup_ai if router else None)
-        if only is not None:
-            executor.guides_read.add(only[0])  # its guide is in the system prompt
+        executor = ToolExecutor(
+            ws, only=set(only) if only else None, setup_ai=setup_ai if router else None
+        )
+        only_types = list(dict.fromkeys(t for t, _ in only)) if only else None
+        executor.guides_read.update(only_types or [])  # their guides are in the prompt
         try:
             model = MirascopeModelSession(
                 ai, executor.tools_for_model(), stop=lambda: executor.done
@@ -260,7 +237,7 @@ async def run_session(
             await ui.say(str(e), kind="error")
             return 1
         outcome = await run_agent(
-            executor, model, system_prompt(ws, only[0] if only else None), _opening(ws, only)
+            executor, model, system_prompt(ws, only_types), _opening(ws, only)
         )
     except ConfigLoadError as e:
         await ui.say(str(e), kind="error")
@@ -270,19 +247,27 @@ async def run_session(
     return 1 if outcome is Outcome.FAILED else 0
 
 
-def _opening(ws: Workspace, only: Tuple[str, str] | None) -> str:
-    if only is None:
+def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
+    if not only:
         return (
             "Command: aimm-configure. The user has not said anything yet. Briefly say what you "
             "can help configure, then ask what they want (ask_user)."
         )
-    section_type, name = only
+    # the first named section is where to start; "*" allows any section of a type
+    command = only[0][0]
+    named = [(t, n) for t, n in only if n != "*"]
+    section_type, name = named[0]
     state = "existing" if name in ws.user_cfg.get(section_type, {}) else "new"
-    return (
-        f"Command: aimm-configure {section_type}. The active section is "
-        f"[{section_type}.{name}] ({state}); only it can be changed. Start with "
-        f"section_show(section_type={section_type!r}, name={name!r}), then talk to the user "
-        "(ask_user)."
+    text = (
+        f"Command: aimm-configure {command}. The active section is "
+        f"[{section_type}.{name}] ({state})."
+    )
+    others = [f"[{t}.{n}]" for t, n in named[1:]] + [f"any [{t}.*]" for t, n in only if n == "*"]
+    if others:
+        text += f" You may also change {', '.join(dict.fromkeys(others))} when needed."
+    return text + (
+        f" Start with section_show(section_type={section_type!r}, name={name!r}), then talk "
+        "to the user (ask_user)."
     )
 
 

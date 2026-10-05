@@ -149,8 +149,54 @@ each part, and when the section is complete. You can add your own rules for a se
 ``~/.ai-marketplace-monitor/playbooks/marketplace.md``; they are appended to the bundled
 playbook.
 
-In ``aimm-configure`` the AI has the tools of every section type it can configure (only
-marketplaces for now; items will follow). It sees only the section names and their
+Items
+~~~~~
+
+``aimm-configure item`` adds or updates what to search for. It lists your existing items
+and asks whether to update one or add a new one; ``aimm-configure item.NAME`` goes straight
+to one item. Describe what you want, for example:
+
+.. code-block:: text
+
+    Search for an action camera within $200 and within 20 miles. Skip anything that needs
+    repair.
+
+The AI fills in the search phrases, a ``description`` of what you want (which the AI that
+rates listings reads), the price range, and any extra requests in ``extra_prompt``, in your
+own words. You can refine it afterwards in the same conversation: "make the max price
+$300".
+
+An item uses its marketplace's values (location, distance, schedule, notifications) unless
+it sets its own, and the AI sees what the item inherits, so it sets a value on the item only
+when this item should differ. If the marketplace does not exist yet, or has no location,
+the same conversation creates it or adds the location, tells you so, and saves both
+sections after one confirmation. No other section is changed.
+
+Notifications and users
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``aimm-configure notification`` (or ``aimm-configure user``) sets up how and to whom aimm sends
+notifications. Users and notifications are set up together: a ``[notification.NAME]`` section is
+one channel with its servers and credentials, and a ``[user.NAME]`` section says where a person
+receives it (email address, chat ID, ...) and which notifications they get (``notify_with``). If
+you have no user yet, notifications go to a new ``[user.me]``, so you only need to say how you
+want to be notified:
+
+.. code-block:: text
+
+    Notify me through email.
+
+The AI offers the options that fit: email through UnitySVC (``smtp.svcpass.com`` with your
+UnitySVC key, sent to your UnitySVC-registered address) or Gmail (which needs an app password),
+UnitySVC notifications, Pushbullet, Pushover, ntfy or Telegram. Passwords, tokens and keys are
+written only as environment-variable references such as ``${GMAIL_APP_PASSWORD}``; you never type
+them in the chat. After saving, aimm lists any variable that is not set yet, with the ``export``
+line to add to your shell profile. ``aimm-configure user.NAME`` and
+``aimm-configure notification.NAME`` start at that section; the session may still change any user
+or notification, and nothing else.
+
+In ``aimm-configure`` the AI has the tools of every section type it can configure
+(marketplaces, items, users and notifications). It sees only the section names and their
 ``request`` summaries until it opens a section, and it changes only the sections you asked
 about; several drafted sections are saved together after one confirmation.
 

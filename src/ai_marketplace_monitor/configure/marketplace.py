@@ -251,11 +251,12 @@ class MarketplaceToolkit(Toolkit):
         def names(section: str, *cfgs: Dict[str, Any]) -> List[str]:
             return list(dict.fromkeys(n for cfg in cfgs for n in cfg.get(section, {})))
 
+        cfg = ws.config_with_drafts()  # sections drafted in this session count too
         return {
-            "users": names("user", ws.user_cfg),
-            "ai_services": names("ai", ws.user_cfg),
-            "regions": names("region", ws.system_cfg, ws.user_cfg),
-            "translations": names("translation", ws.system_cfg, ws.user_cfg),
+            "users": names("user", cfg),
+            "ai_services": names("ai", cfg),
+            "regions": names("region", ws.system_cfg, cfg),
+            "translations": names("translation", ws.system_cfg, cfg),
         }
 
     # --- checks ----------------------------------------------------------------------------
@@ -276,6 +277,9 @@ class MarketplaceToolkit(Toolkit):
                     "city as it is."
                 )
             ]
+        guessed = ws.unconfirmed_cities(draft.values)
+        if guessed:
+            return guessed
         context = self.context(ws)
         refs = {
             "notify": "users",
@@ -295,7 +299,11 @@ class MarketplaceToolkit(Toolkit):
             # the whole config must still load (e.g. an item's cities against a new radius)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                expand(self.apply(ws.user_cfg, draft), ws.system_cfg, partial=True)
+                expand(
+                    self.apply(ws.config_with_drafts(exclude=draft.key), draft),
+                    ws.system_cfg,
+                    partial=True,
+                )
         except NormalizeError as e:
             errors.append(str(e))
         return errors
