@@ -308,8 +308,14 @@ check: probe              # none | probe | test_message
 | General (`aimm --chat`) | `AGENT.md` + the `summary` of every section playbook + the playbooks in focus with their field guides (this spec: `ai`) + the redacted config |
 | Scoped (later: `aimm --chat --section item.bike`, GUI "Chat" button) | `AGENT.md` + that builder's `instructions()` + its current values + context names (users, AI backends, regions) |
 
-Redacted config = each config file passed through `webui.secrets_redact.redact`, in a fenced
-block labeled with its path.
+Redacted config: when the configuration is valid, its `normalize()` form (#363), merged from
+all files into one canonical config, in one fenced block labeled with the source files. When
+it is incomplete or invalid (common right after the AI setup, which may leave only an
+`[ai.*]` section), each file as written, in its own fenced block labeled with its path, after
+a one-line reason. Either way, values are masked structurally on the parsed data: anything
+under a sensitive key (`utils.is_sensitive_key`, plus keys ending in `key` or `chat_id`)
+becomes `<REDACTED>` unless it is a `${VAR}` reference, and every other string passes through
+`scrub`. Loader warnings (e.g. an unset environment variable) are suppressed.
 
 ## AI usability check
 

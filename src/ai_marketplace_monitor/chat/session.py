@@ -1,13 +1,16 @@
 """A chat session: determine the AI (setting it up if needed), then chat with it."""
 
 import asyncio
+import re
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import tomlkit
 
 from ..ai import AIConfig
-from ..config import supported_ai_backends
+from ..config import load_config_dicts, supported_ai_backends
+from ..normalize import normalize
 from ..utils import amm_home, is_sensitive_key
 from .ai_sections import (
     AISection,
@@ -52,14 +55,42 @@ def _mask(value: Any, sensitive: bool = False) -> Any:
     return _MASK if sensitive and not isinstance(value, bool) else value
 
 
+_MARKUP = re.compile(r"\[/?[a-z ]+\]")
+
+
+def _toml_block(data: Dict[str, Any]) -> str:
+    return f"```toml\n{tomlkit.dumps(_mask(data)).rstrip()}\n```"
+
+
 def render_config(files: List[Path]) -> str:
-    """The user's config files with secrets masked, for the chat instructions."""
-    blocks = []
-    for path in files:
-        masked = tomlkit.dumps(_mask(read_toml(path)))
-        blocks.append(f"`{path}`:\n\n```toml\n{masked.rstrip()}\n```")
-    body = "\n\n".join(blocks) if blocks else "(no configuration files yet)"
-    return f"# The user's current configuration\n\n{body}"
+    """The user's configuration with secrets masked, for the chat instructions.
+
+    A valid configuration is shown in its normalized form (one canonical config merged
+    from all files); an incomplete or invalid one falls back to the files as written.
+    """
+    heading = "# The user's current configuration"
+    if not files:
+        return f"{heading}\n\n(no configuration files yet)"
+    sources = ", ".join(f"`{path}`" for path in files)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # e.g. "environment variable not set"
+            system, user = load_config_dicts(files)
+            normalized = normalize(user, system).config
+    except Exception as e:  # any failure: show the files instead of breaking the chat
+        reason = scrub(_MARKUP.sub("", str(e)).strip().splitlines()[0], None)[:200]
+        blocks = [f"`{path}`:\n\n{_toml_block(read_toml(path))}" for path in files]
+        note = (
+            f"aimm can't normalize this configuration yet ({reason}), so it is shown "
+            "file by file. Later files override earlier ones."
+        )
+        return "\n\n".join([heading, note, *blocks])
+    note = (
+        f"Normalized from {sources} (later files override earlier ones). Settings shared "
+        "by every item are stated once on the marketplace, notification channels are "
+        "shared [notification.*] sections, and notify / notify_with / ai are explicit lists."
+    )
+    return "\n\n".join([heading, note, _toml_block(normalized)])
 
 
 def _label(section: AISection, result: ProbeResult) -> str:

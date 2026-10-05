@@ -197,3 +197,53 @@ async def test_pasted_key_is_not_sent(
     assert len(warnings) == 2 and "environment" in warnings[0]
     every = [t for kind in ("warning", "error", "assistant") for t in ui.said(kind)]
     assert all("sk-abcdef" not in t and "plainsecretvalue" not in t for t in every)
+
+
+VALID_A = """
+[marketplace.facebook]
+search_city = "houston"
+search_interval = "1h"
+"""
+
+VALID_B = """
+[user.alice]
+pushbullet_token = "secret-token-value"
+
+[item.bike]
+search_phrases = "bike"
+
+[item.camera]
+search_phrases = "camera"
+"""
+
+
+def test_render_config_shows_normalized_view(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recwarn: pytest.WarningsRecorder
+) -> None:
+    monkeypatch.setenv("AIMM_TEST_KEY", "svcpass_realvalue123")
+    monkeypatch.delenv("AIMM_TEST_UNSET_USER", raising=False)  # the loader would warn
+    a = tmp_path / "a.toml"
+    a.write_text(VALID_A + 'username = "${AIMM_TEST_UNSET_USER}"\n')
+    b = tmp_path / "b.toml"
+    b.write_text(VALID_B + '[ai.unitysvc]\napi_key = "${AIMM_TEST_KEY}"\n')
+    text = render_config([a, b])
+    assert text.startswith("# The user's current configuration")
+    assert f"Normalized from `{a}`, `{b}`" in text
+    assert text.count("```toml") == 1
+    # normalized form: inline notification settings moved to a shared section,
+    # notify made explicit and hoisted to the marketplace
+    assert "[notification.pushbullet]" in text
+    assert 'notify = ["alice"]' in text
+    assert "secret-token-value" not in text and "<REDACTED>" in text
+    assert "${AIMM_TEST_KEY}" in text and "svcpass_realvalue123" not in text
+    assert not recwarn.list  # loader warnings (e.g. unset env vars) are not emitted
+
+
+def test_render_config_falls_back_to_files_when_incomplete(tmp_path: Path) -> None:
+    path = config(tmp_path, '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\n')
+    text = render_config([path])
+    assert "can't normalize this configuration yet" in text
+    assert "marketplace" in text  # the reason names the missing section
+    assert f"`{path}`:" in text
+    assert "${UNITYSVC_API_KEY}" in text
+    assert "[cyan]" not in text
