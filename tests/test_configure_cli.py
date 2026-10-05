@@ -187,11 +187,12 @@ async def test_configure_marketplace_end_to_end(
     made = use_fake_model(
         monkeypatch,
         [
-            [("marketplace_show", {"name": "home"})],
+            [("section_show", {"section_type": "marketplace", "name": "home"})],
             [
                 (
-                    "marketplace_update",
+                    "section_update",
                     {
+                        "section_type": "marketplace",
                         "name": "home",
                         "values": {"search_city": ["austin"], "radius": [25]},
                         "request": "Austin within 25 miles.",
@@ -227,8 +228,17 @@ async def test_aimm_configure_routes_a_request_to_the_section(
         monkeypatch,
         [
             [("ask_user", {"message": "What would you like to change?"})],
-            [("list_sections", {})],
-            [("marketplace_update", {"name": "facebook", "values": {"radius": [20]}})],
+            [("list_sections", {}), ("section_guide", {"section_type": "marketplace"})],
+            [
+                (
+                    "section_update",
+                    {
+                        "section_type": "marketplace",
+                        "name": "facebook",
+                        "values": {"radius": [20]},
+                    },
+                )
+            ],
             [("save", {"message": "Limiting the Houston search to 20 miles."})],
             [("finish", {"message": "Done."})],
         ],
@@ -242,7 +252,7 @@ async def test_aimm_configure_routes_a_request_to_the_section(
         "max_price": 300,
     }
     model = made[0]
-    assert {"list_sections", "setup_ai", "marketplace_update"} <= set(model.tools)
+    assert {"list_sections", "setup_ai", "section_guide", "section_update"} <= set(model.tools)
     assert "# The aimm-configure command" in model.system
     listed = model.results("list_sections")[0]["section_types"]
     assert {

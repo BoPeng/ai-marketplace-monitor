@@ -7,7 +7,7 @@
 
 `aimm-configure` configures aimm through a conversation with the user's AI service. The AI acts
 only through **tools** that aimm owns: it asks the user with `ask_user`, reads and drafts a section
-with section tools (`marketplace_show`, `marketplace_update`, ...), and saves with `save`, which
+with section tools (`section_show`, `section_update`, ...), and saves with `save`, which
 shows the change and asks the user once before anything is written. A command is a set of
 toolkits:
 
@@ -38,10 +38,10 @@ aimm owns config writing.
 
 ## The pattern for every section type
 
-- **Tools touch one section.** `<type>_update(name, ...)` changes only the draft of
+- **Tools touch one section.** `section_update(type, name, ...)` changes only the draft of
   `[<type>.<name>]`; `save` writes only drafted sections (`commit_sections(only=...)` refuses any
   other difference).
-- **The LLM sees only what it asks for.** `<type>_show(name)` returns that section (secrets
+- **The LLM sees only what it asks for.** `section_show(type, name)` returns that section (secrets
   masked) and the names its fields may reference; `list_sections` returns section names and their
   `request`, never contents. With a single-section command the LLM can see only that section.
 - **aimm mediates.** `user ⇄ aimm ⇄ LLM`: the LLM never talks to the user except through
@@ -80,19 +80,27 @@ Every tool returns a JSON-able dict to the LLM; errors are returned (`{"ok": fal
 | `save(message)` | for every draft with unsaved changes: requires it complete (`missing()` empty) and valid; shows `message`, each section and the file diff, asks once "Write these changes?"; writes via `commit_sections`. Returns `saved`, `declined` (ask what to change) or errors |
 | `finish(message, discard_unsaved=false)` | ends the session; refused while drafts have unsaved changes unless `discard_unsaved` is true (the user chose to discard) |
 
-**Per toolkit (`<type>` = `marketplace` now)**
+**Section tools (generic: the section type is an argument)**
 
 | Tool | Behavior |
 |---|---|
-| `<type>_show(name)` | `{exists, request, saved_values, values, unsaved_changes, still_required, can_reference}`; secrets masked |
-| `<type>_update(name, values={}, unset=[], request=null)` | applies to a copy of the draft: unknown fields, secrets that are not `${VAR}`, and `${VAR}` in non-secret fields are rejected; values equal to the current one in another form keep the user's form; then the toolkit validates (config class, referenced names, the whole config still loads). Errors leave the draft unchanged |
-| `<type>_check(name)` | `{still_required, errors, unsaved_changes}` |
+| `section_guide(section_type)` | the type's task playbook and field table. In `aimm-configure` a type's guide must be read before `section_update` on it (refused otherwise); a single-section command has its guide in the system prompt |
+| `section_show(section_type, name)` | `{exists, request, saved_values, values, unsaved_changes, still_required, can_reference}`; secrets masked |
+| `section_update(section_type, name, values, unset, request)` | `values` is a JSON object in a string (free-form object parameters arrived empty through Anthropic's tool schema; a double-encoded string, as qwen sends, is decoded). Applies to a copy of the draft: unknown fields, secrets that are not `${VAR}`, and `${VAR}` in non-secret fields are rejected; values equal to the current one in another form keep the user's form; then the toolkit validates (config class, referenced names, the whole config still loads). Errors leave the draft unchanged |
+| `section_check(section_type, name)` | `{still_required, errors, unsaved_changes}` |
+
+Adding a section type adds a toolkit and a playbook, not tools; the prompt stays small because
+each type's rules are read only when needed.
+
+**`session_state`.** Every result after a section tool (and every result while drafts exist)
+carries `{drafts: [{section, unsaved_changes, complete}], last_section}`, so follow-ups such as
+"make it $300" resolve to the right section regardless of what the model remembers.
 
 `aimm-configure` also gets `setup_ai()`: runs the scripted AI setup (`aimm-configure ai`) and
 returns its outcome.
 
-In a single-section command, `<type>_*` tools accept only the chosen name (one-section rule), and
-`list_sections` is not offered.
+In a single-section command, section tools accept only the chosen section (one-section rule),
+and `list_sections` is not offered.
 
 ## 3. The agent loop
 
@@ -146,7 +154,7 @@ names every requirement `missing()` can report (a test checks this). Bundled in
 appended (they may override `summary` only).
 
 - `AGENT.md` (every command): act only through tools; change a section only with
-  `<type>_update`; talk to the user with `ask_user`; save with `save` and end with `finish`;
+  `section_update`; talk to the user with `ask_user`; save with `save` and end with `finish`;
   secrets only as `${VAR}`; leave defaults unset unless asked; whenever asking what to set or
   change, list the main settings with current values; do not finish with an unanswered question;
   never say something is saved before `save` returns `saved`.
@@ -192,7 +200,7 @@ enums).
 | `rating` | SHARED | minimum AI rating to notify | list of ints 1–5, e.g. `[4]` |
 | `prompt`, `extra_prompt`, `rating_prompt` | SHARED | only when the user asks to change how the AI judges listings | free text; default: unset |
 
-`marketplace_show` also returns the names of `[user.*]`, `[ai.*]`, `[region.*]` and
+`section_show` also returns the names of `[user.*]`, `[ai.*]`, `[region.*]` and
 `[translation.*]` sections, i.e. the values its fields may reference. It receives nothing about
 items (not even their names) or any other section's contents.
 

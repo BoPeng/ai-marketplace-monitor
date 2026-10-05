@@ -23,8 +23,10 @@ short name (`facebook` for the first marketplace) or ask.
 
 ### Making the change
 
-Use that section type's tools, following its playbook. One request may touch more than one
-section; draft each change, then save them together.
+Read the section type's rules with `section_guide` (once per type), then use the section tools
+following that playbook. One request may touch more than one section; draft each change, then
+save them together. A follow-up such as "make it $300" usually refers to the section you just
+worked on (see `session_state`).
 
 ### AI services
 

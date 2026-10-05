@@ -1,6 +1,6 @@
 """The configure tools: everything the LLM can do, implemented by aimm.
 
-The LLM changes nothing directly. It drafts sections with ``<type>_update`` (validated here),
+The LLM changes nothing directly. It drafts sections with ``section_update`` (validated here),
 talks to the user with ``ask_user``, and saves with ``save``, which shows the change and asks
 the user before ``commit_sections`` writes only the drafted sections. Tools return dicts; errors
 are returned, never raised, so the LLM can correct itself.
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Set, Tuple
 
 from .toolkits import Toolkit
 from .ui import SetupClosedError
@@ -47,6 +47,8 @@ class ToolExecutor:
     steps_without_user: int = 0  # tool calls since the user last said something
     force_ask: bool = False  # set by the agent loop: only ask_user / finish are allowed
     calls: List[Tuple[str, Dict[str, Any]]] = field(default_factory=list)
+    # section types whose guide (playbook + field table) the model has read
+    guides_read: Set[str] = field(default_factory=set)
 
     # --- state ------------------------------------------------------------------------------
     @property
@@ -161,6 +163,11 @@ class ToolExecutor:
         toolkit, error = self._toolkit(section_type, name)
         if toolkit is None:
             return {"ok": False, "errors": [error]}
+        if section_type not in self.guides_read:
+            return {
+                "ok": False,
+                "errors": [f"Read the rules first: call section_guide({section_type!r})."],
+            }
         # `values` is a JSON object in a string (free-form objects do not survive every
         # provider's tool schema); a dict is accepted too
         # some models encode the string twice ("\"{...}\""): decode at most twice
@@ -201,6 +208,43 @@ class ToolExecutor:
             "errors": toolkit.validate(self.ws, draft),
             "unsaved_changes": toolkit.masked(draft.unsaved_changes()),
         }
+
+    async def section_guide(self: "ToolExecutor", section_type: str) -> Dict[str, Any]:
+        if section_type not in self.ws.toolkits:
+            return {
+                "ok": False,
+                "errors": [f"[{section_type}.*] sections cannot be configured here."],
+            }
+        toolkit = self.ws.toolkits[section_type]
+        self.guides_read.add(section_type)
+        return {
+            "ok": True,
+            "section_type": section_type,
+            "playbook": self.ws.playbooks[toolkit.playbook].text(),
+            "fields": toolkit.guide_table(),
+        }
+
+    def session_state(self: "ToolExecutor") -> Dict[str, Any]:
+        """What is being worked on: drafted sections, their unsaved changes, completeness."""
+        drafts = []
+        for draft in self.ws.drafts.values():
+            toolkit = self.ws.toolkits[draft.section_type]
+            drafts.append(
+                {
+                    "section": f"{draft.section_type}.{draft.name}",
+                    "unsaved_changes": toolkit.masked(draft.unsaved_changes()),
+                    "complete": not toolkit.missing(self.ws, draft),
+                }
+            )
+        last = next(
+            (
+                f"{a.get('section_type')}.{a.get('name')}"
+                for n, a in reversed(self.calls)
+                if n.startswith("section_") and a.get("name")
+            ),
+            None,
+        )
+        return {"drafts": drafts, "last_section": last}
 
     # --- saving and ending ------------------------------------------------------------------
     async def save(self: "ToolExecutor", message: str) -> Dict[str, Any]:
@@ -354,12 +398,21 @@ class ToolExecutor:
                 return await self.call("setup_ai", {})
 
             tools.append(setup_ai)
-        for section_type in self.ws.toolkits:
-            tools += _section_tools(self, section_type)
+        tools += _section_tools(self)
         return tools
 
     async def call(self: "ToolExecutor", name: str, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Run a tool by name (used by the model adapter and by tests)."""
+        """Run a tool by name (used by the model adapter and by tests).
+
+        Every result carries ``session_state``, so the model always knows which sections it
+        is working on, whatever it remembers of the conversation.
+        """
+        result = await self._call(name, args)
+        if self.ws.drafts or name.startswith("section_"):
+            result["session_state"] = self.session_state()
+        return result
+
+    async def _call(self: "ToolExecutor", name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         self.calls.append((name, args))
         if name != "ask_user":
             self.steps_without_user += 1
@@ -383,13 +436,15 @@ class ToolExecutor:
                 )
             if name == "setup_ai":
                 return await self.run_setup_ai()
-            section_type, _, action = name.rpartition("_")
-            if section_type in self.ws.toolkits and action in ("show", "update", "check"):
-                section_name = args.get("name", "")
-                if action == "show":
-                    return await self.section_show(section_type, section_name)
-                if action == "check":
-                    return await self.section_check(section_type, section_name)
+            section_type = str(args.get("section_type", ""))
+            section_name = str(args.get("name", ""))
+            if name == "section_guide":
+                return await self.section_guide(section_type)
+            if name == "section_show":
+                return await self.section_show(section_type, section_name)
+            if name == "section_check":
+                return await self.section_check(section_type, section_name)
+            if name == "section_update":
                 return await self.section_update(
                     section_type,
                     section_name,
@@ -404,52 +459,71 @@ class ToolExecutor:
         return {"ok": False, "errors": [f"Unknown tool `{name}`."]}
 
 
-def _section_tools(
-    executor: ToolExecutor, section_type: str
-) -> List[Callable[..., Awaitable[Dict[str, Any]]]]:
-    label = f"[{section_type}.NAME]"
+def _section_tools(executor: ToolExecutor) -> List[Callable[..., Awaitable[Dict[str, Any]]]]:
+    """The generic section tools.
 
-    async def show(name: str) -> Dict[str, Any]:
-        return await executor.call(f"{section_type}_show", {"name": name})
+    The section type is an argument, so adding a section type adds no tools.
+    """
+    types = ", ".join(f'"{t}"' for t in executor.ws.toolkits)
 
-    async def update(
+    async def section_guide(section_type: str) -> Dict[str, Any]:
+        return await executor.call("section_guide", {"section_type": section_type})
+
+    async def section_show(section_type: str, name: str) -> Dict[str, Any]:
+        return await executor.call("section_show", {"section_type": section_type, "name": name})
+
+    async def section_update(
+        section_type: str,
         name: str,
         values: str = "",
         unset: List[str] | None = None,
         request: str | None = None,
     ) -> Dict[str, Any]:
         return await executor.call(
-            f"{section_type}_update",
-            {"name": name, "values": values, "unset": unset, "request": request},
+            "section_update",
+            {
+                "section_type": section_type,
+                "name": name,
+                "values": values,
+                "unset": unset,
+                "request": request,
+            },
         )
 
-    async def check(name: str) -> Dict[str, Any]:
-        return await executor.call(f"{section_type}_check", {"name": name})
+    async def section_check(section_type: str, name: str) -> Dict[str, Any]:
+        return await executor.call("section_check", {"section_type": section_type, "name": name})
 
-    show.__doc__ = f"""Show the section {label}: its saved values, the values in this session,
-    unsaved changes, what is still required, and the names its fields may reference.
+    section_guide.__doc__ = f"""Read how to configure a section type: its task playbook and fields.
+
+    Read it before changing a section of that type.
 
     Args:
+        section_type: one of {types}.
+    """
+    section_show.__doc__ = f"""Show a section: saved values, values in this session, unsaved
+    changes, what is still required, and the names its fields may reference.
+
+    Args:
+        section_type: one of {types}.
         name: the section name, e.g. "facebook".
     """
-    update.__doc__ = f"""Change the draft of {label}; nothing is written until save. aimm
-    validates the result and returns errors (the draft is then unchanged).
+    section_update.__doc__ = f"""Change the draft of a section; nothing is written until save.
+
+    aimm validates the result and returns errors (the draft is then unchanged).
 
     Args:
+        section_type: one of {types}.
         name: the section name.
         values: the fields to set, as a JSON object in a string, e.g.
             '{{"search_city": ["houston"], "radius": [30]}}'. Empty to set nothing.
         unset: fields to remove.
         request: one or two sentences: what the user wants from this section, in their terms.
     """
-    check.__doc__ = f"""Check the draft of {label}: what is still required, validation errors,
-    and unsaved changes.
+    section_check.__doc__ = f"""Check a section's draft: what is still required, validation
+    errors, and unsaved changes.
 
     Args:
+        section_type: one of {types}.
         name: the section name.
     """
-    tools: List[Callable[..., Awaitable[Dict[str, Any]]]] = []
-    for fn, action in ((show, "show"), (update, "update"), (check, "check")):
-        fn.__name__ = fn.__qualname__ = f"{section_type}_{action}"
-        tools.append(fn)
-    return tools
+    return [section_guide, section_show, section_update, section_check]

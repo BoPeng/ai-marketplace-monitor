@@ -18,7 +18,7 @@ from ai_marketplace_monitor.configure.ui import SetupClosedError
 from tests.configure_util import ONE_ITEM, FakeModel, Step, make_ws, ui_of
 
 ASK = "ask_user"
-SHOW = ("marketplace_show", {"name": "facebook"})
+SHOW = ("section_show", {"section_type": "marketplace", "name": "facebook"})
 
 
 async def run(
@@ -26,6 +26,7 @@ async def run(
 ) -> tuple[Outcome, ToolExecutor, FakeModel]:
     ws = await make_ws(tmp_path, text, answers)
     executor = ToolExecutor(ws, only=("marketplace", "facebook"))
+    executor.guides_read.add("marketplace")  # in the system prompt for single-section commands
     model = FakeModel(steps).bind(executor.tools_for_model(), lambda: executor.done)
     outcome = await run_agent(executor, model, "system", "opening")
     return outcome, executor, model
@@ -38,8 +39,13 @@ async def test_conversation_saves_through_tools(tmp_path: Path) -> None:
             [SHOW, (ASK, {"message": "What would you like to change?"})],
             [
                 (
-                    "marketplace_update",
-                    {"name": "facebook", "values": {"max_price": "1000"}, "request": "Max $1000."},
+                    "section_update",
+                    {
+                        "section_type": "marketplace",
+                        "name": "facebook",
+                        "values": {"max_price": "1000"},
+                        "request": "Max $1000.",
+                    },
                 ),
                 (ASK, {"message": "Max price $1000. Anything else?"}),
             ],
@@ -55,7 +61,20 @@ async def test_conversation_saves_through_tools(tmp_path: Path) -> None:
     written = tomllib.loads((tmp_path / "config.toml").read_text())
     assert written["marketplace"]["facebook"]["max_price"] == "1000"
     assert written["item"]["example"]["max_price"] == 300
-    assert model.results(ASK)[0] == {"ok": True, "reply": "set max price to $1000"}
+    first = model.results(ASK)[0]
+    assert first["reply"] == "set max price to $1000"
+    # every result after a section tool carries what is being worked on
+    state = model.results("section_update")[0]["session_state"]
+    assert state == {
+        "drafts": [
+            {
+                "section": "marketplace.facebook",
+                "unsaved_changes": {"max_price": "1000"},
+                "complete": True,
+            }
+        ],
+        "last_section": "marketplace.facebook",
+    }
 
 
 async def test_plain_text_reply_is_shown_and_answered(tmp_path: Path) -> None:
@@ -73,20 +92,38 @@ async def test_update_errors_go_back_to_the_model(tmp_path: Path) -> None:
     outcome, _, model = await run(
         tmp_path,
         [
-            [("marketplace_update", {"name": "facebook", "values": {"condition": ["mint"]}})],
+            [
+                (
+                    "section_update",
+                    {
+                        "section_type": "marketplace",
+                        "name": "facebook",
+                        "values": {"condition": ["mint"]},
+                    },
+                )
+            ],
             [("finish", {"message": "Bye."})],
         ],
         [],
     )
     assert outcome is Outcome.UNCHANGED
-    assert not model.results("marketplace_update")[0]["ok"]
+    assert not model.results("section_update")[0]["ok"]
 
 
 async def test_quit_ends_without_writing(tmp_path: Path) -> None:
     outcome, executor, _ = await run(
         tmp_path,
         [
-            [("marketplace_update", {"name": "facebook", "values": {"max_price": "5"}})],
+            [
+                (
+                    "section_update",
+                    {
+                        "section_type": "marketplace",
+                        "name": "facebook",
+                        "values": {"max_price": "5"},
+                    },
+                )
+            ],
             [(ASK, {"message": "Anything else?"})],
         ],
         ["/quit"],
@@ -123,7 +160,7 @@ async def test_too_many_steps_without_the_user(
         ["fine"],
     )
     assert outcome is Outcome.UNCHANGED
-    shows: List[Any] = model.results("marketplace_show")
+    shows: List[Any] = model.results("section_show")
     assert shows[0]["ok"] and shows[1]["ok"]
     assert shows[2]["errors"] == ["Too many steps without the user: call ask_user now."]
 
@@ -135,7 +172,16 @@ async def test_call_limit_offers_save_of_complete_changes(
     outcome, executor, _ = await run(
         tmp_path,
         [
-            [("marketplace_update", {"name": "facebook", "values": {"max_price": "7"}})],
+            [
+                (
+                    "section_update",
+                    {
+                        "section_type": "marketplace",
+                        "name": "facebook",
+                        "values": {"max_price": "7"},
+                    },
+                )
+            ],
             [SHOW],
         ],
         ["yes"],

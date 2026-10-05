@@ -196,15 +196,28 @@ def toolkits() -> Dict[str, Toolkit]:
     return {"marketplace": MarketplaceToolkit()}
 
 
-def system_prompt(ws: Workspace, router: bool) -> str:
+def system_prompt(ws: Workspace, only_type: str | None) -> str:
+    """The instructions: AGENT.md plus one type's guide, or the router and the type list.
+
+    A single-section command gets its section type's playbook and fields directly;
+    aimm-configure gets the router playbook and reads guides with section_guide.
+    """
     parts = [ws.playbooks["AGENT"].text()]
-    if router:
-        parts.append(f"# The aimm-configure command\n\n{ws.playbooks['router'].text()}")
-    for section_type, toolkit in ws.toolkits.items():
+    if only_type is not None:
+        toolkit = ws.toolkits[only_type]
         parts.append(
-            f"# Task: [{section_type}.*] sections\n\n{ws.playbooks[toolkit.playbook].text()}"
+            f"# Task: [{only_type}.*] sections\n\n{ws.playbooks[toolkit.playbook].text()}"
         )
         parts.append(toolkit.guide_table())
+    else:
+        parts.append(f"# The aimm-configure command\n\n{ws.playbooks['router'].text()}")
+        listing = "\n".join(
+            f"- `{t}`: {ws.playbooks[k.playbook].summary}" for t, k in ws.toolkits.items()
+        )
+        parts.append(
+            "# Section types you can configure\n\n"
+            f"{listing}\n\nRead a type's rules with section_guide before changing it."
+        )
     return "\n\n".join(parts)
 
 
@@ -237,6 +250,8 @@ async def run_session(
             return await configure_ai(ui, config_files, home=home)
 
         executor = ToolExecutor(ws, only=only, setup_ai=setup_ai if router else None)
+        if only is not None:
+            executor.guides_read.add(only[0])  # its guide is in the system prompt
         try:
             model = MirascopeModelSession(
                 ai, executor.tools_for_model(), stop=lambda: executor.done
@@ -244,7 +259,9 @@ async def run_session(
         except ServiceError as e:
             await ui.say(str(e), kind="error")
             return 1
-        outcome = await run_agent(executor, model, system_prompt(ws, router), _opening(ws, only))
+        outcome = await run_agent(
+            executor, model, system_prompt(ws, only[0] if only else None), _opening(ws, only)
+        )
     except ConfigLoadError as e:
         await ui.say(str(e), kind="error")
         return 1
@@ -264,7 +281,8 @@ def _opening(ws: Workspace, only: Tuple[str, str] | None) -> str:
     return (
         f"Command: aimm-configure {section_type}. The active section is "
         f"[{section_type}.{name}] ({state}); only it can be changed. Start with "
-        f"{section_type}_show(name={name!r}), then talk to the user (ask_user)."
+        f"section_show(section_type={section_type!r}, name={name!r}), then talk to the user "
+        "(ask_user)."
     )
 
 
