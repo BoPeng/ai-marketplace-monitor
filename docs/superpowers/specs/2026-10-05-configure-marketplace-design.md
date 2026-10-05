@@ -138,8 +138,10 @@ The existing AI setup stays as it is (scripted, not a `SectionBuilder`).
 
 ### Content split
 
-- **Playbooks** (markdown) describe the **task**: what the section is for, what "complete" means,
-  and what matters to users. They do not script what to say or in which order to ask.
+- **Playbooks** (markdown) describe a **task**: its goal, how to achieve each subtask, and the
+  rules for completion. They are never a transcript or script: they do not say what to say or in
+  which order to ask. This is the method for **every** section builder (marketplace now; item,
+  user, notification and the rest later), each with its own playbook in the same structure.
 - **Field guides** (Python, in `configure/marketplace.py`) carry per-field facts, so a test can
   check their coverage.
 
@@ -152,12 +154,28 @@ Markdown with simple `key: value` frontmatter between `---` lines (no YAML depen
 section: marketplace
 summary: Defaults for searching one marketplace (location, filters, schedule, notifications).
 ---
-## Task
-<what the LLM must achieve for this section, and what matters to users>
+## Goal
+<what the finished section achieves for the user>
+
+## Subtasks
+### <subtask>
+<what it decides, how to work it out (what to infer, what to ask, which fields), pitfalls>
+
+## Completion
+<rules for when the section is complete; the minimum is a valid section that can be added to the
+config>
+
+## Rules
+<constraints: what not to touch, secrets, interactions with other sections>
 ```
 
-- `section` and `summary` are required. `AGENT.md` has `section: base`.
-- `## Task` is required for section playbooks.
+- `section` and `summary` are required. `AGENT.md` has `section: base` and holds the shared
+  method and reply format.
+- Section playbooks must have `## Goal`, `## Subtasks` and `## Completion`; `## Rules` is
+  optional. The loader rejects a section playbook missing a required heading.
+- `## Completion` describes the rules for the LLM; the builder's `missing()` enforces the same
+  required parts in code (a test keeps the two in step by checking that every requirement
+  `missing()` can report is named in `## Completion`).
 - Bundled playbooks live in `configure/playbooks/` and ship as package data.
 - **House rules:** `~/.ai-marketplace-monitor/playbooks/<name>.md` (same file name) is appended
   under `## House rules (from <path>)`. It may override `summary` only. A user playbook with no
@@ -165,7 +183,8 @@ summary: Defaults for searching one marketplace (location, filters, schedule, no
 
 ### `AGENT.md` (every section)
 
-- You are helping a user configure one section of aimm. You get: the task (section playbook), the
+- You are helping a user configure one section of aimm. You get: the task (section playbook: goal,
+  subtasks, completion rules), the
   field guides, the current section, the situation (new or existing, its `request`, related
   sections and items), what is still required, and the conversation so far.
 - Each turn, evaluate what is known, what is still required, and which optional settings would
@@ -187,21 +206,32 @@ summary: Defaults for searching one marketplace (location, filters, schedule, no
 
 ### `marketplace.md`
 
-**Task** (for the LLM):
-
-- A marketplace section holds the defaults for searching Facebook Marketplace (the only supported
-  marketplace). Its shared values apply to every item of the marketplace unless an item sets its
-  own; its own values (language, login) apply to the marketplace itself.
-- Complete the section: a location is required (a city with a radius, or a region). Then collect
-  the optional settings this user is likely to care about, such as who is notified, which AI rates
-  listings, which listings to consider (condition, delivery, how recent), and how often to search.
-  Leave the rest unset so aimm's defaults apply.
-- For an existing section, start from its `request` and values and find out what the user wants to
-  change.
-- When items exist, say plainly how a change affects them: items with their own value keep it.
-  If the user wants a change applied to every item, list the field in `apply_to_all_items`.
-- Facebook login is optional and handled outside the conversation; if the user brings it up,
-  explain `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD`.
+- **Goal:** a marketplace section holding the defaults for searching Facebook Marketplace (the
+  only supported marketplace) that fit how this user shops. Shared values apply to every item of
+  the marketplace unless an item sets its own; own values (language, login) apply to the
+  marketplace itself.
+- **Subtasks:**
+  - *Location* (required): where to search. Infer the city and distance from what the user says;
+    a whole country or area maps to a defined region. City names must become Facebook's city
+    slug.
+  - *Who and how*: who is notified (`notify`) and which AI services rate listings (`ai`). The
+    defaults (all users, all AI services) are usually right; change them only if the user has
+    several of either and a preference.
+  - *Which listings*: condition, delivery method, how recent, availability, sort order, and a
+    price range only if it applies to everything the user searches here. Ask only about what is
+    likely to matter for this user.
+  - *Schedule*: how often to search, or fixed times. Leave unset unless the user cares.
+  - *Updating an existing section*: start from its `request` and values; find out what to change;
+    keep everything else.
+  - *Items*: when items exist, say plainly how a change affects them (items with their own value
+    keep it); if the user wants a change applied to every item, list the field in
+    `apply_to_all_items`.
+- **Completion:** the section loads as a valid marketplace config and has a location (a shared
+  city or region, or a location on every item). Optional settings the user mentioned are set;
+  anything not discussed stays unset so aimm's defaults apply.
+- **Rules:** Facebook login is optional and handled outside the conversation; if the user brings
+  it up, explain `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD`, and never set `username` / `password`
+  to anything but those references.
 
 ### Field guides
 
@@ -264,8 +294,8 @@ value or "varies" with the per-item values.
 
 Each round is one LLM turn, `llm.run_turn(ai, instructions, situation, history)`:
 
-- **Instructions:** `AGENT.md`, the section playbook's task, house rules, and the field-guide
-  table grouped by `FieldGroup`.
+- **Instructions:** `AGENT.md`, the section playbook (goal, subtasks, completion, rules), house
+  rules, and the field-guide table grouped by `FieldGroup`.
 - **Situation** (rebuilt every turn): new or existing; the current draft (secrets masked) and its
   `request`; what is still required (`missing()`); the context (names of users, AI services,
   regions, translations, and this marketplace's items); SHARED fields that vary across items.
@@ -359,8 +389,9 @@ With one file, comments in it are lost (the backup keeps them); the preview says
 ## Testing
 
 - Field guides cover every field; groups match metadata; enum formats match the enums.
-- Playbooks: frontmatter parsing, house rules appended, unknown user playbooks ignored, task
-  required.
+- Playbooks: frontmatter parsing, house rules appended, unknown user playbooks ignored, required
+  headings (`Goal`, `Subtasks`, `Completion`) enforced, `missing()` requirements named in
+  `## Completion`.
 - `run_turn`: JSON parsing, validation errors fed back, retry limit, secrets masked in the
   prompt, secret fields set to non-`${VAR}` values dropped.
 - Completeness: `missing()` for no location / shared location / per-item locations; an LLM
