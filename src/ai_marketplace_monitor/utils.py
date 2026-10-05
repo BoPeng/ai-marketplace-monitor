@@ -10,13 +10,12 @@ from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, TypeVar
 
 import parsedatetime  # type: ignore
 import requests  # type: ignore
 import rich
 from diskcache import Cache  # type: ignore
-from playwright.sync_api import ProxySettings
 from pyparsing import (
     CharsNotIn,
     Keyword,
@@ -29,6 +28,9 @@ from pyparsing import (
 )
 from requests.exceptions import RequestException, Timeout  # type: ignore
 from rich.pretty import pretty_repr
+
+if TYPE_CHECKING:
+    from playwright.sync_api import ProxySettings
 
 try:
     from pynput import keyboard  # type: ignore
@@ -382,10 +384,10 @@ class MonitorConfig(BaseConfig):
         if not isinstance(self.proxy_password, str):
             raise ValueError(f"Item {hilight(self.name)} proxy_password must be a string.")
 
-    def get_proxy_options(self: "MonitorConfig") -> ProxySettings | None:
+    def get_proxy_options(self: "MonitorConfig") -> "ProxySettings | None":
         if not self.proxy_server:
             return None
-        res = ProxySettings(server=random.choice(self.proxy_server))
+        res: ProxySettings = {"server": random.choice(self.proxy_server)}
         if self.proxy_username and self.proxy_password:
             res["username"] = self.proxy_username
             res["password"] = self.proxy_password

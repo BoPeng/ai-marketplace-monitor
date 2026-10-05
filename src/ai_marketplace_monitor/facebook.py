@@ -6,12 +6,11 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import Any, Generator, List, Tuple, Type, cast
+from typing import TYPE_CHECKING, Any, Generator, List, Tuple, Type, cast
 from urllib.parse import quote
 
 import humanize
 from currency_converter import CurrencyConverter  # type: ignore
-from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
@@ -36,6 +35,9 @@ from .utils import (
     hilight,
     is_substring,
 )
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
 
 
 class Condition(Enum):
@@ -298,7 +300,7 @@ class FacebookMarketplace(Marketplace):
     def __init__(
         self: "FacebookMarketplace",
         name: str,
-        browser: Browser | None,
+        browser: "Browser | None",
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -1354,7 +1356,7 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
 
 
 def parse_listing(
-    page: Page, post_url: str, translator: Translator | None = None, logger: Logger | None = None
+    page: "Page", post_url: str, translator: Translator | None = None, logger: Logger | None = None
 ) -> Listing | None:
     supported_facebook_item_layouts = [
         FacebookRentalItemPage,

@@ -46,7 +46,7 @@ def test_defaults_use_the_balanced_llm_platform_service() -> None:
 
 def test_connect_points_the_openai_client_at_unitysvc() -> None:
     backend = UnitySVCBackend(UnitySVCConfig(name="unitysvc", api_key="svcpass_test"))
-    with patch("ai_marketplace_monitor.ai.OpenAI") as client:
+    with patch("openai.OpenAI") as client:
         backend.connect()
     assert client.call_args.kwargs["base_url"] == "https://api.svcpass.com/p/llm"
     assert client.call_args.kwargs["api_key"] == "svcpass_test"
@@ -56,6 +56,6 @@ def test_base_url_can_be_overridden() -> None:
     config = UnitySVCConfig(
         name="unitysvc", api_key="svcpass_test", base_url="https://api.staging.example/p/llm"
     )
-    with patch("ai_marketplace_monitor.ai.OpenAI") as client:
+    with patch("openai.OpenAI") as client:
         UnitySVCBackend(config).connect()
     assert client.call_args.kwargs["base_url"] == "https://api.staging.example/p/llm"

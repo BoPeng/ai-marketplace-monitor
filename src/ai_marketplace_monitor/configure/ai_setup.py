@@ -10,10 +10,7 @@ import threading
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, TypeVar
-
-import anthropic
-import openai
+from typing import Any, Callable, Dict, List, Tuple, Type, TypeVar
 
 from ..ai import AIBackend, AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
 from ..config import supported_ai_backends
@@ -33,7 +30,6 @@ _SECRET_TOKEN = re.compile(r"(svcpass_|sk-ant-|sk-)[A-Za-z0-9_\-]{4,}")
 _TYPED_KEY = re.compile(r"^(svcpass_|sk-ant-|sk-)\S{8,}")
 _MARKUP = re.compile(r"\[/?[a-z ]+\]")
 _PING = [{"role": "user", "content": "ping"}]
-_CONNECTION_ERRORS = (openai.APIConnectionError, anthropic.APIConnectionError)
 
 UNITYSVC_TIERS = ["fast", "balanced", "coding", "premium"]
 OLLAMA_URL = "http://localhost:11434/v1"
@@ -222,6 +218,14 @@ async def commit_ai_section(
     return await commit_section(ui, proposal.to_write(), ctx.files, ctx.backup_dir)
 
 
+def _connection_errors() -> Tuple[Type[BaseException], ...]:
+    # imported on first use: the SDKs add seconds to every aimm-configure start
+    import anthropic
+    import openai
+
+    return (openai.APIConnectionError, anthropic.APIConnectionError)
+
+
 def model_matches(model: str, available: List[str]) -> bool:
     target = _normalize_model(model)
     return any(_normalize_model(candidate) == target for candidate in available)
@@ -246,7 +250,7 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
     available: List[str] = []
     try:
         available = [model_info.id for model_info in client.models.list()]
-    except _CONNECTION_ERRORS:
+    except _connection_errors():
         return ProbeResult(False, "models", model, f"Can't reach {_base_url(backend)}")
     except Exception as e:
         status = getattr(e, "status_code", None)
@@ -268,7 +272,7 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
 
     try:
         _ping(backend, client, model)
-    except _CONNECTION_ERRORS:
+    except _connection_errors():
         return ProbeResult(False, "request", model, f"Can't reach {_base_url(backend)}", available)
     except Exception as e:
         message = f"{section.name} request failed: {scrub(str(e), secret)[:200]}"
