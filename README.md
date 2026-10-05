@@ -33,6 +33,8 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
+- **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
+- **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models and 100+ notification channels. See [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
 - **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-5-5`) to evaluate listings alongside OpenAI, DeepSeek, Gemini, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
 - **Configurable Rate Limiting**: Rate limiting framework for all notification types with per-instance and global limits. Telegram notifications use optimized defaults automatically.
@@ -62,12 +64,14 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 - Intelligent listing evaluation
 - Smart recommendations
-- Multiple AI service providers supported
-- Self-hosted model option (Ollama)
+- AI-assisted configuration editing with `aimm configure` and the Web UI Configure chat
+- Almost arbitrary AI models through [UnitySVC](https://unitysvc.com/), plus OpenAI, Anthropic, DeepSeek, Gemini, and Ollama
+- Self-hosted model option through Ollama
 
 📱 **Notifications**
 
-- PushBullet, PushOver, Telegram, Ntfy, or UnitySVC notifications
+- 100+ notification channels through [UnitySVC](https://unitysvc.com/)
+- PushBullet, PushOver, Telegram, and Ntfy notifications
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
@@ -209,13 +213,14 @@ For detailed information on setup and advanced features, see the comprehensive d
 
 **Notification Setup:**
 
-- Email (SMTP), PushBullet, PushOver, Telegram, Ntfy, UnitySVC
+- UnitySVC notification catalog with 100+ channels, plus Email (SMTP), PushBullet, PushOver, Telegram, and Ntfy
 - Multi-user configurations
 - HTML email templates
 
 **AI Integration:**
 
-- OpenAI, DeepSeek, Gemini, Anthropic, Ollama setup
+- AI-assisted configuration editing with `aimm configure`
+- UnitySVC access to almost arbitrary AI models, plus OpenAI, DeepSeek, Gemini, Anthropic, and Ollama setup
 - Custom prompt configuration
 - Rating thresholds and filtering
 
