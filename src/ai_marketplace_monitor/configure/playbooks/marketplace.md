@@ -44,10 +44,13 @@ Start from its `request` and values; find out what the user wants to change; kee
 ### Items
 
 Only when the context lists items of this marketplace (`items_of_this_marketplace`); otherwise
-do not mention items. Say plainly how a change affects them: items that use the
-marketplace's value get the new value, items with their own value keep it. If the user wants a
-change applied to every item, list the field in an extra reply key `"apply_to_all_items"`, e.g.
-`"apply_to_all_items": ["search_city"]`.
+do not mention items. Items use the marketplace's values unless they set their own;
+`items_with_their_own_values` lists those. Say plainly how a change affects them: a new
+marketplace value applies to items without their own value, and items with their own value keep
+it. Never describe an item's own values as the marketplace's. If the user wants a value to apply
+to every item, list the field in an extra reply key `"apply_to_all_items"`, e.g.
+`"apply_to_all_items": ["search_city"]`; aimm then removes the items' own values so they use the
+marketplace's.
 
 ## Completion
 

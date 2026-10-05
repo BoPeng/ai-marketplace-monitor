@@ -21,8 +21,6 @@ else:
     import tomli as tomllib
 
 from ..config import load_config_dicts
-from ..config_toml import dump_config_toml
-from ..normalize import NormalizeError, normalize
 from .ui import SetupUI
 
 
@@ -190,89 +188,82 @@ SectionKey = Tuple[str, str]
 
 
 def _sections(cfg: Dict[str, Any]) -> Dict[SectionKey, Dict[str, Any]]:
-    out: Dict[SectionKey, Dict[str, Any]] = {}
-    for section_type, body in cfg.items():
-        if section_type == "monitor":
-            out[("monitor", "")] = body
-        else:
-            out.update({(section_type, name): section for name, section in body.items()})
-    return out
+    return {
+        (section_type, name): section
+        for section_type, body in cfg.items()
+        if section_type != "monitor" and isinstance(body, dict)
+        for name, section in body.items()
+    }
 
 
 def _owner(files: List[Path], key: SectionKey) -> Path | None:
     """The last file that defines a section (later files win when merged)."""
     owner = None
     for path in files:
-        data = read_toml(path)
-        if (key[0] == "monitor" and "monitor" in data) or key[1] in data.get(key[0], {}):
+        if key[1] in read_toml(path).get(key[0], {}):
             owner = path
     return owner
 
 
-def _section_writes(
-    files: List[Path], old: Dict[str, Any], new: Dict[str, Any], default: Path
+def _edit_documents(
+    files: List[Path], changes: Dict[SectionKey, Dict[str, Any]], default: Path
 ) -> Dict[Path, str]:
-    """New text of each file that holds a changed section (used with several config files)."""
-    old_sections, new_sections = _sections(old), _sections(new)
+    """New text of each file that holds a changed section, edited key by key in place.
+
+    Comments, key order and every other section of the file are kept.
+    """
     docs: Dict[Path, Any] = {}
-    for key in [*new_sections, *(k for k in old_sections if k not in new_sections)]:
-        if old_sections.get(key) == new_sections.get(key):
-            continue
+    for key, values in changes.items():
         path = _owner(files, key) or default
         if path not in docs:
             text = path.read_text(encoding="utf-8") if path.exists() else ""
             docs[path] = tomlkit.parse(text) if text else tomlkit.document()
         doc = docs[path]
         section_type, name = key
-        if section_type == "monitor":
-            doc["monitor"] = new_sections.get(key, {})
-            continue
         if section_type not in doc:
             doc[section_type] = tomlkit.table(is_super_table=True)
-        if key in new_sections:
-            table = tomlkit.table()
-            for k, v in new_sections[key].items():
+        parent: Any = doc[section_type]
+        if name not in parent:
+            parent[name] = tomlkit.table()
+        table = parent[name]
+        for k in [k for k in table if k not in values]:
+            del table[k]
+        for k, v in values.items():
+            if k not in table or table[k] != v:
                 table[k] = v
-            doc[section_type][name] = table
-        elif name in doc[section_type]:
-            del doc[section_type][name]
     return {path: tomlkit.dumps(doc) for path, doc in docs.items()}
 
 
-async def commit_config(
+async def commit_sections(
     ui: SetupUI,
-    new_expanded: Dict[str, Any],
+    new_user_cfg: Dict[str, Any],
+    old_user_cfg: Dict[str, Any],
     files: List[Path],
-    system_cfg: Dict[str, Any],
-    user_cfg: Dict[str, Any],
     backup_dir: Path,
     default_file: Path | None = None,
 ) -> CommitOutcome:
-    """Normalize an edited (expanded) config, preview, confirm, back up, write, and verify.
+    """Write the sections that differ between two user configs; leave everything else alone.
 
-    With one config file, the file is rewritten in normalized form. With several, each changed
-    section is written into the file that defines it (new sections go to the last file).
+    Each changed section is edited in place in the file that defines it (a new section goes
+    to ``default_file``, else the last config file). Preview, confirm, back up, write, verify.
     """
-    try:
-        new = normalize(new_expanded, system_cfg, partial=True).config
-        old = normalize(user_cfg, system_cfg, partial=True).config
-    except NormalizeError as e:
-        await ui.say(f"The new configuration is not valid: {e}", kind="error")
-        return CommitOutcome.FAILED
+    old, new = _sections(old_user_cfg), _sections(new_user_cfg)
+    changes = {key: values for key, values in new.items() if old.get(key) != values}
     target = default_file or (files[-1] if files else None)
+    if not changes:
+        await ui.say("Nothing changed; your config is left as it is.", kind="success")
+        return CommitOutcome.WRITTEN
     if target is None:
         await ui.say("No config file to write to.", kind="error")
         return CommitOutcome.FAILED
-    if len(files) <= 1:
-        plans = {target: dump_config_toml(new)}
-    else:
-        plans = _section_writes(files, old, new, target)
+    try:
+        plans = _edit_documents(files, changes, target)
+    except (ParseError, OSError, ConfigReadError) as e:
+        await ui.say(f"Could not prepare the change: {e}", kind="error")
+        return CommitOutcome.FAILED
 
-    previews = []
     for path, text in plans.items():
         before = path.read_text(encoding="utf-8") if path.exists() else ""
-        if before == text:
-            continue
         diff = "".join(
             difflib.unified_diff(
                 before.splitlines(keepends=True),
@@ -281,46 +272,29 @@ async def commit_config(
                 tofile=f"{path} (new)",
             )
         )
-        previews.append((path, diff, len(files) <= 1 and "#" in before))
-    if not previews:
-        await ui.say("Nothing to change in the config files.", kind="success")
-        return CommitOutcome.WRITTEN
-    for path, diff, has_comments in previews:
         await ui.say(f"```diff\n{diff}```", markdown=True)
-        if has_comments:
-            await ui.say(
-                f"{path} is rewritten in normalized form, so its comments are dropped "
-                "(the backup keeps them).",
-                kind="warning",
-            )
     if not await ui.confirm("Write these changes?"):
         return CommitOutcome.DECLINED
 
-    written: List[Path] = []
     try:
-        for path, _diff, _ in previews:
+        for path, text in plans.items():
             if path.exists():
                 backup_file(path, backup_dir)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(plans[path], encoding="utf-8")
-            written.append(path)
+            path.write_text(text, encoding="utf-8")
         read_order = files if target in files else [*files, target]
-        system, user = load_config_dicts(read_order)
-        reloaded = normalize(user, system, partial=True).config
-    except (OSError, ValueError, NormalizeError) as e:
+        _, reloaded_cfg = load_config_dicts(read_order)
+    except (OSError, ValueError) as e:
         await ui.say(f"Could not update the config: {e}", kind="error")
         return CommitOutcome.FAILED
-    if reloaded != new:
-        changed = sorted(
-            f"[{t}.{n}]" if n else f"[{t}]"
-            for (t, n), v in _sections(new).items()
-            if _sections(reloaded).get((t, n)) != v
-        )
+    reloaded = _sections(reloaded_cfg)
+    wrong = [f"[{t}.{n}]" for (t, n), values in changes.items() if reloaded.get((t, n)) != values]
+    if wrong:
         await ui.say(
-            f"Saved, but {', '.join(changed) or 'the config'} does not read back as written; "
-            "another config file may override it.",
+            f"Saved, but {', '.join(wrong)} does not read back as written; another config "
+            "file may set some of its keys.",
             kind="error",
         )
         return CommitOutcome.FAILED
-    await ui.say(f"Saved {', '.join(str(p) for p in written)}.", kind="success")
+    await ui.say(f"Saved {', '.join(str(p) for p in plans)}.", kind="success")
     return CommitOutcome.WRITTEN

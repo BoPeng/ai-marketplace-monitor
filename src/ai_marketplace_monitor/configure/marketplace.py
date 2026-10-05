@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import re
 import warnings
-from collections import Counter
 from typing import Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
@@ -29,7 +28,6 @@ from .sections import (
 )
 from .ui import Choice, SetupUI
 
-_ABSENT = object()
 _MARKUP = re.compile(r"\[/?[a-z ]+\]")
 _NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -226,13 +224,13 @@ class MarketplaceBuilder(SectionBuilder):
     config_class = FacebookMarketplaceConfig
     guides = MARKETPLACE_GUIDES
 
-    # --- reading the expanded config -------------------------------------------------------
+    # --- reading the user's config ---------------------------------------------------------
     def items(
         self: "MarketplaceBuilder", cfg: Dict[str, Any], name: str
     ) -> Dict[str, Dict[str, Any]]:
-        markets = cfg.get("marketplace", {})
-        if name not in markets:
-            return {}
+        """Items that search this marketplace (their own ``marketplace``, else the first one)."""
+        markets = dict(cfg.get("marketplace", {}))
+        markets.setdefault(name, {})
         return {
             item_name: item
             for item_name, item in cfg.get("item", {}).items()
@@ -246,36 +244,22 @@ class MarketplaceBuilder(SectionBuilder):
         return [f for f in self.field_names() if self.group(f) is FieldGroup.LOCATION]
 
     def view(self: "MarketplaceBuilder", ctx: BuilderContext, name: str) -> SectionDraft:
-        market = ctx.expanded.get("marketplace", {}).get(name)
+        market = ctx.user_cfg.get("marketplace", {}).get(name)
         values = {k: copy.deepcopy(v) for k, v in (market or {}).items() if k != "request"}
-        varies: Dict[str, Dict[str, Any]] = {}
-        items = self.items(ctx.expanded, name)
-        if items:
-            for key in self.shared_fields():
-                found = {n: item.get(key, _ABSENT) for n, item in items.items()}
-                distinct = {repr(v) for v in found.values()}
-                if len(distinct) == 1:
-                    value = next(iter(found.values()))
-                    if value is not _ABSENT:
-                        values[key] = copy.deepcopy(value)
-                elif any(v is not _ABSENT for v in found.values()):
-                    varies[key] = {n: (None if v is _ABSENT else v) for n, v in found.items()}
-        # the expanded form spells out "all users" / "all AI services"; show those as unset
-        defaults = {
-            "notify": list(ctx.expanded.get("user", {})),
-            "ai": list(ctx.expanded.get("ai", {})),
+        shared = self.shared_fields()
+        overrides = {
+            item_name: {k: copy.deepcopy(v) for k, v in item.items() if k in shared}
+            for item_name, item in self.items(ctx.user_cfg, name).items()
         }
-        for key, everything in defaults.items():
-            if values.get(key) == everything:
-                values.pop(key)
         return SectionDraft(
             section_type="marketplace",
             name=name,
             is_new=market is None,
             request=(market or {}).get("request"),
             values=values,
-            varies=varies,
+            item_overrides={n: o for n, o in overrides.items() if o},
             original=copy.deepcopy(values),
+            original_request=(market or {}).get("request"),
         )
 
     def context(
@@ -285,14 +269,14 @@ class MarketplaceBuilder(SectionBuilder):
             return list(dict.fromkeys(n for cfg in cfgs for n in cfg.get(section, {})))
 
         return {
-            "users": names("user", ctx.expanded),
-            "ai_services": names("ai", ctx.expanded),
-            "regions": names("region", ctx.system_cfg, ctx.expanded),
-            "translations": names("translation", ctx.system_cfg, ctx.expanded),
+            "users": names("user", ctx.user_cfg),
+            "ai_services": names("ai", ctx.user_cfg),
+            "regions": names("region", ctx.system_cfg, ctx.user_cfg),
+            "translations": names("translation", ctx.system_cfg, ctx.user_cfg),
             "other_marketplaces": [
-                n for n in ctx.expanded.get("marketplace", {}) if n != draft.name
+                n for n in ctx.user_cfg.get("marketplace", {}) if n != draft.name
             ],
-            "items_of_this_marketplace": list(self.items(ctx.expanded, draft.name)),
+            "items_of_this_marketplace": list(self.items(ctx.user_cfg, draft.name)),
         }
 
     # --- checks ----------------------------------------------------------------------------
@@ -322,6 +306,7 @@ class MarketplaceBuilder(SectionBuilder):
         if errors:
             return errors
         try:
+            # the whole config must still load (e.g. an item's cities against a new radius)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 expand(self.apply(ctx, draft), ctx.system_cfg, partial=True)
@@ -333,7 +318,7 @@ class MarketplaceBuilder(SectionBuilder):
         location = ("search_city", "search_region")
         if any(draft.values.get(k) for k in location):
             return []
-        items = self.items(ctx.expanded, draft.name)
+        items = self.items(ctx.user_cfg, draft.name)
         if items and all(any(item.get(k) for k in location) for item in items.values()):
             return []
         return ["location: set search_city (with radius) or search_region"]
@@ -343,115 +328,76 @@ class MarketplaceBuilder(SectionBuilder):
         section = {"request": draft.request} if draft.request else {}
         section.update(self.masked(draft.values))
         lines = [f"```toml\n{dump_config_toml({'marketplace': {draft.name: section}})}```"]
-        changed = self._changed_items(ctx, draft)
-        if changed:
-            lines.append(
-                "Items updated: "
-                + "; ".join(f"{n} ({', '.join(keys)})" for n, keys in changed.items())
-            )
-        for key, per_item in draft.varies.items():
-            if key not in draft.all_items:
-                shown = ", ".join(f"{n}: {v}" for n, v in per_item.items())
-                lines.append(f"`{key}` differs across items ({shown}).")
+        lines += self._item_notes(draft)
         return "\n\n".join(lines)
 
-    def _changed_items(
-        self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
-    ) -> Dict[str, List[str]]:
-        before = self.items(ctx.expanded, draft.name)
-        after = self.items(self.apply(ctx, draft), draft.name)
-        changed: Dict[str, List[str]] = {}
-        for name, item in after.items():
-            keys = [
-                k
-                for k in self.shared_fields()
-                if item.get(k, _ABSENT) != before.get(name, {}).get(k, _ABSENT)
-            ]
-            if keys:
-                changed[name] = keys
-        return changed
+    def _item_notes(self: "MarketplaceBuilder", draft: SectionDraft) -> List[str]:
+        notes = []
+        cleared = self._cleared_keys(draft)
+        for item, own in draft.item_overrides.items():
+            kept = [k for k in own if k not in cleared]
+            removed = [k for k in own if k in cleared]
+            if kept:
+                notes.append(
+                    f"[item.{item}] keeps its own " + ", ".join(f"`{k}`" for k in kept) + "."
+                )
+            if removed:
+                notes.append(
+                    f"[item.{item}] will use the marketplace's "
+                    + ", ".join(f"`{k}`" for k in removed)
+                    + " (its own value is removed)."
+                )
+        return notes
+
+    def _cleared_keys(self: "MarketplaceBuilder", draft: SectionDraft) -> List[str]:
+        """Item keys to remove so that items inherit the marketplace value."""
+        keys = [k for k in draft.all_items if k in self.shared_fields()]
+        if any(k in self.location_fields() for k in keys):
+            keys += self.location_fields()  # location keys go together
+        return list(dict.fromkeys(keys))
 
     def apply(
         self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
     ) -> Dict[str, Any]:
-        """The expanded config with this draft applied (the input is not changed)."""
-        cfg = copy.deepcopy(ctx.expanded)
-        markets = cfg.setdefault("marketplace", {})
-        market = markets.setdefault(draft.name, {})
-        own = [f for f in self.field_names() if self.group(f) is FieldGroup.OWN]
-        if draft.request:
-            market["request"] = draft.request
-        for key in own:
-            if key in draft.values:
-                market[key] = copy.deepcopy(draft.values[key])
-            else:
-                market.pop(key, None)
-        items = self.items(cfg, draft.name)
-        if not items:
-            for key in self.shared_fields():
-                if key in draft.values:
-                    market[key] = copy.deepcopy(draft.values[key])
-                else:
-                    market.pop(key, None)
-            return cfg
-        location = self.location_fields()
-        groups = [[k] for k in self.shared_fields() if k not in location] + [location]
-        for keys in groups:
-            self._apply_group(draft, items, keys)
-        for key in self.shared_fields():
-            market.pop(key, None)
+        """The user config with this marketplace section replaced (the input is not changed).
+
+        Items inherit marketplace values unless they set their own, so items are only changed
+        when the user asked for a value to apply to every item (``all_items``).
+        """
+        cfg = copy.deepcopy(ctx.user_cfg)
+        section = {"request": draft.request} if draft.request else {}
+        section.update(copy.deepcopy(draft.values))
+        cfg.setdefault("marketplace", {})[draft.name] = section
+        cleared = self._cleared_keys(draft)
+        for item in self.items(cfg, draft.name).values():
+            for key in cleared:
+                item.pop(key, None)
         return cfg
-
-    def _apply_group(
-        self: "MarketplaceBuilder",
-        draft: SectionDraft,
-        items: Dict[str, Dict[str, Any]],
-        keys: List[str],
-    ) -> None:
-        """Set a field (or the location group) on the items that used the shared value."""
-
-        def of(source: Dict[str, Any]) -> Tuple[Any, ...]:
-            return tuple(repr(source.get(k, _ABSENT)) for k in keys)
-
-        new, old = of(draft.values), of(draft.original)
-        if new == old and not (draft.all_items & set(keys)):
-            return
-        if draft.all_items & set(keys):
-            targets = list(items)
-        elif any(k in draft.varies for k in keys):
-            common, _ = Counter(of(item) for item in items.values()).most_common(1)[0]
-            targets = [n for n, item in items.items() if of(item) == common]
-        else:
-            targets = [n for n, item in items.items() if of(item) == old]
-        for name in targets:
-            for key in keys:
-                if key in draft.values:
-                    items[name][key] = copy.deepcopy(draft.values[key])
-                else:
-                    items[name].pop(key, None)
 
     # --- choosing what to edit -----------------------------------------------------------------
     async def choose_target(
         self: "MarketplaceBuilder", ui: SetupUI, ctx: BuilderContext, name: str | None
     ) -> SectionDraft | None:
-        shown = ctx.normalized.get("marketplace", {})
+        markets = ctx.user_cfg.get("marketplace", {})
         if name is not None:
-            if name in shown:
+            if name in markets:
                 await ui.say(self._summary(ctx, name), markdown=True)
             else:
                 await ui.say(f"[marketplace.{name}] is new.")
             return self.view(ctx, name)
-        if not shown:
+        if not markets:
             await ui.say("No marketplace is configured yet; let's set one up.")
             return self.view(ctx, await self._new_name(ui, ctx))
         await ui.say(
-            "Existing marketplaces:\n\n" + "\n\n".join(self._summary(ctx, n) for n in shown),
+            "Existing marketplaces:\n\n" + "\n\n".join(self._summary(ctx, n) for n in markets),
             markdown=True,
         )
-        options = [Choice(n, f"Update [marketplace.{n}]") for n in shown]
+        options = [Choice(n, f"Update [marketplace.{n}]") for n in markets]
         options += [Choice("__new__", "Create a new marketplace"), Choice("__quit__", "Quit")]
         choice = await ui.choose(
-            "Update one of these, or create a new marketplace?", options, default=next(iter(shown))
+            "Update one of these, or create a new marketplace?",
+            options,
+            default=next(iter(markets)),
         )
         if choice == "__quit__":
             return None
@@ -460,17 +406,22 @@ class MarketplaceBuilder(SectionBuilder):
         return self.view(ctx, choice)
 
     def _summary(self: "MarketplaceBuilder", ctx: BuilderContext, name: str) -> str:
-        section = dict(ctx.normalized.get("marketplace", {}).get(name, {}))
-        request = section.pop("request", None)
-        count = len(self.items(ctx.expanded, name))
+        draft = self.view(ctx, name)
+        count = len(self.items(ctx.user_cfg, name))
         head = f"**[marketplace.{name}]** ({count} item{'s' if count != 1 else ''})"
-        if request:
-            head += f"\n\nRequest: {request}"
-        body = dump_config_toml({"marketplace": {name: self.masked(section)}}) if section else ""
-        return head + (f"\n\n```toml\n{body}```" if body else "\n\n(no settings)")
+        if draft.request:
+            head += f"\n\nRequest: {draft.request}"
+        body = (
+            dump_config_toml({"marketplace": {name: self.masked(draft.values)}})
+            if draft.values
+            else ""
+        )
+        return "\n\n".join(
+            [head, f"```toml\n{body}```" if body else "(no settings)", *self._item_notes(draft)]
+        )
 
     async def _new_name(self: "MarketplaceBuilder", ui: SetupUI, ctx: BuilderContext) -> str:
-        taken = set(ctx.expanded.get("marketplace", {}))
+        taken = set(ctx.user_cfg.get("marketplace", {}))
         if "facebook" not in taken:
             return "facebook"
         suggestion = next(f"facebook_{i}" for i in range(2, 100) if f"facebook_{i}" not in taken)

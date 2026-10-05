@@ -10,8 +10,7 @@ section through a conversation with an LLM. aimm first shows the existing market
 `request` and settings) and lets the user pick one or start a new one. The LLM is then given a
 **task**, not a script: from the current situation it works out what is missing, asks the questions
 it needs, and fills the section until it is complete and valid; the user reviews the section and
-confirms. The result is applied to the **expanded** config and written to disk in **normalized**
-(compacted) form.
+confirms. Only that section is written, edited in place in the file that defines it.
 
 It is the first AI-driven section builder, and it brings back the generic structure designed
 earlier (`SectionBuilder`, field guides, playbooks), which was removed before #368 merged because
@@ -26,8 +25,8 @@ Decisions made while designing:
 | LLM protocol | Structured JSON turns, validated by aimm; provider-agnostic, no tool calling |
 | Start | aimm (not the LLM) shows existing marketplaces with their `request` and settings, and asks whether to update one or create a new one |
 | Conversation | The LLM gets a task (complete the section: required fields first, then optional fields the user cares about), decides what is missing and what to ask, and writes every message; aimm validates, enforces completeness, and asks the user to confirm the finished section |
-| Shared fields with existing items | Change only items that use the marketplace-wide value; items with their own value keep it |
-| Write path | One user config file: rewrite it in normalized form after a backup (comments are lost). Several files: write only the changed sections into the files that define them |
+| Shared fields with existing items | Items without their own value inherit the new marketplace value; items with their own value keep it (inheritance does this; items are edited only for "apply to every item") |
+| Write path | Only the changed sections, edited key by key in place (tomlkit) in the file that defines each; comments and other sections untouched. Revised after a live run: the earlier whole-file normalized rewrite moved settings in unrelated sections and dropped comments |
 
 ## Goals and non-goals
 
@@ -104,12 +103,12 @@ class SectionBuilder:
     uses_ai: bool = True
 
     def group(self, field: str) -> FieldGroup          # from dataclass metadata, never hand-written
-    def context(self, expanded: Dict[str, Any]) -> Dict[str, List[str]]   # names of users, ais, ...
-    def view(self, expanded: Dict[str, Any], name: str) -> SectionDraft
+    def context(self, ctx, draft) -> Dict[str, Any]       # names of users, ais, items, ...
+    def view(self, ctx, name: str) -> SectionDraft        # the section as written
     def validate(self, values: Dict[str, Any], context: Dict[str, List[str]]) -> List[str]
     def missing(self, draft: SectionDraft) -> List[str]   # required gaps, decided in code
     def describe(self, draft: SectionDraft) -> str         # request + section as TOML, for the user
-    def apply(self, expanded: Dict[str, Any], draft: SectionDraft) -> Dict[str, Any]
+    def apply(self, ctx, draft) -> Dict[str, Any]         # user config with the section replaced
     async def converse(self, ui: SetupUI, ctx: BuilderContext, name: str | None) -> int
 
 
@@ -345,32 +344,32 @@ aimm-configure usually lacks some of them (the first marketplace is written befo
 that required-sections check; aimm-configure always uses it. Empty section groups are dropped
 from the result.
 
-### 4B. `MarketplaceBuilder.apply(expanded, draft)`
+### 4B. `MarketplaceBuilder.view` and `apply` (revised)
 
-Returns a new expanded config (the input is not mutated):
+The draft is the marketplace section **as the user wrote it** (merged across files), not a view of
+the expanded config. Items' own values for shared fields are kept separately
+(`SectionDraft.item_overrides`) and sent to the LLM as context, so an item's own settings are never
+presented as the marketplace's.
 
-- OWN fields and `request` go into `[marketplace.NAME]` (created when new); `unset` removes keys.
-- No items bound to this marketplace: SHARED and LOCATION fields stay on the marketplace.
-- With items: for each changed SHARED field, set the new value on every item that held the
-  previous marketplace-wide value (the value shared by all its items); items with their own value
-  keep it. A field listed in `apply_to_all_items` is set on every item. For a field that varied,
-  the default is the items holding the most common value. LOCATION fields are applied as a group, so an item never ends up with a
-  mix of old and new location keys.
+`apply()` returns the user config with `[marketplace.NAME]` replaced by `request` + the draft
+values. Items are untouched: they already inherit marketplace values unless they set their own.
+Only for a field in `apply_to_all_items` are the items' own values removed (location keys as a
+group), so every item uses the marketplace's value. `validate()` loads the result
+(`expand(..., partial=True)`) to catch cross-section errors.
 
-### 4C. `commit_config(ui, new_expanded, files, system_cfg, backup_dir) -> CommitOutcome`
+### 4C. `commit_sections(ui, new_user_cfg, old_user_cfg, files, backup_dir) -> CommitOutcome`
 
-1. `normalize(new_expanded, system_cfg)`; its `check_equivalent` guards correctness.
-2. **One user config file:** render the whole normalized config with `dump_config_toml`.
-   **Several files:** take the sections that differ between the old and new normalized configs
-   (the marketplace and any changed items), and write each with tomlkit into the last file that
-   defines it; new sections go to the marketplace's file, or the first file.
-3. Preview a unified diff per target file; confirm ("Write these changes?").
-4. Back up each target (mode 0600, `~/.ai-marketplace-monitor/backups`), write, then reload all
-   files and compare the effective values with the new expanded config. A later file overriding
-   a written key is reported as today (`FAILED`, naming the file and keys).
-5. Return `WRITTEN`, `DECLINED` or `FAILED`.
+1. The changed sections are those that differ between the old and new user configs.
+2. Each is edited key by key with tomlkit in the last file that defines it (new sections go to the
+   last config file); comments, order and other sections are kept.
+3. Preview a unified diff per file; confirm; back up (mode 0600); write.
+4. Reload and check each changed section reads back as written; a later file overriding keys is
+   reported (`FAILED`).
+5. Nothing changed: say so and write nothing. A draft whose values are unchanged (only the LLM's
+   `request` differs) is not written either.
 
-With one file, comments in it are lost (the backup keeps them); the preview says so.
+The section-4A normalize changes (item-less marketplaces keep options; `partial=True`) remain:
+`partial` is used for validation, as the config may not have every section yet.
 
 ### 4D. Entry points
 

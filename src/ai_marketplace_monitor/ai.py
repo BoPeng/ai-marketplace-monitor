@@ -269,11 +269,13 @@ class AIBackend(Generic[TAIConfig]):
         *,
         json_mode: bool = False,
         max_tokens: int = 2048,
+        timeout: float | None = None,
     ) -> str:
         """Send a conversation (``{"role", "content"}`` messages) and return the reply text.
 
         ``json_mode`` asks for a JSON object where the provider supports it; callers must
-        still parse and validate the reply.
+        still parse and validate the reply. ``timeout`` (seconds) bounds the request and
+        is not retried, whatever the section's own settings are.
         """
         raise NotImplementedError("chat method must be implemented by subclasses.")
 
@@ -396,9 +398,13 @@ class OpenAIBackend(AIBackend):
         *,
         json_mode: bool = False,
         max_tokens: int = 2048,
+        timeout: float | None = None,
     ) -> str:
         self.connect()
         assert self.client is not None
+        client = (
+            self.client.with_options(timeout=timeout, max_retries=0) if timeout else self.client
+        )
         kwargs: Dict[str, Any] = {
             "model": self.config.model or self.default_model,
             "messages": messages,
@@ -407,7 +413,7 @@ class OpenAIBackend(AIBackend):
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         try:
-            response = self.client.chat.completions.create(**kwargs)
+            response = client.chat.completions.create(**kwargs)
         except Exception as e:
             # not every OpenAI-compatible server accepts response_format or max_tokens
             if "response_format" in str(e) and "response_format" in kwargs:
@@ -416,7 +422,7 @@ class OpenAIBackend(AIBackend):
                 kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
             else:
                 raise
-            response = self.client.chat.completions.create(**kwargs)
+            response = client.chat.completions.create(**kwargs)
         return response.choices[0].message.content or ""
 
 
@@ -471,12 +477,16 @@ class AnthropicBackend(AIBackend):
         *,
         json_mode: bool = False,
         max_tokens: int = 2048,
+        timeout: float | None = None,
     ) -> str:
         # Anthropic takes system text separately; json_mode is left to the prompt
         self.connect()
         assert self.client is not None
+        client = (
+            self.client.with_options(timeout=timeout, max_retries=0) if timeout else self.client
+        )
         system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
-        response = self.client.messages.create(
+        response = client.messages.create(
             model=self.config.model or self.default_model,
             max_tokens=max_tokens,
             system=system,

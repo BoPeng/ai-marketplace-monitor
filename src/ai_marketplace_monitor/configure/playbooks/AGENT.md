@@ -30,6 +30,9 @@ subtasks, and the rules for completion. Treat it as a task to accomplish, not a 
   user for confirmation.
 - Never set `complete` to true in a reply whose `message` asks the user a question: either ask
   (complete is false) or finish (complete is true).
+- When the user says there is nothing (more) to change, such as "no" or "that's all", and nothing
+  required is missing, finish now: summarize the section and set `complete` to true. Do not ask
+  again.
 
 ## Reply format
 

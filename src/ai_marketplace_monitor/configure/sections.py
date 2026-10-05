@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
 
 from ..marketplace import FALLBACK, LOCATION
 from .ui import SetupClosedError, SetupUI
-from .writer import CommitOutcome, commit_config
+from .writer import CommitOutcome, commit_sections
 
 if TYPE_CHECKING:
     from ..ai import AIBackend
@@ -24,6 +24,22 @@ if TYPE_CHECKING:
 
 # dataclass fields that are never configured through a builder
 _NOT_CONFIGURED = {"name", "request", "monitor_config"}
+# replies that mean "nothing to change": with a complete section, go straight to review
+_DONE_REPLIES = {
+    "no",
+    "nope",
+    "nothing",
+    "none",
+    "no thanks",
+    "no, thanks",
+    "nothing else",
+    "that's all",
+    "thats all",
+    "that's it",
+    "all good",
+    "looks good",
+    "done",
+}
 
 
 class FieldGroup(Enum):
@@ -47,10 +63,12 @@ class SectionDraft:
     name: str
     is_new: bool
     request: str | None
-    values: Dict[str, Any]  # own fields + shared values, as one section
-    varies: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # field -> {item: value}
+    values: Dict[str, Any]  # the section as the user wrote it (merged across files)
+    # items' own values for this section's shared fields: {item: {field: value}}
+    item_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     original: Dict[str, Any] = field(default_factory=dict)  # values when the draft was made
-    all_items: Set[str] = field(default_factory=set)  # shared fields to set on every item
+    original_request: str | None = None
+    all_items: Set[str] = field(default_factory=set)  # shared fields every item should inherit
 
     def copy(self: "SectionDraft") -> "SectionDraft":
         return copy.deepcopy(self)
@@ -64,16 +82,22 @@ class TurnResult:
 
 
 class TurnError(Exception):
-    """The LLM could not produce a usable reply."""
+    """The LLM could not produce a usable reply.
+
+    ``service`` is true when the AI service failed (try again) rather than the reply being
+    unusable (say it differently).
+    """
+
+    def __init__(self: "TurnError", message: str, *, service: bool = False) -> None:
+        super().__init__(message)
+        self.service = service
 
 
 @dataclass
 class BuilderContext:
     files: List[Path]
     system_cfg: Dict[str, Any]
-    user_cfg: Dict[str, Any]
-    expanded: Dict[str, Any]  # expand(user_cfg): what builders read and edit
-    normalized: Dict[str, Any]  # normalize(user_cfg): what the user sees in their file
+    user_cfg: Dict[str, Any]  # merged user config files, as written
     backup_dir: Path
     playbooks: Dict[str, "Playbook"]
     ai: "AIBackend"
@@ -195,16 +219,37 @@ class SectionBuilder:
             history: List[Exchange] = []
             feedback: List[str] = []
             for _ in range(self.max_turns):
+                if (
+                    history
+                    and history[-1].role == "user"
+                    and history[-1].text.strip().lower().rstrip(".!") in _DONE_REPLIES
+                    and not self.missing(ctx, draft)
+                    and not self.validate(ctx, draft)
+                ):
+                    # the user has nothing to add; skip the AI and show the section
+                    code = await self._review(ui, ctx, draft)
+                    if code is not None:
+                        return code
+                    reply = await self._reply(ui, ctx, draft, "What would you like to change?")
+                    if reply is None:
+                        return 0
+                    history.append(Exchange("user", reply))
+                    continue
+                await ui.say("Thinking...", kind="progress")
                 try:
                     result = await self.run_turn(ctx, draft, history, feedback)
                 except TurnError as e:
                     await ui.say(str(e), kind="error")
-                    reply = await self._reply(
-                        ui, ctx, draft, "Try saying it differently (or /quit)"
+                    prompt = (
+                        "Press Enter to try again, or type something else (/quit to stop)"
+                        if e.service
+                        else "Try saying it differently (or /quit)"
                     )
+                    reply = await self._reply(ui, ctx, draft, prompt)
                     if reply is None:
                         return 0
-                    history.append(Exchange("user", reply))
+                    if reply or not e.service:
+                        history.append(Exchange("user", reply))
                     feedback = []
                     continue
                 draft = result.draft
@@ -243,8 +288,12 @@ class SectionBuilder:
         await ui.say(self.describe(ctx, draft), markdown=True)
         if not await ui.confirm("Is this right?", default=True):
             return None
-        outcome = await commit_config(
-            ui, self.apply(ctx, draft), ctx.files, ctx.system_cfg, ctx.user_cfg, ctx.backup_dir
+        if not draft.is_new and draft.values == draft.original and not draft.all_items:
+            # only the AI's summary changed; nothing the user asked for
+            await ui.say("Nothing changed; your config is left as it is.", kind="success")
+            return 0
+        outcome = await commit_sections(
+            ui, self.apply(ctx, draft), ctx.user_cfg, ctx.files, ctx.backup_dir
         )
         if outcome is CommitOutcome.WRITTEN:
             return 0

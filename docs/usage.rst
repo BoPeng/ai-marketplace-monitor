@@ -136,13 +136,12 @@ change, or say yes to see the changes to your config file and confirm them. Type
 ``/show`` to see the section so far, or ``/quit`` to stop without writing.
 
 Marketplace values are defaults for all items of that marketplace. When you change one,
-items that use the marketplace's value get the new value and items with their own value
-keep it, unless you ask for every item to change.
+items without their own value use the new value and items with their own value keep it,
+unless you ask for every item to use the marketplace's value.
 
-With one config file, the file is rewritten in its normalized form, which drops comments
-(the backup keeps them) and may move settings to their canonical place, for example a
-user's notification settings into a ``[notification.*]`` section. With several config
-files, only the changed sections are written, each into the file that defines it.
+Only the ``[marketplace.NAME]`` section is written, in place in the file that defines it:
+comments and all other sections stay as they are (items change only when you ask for a
+value to apply to every item). If nothing changed, nothing is written.
 
 The AI follows a playbook for each section, which describes the goal, how to work out
 each part, and when the section is complete. You can add your own rules for a section in

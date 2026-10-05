@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from .sections import BuilderContext, SectionBuilder
 
 MAX_RETRIES = 2
+# seconds for one AI reply; slow reasoning models can take a minute
+TURN_TIMEOUT = 150
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
@@ -60,7 +62,7 @@ def build_messages(
         "new": draft.is_new,
         "request": draft.request,
         "values": builder.masked(draft.values),
-        "varies_across_items": draft.varies,
+        "items_with_their_own_values": draft.item_overrides,
         "apply_to_all_items": sorted(draft.all_items),
         "still_required": builder.missing(ctx, draft),
         "context": builder.context(ctx, draft),
@@ -110,6 +112,28 @@ def merge_reply(
     return new, problems
 
 
+def _transient(e: Exception) -> bool:
+    """Timeouts, connection errors and 5xx answers, which are worth one more try."""
+    status = getattr(e, "status_code", None)
+    name = type(e).__name__
+    return (isinstance(status, int) and status >= 500) or "Timeout" in name or "Connection" in name
+
+
+async def _ask(ctx: "BuilderContext", messages: List[Dict[str, str]]) -> str:
+    call = partial(ctx.ai.chat, messages, json_mode=True, timeout=TURN_TIMEOUT)
+    for attempt in range(2):
+        try:
+            return await run_in_daemon_thread(call)
+        except Exception as e:
+            if attempt == 0 and _transient(e):
+                continue
+            secret = getattr(ctx.ai.config, "api_key", None)
+            raise TurnError(
+                f"The AI service failed: {scrub(str(e), secret)[:300]}", service=True
+            ) from e
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 async def run_turn(
     builder: "SectionBuilder",
     ctx: "BuilderContext",
@@ -122,11 +146,7 @@ async def run_turn(
     for _attempt in range(MAX_RETRIES + 1):
         notes = list(feedback) + [f"Your previous reply was not usable: {e}" for e in errors]
         messages = build_messages(builder, ctx, draft, history, notes)
-        try:
-            text = await run_in_daemon_thread(partial(ctx.ai.chat, messages, json_mode=True))
-        except Exception as e:
-            secret = getattr(ctx.ai.config, "api_key", None)
-            raise TurnError(f"The AI service failed: {scrub(str(e), secret)[:300]}") from e
+        text = await _ask(ctx, messages)
         try:
             reply = parse_reply(text)
         except ValueError as e:

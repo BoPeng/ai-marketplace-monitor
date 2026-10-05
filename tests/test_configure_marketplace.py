@@ -98,15 +98,13 @@ def test_view_of_new_marketplace(tmp_path: Path) -> None:
     assert B.missing(ctx, draft) == ["location: set search_city (with radius) or search_region"]
 
 
-def test_view_with_items_shows_shared_and_varying_values(tmp_path: Path) -> None:
+def test_view_is_the_section_as_written(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, ITEMS)
     draft = B.view(ctx, "facebook")
     assert not draft.is_new
-    assert draft.values["condition"] == ["used_good"]
-    assert "notify" not in draft.values and "ai" not in draft.values  # the defaults
-    assert draft.varies["search_city"] == {"bike": "houston", "sofa": "houston", "desk": "dallas"}
-    assert "search_city" not in draft.values
-    assert B.missing(ctx, draft) == []  # every item has a location
+    assert draft.values == {"search_city": "houston", "radius": 40, "condition": ["used_good"]}
+    assert draft.item_overrides == {"desk": {"search_city": "dallas", "radius": 20}}
+    assert B.missing(ctx, draft) == []
 
 
 def test_validate_reports_bad_values_and_unknown_names(tmp_path: Path) -> None:
@@ -117,60 +115,46 @@ def test_validate_reports_bad_values_and_unknown_names(tmp_path: Path) -> None:
     draft.values = {"search_city": ["houston"], "notify": ["bob"], "ai": ["unitysvc"]}
     assert B.validate(ctx, draft) == ["`notify` names ['bob'], which are not in context.users."]
     draft.values = {"search_city": ["houston", "austin"], "radius": [10, 20, 30]}
-    assert B.validate(ctx, draft)  # cross-field error found by expanding the result
+    assert B.validate(ctx, draft)  # cross-field error found by loading the result
 
 
 # --- apply ------------------------------------------------------------------------------------
-def test_apply_without_items_keeps_values_on_marketplace(tmp_path: Path) -> None:
-    ctx = make_ctx(tmp_path, BASE)
+def test_apply_replaces_only_the_marketplace_section(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, ITEMS)
     draft = B.view(ctx, "facebook")
-    draft.values = {"search_city": ["houston"], "radius": [40], "condition": ["used_good"]}
-    draft.request = "Houston, 40 miles, good used items."
-    market = B.apply(ctx, draft)["marketplace"]["facebook"]
-    assert market == {
-        "request": "Houston, 40 miles, good used items.",
-        "search_city": ["houston"],
-        "radius": [40],
+    draft.values.update({"search_city": "austin", "radius": 25})
+    draft.request = "Austin, 25 miles."
+    cfg = B.apply(ctx, draft)
+    assert cfg["marketplace"]["facebook"] == {
+        "request": "Austin, 25 miles.",
+        "search_city": "austin",
+        "radius": 25,
         "condition": ["used_good"],
     }
-    assert "marketplace" not in ctx.expanded  # input untouched
+    assert cfg["item"] == ctx.user_cfg["item"]  # items inherit; desk keeps dallas
+    assert cfg["user"] == ctx.user_cfg["user"]
+    assert ctx.user_cfg["marketplace"]["facebook"]["search_city"] == "houston"  # input untouched
 
 
-def test_apply_changes_only_items_using_the_shared_value(tmp_path: Path) -> None:
+def test_apply_to_all_items_removes_their_own_location(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, ITEMS)
     draft = B.view(ctx, "facebook")
-    draft.values["condition"] = ["new"]
-    items = B.apply(ctx, draft)["item"]
-    assert all(items[n]["condition"] == ["new"] for n in ("bike", "sofa", "desk"))
-
-
-def test_apply_location_keeps_items_with_their_own(tmp_path: Path) -> None:
-    ctx = make_ctx(tmp_path, ITEMS)
-    draft = B.view(ctx, "facebook")
-    draft.values.update({"search_city": ["austin"], "radius": [25]})
-    items = B.apply(ctx, draft)["item"]
-    assert (items["bike"]["search_city"], items["bike"]["radius"]) == (["austin"], [25])
-    assert (items["sofa"]["search_city"], items["sofa"]["radius"]) == (["austin"], [25])
-    assert (items["desk"]["search_city"], items["desk"]["radius"]) == ("dallas", 20)
-
-
-def test_apply_to_all_items(tmp_path: Path) -> None:
-    ctx = make_ctx(tmp_path, ITEMS)
-    draft = B.view(ctx, "facebook")
-    draft.values.update({"search_city": ["austin"], "radius": [25]})
+    draft.values.update({"search_city": "austin"})
     draft.all_items = {"search_city"}
-    items = B.apply(ctx, draft)["item"]
-    assert items["desk"]["search_city"] == ["austin"] and items["desk"]["radius"] == [25]
+    desk = B.apply(ctx, draft)["item"]["desk"]
+    assert "search_city" not in desk and "radius" not in desk  # location keys go together
 
 
-def test_describe_lists_changed_items(tmp_path: Path) -> None:
+def test_describe_says_which_items_keep_their_own_values(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, ITEMS)
     draft = B.view(ctx, "facebook")
-    draft.values["condition"] = ["new"]
     text = B.describe(ctx, draft)
     assert "[marketplace.facebook]" in text
-    assert "Items updated:" in text and "bike (condition)" in text
-    assert "`search_city` differs across items" in text
+    assert "[item.desk] keeps its own `search_city`, `radius`." in text
+    draft.all_items = {"radius"}
+    assert "[item.desk] will use the marketplace's `search_city`, `radius`" in B.describe(
+        ctx, draft
+    )
 
 
 def test_secrets_are_masked(tmp_path: Path) -> None:
@@ -338,3 +322,80 @@ async def test_show_command_and_turn_errors(tmp_path: Path) -> None:
     ui = ScriptedSetupUI(["", "/show", "/quit"])
     assert await B.converse(ui, ctx, None) == 0
     assert any("boom" in m for m in ui.said("error"))
+
+
+ONE_ITEM = (
+    BASE
+    + """
+[marketplace.facebook]
+search_city = "houston"
+
+[item.example]
+search_phrases = "road bike"
+min_price = 50
+max_price = 300
+"""
+)
+
+
+async def test_no_means_done_when_the_section_is_complete(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, ONE_ITEM, [reply("You search Houston. Anything to change?")])
+    before = ctx.files[0].read_text()
+    ui = ScriptedSetupUI(["facebook", "no", "yes"])
+    assert await B.converse(ui, ctx, None) == 0
+    assert len(ctx.ai.calls) == 1  # type: ignore[attr-defined]  # "no" skipped the AI
+    assert ui.questions == [
+        "Update one of these, or create a new marketplace?",
+        "You",
+        "Is this right?",
+    ]
+    assert "Nothing changed; your config is left as it is." in ui.said("success")
+    assert ctx.files[0].read_text() == before
+    assert ui.said("progress") == ["Thinking..."]
+    assert ctx.ai.timeouts == [llm.TURN_TIMEOUT]  # type: ignore[attr-defined]
+
+
+async def test_no_still_goes_to_the_ai_while_something_is_missing(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, BASE, [reply("Which city?"), reply("I need a city to search.")])
+    ui = ScriptedSetupUI(["no", "/quit"])
+    assert await B.converse(ui, ctx, None) == 0
+    assert len(ctx.ai.calls) == 2  # type: ignore[attr-defined]
+
+
+def test_start_menu_separates_marketplace_and_item_values(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, ONE_ITEM)
+    text = B._summary(ctx, "facebook")
+    assert 'search_city = "houston"' in text
+    assert "max_price" not in text.split("```")[1]  # not shown as a marketplace value
+    assert "[item.example] keeps its own `min_price`, `max_price`." in text
+
+
+class GatewayTimeoutError(Exception):
+    status_code = 504
+
+
+async def test_transient_service_errors_are_retried_once(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path, BASE, [GatewayTimeoutError("504 Gateway time-out"), reply("Which city?")]
+    )
+    result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
+    assert result.message == "Which city?"
+    assert len(ctx.ai.calls) == 2  # type: ignore[attr-defined]
+
+
+async def test_service_failure_offers_retry_with_the_same_message(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path,
+        BASE,
+        [
+            reply("Which city?"),
+            GatewayTimeoutError("504"),
+            GatewayTimeoutError("504"),
+            reply("Austin it is."),
+        ],
+    )
+    ui = ScriptedSetupUI(["Austin", "", "/quit"])
+    assert await B.converse(ui, ctx, None) == 0
+    assert "Press Enter to try again, or type something else (/quit to stop)" in ui.questions
+    last = ctx.ai.calls[-1][1]["content"]  # type: ignore[attr-defined]
+    assert last.count("User: Austin") == 1 and "User: \n" not in last

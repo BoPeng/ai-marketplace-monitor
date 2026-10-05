@@ -9,7 +9,6 @@ from typing import Any, Dict, List
 from ai_marketplace_monitor.config import load_config_dicts
 from ai_marketplace_monitor.configure.playbooks import load_playbooks
 from ai_marketplace_monitor.configure.sections import BuilderContext
-from ai_marketplace_monitor.normalize import expand, normalize
 
 BASE = """
 [ai.unitysvc]
@@ -26,10 +25,14 @@ class FakeAI:
     def __init__(self, replies: List[Any]) -> None:
         self.replies = list(replies)
         self.calls: List[List[Dict[str, str]]] = []
+        self.timeouts: List[Any] = []
         self.config = SimpleNamespace(api_key="svcpass_testkey", name="fake")
 
-    def chat(self, messages: List[Dict[str, str]], *, json_mode: bool = False) -> str:
+    def chat(
+        self, messages: List[Dict[str, str]], *, json_mode: bool = False, timeout: Any = None
+    ) -> str:
         self.calls.append(messages)
+        self.timeouts.append(timeout)
         if not self.replies:
             raise AssertionError("unexpected LLM call")
         reply = self.replies.pop(0)
@@ -46,8 +49,6 @@ def make_ctx(tmp_path: Path, text: str, replies: List[Any] | None = None) -> Bui
         files=[path],
         system_cfg=system,
         user_cfg=user,
-        expanded=expand(user, system, partial=True).config,
-        normalized=normalize(user, system, partial=True).config,
         backup_dir=tmp_path / "backups",
         playbooks=load_playbooks(["AGENT", "marketplace"]),
         ai=FakeAI(replies or []),  # type: ignore[arg-type]

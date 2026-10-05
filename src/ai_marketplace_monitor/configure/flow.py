@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import List
 
 from ..ai import AIBackend
 from ..config import load_config_dicts, supported_ai_backends
-from ..normalize import NormalizeError, expand, normalize
+from ..normalize import NormalizeError, expand
 from ..utils import amm_home
 from .ai_setup import AISection, configure_ai, load_ai_sections, probe_sections
 from .playbooks import PlaybookError, load_playbooks
@@ -152,26 +153,28 @@ async def build_section(
         return 1
     home = home or amm_home
     builder = builders()[section_type]
-    warnings: List[str] = []
+    notes: List[str] = []
     try:
         system, user = load_config_dicts(config_files)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            expand(user, system, partial=True)  # the config must load before we edit it
+        notes += list(dict.fromkeys(str(w.message) for w in caught))
         ctx = BuilderContext(
             files=list(config_files),
             system_cfg=system,
             user_cfg=user,
-            expanded=expand(user, system, partial=True).config,
-            normalized=normalize(user, system, partial=True).config,
             backup_dir=home / "backups",
             playbooks=load_playbooks(
-                ["AGENT", builder.playbook], home / "playbooks", warn=warnings.append
+                ["AGENT", builder.playbook], home / "playbooks", warn=notes.append
             ),
             ai=ai,
         )
     except (ValueError, OSError, NormalizeError, PlaybookError) as e:
         await ui.say(f"Cannot read the configuration: {e}", kind="error")
         return 1
-    for warning in warnings:
-        await ui.say(warning, kind="warning")
+    for note in notes:
+        await ui.say(note, kind="warning")
     return await builder.converse(ui, ctx, name)
 
 

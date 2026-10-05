@@ -83,3 +83,13 @@ def test_anthropic_chat_moves_system_messages() -> None:
     kwargs = client.messages.create.call_args.kwargs
     assert kwargs["system"] == "rules"
     assert kwargs["messages"] == [{"role": "user", "content": "hello"}]
+
+
+def test_chat_timeout_disables_client_retries() -> None:
+    client = MagicMock()
+    bounded = client.with_options.return_value
+    bounded.chat.completions.create.return_value = openai_reply("{}")
+
+    assert unitysvc(client).chat(MESSAGES, timeout=30) == "{}"
+    client.with_options.assert_called_once_with(timeout=30, max_retries=0)
+    client.chat.completions.create.assert_not_called()
