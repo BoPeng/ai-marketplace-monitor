@@ -11,6 +11,7 @@ import copy
 import os
 import warnings
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from urllib.parse import urlparse
 
 from ..config import supported_ai_backends
 from ..config_toml import dump_config_toml
@@ -192,6 +193,11 @@ class AIToolkit(Toolkit):
         url = values.get("base_url")
         if url is not None and not str(url).startswith(("https://", "http://")):
             return ["`base_url` must start with https:// or http://."]
+        if url is not None and str(url).startswith("http://") and provider != "ollama":
+            host = urlparse(str(url)).hostname or ""
+            if host not in ("localhost", "127.0.0.1", "::1"):
+                # the API key would travel unencrypted
+                return ["`base_url` must use https:// (http:// only for Ollama or localhost)."]
         key = values.get("api_key")
         if isinstance(key, str) and is_reference(key) and key[2:-1] not in os.environ:
             # aimm cannot load a config whose AI key is unset (even a disabled section)
@@ -229,6 +235,16 @@ class AIToolkit(Toolkit):
         wanted = draft.values.get(DEFAULT)
         return wanted is True or (draft.is_new and wanted is not False)
 
+    def _will_be_default(self: "AIToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        """Whether the section is aimm's default AI after this save."""
+        if self.write_first(draft):
+            return True
+        moved = any(
+            d.key != draft.key and d.section_type == "ai" and self.write_first(d)
+            for d in ws.pending()
+        )
+        return not moved and next(iter(ws.user_cfg.get("ai", {})), None) == draft.name
+
     async def preflight(
         self: "AIToolkit", ws: "Workspace", draft: SectionDraft
     ) -> Tuple[List[str], List[str]]:
@@ -238,11 +254,12 @@ class AIToolkit(Toolkit):
         [result] = await probe_sections([_section(draft.name, draft.values)])
         if result.ok:
             return [], []
-        if self.write_first(draft):
+        if self._will_be_default(ws, draft):
             return [
                 (
-                    f"it does not work ({result.message}), so it cannot become the default AI. Fix "
-                    "it, or save it as a backup with `default: false`."
+                    f"it does not work ({result.message}), so it cannot be the default AI. Fix "
+                    "it, make another section the default first, or save it as a backup with "
+                    "`default: false`."
                 )
             ], []
         return [], [

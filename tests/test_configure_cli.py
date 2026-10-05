@@ -322,3 +322,23 @@ async def test_aimm_configure_without_an_ai_runs_ai_setup_first(
     assert await flow.configure_front_door(ui, [config], home=tmp_path) == 1
     assert setups == [[config]]
     assert "No AI service is configured yet." in ui.said("error")
+
+
+async def test_default_ai_works_tries_the_first_section(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_marketplace_monitor.configure.ai_setup import AISection, ProbeResult
+
+    sections = [AISection("first", {}, []), AISection("second", {}, [])]
+    monkeypatch.setattr(flow, "load_ai_sections", lambda files: sections)
+    tried: List[str] = []
+
+    async def probe(batch: List[AISection]) -> List[ProbeResult]:
+        tried.extend(s.name for s in batch)
+        return [ProbeResult(False, "request", "m", "Key rejected by first")]
+
+    monkeypatch.setattr(flow, "probe_sections", probe)
+    ui = ScriptedSetupUI([])
+    assert await flow.default_ai_works(ui, []) is False
+    assert tried == ["first"]
+    assert "Key rejected by first. Using the AI setup menus instead." in ui.said("warning")

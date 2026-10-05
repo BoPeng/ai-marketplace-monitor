@@ -75,6 +75,12 @@ async def test_validate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     deepseek = A.view(ws, "deepseek")
     deepseek.values = {"api_key": "${DEEPSEEK_API_KEY}"}
     assert "edited by hand" in A.validate(ws, deepseek)[0]
+    draft.values = {"provider": "anthropic", "api_key": "${ANTHROPIC_API_KEY}"}
+    draft.values["base_url"] = "http://api.example.com/v1"  # the key would be sent unencrypted
+    assert "must use https://" in A.validate(ws, draft)[0]
+    local = A.view(ws, "ollama")
+    local.values = {"base_url": "http://192.168.1.5:11434/v1", "model": "llama3"}
+    assert A.validate(ws, local) == []
     _, problems = A.change(A.view(ws, "unitysvc"), {"api_key": "svcpass_abc"}, [], None)
     assert problems == ["`api_key` is secret: only a ${VAR} reference may be set."]
 
@@ -134,12 +140,26 @@ async def test_preflight_refuses_a_broken_default(
     draft.values = {"provider": "anthropic", "api_key": "${ANTHROPIC_API_KEY}"}
     probes["claude"] = ProbeResult(False, "config", "m", "Set the environment variable X")
     errors, warnings = await A.preflight(ws, draft)
-    assert "cannot become the default AI" in errors[0] and warnings == []
+    assert "cannot be the default AI" in errors[0] and warnings == []
     draft.values["default"] = False
     errors, warnings = await A.preflight(ws, draft)
     assert errors == [] and "does not work yet" in warnings[0]
     del probes["claude"]
     assert await A.preflight(ws, draft) == ([], [])
+
+
+async def test_the_current_default_must_keep_working(
+    tmp_path: Path, probes: Dict[str, ProbeResult]
+) -> None:
+    ws = await ws_for(tmp_path, TWO)
+    default = ws.draft("ai", "unitysvc")
+    default.values["model"] = "nope"
+    probes["unitysvc"] = ProbeResult(False, "models", "nope", 'Model "nope" is not available')
+    errors, _ = await A.preflight(ws, default)
+    assert "cannot be the default AI" in errors[0]
+    ws.draft("ai", "backup").values["default"] = True  # another section becomes the default
+    _, [warning] = await A.preflight(ws, default)
+    assert warning.startswith('[ai.unitysvc] does not work yet: Model "nope" is not available')
 
 
 async def test_save_moves_the_default_first(
@@ -198,9 +218,9 @@ async def test_writer_moves_a_section_first_across_files(tmp_path: Path) -> None
 
 
 # --- commands -------------------------------------------------------------------------------
-@pytest.mark.parametrize("works", [True, False])
+@pytest.mark.parametrize("loads, works", [(True, True), (True, False), (False, False)])
 async def test_configure_ai_uses_the_ai_when_it_works(
-    monkeypatch: pytest.MonkeyPatch, works: bool
+    monkeypatch: pytest.MonkeyPatch, loads: bool, works: bool
 ) -> None:
     calls: List[Any] = []
 
@@ -208,8 +228,13 @@ async def test_configure_ai_uses_the_ai_when_it_works(
         config = type("C", (), {"name": "unitysvc"})()
 
     monkeypatch.setattr(
-        flow, "default_ai", lambda files: (Backend(), "") if works else (None, "broken")
+        flow, "default_ai", lambda files: (Backend(), "") if loads else (None, "broken")
     )
+
+    async def tried(ui: Any, files: Any) -> bool:  # a bad key loads, but does not work
+        return works
+
+    monkeypatch.setattr(flow, "default_ai_works", tried)
 
     async def fake_session(ui: Any, files: Any, ai: Any, kits: Any, **kw: Any) -> int:
         calls.append(("session", sorted(kits), kw["target"]))
