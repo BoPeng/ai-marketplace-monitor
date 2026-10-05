@@ -136,13 +136,11 @@ required is missing; before saving it shows the section and the change to your c
 and asks you to confirm. Type ``/show`` to see the section so far, or ``/quit`` to stop
 without writing.
 
-Marketplace values are defaults for all items of that marketplace. When you change one,
-items without their own value use the new value and items with their own value keep it,
-unless you ask for every item to use the marketplace's value.
+Marketplace values are defaults for all items of that marketplace: items without their own
+value use them, and items with their own value keep it. This command never changes items.
 
 Only the ``[marketplace.NAME]`` section is written, in place in the file that defines it:
-comments and all other sections stay as they are (items change only when you ask for a
-value to apply to every item). If nothing changed, nothing is written.
+comments and all other sections stay as they are. If nothing changed, nothing is written.
 
 The AI follows a playbook for each section, which describes the goal, how to work out
 each part, and when the section is complete. You can add your own rules for a section in

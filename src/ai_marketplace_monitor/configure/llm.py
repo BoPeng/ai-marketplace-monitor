@@ -62,8 +62,6 @@ def build_messages(
         "new": draft.is_new,
         "request": draft.request,
         "values": builder.masked(draft.values),
-        "items_with_their_own_values": draft.item_overrides,
-        "apply_to_all_items": sorted(draft.all_items),
         "still_required": builder.missing(ctx, draft),
         "context": builder.context(ctx, draft),
     }
@@ -106,9 +104,6 @@ def merge_reply(
             new.values[key] = value
     for key in unset:
         new.values.pop(key, None)
-    all_items = reply.get("apply_to_all_items") or []
-    if isinstance(all_items, list):
-        new.all_items |= {k for k in all_items if k in names}
     if isinstance(reply.get("request"), str) and reply["request"].strip():
         new.request = reply["request"].strip()
     return new, problems

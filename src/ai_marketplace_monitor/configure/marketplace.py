@@ -290,6 +290,14 @@ class MarketplaceBuilder(SectionBuilder):
                 FacebookMarketplaceConfig(name=draft.name, **draft.values)
         except Exception as e:
             return [_plain(e)]
+        if draft.values.get("city_name") != draft.original.get("city_name") and draft.values.get(
+            "search_city"
+        ) == draft.original.get("search_city"):
+            errors.append(
+                "`city_name` may only change together with `search_city`; leave an existing "
+                "city as it is."
+            )
+            return errors
         context = self.context(ctx, draft)
         refs = {
             "notify": "users",
@@ -332,46 +340,25 @@ class MarketplaceBuilder(SectionBuilder):
         return "\n\n".join(lines)
 
     def _item_notes(self: "MarketplaceBuilder", draft: SectionDraft) -> List[str]:
-        notes = []
-        cleared = self._cleared_keys(draft)
-        for item, own in draft.item_overrides.items():
-            kept = [k for k in own if k not in cleared]
-            removed = [k for k in own if k in cleared]
-            if kept:
-                notes.append(
-                    f"[item.{item}] keeps its own " + ", ".join(f"`{k}`" for k in kept) + "."
-                )
-            if removed:
-                notes.append(
-                    f"[item.{item}] will use the marketplace's "
-                    + ", ".join(f"`{k}`" for k in removed)
-                    + " (its own value is removed)."
-                )
-        return notes
-
-    def _cleared_keys(self: "MarketplaceBuilder", draft: SectionDraft) -> List[str]:
-        """Item keys to remove so that items inherit the marketplace value."""
-        keys = [k for k in draft.all_items if k in self.shared_fields()]
-        if any(k in self.location_fields() for k in keys):
-            keys += self.location_fields()  # location keys go together
-        return list(dict.fromkeys(keys))
+        """Items' own values, which marketplace values never replace."""
+        return [
+            f"[item.{item}] keeps its own "
+            + ", ".join(f"`{k}` ({v!r})" for k, v in own.items())
+            + "."
+            for item, own in draft.item_overrides.items()
+        ]
 
     def apply(
         self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
     ) -> Dict[str, Any]:
-        """The user config with this marketplace section replaced (the input is not changed).
+        """The user config with only ``[marketplace.NAME]`` replaced (the input is not changed).
 
-        Items inherit marketplace values unless they set their own, so items are only changed
-        when the user asked for a value to apply to every item (``all_items``).
+        Items are never changed: they use a marketplace value unless they set their own.
         """
         cfg = copy.deepcopy(ctx.user_cfg)
         section = {"request": draft.request} if draft.request else {}
         section.update(copy.deepcopy(draft.values))
         cfg.setdefault("marketplace", {})[draft.name] = section
-        cleared = self._cleared_keys(draft)
-        for item in self.items(cfg, draft.name).values():
-            for key in cleared:
-                item.pop(key, None)
         return cfg
 
     # --- choosing what to edit -----------------------------------------------------------------

@@ -12,7 +12,7 @@ import warnings
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..marketplace import FALLBACK, LOCATION
 from .ui import SetupClosedError, SetupUI
@@ -53,7 +53,6 @@ class SectionDraft:
     item_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     original: Dict[str, Any] = field(default_factory=dict)  # values when the draft was made
     original_request: str | None = None
-    all_items: Set[str] = field(default_factory=set)  # shared fields every item should inherit
 
     def copy(self: "SectionDraft") -> "SectionDraft":
         return copy.deepcopy(self)
@@ -278,7 +277,7 @@ class SectionBuilder:
     ) -> int | None:
         """Show the section and write it after one confirmation. None means "keep talking"."""
         await ui.say(self.describe(ctx, draft), markdown=True)
-        if not draft.is_new and draft.values == draft.original and not draft.all_items:
+        if not draft.is_new and draft.values == draft.original:
             # only the AI's summary changed; nothing the user asked for
             await ui.say("Nothing changed; your config is left as it is.", kind="success")
             return 0

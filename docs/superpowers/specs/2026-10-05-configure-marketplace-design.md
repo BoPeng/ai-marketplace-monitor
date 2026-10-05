@@ -25,7 +25,7 @@ Decisions made while designing:
 | LLM protocol | Structured JSON turns, validated by aimm; provider-agnostic, no tool calling |
 | Start | aimm (not the LLM) shows existing marketplaces with their `request` and settings, and asks whether to update one or create a new one |
 | Conversation | The LLM gets a task (complete the section: required fields first, then optional fields the user cares about), decides what is missing and what to ask, writes every message, and decides how the conversation ends (`ask` / `save` / `no_change` / `cancel`); aimm validates, enforces completeness, and asks the user to confirm the file change |
-| Shared fields with existing items | Items without their own value inherit the new marketplace value; items with their own value keep it (inheritance does this; items are edited only for "apply to every item") |
+| Shared fields with existing items | Items without their own value inherit the new marketplace value; items with their own value keep it. The marketplace builder never edits items (revised: an "apply to every item" option was removed after it changed an item the user meant to keep) |
 | Write path | Only the changed sections, edited key by key in place (tomlkit) in the file that defines each; comments and other sections untouched. Revised after a live run: the earlier whole-file normalized rewrite moved settings in unrelated sections and dropped comments |
 
 ## Goals and non-goals
@@ -223,9 +223,8 @@ config>
   - *Schedule*: how often to search, or fixed times. Leave unset unless the user cares.
   - *Updating an existing section*: start from its `request` and values; find out what to change;
     keep everything else.
-  - *Items*: when items exist, say plainly how a change affects them (items with their own value
-    keep it); if the user wants a change applied to every item, list the field in
-    `apply_to_all_items`.
+  - *Items*: this section never changes items; a marketplace value is a default that items
+    without their own value use. The LLM sees only item names, not their values.
 - **Completion:** the section loads as a valid marketplace config and has a location (a shared
   city or region, or a location on every item). Optional settings the user mentioned are set;
   anything not discussed stays unset so aimm's defaults apply.
@@ -298,11 +297,11 @@ Each round is one LLM turn, `llm.run_turn(ai, instructions, situation, history)`
   rules, and the field-guide table grouped by `FieldGroup`.
 - **Situation** (rebuilt every turn): new or existing; the current draft (secrets masked) and its
   `request`; what is still required (`missing()`); the context (names of users, AI services,
-  regions, translations, and this marketplace's items); SHARED fields that vary across items.
+  regions, translations, and this marketplace's items). The LLM is given only this section and
+  names, never other sections' values.
 - **History:** previous LLM messages and user replies, in order.
 
-The reply (`action`, `message`, `request`, `values`, `unset`, and for marketplaces an optional
-`apply_to_all_items: [field]`) is parsed and the candidate draft validated (`validate()`: the
+The reply (`action`, `message`, `request`, `values`, `unset`) is parsed and the candidate draft validated (`validate()`: the
 config class loads it, referenced names exist, secret fields hold only `${VAR}` references, the
 whole config still loads). Bad JSON, an unknown `action` or validation errors go back to the LLM,
 up to 2 retries; if it still fails the user is told "I couldn't turn that into a valid section;
@@ -344,13 +343,12 @@ from the result.
 
 The draft is the marketplace section **as the user wrote it** (merged across files), not a view of
 the expanded config. Items' own values for shared fields are kept separately
-(`SectionDraft.item_overrides`) and sent to the LLM as context, so an item's own settings are never
-presented as the marketplace's.
+(`SectionDraft.item_overrides`); aimm (not the LLM) uses them to tell the user which items keep
+their own values. They are not sent to the LLM.
 
 `apply()` returns the user config with `[marketplace.NAME]` replaced by `request` + the draft
-values. Items are untouched: they already inherit marketplace values unless they set their own.
-Only for a field in `apply_to_all_items` are the items' own values removed (location keys as a
-group), so every item uses the marketplace's value. `validate()` loads the result
+values. Items are never changed: they use marketplace values unless they set their own; changing
+an item belongs to the item builder. `validate()` loads the result
 (`expand(..., partial=True)`) to catch cross-section errors.
 
 ### 4C. `commit_sections(ui, new_user_cfg, old_user_cfg, files, backup_dir) -> CommitOutcome`

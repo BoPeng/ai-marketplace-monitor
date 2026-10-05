@@ -136,25 +136,46 @@ def test_apply_replaces_only_the_marketplace_section(tmp_path: Path) -> None:
     assert ctx.user_cfg["marketplace"]["facebook"]["search_city"] == "houston"  # input untouched
 
 
-def test_apply_to_all_items_removes_their_own_location(tmp_path: Path) -> None:
-    ctx = make_ctx(tmp_path, ITEMS)
-    draft = B.view(ctx, "facebook")
-    draft.values.update({"search_city": "austin"})
-    draft.all_items = {"search_city"}
-    desk = B.apply(ctx, draft)["item"]["desk"]
-    assert "search_city" not in desk and "radius" not in desk  # location keys go together
-
-
 def test_describe_says_which_items_keep_their_own_values(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, ITEMS)
-    draft = B.view(ctx, "facebook")
-    text = B.describe(ctx, draft)
+    text = B.describe(ctx, B.view(ctx, "facebook"))
     assert "[marketplace.facebook]" in text
-    assert "[item.desk] keeps its own `search_city`, `radius`." in text
-    draft.all_items = {"radius"}
-    assert "[item.desk] will use the marketplace's `search_city`, `radius`" in B.describe(
-        ctx, draft
+    assert "[item.desk] keeps its own `search_city` ('dallas'), `radius` (20)." in text
+
+
+async def test_marketplace_default_never_changes_items(tmp_path: Path) -> None:
+    # the reported case: a marketplace max_price must not touch [item.example]'s own max_price
+    ctx = make_ctx(
+        tmp_path,
+        ONE_ITEM,
+        [
+            reply(
+                "Max price $1000 for items without their own.",
+                {"max_price": "1000"},
+                action="save",
+                request="Max price $1000 by default.",
+                apply_to_all_items=["max_price"],
+            )
+        ],
     )
+    ui = ScriptedSetupUI(["facebook", "yes"])
+    assert await B.converse(ui, ctx, None) == 0
+    written = tomllib.loads(ctx.files[0].read_text())
+    assert written["marketplace"]["facebook"]["max_price"] == "1000"
+    assert written["item"]["example"] == ctx.user_cfg["item"]["example"]
+    assert written["item"]["example"]["max_price"] == 300
+    diff = next(m for m in ui.said() if m.startswith("```diff"))
+    assert "-max_price = 300" not in diff
+
+
+def test_apply_changes_only_the_marketplace_section(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, ITEMS)
+    draft = B.view(ctx, "facebook")
+    draft.values = {"max_price": "1000"}
+    cfg = B.apply(ctx, draft)
+    assert {k: v for k, v in cfg.items() if k != "marketplace"} == {
+        k: v for k, v in ctx.user_cfg.items() if k != "marketplace"
+    }
 
 
 def test_secrets_are_masked(tmp_path: Path) -> None:
@@ -388,7 +409,7 @@ def test_start_menu_separates_marketplace_and_item_values(tmp_path: Path) -> Non
     text = B._summary(ctx, "facebook")
     assert 'search_city = "houston"' in text
     assert "max_price" not in text.split("```")[1]  # not shown as a marketplace value
-    assert "[item.example] keeps its own `min_price`, `max_price`." in text
+    assert "[item.example] keeps its own `min_price` (50), `max_price` (300)." in text
 
 
 class GatewayTimeoutError(Exception):
@@ -430,3 +451,29 @@ async def test_same_value_in_another_form_is_not_a_change(tmp_path: Path) -> Non
     assert result.draft.values == {"search_city": "houston"}  # the user's own form is kept
     assert B.same_value("search_city", "austin", ["austin"])
     assert not B.same_value("search_city", "austin", ["dallas"])
+
+
+def test_llm_sees_only_the_marketplace_section_and_names(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, ITEMS)
+    draft = B.view(ctx, "facebook")
+    prompt = llm.build_messages(B, ctx, draft, [], [])[1]["content"]
+    assert '"search_city": "houston"' in prompt
+    assert "dallas" not in prompt and "pushbullet_token" not in prompt and "abc" not in prompt
+    assert '"items_of_this_marketplace": [\n      "bike",' in prompt
+
+
+async def test_city_name_is_not_added_to_an_existing_city(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path,
+        ONE_ITEM,
+        [
+            reply(values={"city_name": ["Houston"], "max_price": "1000"}),
+            reply(values={"max_price": "1000"}),
+        ],
+    )
+    result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
+    assert result.draft.values == {"search_city": "houston", "max_price": "1000"}
+    assert "`city_name` may only change" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
+    draft = B.view(ctx, "facebook")
+    draft.values = {"search_city": ["austin"], "city_name": ["Austin"]}
+    assert B.validate(ctx, draft) == []  # a new city may bring its name
