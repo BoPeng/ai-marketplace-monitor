@@ -19,7 +19,7 @@ from ..normalize.notifications import CHANNEL_FIELDS, RECIPIENT_FIELDS, TYPE_CLA
 from ..notification import NotificationConfig
 from ..user import UserConfig
 from .marketplace import _plain
-from .toolkits import FieldGuide, SectionDraft, Toolkit, is_reference
+from .toolkits import FieldGuide, SectionDraft, Toolkit, is_reference, unset_variable_notes
 from .ui import SetupUI
 
 if TYPE_CHECKING:
@@ -249,11 +249,6 @@ def missing_recipients(notification: Dict[str, Any], user: Dict[str, Any]) -> Li
     return out
 
 
-def _unset_variables(values: Dict[str, Any]) -> List[str]:
-    refs = [v for v in values.values() if is_reference(v)]
-    return [r[2:-1] for r in dict.fromkeys(refs) if r[2:-1] not in os.environ]
-
-
 class _NotifyToolkit(Toolkit):
     """What users and notifications have in common."""
 
@@ -298,17 +293,7 @@ class _NotifyToolkit(Toolkit):
         return f"```toml\n{dump_config_toml({self.section_type: {draft.name: section}})}```"
 
     def after_save(self: "_NotifyToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
-        names = _unset_variables(draft.values)
-        if not names:
-            return []
-        exports = "\n".join(f"export {n}=<value>" for n in names)
-        return [
-            (
-                f"{draft.label} uses environment variables that are not set here: "
-                f"{', '.join(names)}. Set them where you run aimm, for example in your shell "
-                f"profile:\n\n```bash\n{exports}\n```"
-            )
-        ]
+        return unset_variable_notes(draft)
 
     def _loads_with_others(
         self: "_NotifyToolkit", ws: "Workspace", draft: SectionDraft

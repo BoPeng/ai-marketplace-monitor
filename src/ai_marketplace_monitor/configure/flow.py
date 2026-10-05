@@ -9,7 +9,8 @@ from ..ai import AIBackend
 from ..config import supported_ai_backends
 from ..utils import amm_home
 from .agent import ServiceError, run_agent
-from .ai_setup import configure_ai, load_ai_sections
+from .ai_kit import AIToolkit
+from .ai_setup import configure_ai, load_ai_sections, probe_sections
 from .item import ItemToolkit
 from .marketplace import MarketplaceToolkit
 from .notify import NotificationToolkit, UserToolkit
@@ -93,6 +94,16 @@ def default_ai(config_files: List[Path]) -> Tuple[AIBackend | None, str]:
     return backend, ""
 
 
+async def default_ai_works(ui: SetupUI, config_files: List[Path]) -> bool:
+    """Try the default AI; a broken one cannot help fix the AI sections."""
+    sections = [s for s in load_ai_sections(config_files) if s.enabled]
+    await ui.say(f"Checking [ai.{sections[0].name}]...", kind="progress")
+    [result] = await probe_sections(sections[:1])
+    if not result.ok:
+        await ui.say(f"{result.message}. Using the AI setup menus instead.", kind="warning")
+    return result.ok
+
+
 async def ai_for_configure(
     ui: SetupUI, config_files: List[Path], *, home: Path | None = None
 ) -> AIBackend | None:
@@ -125,11 +136,20 @@ async def configure_section(
     validate_section_address(section)
     family = section_family(section)
     if family == "ai":
-        return await configure_ai(
+        # with a working default AI, the AI helps; otherwise the wizard, which needs no AI
+        backend, _problem = default_ai(config_files)
+        if backend is None or not await default_ai_works(ui, config_files):
+            return await configure_ai(
+                ui, config_files, section_name=ai_section_name(section), home=home
+            )
+        await ui.say(f"Using [ai.{backend.config.name}].", kind="progress")
+        return await run_session(
             ui,
             config_files,
-            section_name=ai_section_name(section),
+            backend,
+            {"ai": toolkits()["ai"]},
             home=home,
+            target=("ai", ai_section_name(section)),
         )
     kits = {family: toolkits()[family]}
     if family == "item":  # an item may need its marketplace created or given a location
@@ -155,6 +175,7 @@ async def configure_section(
 def toolkits() -> Dict[str, Toolkit]:
     """The section types aimm-configure can edit with the AI, by type."""
     return {
+        "ai": AIToolkit(),
         "marketplace": MarketplaceToolkit(),
         "item": ItemToolkit(),
         "notification": NotificationToolkit(),
@@ -211,6 +232,7 @@ async def run_session(
     home = home or amm_home
     router = target is None
     ws = Workspace(ui=ui, files=list(config_files), home=home, toolkits=kits)
+    ws.ai_in_use = ai.config.name  # changes to it take effect the next time
     try:
         await ws.load(["router"] if router else [])
         only: List[Tuple[str, str]] | None = None
@@ -221,12 +243,7 @@ async def run_session(
                 return 0
             only = [(section_type, chosen), *kits[section_type].companions(ws, chosen)]
 
-        async def setup_ai() -> int:
-            return await configure_ai(ui, config_files, home=home)
-
-        executor = ToolExecutor(
-            ws, only=set(only) if only else None, setup_ai=setup_ai if router else None
-        )
+        executor = ToolExecutor(ws, only=set(only) if only else None)
         only_types = list(dict.fromkeys(t for t, _ in only)) if only else None
         executor.guides_read.update(only_types or [])  # their guides are in the prompt
         try:

@@ -9,6 +9,7 @@ never changes the config except through them.
 from __future__ import annotations
 
 import copy
+import os
 import warnings
 from dataclasses import dataclass, field, fields
 from enum import Enum
@@ -91,6 +92,22 @@ def field_group(cls: type, name: str) -> FieldGroup:
 
 def is_reference(value: Any) -> bool:
     return isinstance(value, str) and value.startswith("${") and value.endswith("}")
+
+
+def unset_variable_notes(draft: SectionDraft) -> List[str]:
+    """A note listing the ``${VAR}`` references of a section that are not set, if any."""
+    refs = [v for v in draft.values.values() if is_reference(v)]
+    names = [r[2:-1] for r in dict.fromkeys(refs) if r[2:-1] not in os.environ]
+    if not names:
+        return []
+    exports = "\n".join(f"export {n}=<value>" for n in names)
+    return [
+        (
+            f"{draft.label} uses environment variables that are not set here: "
+            f"{', '.join(names)}. Set them where you run aimm, for example in your shell "
+            f"profile:\n\n```bash\n{exports}\n```"
+        )
+    ]
 
 
 def _mentions_reference(value: Any) -> bool:
@@ -241,6 +258,20 @@ class Toolkit:
     def after_save(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
         """Notes for the user once the section is written (none by default)."""
         return []
+
+    async def check_extra(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
+        """Results added to ``section_check``, e.g. from trying the section (none by default)."""
+        return {}
+
+    async def preflight(
+        self: "Toolkit", ws: "Workspace", draft: SectionDraft
+    ) -> Tuple[List[str], List[str]]:
+        """Checks run by ``save`` before asking the user: (errors that refuse, warnings)."""
+        return [], []
+
+    def write_first(self: "Toolkit", draft: SectionDraft) -> bool:
+        """Whether the section is written before the others of its type."""
+        return False
 
     def apply(self: "Toolkit", user_cfg: Dict[str, Any], draft: SectionDraft) -> Dict[str, Any]:
         """``user_cfg`` with only this section replaced (the input is not changed)."""

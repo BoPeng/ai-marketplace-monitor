@@ -224,26 +224,20 @@ async def test_force_ask_and_ended_session(tmp_path: Path) -> None:
 
 
 async def test_tools_for_model_have_names_and_docs(tmp_path: Path) -> None:
-    async def setup() -> int:
-        return 0
-
-    ex = ready(await make_ws(tmp_path, ONE_ITEM), setup_ai=setup)
+    ex = ready(await make_ws(tmp_path, ONE_ITEM))
     tools = {fn.__name__: fn for fn in ex.tools_for_model()}
     assert set(tools) == {
         "ask_user",
         "save",
         "finish",
         "list_sections",
-        "setup_ai",
         "section_guide",
         "section_show",
         "section_update",
         "section_check",
     }
     assert all(
-        fn.__doc__ and "Args:" in fn.__doc__
-        for n, fn in tools.items()
-        if n not in ("list_sections", "setup_ai")
+        fn.__doc__ and "Args:" in fn.__doc__ for n, fn in tools.items() if n != "list_sections"
     )
     out = await tools["section_update"](
         section_type="marketplace", name="facebook", values='{"max_price": "5"}'

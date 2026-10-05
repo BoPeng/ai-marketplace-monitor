@@ -12,7 +12,7 @@ types listed below, and tell them plainly when something cannot be configured he
 ### Understanding what the user wants
 
 Ask what they would like to set up or change. Briefly mention what can be configured here: the
-section types that have tools, and AI services through `setup_ai`.
+section types that have tools, including AI services (`ai`).
 
 ### Finding the section
 
@@ -30,7 +30,8 @@ worked on (see `session_state`).
 
 ### AI services
 
-To add or change an AI service, call `setup_ai`; it runs its own interactive setup.
+AI services are `[ai.*]` sections like any other. You are running on one of them; changes to
+them take effect the next time aimm or aimm-configure starts.
 
 ### Sections without tools
 

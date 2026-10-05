@@ -38,8 +38,6 @@ class ToolExecutor:
     # a single-section command: section tools work on these sections only (the chosen
     # section, and companions such as an item's marketplace)
     only: Set[SectionKey] | None = None
-    # runs `aimm-configure ai` (offered by the aimm-configure wrapper only); returns exit code
-    setup_ai: Callable[[], Awaitable[int]] | None = None
     done: bool = False
     closed: bool = False  # the user closed the input (Ctrl-C)
     saved: bool = False
@@ -105,9 +103,7 @@ class ToolExecutor:
         cfg = self.ws.user_cfg
         types = []
         for section_type in SECTION_TYPES:
-            configurable = section_type in self.ws.toolkits or (
-                section_type == "ai" and self.setup_ai is not None
-            )
+            configurable = section_type in self.ws.toolkits
             body = cfg.get(section_type, {})
             sections = [
                 {"name": name, "request": section.get("request")}
@@ -216,6 +212,7 @@ class ToolExecutor:
             "still_required": toolkit.missing(self.ws, draft),
             "errors": toolkit.validate(self.ws, draft),
             "unsaved_changes": toolkit.masked(draft.unsaved_changes()),
+            **await toolkit.check_extra(self.ws, draft),
         }
 
     async def section_guide(self: "ToolExecutor", section_type: str) -> Dict[str, Any]:
@@ -271,6 +268,13 @@ class ToolExecutor:
             errors += [f"{draft.label}: {e}" for e in toolkit.validate(self.ws, draft)]
         if errors:
             return {"ok": False, "errors": errors, "note": "Nothing was saved."}
+        warnings: List[str] = []
+        for draft in pending:  # checks that take time (an AI section is tried)
+            refused, warned = await self.ws.toolkits[draft.section_type].preflight(self.ws, draft)
+            errors += [f"{draft.label}: {e}" for e in refused]
+            warnings += warned
+        if errors:
+            return {"ok": False, "errors": errors, "note": "Nothing was saved."}
         if message:
             await self.ws.ui.say(message)
         new_cfg = self.ws.user_cfg
@@ -286,6 +290,7 @@ class ToolExecutor:
                 self.ws.files,
                 self.ws.backup_dir,
                 only=[draft.key for draft in pending],
+                first=[d.key for d in pending if self.ws.toolkits[d.section_type].write_first(d)],
             )
         except SetupClosedError:
             self.closed = True
@@ -302,7 +307,7 @@ class ToolExecutor:
             self.failed = True
             return {"ok": False, "errors": ["The change could not be written (see the message)."]}
         self.saved = True
-        notes = [
+        notes = warnings + [
             note
             for draft in pending
             for note in self.ws.toolkits[draft.section_type].after_save(self.ws, draft)
@@ -355,16 +360,6 @@ class ToolExecutor:
         self.end(discarded=bool(pending))
         return {"ok": True}
 
-    async def run_setup_ai(self: "ToolExecutor") -> Dict[str, Any]:
-        if self.setup_ai is None:
-            return {"ok": False, "errors": ["AI setup is not available here."]}
-        code = await self.setup_ai()
-        try:
-            await self.ws.load()
-        except ConfigLoadError as e:
-            return {"ok": False, "errors": [str(e)]}
-        return {"ok": code == 0}
-
     # --- dispatch -------------------------------------------------------------------------
     def tools_for_model(self: "ToolExecutor") -> List[Callable[..., Awaitable[Dict[str, Any]]]]:
         """The tools as named async functions with signatures and docstrings."""
@@ -416,13 +411,6 @@ class ToolExecutor:
                 return await self.call("list_sections", {})
 
             tools.append(list_sections)
-        if self.setup_ai is not None:
-
-            async def setup_ai() -> Dict[str, Any]:
-                """Run the interactive AI service setup (`aimm-configure ai`) for the user."""
-                return await self.call("setup_ai", {})
-
-            tools.append(setup_ai)
         tools += _section_tools(self)
         return tools
 
@@ -459,8 +447,6 @@ class ToolExecutor:
                 return await self.finish(
                     str(args.get("message", "")), bool(args.get("discard_unsaved", False))
                 )
-            if name == "setup_ai":
-                return await self.run_setup_ai()
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
             if name == "section_guide":
