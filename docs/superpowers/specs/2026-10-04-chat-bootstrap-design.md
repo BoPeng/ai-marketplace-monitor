@@ -1,7 +1,7 @@
 # Design: `aimm --chat` — section builders, playbooks, AI bootstrap, and plain chat
 
 **Date:** 2026-10-04
-**Status:** Approved (brainstorm), pending implementation plan
+**Status:** Approved; implemented in #368
 **Related:** #362 (config normalization, needed later for LLM-driven section edits), #365 (UnitySVC provider)
 
 ## Summary
