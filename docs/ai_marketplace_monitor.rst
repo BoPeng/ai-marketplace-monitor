@@ -124,6 +124,14 @@ ai\_marketplace\_monitor.user module
    :show-inheritance:
    :undoc-members:
 
+ai\_marketplace\_monitor.unitysvc\_notify module
+-------------------------------------------------
+
+.. automodule:: ai_marketplace_monitor.unitysvc_notify
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ai\_marketplace\_monitor.utils module
 -------------------------------------
 

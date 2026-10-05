@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `aimm-configure`: primary interactive configuration command, starting with `[ai.*]` setup and writing API keys as environment-variable references
+- UnitySVC notifications (`[notification.unitysvc]` with `unitysvc_api_key`): messages go to UnitySVC's `notify` service (inbox plus your saved notification destination) or to a specific service set with `unitysvc_service`
+- Email preset for UnitySVC's SMTP gateway: `smtp_server = "smtp.svcpass.com"` with `smtp_password = "${UNITYSVC_API_KEY}"` sends the HTML email to your UnitySVC-registered address, an alternative to a Gmail app password
 
 ## [0.10.3] - 2026-10-05
 

@@ -37,6 +37,22 @@ An SMTP server is required for sending emails, for which you will need to know `
     [notification.gmail]
     smtp_password = 'abcdefghijklmnop'
 
+Using UnitySVC instead of a Gmail app password
+----------------------------------------------
+
+Gmail requires an app password, which many users find hard to create in their Google account settings. If you have a `UnitySVC <https://unitysvc.com/>`_ API key, for example for UnitySVC AI, you can send email through UnitySVC's SMTP gateway with that key instead:
+
+.. code-block:: toml
+
+    [notification.unitysvc_email]
+    smtp_server = 'smtp.svcpass.com'
+    smtp_password = '${UNITYSVC_API_KEY}'
+
+    [user.me]
+    notify_with = 'unitysvc_email'
+
+``smtp.svcpass.com`` is a preset: aimm fills in the port (587), the SMTP username (``smtp-to-mailbox``) and the sender address (``notify@svcpass.com``), and ``email`` is not needed. The restriction is that UnitySVC only sends to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images. See :ref:`unitysvc-smtp` for other options.
+
 You can specify `smtp_password` directly in the `user` section if you are not sharing the `notification` setting with other users.
 
 .. code-block:: toml
@@ -205,6 +221,70 @@ Telegram Troubleshooting
   1. Double-check your chat ID is a number (positive for users, negative for groups)
   2. For group chats, make sure the bot is added to the group
   3. Use the getUpdates method to verify your chat ID
+
+Setting Up UnitySVC Notifications
+=================================
+
+`UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider and give aimm access to more than 100 notification channels and apps through one key: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
+
+By default, messages go to UnitySVC's ``notify`` service, which shows them in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your aimm config.
+
+The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notifications, so one key covers rating listings and delivering the results:
+
+.. code-block:: toml
+
+    [ai.unitysvc]
+    api_key = '${UNITYSVC_API_KEY}'
+
+    [notification.unitysvc]
+    unitysvc_api_key = '${UNITYSVC_API_KEY}'
+
+    [user.me]
+    notify_with = 'unitysvc'
+
+To send to one specific UnitySVC service instead, set ``unitysvc_service`` to its path. Such a message skips the inbox.
+
+.. code-block:: toml
+
+    [notification.discord]
+    unitysvc_api_key = '${UNITYSVC_API_KEY}'
+    unitysvc_service = 'labs/msg-to-discord'
+    message_format = 'markdown'
+
+To notify several destinations at once, for example email, SMS and a chat app, create a UnitySVC **broadcast** with up to 10 targets. Either save it as your notification destination on UnitySVC and keep the default ``notify`` service, or send to it directly:
+
+.. code-block:: toml
+
+    [notification.everywhere]
+    unitysvc_api_key = '${UNITYSVC_API_KEY}'
+    unitysvc_service = 'b/my-alerts'
+
+.. note::
+   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
+
+.. _unitysvc-smtp:
+
+Sending through UnitySVC's SMTP gateway
+---------------------------------------
+
+Instead of the HTTP API, you can send aimm's regular email notifications through UnitySVC's SMTP gateway. aimm then sends its full HTML email with listing images, which suits forwarding emails through UnitySVC's email services. ``smtp.svcpass.com`` is a preset, so the server and your API key are enough:
+
+.. code-block:: toml
+
+    [notification.unitysvc_email]
+    smtp_server = 'smtp.svcpass.com'
+    smtp_password = '${UNITYSVC_API_KEY}'
+
+    [user.me]
+    notify_with = 'unitysvc_email'
+
+The SMTP username selects the UnitySVC service and your API key is the password. The preset defaults to port 587, ``smtp_username = 'smtp-to-mailbox'`` and ``smtp_from = 'notify@svcpass.com'``; set any of them to override it.
+
+- **Emails go to your UnitySVC-registered email address**, the verified primary email under Settings → Account on UnitySVC, not to the address in ``email``. Make sure that address is set and verified.
+- ``smtp_username = 'smtp-to-mailbox'`` (the default) skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
+- ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To receive these notifications by email, your notification destination on UnitySVC must include ``smtp-to-mailbox``: set it as the destination, or add it to a broadcast used as the destination.
+- ``smtp_username`` can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases. For services that deliver to the ``To`` address, set ``email``.
+- ``email`` is optional with the preset: it only fills the ``To`` header, and ``smtp-to-mailbox`` and ``notify`` deliver to your registered address whatever it says.
 
 AI Prompt Customization
 =======================
