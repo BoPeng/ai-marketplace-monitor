@@ -266,7 +266,6 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
 | `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
 | `unitysvc_service`  | Optional    | String   | Service path, default `notify`. Use e.g. `msg-to-discord` for a specific service. |
-| `unitysvc_base_url` | Optional    | String   | Gateway URL, default `$UNITYSVC_API_BASE_URL` or `https://api.svcpass.com`.           |
 | `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
 
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]`; one key serves both AI and notifications.

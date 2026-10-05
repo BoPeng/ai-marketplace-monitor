@@ -245,7 +245,6 @@ To notify several destinations at once, for example email, SMS and a chat app, c
 
 .. note::
    - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``msg-to-discord``.
-   - Set ``unitysvc_base_url`` (or the ``UNITYSVC_API_BASE_URL`` environment variable) to use another gateway, such as ``https://api.staging.svcpass.com``.
    - UnitySVC also accepts email at ``smtp.svcpass.com`` (port 587, username ``notify``, your API key as the password), so an email notification section works too, but the HTTP setup above is simpler.
 
 AI Prompt Customization
