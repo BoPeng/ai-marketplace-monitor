@@ -15,9 +15,11 @@ from typing import Any, Callable, Dict, List, Tuple, TypeVar
 import anthropic
 import openai
 
-from .ai import AIBackend, AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
-from .config import supported_ai_backends
-from .config_writer import (
+from ..ai import AIBackend, AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
+from ..config import supported_ai_backends
+from ..utils import amm_home, merge_dicts
+from .ui import Choice, SetupClosedError, SetupUI
+from .writer import (
     CommitOutcome,
     ConfigReadError,
     SectionWrite,
@@ -25,8 +27,6 @@ from .config_writer import (
     read_toml,
     render_section,
 )
-from .setup_ui import Choice, SetupClosedError, SetupUI
-from .utils import amm_home, merge_dicts
 
 _PLACEHOLDER = re.compile(r"^\$\{(\w+)\}$")
 _SECRET_TOKEN = re.compile(r"(svcpass_|sk-ant-|sk-)[A-Za-z0-9_\-]{4,}")

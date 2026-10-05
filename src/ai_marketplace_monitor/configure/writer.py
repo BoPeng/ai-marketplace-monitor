@@ -19,7 +19,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .setup_ui import SetupUI
+from .ui import SetupUI
 
 
 class ConfigReadError(Exception):

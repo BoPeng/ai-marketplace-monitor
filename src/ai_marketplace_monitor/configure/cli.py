@@ -7,14 +7,14 @@ from typing import Annotated, Any, Coroutine, List, Optional
 import rich
 import typer
 
-from .config import resolve_config_files
-from .configure import (
+from ..config import resolve_config_files
+from .flow import (
     ConfigureAddressError,
     configure_front_door,
     configure_section,
     validate_section_address,
 )
-from .setup_ui import ConsoleSetupUI
+from .ui import ConsoleSetupUI
 
 app = typer.Typer()
 

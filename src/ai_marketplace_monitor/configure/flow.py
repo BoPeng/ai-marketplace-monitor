@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import List
 
 from .ai_setup import configure_ai, load_ai_sections, probe_sections
-from .config_writer import ConfigReadError
-from .setup_ui import Choice, SetupClosedError, SetupUI
+from .ui import Choice, SetupClosedError, SetupUI
+from .writer import ConfigReadError
 
 
 class ConfigureAddressError(ValueError):

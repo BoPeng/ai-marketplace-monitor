@@ -4,7 +4,8 @@ from typing import Any, List
 import pytest
 from typer.testing import CliRunner
 
-from ai_marketplace_monitor import configure, configure_cli, setup_ui
+from ai_marketplace_monitor.configure import cli, flow
+from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
 
 runner = CliRunner()
 
@@ -25,9 +26,9 @@ async def test_configure_front_door_runs_ai_then_menu(
         calls.append((config_files, section_name))
         return 0
 
-    monkeypatch.setattr(configure, "configure_ai", fake_configure_ai)
+    monkeypatch.setattr(flow, "configure_ai", fake_configure_ai)
 
-    assert await configure.configure_front_door(setup_ui.ScriptedSetupUI(["quit"]), files) == 0
+    assert await flow.configure_front_door(ScriptedSetupUI(["quit"]), files) == 0
     assert calls == [(files, None)]
 
 
@@ -46,16 +47,16 @@ async def test_configure_front_door_can_call_ai_again(
         calls.append((config_files, section_name))
         return 0
 
-    monkeypatch.setattr(configure, "configure_ai", fake_configure_ai)
+    monkeypatch.setattr(flow, "configure_ai", fake_configure_ai)
 
-    assert await configure.configure_front_door(setup_ui.ScriptedSetupUI(["ai", "quit"]), []) == 0
+    assert await flow.configure_front_door(ScriptedSetupUI(["ai", "quit"]), []) == 0
     assert calls == [([], None), ([], None)]
 
 
 async def test_configure_section_item_requires_usable_ai() -> None:
-    ui = setup_ui.ScriptedSetupUI([])
+    ui = ScriptedSetupUI([])
 
-    assert await configure.configure_section(ui, [], "item.gopro") == 1
+    assert await flow.configure_section(ui, [], "item.gopro") == 1
     assert "Configure a working AI service first" in ui.said("error")[0]
 
 
@@ -65,10 +66,10 @@ async def test_configure_section_item_is_reserved_after_ai_ready(
     async def fake_require_usable_ai(ui: Any, config_files: List[Path]) -> bool:
         return True
 
-    monkeypatch.setattr(configure, "require_usable_ai", fake_require_usable_ai)
-    ui = setup_ui.ScriptedSetupUI([])
+    monkeypatch.setattr(flow, "require_usable_ai", fake_require_usable_ai)
+    ui = ScriptedSetupUI([])
 
-    assert await configure.configure_section(ui, [], "item.gopro") == 1
+    assert await flow.configure_section(ui, [], "item.gopro") == 1
     assert "not implemented yet" in ui.said("error")[0]
 
 
@@ -80,11 +81,11 @@ def test_configure_cli_dispatches_to_front_door(monkeypatch: pytest.MonkeyPatch)
         calls.append(files)
         return 0
 
-    monkeypatch.setattr(configure_cli, "configure_front_door", fake_configure_front_door)
-    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: setup_ui.ScriptedSetupUI([]))
-    monkeypatch.setattr(configure_cli, "resolve_config_files", lambda files: files)
+    monkeypatch.setattr(cli, "configure_front_door", fake_configure_front_door)
+    monkeypatch.setattr(cli, "ConsoleSetupUI", lambda: ScriptedSetupUI([]))
+    monkeypatch.setattr(cli, "resolve_config_files", lambda files: files)
 
-    result = runner.invoke(configure_cli.app, ["--config-file", str(config)])
+    result = runner.invoke(cli.app, ["--config-file", str(config)])
 
     assert result.exit_code == 0
     assert calls == [[config]]
@@ -98,25 +99,25 @@ def test_configure_cli_dispatches_explicit_section(monkeypatch: pytest.MonkeyPat
         calls.append((files, section))
         return 0
 
-    monkeypatch.setattr(configure_cli, "configure_section", fake_configure_section)
-    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: setup_ui.ScriptedSetupUI([]))
-    monkeypatch.setattr(configure_cli, "resolve_config_files", lambda files: files)
+    monkeypatch.setattr(cli, "configure_section", fake_configure_section)
+    monkeypatch.setattr(cli, "ConsoleSetupUI", lambda: ScriptedSetupUI([]))
+    monkeypatch.setattr(cli, "resolve_config_files", lambda files: files)
 
-    result = runner.invoke(configure_cli.app, ["--config-file", str(config), "ai.unitysvc"])
+    result = runner.invoke(cli.app, ["--config-file", str(config), "ai.unitysvc"])
 
     assert result.exit_code == 0
     assert calls == [([config], "ai.unitysvc")]
 
 
 def test_configure_cli_rejects_unimplemented_sections() -> None:
-    result = runner.invoke(configure_cli.app, ["user.me"])
+    result = runner.invoke(cli.app, ["user.me"])
 
     assert result.exit_code == 1
     assert "Only 'ai', 'ai.<name>', 'item', and 'item.<name>'" in result.output
 
 
 def test_configure_cli_needs_terminal() -> None:
-    result = runner.invoke(configure_cli.app, [])
+    result = runner.invoke(cli.app, [])
 
     assert result.exit_code == 1
     assert "interactive terminal" in result.output
@@ -143,11 +144,11 @@ def test_ctrl_c_during_setup_exits_cleanly(monkeypatch: pytest.MonkeyPatch) -> N
     async def interrupted(ui: Any, files: List[Path]) -> int:
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(configure_cli, "configure_front_door", interrupted)
-    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: setup_ui.ScriptedSetupUI([]))
-    monkeypatch.setattr(configure_cli, "resolve_config_files", lambda files: [])
+    monkeypatch.setattr(cli, "configure_front_door", interrupted)
+    monkeypatch.setattr(cli, "ConsoleSetupUI", lambda: ScriptedSetupUI([]))
+    monkeypatch.setattr(cli, "resolve_config_files", lambda files: [])
 
-    result = runner.invoke(configure_cli.app, [])
+    result = runner.invoke(cli.app, [])
 
     assert result.exit_code == 0
     assert "Cancelled." in result.output

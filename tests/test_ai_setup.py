@@ -6,9 +6,9 @@ import httpx
 import openai
 import pytest
 
-from ai_marketplace_monitor import ai_setup
 from ai_marketplace_monitor.ai import OllamaConfig, UnitySVCConfig
-from ai_marketplace_monitor.ai_setup import (
+from ai_marketplace_monitor.configure import ai_setup
+from ai_marketplace_monitor.configure.ai_setup import (
     AISection,
     AISectionProposal,
     AISetupContext,
@@ -25,7 +25,7 @@ from ai_marketplace_monitor.ai_setup import (
     render_ai_section,
     scrub,
 )
-from ai_marketplace_monitor.setup_ui import Choice, JsonSetupUI, ScriptedSetupUI
+from ai_marketplace_monitor.configure.ui import Choice, JsonSetupUI, ScriptedSetupUI
 
 REQUEST = httpx.Request("GET", "https://api.svcpass.com/p/llm/models")
 VALUES = {"api_key": "${UNITYSVC_API_KEY}", "model": "balanced"}
@@ -531,7 +531,7 @@ def test_probe_does_not_scrub_ollama_placeholder_key(monkeypatch: pytest.MonkeyP
     )
     use_client(monkeypatch, client)
     raw = {"base_url": "http://localhost:11434/v1", "model": "llama3"}
-    config = OllamaConfig(name="ollama", **raw)
+    config = OllamaConfig(name="ollama", base_url=raw["base_url"], model=raw["model"])
     result = probe_ai_section(AISection("ollama", raw, [], config=config))
 
     assert not result.ok
