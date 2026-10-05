@@ -245,3 +245,25 @@ async def test_session_cannot_touch_other_section_types(tmp_path: Path) -> None:
     assert ok["ok"], ok
     out = await executor.call("section_show", {"section_type": "marketplace", "name": "x"})
     assert out["ok"] is False
+
+
+async def test_disabled_sections_do_not_count(tmp_path: Path) -> None:
+    ws = await ws_for(
+        tmp_path,
+        AI_ONLY
+        + '\n[notification.ntfy]\nntfy_server = "https://ntfy.sh"\nenabled = false\n'
+        + '\n[user.old]\nntfy_topic = "t"\nenabled = false\n',
+    )
+    assert N.show_extra(ws, N.view(ws, "ntfy"))["received_by"] == []
+    assert N.show_extra(ws, N.view(ws, "x"))["default_user"] == "me"
+    user = U.view(ws, "me")
+    user.values = {"notify_with": ["ntfy"]}
+    [message] = U.missing(ws, user)
+    assert message.startswith("notification: [user.me] receives no notification")
+
+
+async def test_an_inline_channel_needs_its_recipient(tmp_path: Path) -> None:
+    ws = await ws_for(tmp_path, AI_ONLY)
+    user = U.view(ws, "me")
+    user.values = {"smtp_password": "${GMAIL_APP_PASSWORD}"}
+    assert U.missing(ws, user) == ["email: needed for the channel set on [user.me]"]

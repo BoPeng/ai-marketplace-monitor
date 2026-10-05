@@ -190,9 +190,15 @@ def _names(ws: "Workspace", section_type: str) -> List[str]:
     return names + [n for t, n in ws.drafts if t == section_type and n not in names]
 
 
+def _active(ws: "Workspace", section_type: str, name: str) -> Dict[str, Any] | None:
+    """A section's values, or None if it does not exist or is disabled (aimm skips it)."""
+    values = ws.section(section_type, name)
+    return None if values is None or values.get("enabled") is False else values
+
+
 def default_user(ws: "Workspace") -> str:
-    """The user notifications go to: the first user, or a new ``[user.me]``."""
-    users = [n for n in _names(ws, "user") if ws.section("user", n) is not None]
+    """The user notifications go to: the first enabled user, or a new ``[user.me]``."""
+    users = [n for n in _names(ws, "user") if _active(ws, "user", n) is not None]
     return users[0] if users else "me"
 
 
@@ -209,7 +215,7 @@ def receivers(ws: "Workspace", notification: str) -> List[str]:
     """Users who receive a notification: it is in their notify_with, or that is unset."""
     out = []
     for user in _names(ws, "user"):
-        values = ws.section("user", user)
+        values = _active(ws, "user", user)
         if values is None:
             continue
         if "notify_with" not in values or notification in _listed(values["notify_with"]):
@@ -218,10 +224,15 @@ def receivers(ws: "Workspace", notification: str) -> List[str]:
 
 
 def received(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
-    """Notifications a user with these values receives."""
+    """Enabled notifications a user with these values receives."""
     if "notify_with" in values:
-        return _listed(values["notify_with"])
-    return [n for n in _names(ws, "notification") if ws.section("notification", n) is not None]
+        disabled = [
+            n
+            for n in _names(ws, "notification")
+            if (ws.section("notification", n) or {}).get("enabled") is False
+        ]
+        return [n for n in _listed(values["notify_with"]) if n not in disabled]
+    return [n for n in _names(ws, "notification") if _active(ws, "notification", n) is not None]
 
 
 def missing_recipients(notification: Dict[str, Any], user: Dict[str, Any]) -> List[str]:
@@ -463,7 +474,11 @@ class UserToolkit(_NotifyToolkit):
                     "([notification.*]) and add it to `notify_with`"
                 )
             ]
-        out = []
+        # a channel set on the user itself (an older layout) needs its recipient too
+        out = [
+            f"{f}: needed for the channel set on [user.{draft.name}]"
+            for f in missing_recipients(draft.values, draft.values)
+        ]
         for name in names:
             values = ws.section("notification", name) or {}
             out += [
