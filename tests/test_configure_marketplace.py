@@ -521,3 +521,32 @@ def test_situation_separates_saved_and_unsaved_values(tmp_path: Path) -> None:
     prompt = llm.build_messages(B, ctx, draft, [], [])[1]["content"]
     assert '"saved_values": {\n    "search_city": "houston"\n  }' in prompt
     assert '"unsaved_changes": {\n    "max_price": "1000"\n  }' in prompt
+
+
+@pytest.mark.parametrize(
+    "city, ok",
+    [
+        ("houston", True),
+        ("111979382146893", True),
+        (["sanfrancisco", "111979382146893"], True),
+        ("https://www.facebook.com/marketplace/bogota/search?query=iphone", False),
+        ("bogota/search", False),
+        ("san francisco", False),
+    ],
+)
+def test_search_city_must_be_a_location_code(tmp_path: Path, city: object, ok: bool) -> None:
+    ctx = make_ctx(tmp_path, BASE)
+    draft = B.view(ctx, "facebook")
+    draft.values = {"search_city": city}
+    errors = B.validate(ctx, draft)
+    assert (errors == []) is ok
+    if not ok:  # the config class's own check, which also explains the URL
+        assert "search_city" in errors[0] and "incorrect format" in errors[0]
+
+
+def test_playbook_explains_url_codes() -> None:
+    from ai_marketplace_monitor.configure.playbooks import load_playbook
+
+    text = load_playbook("marketplace").text()
+    assert "never guess it" in text and "paste the URL" in text
+    assert "`111979382146893`" in text

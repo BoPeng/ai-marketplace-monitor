@@ -73,9 +73,9 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "search_city",
-        "the user's city as Facebook's URL slug (facebook.com/marketplace/<slug>/): usually the "
-        "city name in lowercase without spaces",
-        'list of slugs, e.g. `["houston"]`',
+        "the code after /marketplace/ in a Facebook Marketplace URL the user pastes (a name or "
+        "a numeric ID); never guessed from a city name",
+        'list of codes, e.g. `["houston"]` or `["111979382146893"]`',
         "required unless search_region is set",
     ),
     FieldGuide(

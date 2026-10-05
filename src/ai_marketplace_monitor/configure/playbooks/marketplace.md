@@ -17,13 +17,35 @@ search, and who is notified / which AI rates listings.
 
 ### Location (required)
 
-Where to search. Infer the city and how far to search from what the user says; ask only if no
-place is mentioned. `search_city` is the city's slug in Facebook's URL
-(`facebook.com/marketplace/<slug>/`), usually the city name in lowercase without spaces, e.g.
-`houston`, `sanfrancisco`, `nyc`. When you set a new city, also set `city_name` with its readable
-name; leave an existing city as it is. `radius` is the search
-distance. A whole country or area maps to a defined region (`search_region`), which replaces the
-city settings; only use region names from the context.
+Where to search: a city (`search_city`) and how far around it (`radius`), or a whole country
+or area (`search_region`).
+
+`search_city` is the code Facebook uses for a location in its Marketplace URLs: the path segment
+right after `/marketplace/`. It is a name for some large cities (`houston`, `sanfrancisco`,
+`nyc`) and a numeric location ID for most other places (`111979382146893`). It cannot be worked
+out reliably from a city's name, so never guess it. Instead:
+
+- Ask the user to open Facebook Marketplace in a browser, set the location (and distance) they
+  want, search for anything, and paste the URL of the results page.
+- Extract the code from the pasted URL: the segment after `/marketplace/` and before the next
+  `/` or `?`. Ignore `/search`, `/category/...` and query parameters.
+  - `https://www.facebook.com/marketplace/houston/search?query=bike` → `houston`
+  - `https://www.facebook.com/marketplace/111979382146893/search/?query=sofa&radius=40` →
+    `111979382146893`
+  - `https://www.facebook.com/marketplace/bogota/search?minPrice=100000&query=iphone` → `bogota`
+- A URL like `https://www.facebook.com/marketplace/` or `.../marketplace/search?...` has no
+  location code: ask for the URL after the location is set. A URL from `m.facebook.com` works
+  the same way.
+- Set `search_city` to the code only (never the whole URL), and `city_name` to the place's
+  readable name ("Houston, TX"), from the user or the page title they mention.
+- Ask how far to search if they did not say, and set `radius` to that distance. Do not save a
+  new location before the user has answered (a distance, or that Facebook's default is fine).
+- For several cities, repeat for each; `search_city`, `city_name` and `radius` are lists in the
+  same order.
+
+Leave an existing `search_city` as it is unless the user wants another location. A whole country
+or area maps to a defined region (`search_region`), which replaces the city settings; only use
+region names from the context.
 
 ### Who and how
 
