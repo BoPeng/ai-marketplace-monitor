@@ -88,15 +88,16 @@ class Workspace:
         return self.drafts[key]
 
     def config_with_drafts(self: "Workspace", exclude: SectionKey | None = None) -> Dict[str, Any]:
-        """The user config with this session's complete drafts applied (except ``exclude``).
+        """The user config with this session's drafts applied (except ``exclude``).
 
-        An incomplete draft (a new item without search phrases, say) is left out: it is not
-        saved as it is, so it must not make other sections fail validation.
+        Drafts that are not ready (``Toolkit.can_apply``; a new item without search phrases,
+        say) are left out: they are not saved as they are, so they must not make other sections
+        fail validation.
         """
         cfg = self.user_cfg
         for key, draft in self.drafts.items():
             toolkit = self.toolkits[draft.section_type]
-            if key != exclude and not toolkit.missing(self, draft):
+            if key != exclude and toolkit.can_apply(self, draft):
                 cfg = toolkit.apply(cfg, draft)
         return cfg
 

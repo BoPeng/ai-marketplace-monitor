@@ -12,10 +12,20 @@ runner = CliRunner()
 
 async def test_configure_section_rejects_other_types() -> None:
     with pytest.raises(flow.ConfigureAddressError, match="are supported"):
-        await flow.configure_section(ScriptedSetupUI([]), [], "user.me")
+        await flow.configure_section(ScriptedSetupUI([]), [], "region.x")
 
 
-async def test_configure_item_also_offers_the_marketplace(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "section, target",
+    [
+        ("item.gopro", ("item", "gopro")),
+        ("notification", ("notification", None)),
+        ("user.alice", ("user", "alice")),
+    ],
+)
+async def test_configure_section_toolkits(
+    monkeypatch: pytest.MonkeyPatch, section: str, target: Any
+) -> None:
     async def fake_ai(ui: Any, files: List[Path], home: Any = None) -> str:
         return "backend"
 
@@ -27,15 +37,10 @@ async def test_configure_item_also_offers_the_marketplace(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(flow, "ai_for_configure", fake_ai)
     monkeypatch.setattr(flow, "run_session", fake_run_session)
-    assert await flow.configure_section(ScriptedSetupUI([]), [], "item.gopro") == 0
-    assert runs == [
-        {
-            "ai": "backend",
-            "kits": ["item", "marketplace"],
-            "home": None,
-            "target": ("item", "gopro"),
-        }
-    ]
+    assert await flow.configure_section(ScriptedSetupUI([]), [], section) == 0
+    # an item also gets its marketplace; users and notifications come together
+    kits = ["item", "marketplace"] if section.startswith("item") else ["notification", "user"]
+    assert runs == [{"ai": "backend", "kits": kits, "home": None, "target": target}]
 
 
 def test_configure_cli_dispatches_to_front_door(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -75,10 +80,10 @@ def test_configure_cli_dispatches_explicit_section(monkeypatch: pytest.MonkeyPat
 
 
 def test_configure_cli_rejects_unimplemented_sections() -> None:
-    result = runner.invoke(cli.app, ["user.me"])
+    result = runner.invoke(cli.app, ["region.x"])
 
     assert result.exit_code == 1
-    assert "Only 'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>'" in result.output
+    assert "are supported" in result.output
 
 
 def test_configure_cli_needs_terminal() -> None:

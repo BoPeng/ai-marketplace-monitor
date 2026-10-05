@@ -172,8 +172,31 @@ when this item should differ. If the marketplace does not exist yet, or has no l
 the same conversation creates it or adds the location, tells you so, and saves both
 sections after one confirmation. No other section is changed.
 
+Notifications and users
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``aimm-configure notification`` (or ``aimm-configure user``) sets up how and to whom aimm sends
+notifications. Users and notifications are set up together: a ``[notification.NAME]`` section is
+one channel with its servers and credentials, and a ``[user.NAME]`` section says where a person
+receives it (email address, chat ID, ...) and which notifications they get (``notify_with``). If
+you have no user yet, notifications go to a new ``[user.me]``, so you only need to say how you
+want to be notified:
+
+.. code-block:: text
+
+    Notify me through email.
+
+The AI offers the options that fit: email through UnitySVC (``smtp.svcpass.com`` with your
+UnitySVC key, sent to your UnitySVC-registered address) or Gmail (which needs an app password),
+UnitySVC notifications, Pushbullet, Pushover, ntfy or Telegram. Passwords, tokens and keys are
+written only as environment-variable references such as ``${GMAIL_APP_PASSWORD}``; you never type
+them in the chat. After saving, aimm lists any variable that is not set yet, with the ``export``
+line to add to your shell profile. ``aimm-configure user.NAME`` and
+``aimm-configure notification.NAME`` start at that section; the session may still change any user
+or notification, and nothing else.
+
 In ``aimm-configure`` the AI has the tools of every section type it can configure
-(marketplaces and items for now). It sees only the section names and their
+(marketplaces, items, users and notifications). It sees only the section names and their
 ``request`` summaries until it opens a section, and it changes only the sections you asked
 about; several drafted sections are saved together after one confirmation.
 

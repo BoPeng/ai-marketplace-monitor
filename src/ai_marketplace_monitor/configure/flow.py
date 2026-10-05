@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from ..ai import AIBackend
 from ..config import supported_ai_backends
@@ -12,6 +12,7 @@ from .agent import ServiceError, run_agent
 from .ai_setup import configure_ai, load_ai_sections
 from .item import ItemToolkit
 from .marketplace import MarketplaceToolkit
+from .notify import NotificationToolkit, UserToolkit
 from .toolkits import Toolkit
 from .tools import Outcome, ToolExecutor
 from .ui import SetupClosedError, SetupUI
@@ -39,7 +40,10 @@ def ai_section_name(section: str) -> str | None:
     raise ConfigureAddressError("Only 'ai' and 'ai.<name>' are supported for now.")
 
 
-_SUPPORTED = "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', and 'item.<name>'"
+_SUPPORTED = (
+    "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', 'item.<name>', "
+    "'notification', 'notification.<name>', 'user', and 'user.<name>'"
+)
 
 
 def section_name(section: str) -> str | None:
@@ -58,7 +62,7 @@ def validate_section_address(section: str) -> None:
     if family == "ai":
         ai_section_name(section)
         return
-    if family in ("marketplace", "item"):
+    if family in ("marketplace", "item", "notification", "user"):
         section_name(section)
         return
     raise ConfigureAddressError(f"Only {_SUPPORTED} are supported for now.")
@@ -130,6 +134,8 @@ async def configure_section(
     kits = {family: toolkits()[family]}
     if family == "item":  # an item may need its marketplace created or given a location
         kits["marketplace"] = toolkits()["marketplace"]
+    if family in ("notification", "user"):  # users and notifications are set up together
+        kits = {t: toolkits()[t] for t in ("notification", "user")}
     try:
         ai = await ai_for_configure(ui, config_files, home=home)
     except SetupClosedError:
@@ -148,7 +154,12 @@ async def configure_section(
 
 def toolkits() -> Dict[str, Toolkit]:
     """The section types aimm-configure can edit with the AI, by type."""
-    return {"marketplace": MarketplaceToolkit(), "item": ItemToolkit()}
+    return {
+        "marketplace": MarketplaceToolkit(),
+        "item": ItemToolkit(),
+        "notification": NotificationToolkit(),
+        "user": UserToolkit(),
+    }
 
 
 def system_prompt(ws: Workspace, only_types: List[str] | None) -> str:
@@ -160,11 +171,15 @@ def system_prompt(ws: Workspace, only_types: List[str] | None) -> str:
     """
     parts = [ws.playbooks["AGENT"].text()]
     if only_types is not None:
+        added: Set[str] = set()  # users and notifications share one playbook
         for section_type in only_types:
             toolkit = ws.toolkits[section_type]
-            parts.append(
-                f"# Task: [{section_type}.*] sections\n\n{ws.playbooks[toolkit.playbook].text()}"
-            )
+            if toolkit.playbook not in added:
+                added.add(toolkit.playbook)
+                parts.append(
+                    f"# Task: [{section_type}.*] sections\n\n"
+                    f"{ws.playbooks[toolkit.playbook].text()}"
+                )
             parts.append(toolkit.guide_table())
     else:
         parts.append(f"# The aimm-configure command\n\n{ws.playbooks['router'].text()}")
@@ -238,15 +253,18 @@ def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
             "Command: aimm-configure. The user has not said anything yet. Briefly say what you "
             "can help configure, then ask what they want (ask_user)."
         )
-    (section_type, name), *companions = only
+    # the first named section is where to start; "*" allows any section of a type
+    command = only[0][0]
+    named = [(t, n) for t, n in only if n != "*"]
+    section_type, name = named[0]
     state = "existing" if name in ws.user_cfg.get(section_type, {}) else "new"
     text = (
-        f"Command: aimm-configure {section_type}. The active section is "
+        f"Command: aimm-configure {command}. The active section is "
         f"[{section_type}.{name}] ({state})."
     )
-    if companions:
-        others = ", ".join(f"[{t}.{n}]" for t, n in companions)
-        text += f" You may also change {others}, which it depends on, when needed."
+    others = [f"[{t}.{n}]" for t, n in named[1:]] + [f"any [{t}.*]" for t, n in only if n == "*"]
+    if others:
+        text += f" You may also change {', '.join(dict.fromkeys(others))} when needed."
     return text + (
         f" Start with section_show(section_type={section_type!r}, name={name!r}), then talk "
         "to the user (ask_user)."
