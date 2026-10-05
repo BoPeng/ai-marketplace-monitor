@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `aimm-configure`: primary interactive configuration command, starting with `[ai.*]` setup and writing API keys as environment-variable references
+
 ## [0.10.3] - 2026-10-05
 
 ### Added

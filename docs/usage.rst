@@ -82,6 +82,36 @@ pip install 'ai-marketplace-monitor[pynput]'
 
 You can disable this feature by define environment variable `DISABLE_PYNPUT=true` if `pynput` is already installed.
 
+Interactive configuration
+-------------------------
+
+Run ``aimm-configure`` as the primary interactive configuration command. With no
+section argument, it starts by checking existing ``[ai.*]`` sections and helping you
+add or update an AI service, then asks what to configure next. ``aimm-configure ai``
+is the explicit AI form: it asks which AI to use and creates or updates the section named
+after it, such as ``[ai.unitysvc]``. The AI setup offers UnitySVC (recommended: one key
+covers AI and email notifications), OpenAI, Anthropic, or Ollama.
+
+Use ``aimm-configure ai.NAME`` to work on one section. A section named after a provider
+uses that provider, so ``aimm-configure ai.openai`` sets up ``[ai.openai]`` without asking
+which AI; an existing section keeps its own provider. To use two keys for the same
+provider, give the second section another name, such as ``aimm-configure ai.openai2``,
+which asks for the provider once and writes it as ``provider = "openai"``.
+
+For hosted providers, the command writes the API key as an environment-variable
+reference such as ``${UNITYSVC_API_KEY}``; the key itself is never written to the config
+file. Every write shows the proposed TOML first, asks for confirmation, and keeps a
+backup in ``~/.ai-marketplace-monitor/backups/``.
+
+Use ``--config`` or ``--config-file`` to read and update a specific config file.
+Future configuration helpers can follow the same section-address pattern, such as
+``item`` for a new item or ``item.gopro`` for an existing named item. AI-assisted
+section helpers such as ``item`` require a configured and usable AI service.
+
+The command is a terminal front end over a reusable async setup flow. Web UI code can
+drive the same flow through JSON prompt/answer messages over a websocket instead of
+shelling out to the command.
+
 Cost Considerations
 ------------------
 

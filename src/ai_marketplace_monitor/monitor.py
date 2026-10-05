@@ -13,7 +13,12 @@ from rich.pretty import pretty_repr
 from rich.prompt import Prompt
 
 from .ai import AIBackend, AIResponse
-from .config import Config, supported_ai_backends, supported_marketplaces
+from .config import (
+    Config,
+    resolve_config_files,
+    supported_ai_backends,
+    supported_marketplaces,
+)
 from .listing import Listing
 from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig, resolve_option
 from .notification import NotificationStatus
@@ -24,7 +29,6 @@ from .utils import (
     SleepStatus,
     Translator,
     aimm_event,
-    amm_home,
     cache,
     calculate_file_hash,
     counter,
@@ -42,13 +46,7 @@ class MarketplaceMonitor:
         headless: bool | None,
         logger: Logger | None,
     ) -> None:
-        for file_path in config_files or []:
-            if not file_path.exists():
-                raise FileNotFoundError(f"Config file {file_path} not found.")
-        default_config = amm_home / "config.toml"
-        self.config_files = ([default_config] if default_config.exists() else []) + (
-            [x.expanduser().resolve() for x in config_files or []]
-        )
+        self.config_files = resolve_config_files(config_files)
         #
         self.config: Config | None = None
         self.config_hash: str | None = None

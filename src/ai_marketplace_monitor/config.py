@@ -31,6 +31,7 @@ from .utils import (
     MonitorConfig,
     TranslationConfig,
     Translator,
+    amm_home,
     hilight,
     merge_dicts,
 )
@@ -56,6 +57,21 @@ def _load_toml(path: Path, logger: Logger | None = None) -> Dict[str, Any]:
             return tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
         raise ValueError(f"Error parsing config file {path}: {e}") from e
+
+
+def resolve_config_files(config_files: List[Path] | None) -> List[Path]:
+    """Config files in read order: the default file (if it exists), then each given file.
+
+    Shared by the monitor and ``aimm-configure`` so both read the same set of files.
+    """
+    explicit = []
+    for file_path in config_files or []:
+        resolved = file_path.expanduser().resolve()
+        if not resolved.exists():
+            raise FileNotFoundError(f"Config file {resolved} not found.")
+        explicit.append(resolved)
+    default_config = amm_home / "config.toml"
+    return ([default_config] if default_config.exists() else []) + explicit
 
 
 def load_config_dicts(

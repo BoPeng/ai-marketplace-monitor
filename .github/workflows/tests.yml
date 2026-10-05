@@ -77,6 +77,21 @@ jobs:
           include-hidden-files: true
           retention-days: 2
 
+  # Single required status check for branch protection. It always runs, so a failed or
+  # cancelled dependency fails this job instead of skipping it (a skipped check counts as passed).
+  test:
+    name: test
+    needs: [linting, tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require linting and all test jobs to pass
+        shell: bash
+        run: |
+          echo "linting: ${{ needs.linting.result }}, tests: ${{ needs.tests.result }}"
+          test "${{ needs.linting.result }}" = success
+          test "${{ needs.tests.result }}" = success
+
   # coverage:
   #   needs: tests
   #   runs-on: ubuntu-latest
