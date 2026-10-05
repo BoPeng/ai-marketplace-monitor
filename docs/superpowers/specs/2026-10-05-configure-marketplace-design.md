@@ -5,10 +5,12 @@
 
 ## Summary
 
-`aimm-configure marketplace` (and `marketplace.NAME`) lets a user describe, in a few sentences of
-their own words, how they want to search Facebook Marketplace. An LLM turns the description into a
-`[marketplace.NAME]` section, shows it, and revises it from free-text adjustments until the user
-accepts. The result is applied to the **expanded** config and written to disk in **normalized**
+`aimm-configure marketplace` (and `marketplace.NAME`) creates or updates a `[marketplace.NAME]`
+section through a conversation with an LLM. aimm first shows the existing marketplaces (their
+`request` and settings) and lets the user pick one or start a new one. The LLM is then given a
+**task**, not a script: from the current situation it works out what is missing, asks the questions
+it needs, and fills the section until it is complete and valid; the user reviews the section and
+confirms. The result is applied to the **expanded** config and written to disk in **normalized**
 (compacted) form.
 
 It is the first AI-driven section builder, and it brings back the generic structure designed
@@ -22,7 +24,8 @@ Decisions made while designing:
 | Structure | Generic `SectionBuilder` framework; marketplace is its first AI-driven builder |
 | Field facts | Each field's group (own / shared with items / location) comes from dataclass metadata; field guides add only human guidance |
 | LLM protocol | Structured JSON turns, validated by aimm; provider-agnostic, no tool calling |
-| Conversation | One generic description prompt; the LLM fills as many fields as it can; aimm shows the section and asks "anything to adjust?"; no per-field questions |
+| Start | aimm (not the LLM) shows existing marketplaces with their `request` and settings, and asks whether to update one or create a new one |
+| Conversation | The LLM gets a task (complete the section: required fields first, then optional fields the user cares about), decides what is missing and what to ask, and writes every message; aimm validates, enforces completeness, and asks the user to confirm the finished section |
 | Shared fields with existing items | Change only items that use the marketplace-wide value; items with their own value keep it |
 | Write path | One user config file: rewrite it in normalized form after a backup (comments are lost). Several files: write only the changed sections into the files that define them |
 
@@ -30,8 +33,8 @@ Decisions made while designing:
 
 Goals:
 
-- `aimm-configure marketplace` / `marketplace.NAME` creates or updates a marketplace section from a
-  free-text description, then exits after the user confirms and the file is written.
+- `aimm-configure marketplace` / `marketplace.NAME` creates or updates a marketplace section through
+  an LLM-led conversation, then exits after the user confirms and the file is written.
 - A usable AI is required; without one, the user is offered AI setup first.
 - A playbook and field guides tell the LLM which fields exist, which belong to the marketplace
   only, which are shared defaults for items, how to determine each, and the accepted formats.
@@ -72,7 +75,7 @@ class FieldGuide:
     name: str
     determine: str             # how to work out the value from the user's description
     format: str                # accepted values and examples
-    default: str | None = None # what to use when the user does not say ("leave unset" if None)
+    default: str | None = None # what happens at runtime when the field is unset
     secret: bool = False       # never sent to, or set by, the LLM except as a ${VAR} reference
 
 
@@ -84,14 +87,13 @@ class SectionDraft:
     request: str | None
     values: Dict[str, Any]                 # own fields + shared values, as one section
     varies: Dict[str, Dict[str, Any]]      # shared field -> {item name: value} when items differ
-    notes: Dict[str, str]                  # field -> short explanation from the LLM
 
 
 @dataclass
 class TurnResult:
     draft: SectionDraft
-    question: str | None                   # at most one, only for essentials
-    complete: bool
+    message: str                           # what the LLM says to the user (questions included)
+    complete: bool                         # the LLM considers the section done
 
 
 class SectionBuilder:
@@ -105,6 +107,8 @@ class SectionBuilder:
     def context(self, expanded: Dict[str, Any]) -> Dict[str, List[str]]   # names of users, ais, ...
     def view(self, expanded: Dict[str, Any], name: str) -> SectionDraft
     def validate(self, values: Dict[str, Any], context: Dict[str, List[str]]) -> List[str]
+    def missing(self, draft: SectionDraft) -> List[str]   # required gaps, decided in code
+    def describe(self, draft: SectionDraft) -> str         # request + section as TOML, for the user
     def apply(self, expanded: Dict[str, Any], draft: SectionDraft) -> Dict[str, Any]
     async def converse(self, ui: SetupUI, ctx: BuilderContext, name: str | None) -> int
 
@@ -123,13 +127,19 @@ Rules enforced by tests:
   LOCATION when it has `LOCATION` metadata; every other field is OWN. `search_region` (fallback
   `None`, `location=True`) is LOCATION.
 
+**Completeness** is decided in code, not by the LLM: a draft is complete when `validate()` returns
+no errors and `missing()` is empty. For a marketplace, `missing()` requires a location: a shared
+`search_city` or `search_region`, or, when the marketplace has items, a location on every item
+(`varies` counts). Every other field is optional.
+
 The existing AI setup stays as it is (scripted, not a `SectionBuilder`).
 
 ## 2. Playbooks and field guides
 
 ### Content split
 
-- **Playbooks** (markdown) carry the narrative and workflow rules.
+- **Playbooks** (markdown) describe the **task**: what the section is for, what "complete" means,
+  and what matters to users. They do not script what to say or in which order to ask.
 - **Field guides** (Python, in `configure/marketplace.py`) carry per-field facts, so a test can
   check their coverage.
 
@@ -142,15 +152,12 @@ Markdown with simple `key: value` frontmatter between `---` lines (no YAML depen
 section: marketplace
 summary: Defaults for searching one marketplace (location, filters, schedule, notifications).
 ---
-## Overview
-<plain-language description shown to the user as the opening prompt>
-
-## Workflow
-<rules for the LLM>
+## Task
+<what the LLM must achieve for this section, and what matters to users>
 ```
 
 - `section` and `summary` are required. `AGENT.md` has `section: base`.
-- `## Overview` is required for section playbooks; it is the text shown to the user first.
+- `## Task` is required for section playbooks.
 - Bundled playbooks live in `configure/playbooks/` and ship as package data.
 - **House rules:** `~/.ai-marketplace-monitor/playbooks/<name>.md` (same file name) is appended
   under `## House rules (from <path>)`. It may override `summary` only. A user playbook with no
@@ -158,39 +165,43 @@ summary: Defaults for searching one marketplace (location, filters, schedule, no
 
 ### `AGENT.md` (every section)
 
+- You are helping a user configure one section of aimm. You get: the task (section playbook), the
+  field guides, the current section, the situation (new or existing, its `request`, related
+  sections and items), what is still required, and the conversation so far.
+- Each turn, evaluate what is known, what is still required, and which optional settings would
+  likely matter to this user; then decide what to ask. Ask the few questions that matter most, in
+  plain language the user understands without knowing aimm's field names, and offer sensible
+  choices. Do not walk through fields one by one.
+- Set every value you can infer from what the user said; do not ask about what you can infer.
 - Reply only with one JSON object:
-  `{"request": str, "values": {field: value}, "unset": [field], "notes": {field: str},
-  "question": str | null, "complete": bool}`.
-- Fill as many fields as you can from the user's description; prefer the defaults in the field
-  guide over asking. Explain each value you set in one short phrase in `notes`.
-- Ask at most one `question`, and only when an essential value cannot be inferred (for a
-  marketplace: no location at all).
+  `{"message": str, "request": str, "values": {field: value}, "unset": [field],
+  "complete": bool}`. `message` is shown to the user as is: your questions, or a short summary of
+  what you set and why.
 - `request` is a one- or two-sentence summary of everything the user has asked for so far, in the
   user's terms. Never a transcript.
+- Set `complete: true` when nothing required is missing and the user has no open requests. aimm
+  checks completeness itself and shows the section to the user for confirmation.
 - Never invent, ask for, or repeat secrets. Fields marked secret may only be set to a `${VAR}`
   reference, and only when the user asks.
 - Only reference names listed in the context (users, AI services, regions, translations).
-- Set `complete: true` when the description is captured and no essential value is missing. The
-  user still reviews and confirms the section.
 
 ### `marketplace.md`
 
-- **Overview** (shown to the user):
+**Task** (for the LLM):
 
-  > A marketplace sets the defaults for everything you search on Facebook Marketplace: where to
-  > search (your city, how far, or a whole region), who gets notified and which AI rates listings,
-  > which listings to consider (condition, delivery, how recent, price range), and how often to
-  > search. Items can override any of these.
-  >
-  > Describe what you want in a few sentences, e.g. "I'm in Houston, search within 40 miles, only
-  > local pickup, used items in good condition or better, check every 30 minutes during the day,
-  > notify me."
-
-- **Workflow** (for the LLM): values are defaults for every item of this marketplace and items may
-  override them; only `facebook` is supported; work out, in order of importance, the location,
-  then `notify` / `ai`, then filters, then the schedule; leave everything else unset; Facebook
-  login is optional and handled outside the conversation (tell the user about
-  `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD` if they mention logging in).
+- A marketplace section holds the defaults for searching Facebook Marketplace (the only supported
+  marketplace). Its shared values apply to every item of the marketplace unless an item sets its
+  own; its own values (language, login) apply to the marketplace itself.
+- Complete the section: a location is required (a city with a radius, or a region). Then collect
+  the optional settings this user is likely to care about, such as who is notified, which AI rates
+  listings, which listings to consider (condition, delivery, how recent), and how often to search.
+  Leave the rest unset so aimm's defaults apply.
+- For an existing section, start from its `request` and values and find out what the user wants to
+  change.
+- When items exist, say plainly how a change affects them: items with their own value keep it.
+  If the user wants a change applied to every item, list the field in `apply_to_all_items`.
+- Facebook login is optional and handled outside the conversation; if the user brings it up,
+  explain `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD`.
 
 ### Field guides
 
@@ -234,35 +245,59 @@ value or "varies" with the per-item values.
 
 ## 3. Conversation loop
 
-`SectionBuilder.converse(ui, ctx, name)`:
+### 3A. Start (aimm, no LLM)
 
-1. **Start.** Load the config, `expand()` it, build the draft with `view()`.
-   - New section: show the playbook's `## Overview` and ask for a description
-     (`ui.ask_text`).
-   - Existing section: describe it in plain words (values plus `request`), then ask "What would you
-     like to change?"
-2. **Turn** (`llm.run_turn(ai, instructions, draft, context, answer, history)`):
-   - The message contains the instructions (AGENT.md + playbook + house rules + guide table), the
-     masked draft, the context, the user's latest text, and the previous turns as
-     (aimm summary, user text) pairs. No secrets are ever included.
-   - The reply is parsed as JSON; `values` and `unset` are merged into a candidate.
-   - The candidate is validated by `builder.validate()`: the config class loads it, referenced
-     names exist in the context, secret fields hold only `${VAR}` references (otherwise the field
-     is dropped and the LLM told).
-   - On bad JSON or validation errors, the errors go back to the LLM, up to 2 retries. If it still
-     fails, the user sees "I couldn't turn that into a valid section; please rephrase" and the
-     draft is unchanged.
-3. **Review.** Show the section as TOML with its `request`, a one-line note per value, any items
-   whose values will change, and the LLM's question if any. For a SHARED field that varies, add
-   one sentence, e.g. "Your items search different cities (bike: houston, sofa: dallas); I'll
-   change only those using houston — say 'all items' to change every one."
-   Then: "Anything to adjust? Describe changes in your own words, or press Enter to accept."
-4. **Adjust.** A non-empty reply (other than an acceptance such as "yes" / "looks good") is the
-   next turn's input; go to 2. The LLM resolves "all items" into the draft's per-field choice.
-5. **Accept.** Enter or an acceptance applies the draft (`apply()`) and commits it (section 4).
-   A declined write returns to step 3.
-6. **Exit** 0 after writing. `/show` re-displays the section, `/quit` and Ctrl-C exit 0 without
-   writing. After 15 LLM turns aimm stops calling the LLM and offers to accept or quit.
+1. `require_usable_ai` picks a working AI (offering AI setup when none works).
+2. Load and `expand()` the config.
+3. **Existing marketplaces are shown first.** For each `[marketplace.*]`: its name, its `request`
+   (when set), its settings as TOML (secrets masked), and its number of items. Then ask:
+   - one or more exist: "Update one of these, or create a new marketplace?" (`ui.choose` with each
+     marketplace, "Create a new marketplace", and Quit);
+   - none exist: say so and start a new one;
+   - `aimm-configure marketplace.NAME`: show that section when it exists (or say it is new) and
+     continue with it.
+4. A new marketplace gets a name: `facebook` when free, otherwise the user is asked
+   (`ui.ask_text`, default `facebook_2`).
+5. Build the draft with `view()`.
+
+### 3B. LLM-led conversation
+
+Each round is one LLM turn, `llm.run_turn(ai, instructions, situation, history)`:
+
+- **Instructions:** `AGENT.md`, the section playbook's task, house rules, and the field-guide
+  table grouped by `FieldGroup`.
+- **Situation** (rebuilt every turn): new or existing; the current draft (secrets masked) and its
+  `request`; what is still required (`missing()`); the context (names of users, AI services,
+  regions, translations, and this marketplace's items); SHARED fields that vary across items.
+- **History:** previous LLM messages and user replies, in order.
+
+The reply (`message`, `request`, `values`, `unset`, `complete`, and for marketplaces an optional
+`apply_to_all_items: [field]`) is parsed and the candidate draft validated (`validate()`: the
+config class loads it, referenced names exist, secret fields hold only `${VAR}` references). Bad
+JSON or validation errors go back to the LLM, up to 2 retries; if it still fails the user is told
+"I couldn't turn that into a valid section; please try saying it differently" and the draft is
+unchanged.
+
+Then:
+
+1. **The LLM is not done** (`complete` false, or `missing()` not empty): show `message` and read
+   the user's reply (`ui.ask_text`); the reply goes into the history; next turn. If the LLM claims
+   `complete` while `missing()` is not empty, aimm tells the LLM what is missing in the next turn
+   instead of showing a review.
+2. **The section is complete** (`complete` true and `missing()` empty): show `message`, then the
+   section (`describe()`: `request` + TOML, and which items would change), and ask
+   "Is this right?" (`ui.confirm`, default yes).
+   - Yes: `apply()`, then commit (section 4).
+   - No: ask "What would you like to change?" and continue the conversation with the answer.
+3. A declined write returns to step 2's question.
+
+The first turn is the LLM's: for a new section it opens the conversation itself (introducing what
+a marketplace controls in a sentence or two and asking its first questions); for an existing one
+it starts from the `request` and values and asks what to change.
+
+Commands in any reply: `/show` displays the current draft, `/quit` (or Ctrl-C) exits 0 without
+writing. After 15 LLM turns aimm stops calling the LLM: it shows the draft and offers to save it
+(only when complete) or quit.
 
 ## 4. Applying and writing
 
@@ -282,8 +317,8 @@ Returns a new expanded config (the input is not mutated):
 - No items bound to this marketplace: SHARED and LOCATION fields stay on the marketplace.
 - With items: for each changed SHARED field, set the new value on every item that held the
   previous marketplace-wide value (the value shared by all its items); items with their own value
-  keep it. For a field that varied, apply to the items the user chose (by default, those holding
-  the most common value). LOCATION fields are applied as a group, so an item never ends up with a
+  keep it. A field listed in `apply_to_all_items` is set on every item. For a field that varied,
+  the default is the items holding the most common value. LOCATION fields are applied as a group, so an item never ends up with a
   mix of old and new location keys.
 
 ### 4C. `commit_config(ui, new_expanded, files, system_cfg, backup_dir) -> CommitOutcome`
@@ -303,8 +338,7 @@ With one file, comments in it are lost (the backup keeps them); the preview says
 
 ### 4D. Entry points
 
-- `aimm-configure marketplace`: no marketplace yet → propose `[marketplace.facebook]`; one →
-  edit it; several → choose one or create a new one.
+- `aimm-configure marketplace`: show existing marketplaces and choose one or a new one (3A).
 - `aimm-configure marketplace.NAME`: edit or create that marketplace.
 - The front-door menu gains "Marketplace".
 - Every path calls `require_usable_ai` first and offers AI setup when no AI works.
@@ -325,17 +359,21 @@ With one file, comments in it are lost (the backup keeps them); the preview says
 ## Testing
 
 - Field guides cover every field; groups match metadata; enum formats match the enums.
-- Playbooks: frontmatter parsing, house rules appended, unknown user playbooks ignored, overview
+- Playbooks: frontmatter parsing, house rules appended, unknown user playbooks ignored, task
   required.
 - `run_turn`: JSON parsing, validation errors fed back, retry limit, secrets masked in the
   prompt, secret fields set to non-`${VAR}` values dropped.
+- Completeness: `missing()` for no location / shared location / per-item locations; an LLM
+  `complete` claim with missing fields does not reach the review.
+- Start: existing marketplaces listed with `request` and settings; choose existing / new / quit.
 - `apply`: no items; items all inheriting; an item with its own value; a varying field; location
   keys as a group.
 - Normalize: a no-items marketplace keeps shared options through expand and normalize.
 - `commit_config`: single file (normalized rewrite, backup, diff), several files (section writes
   into defining files), declined, overridden.
 - `converse`: full sessions with a scripted fake LLM (canned JSON per turn) and `ScriptedSetupUI`:
-  new marketplace, update with adjustment, invalid-then-valid output, quit.
+  new marketplace, update an existing one, "No" at review then a change, invalid-then-valid
+  output, quit.
 - `AIBackend.chat` for OpenAI-compatible and Anthropic clients, mocked.
 - Live check (manual, not in CI): a simulated `aimm-configure marketplace` session with UnitySVC
   against a temporary config file.
