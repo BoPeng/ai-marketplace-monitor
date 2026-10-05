@@ -100,8 +100,9 @@ model = '<model name>'
 
 Notes on UnitySVC services:
 
-- **Your own provider keys.** Many services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly and UnitySVC charges only a routing fee. Your aimm config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
-- **Switch providers without editing the config.** Point `base_url` at a personal alias such as `https://api.svcpass.com/a/llm`, then re-point the alias to another service or provider on UnitySVC.
+- **Your own provider keys.** Many services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly; UnitySVC does not charge for these bring-your-own-key calls in normal use. Your aimm config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
+- **Switch providers without editing the config.** Set `base_url` to a self-defined alias such as `https://api.svcpass.com/a/myllm`, then point that alias at any LLM service on UnitySVC and re-point it whenever you like.
+- **Log requests.** Prefix the path with `/l/` to record each call in your UnitySVC request logs, e.g. `base_url = 'https://api.svcpass.com/l/p/llm'`. This works with any path, such as `/l/a/myllm`, and is useful for checking what aimm sends and what the model returns.
 - **Request formats.** aimm sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
 
 The easiest way to set up an AI service is `aimm-configure`: it is the primary interactive configuration command, checks your `[ai.*]` sections first, helps you add or update one, and writes the section with the key referenced as an environment variable.
