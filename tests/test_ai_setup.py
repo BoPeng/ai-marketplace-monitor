@@ -96,8 +96,11 @@ def status_error(code: int, message: str = "boom") -> openai.APIStatusError:
 
 
 def section(model: str | None = None, problem: str | None = None) -> AISection:
-    raw = {"api_key": "svcpass_secretvalue123"} | ({"model": model} if model else {})
-    config = None if problem else UnitySVCConfig(name="unitysvc", **raw)
+    api_key = "svcpass_secretvalue123"
+    raw: Dict[str, Any] = {"api_key": api_key}
+    if model:
+        raw["model"] = model
+    config = None if problem else UnitySVCConfig(name="unitysvc", api_key=api_key, model=model)
     return AISection("unitysvc", raw, [], config=config, problem=problem)
 
 
@@ -113,7 +116,7 @@ def test_env_var_name() -> None:
 
 async def test_json_setup_ui_uses_serializable_prompt_messages() -> None:
     sent: List[Dict[str, Any]] = []
-    answers = iter(
+    answers: Iterator[Dict[str, Any]] = iter(
         [
             {"type": "answer", "value": "openai"},
             {"type": "answer", "value": ""},
