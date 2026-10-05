@@ -14,7 +14,8 @@ from .ai_setup import configure_ai, load_ai_sections, probe_sections
 from .item import ItemToolkit
 from .marketplace import MarketplaceToolkit
 from .notify import NotificationToolkit, UserToolkit
-from .toolkits import Toolkit
+from .small_kits import MonitorToolkit, RegionToolkit, TranslationToolkit
+from .toolkits import SINGLETONS, Toolkit, section_label
 from .tools import Outcome, ToolExecutor
 from .ui import SetupClosedError, SetupUI
 from .workspace import ConfigLoadError, Workspace
@@ -43,7 +44,8 @@ def ai_section_name(section: str) -> str | None:
 
 _SUPPORTED = (
     "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', 'item.<name>', "
-    "'notification', 'notification.<name>', 'user', and 'user.<name>'"
+    "'notification', 'notification.<name>', 'user', 'user.<name>', 'region', "
+    "'region.<name>', 'translation', 'translation.<name>', and 'monitor'"
 )
 
 
@@ -63,8 +65,10 @@ def validate_section_address(section: str) -> None:
     if family == "ai":
         ai_section_name(section)
         return
-    if family in ("marketplace", "item", "notification", "user"):
+    if family in ("marketplace", "item", "notification", "user", "region", "translation"):
         section_name(section)
+        return
+    if section == "monitor":  # one unnamed section
         return
     raise ConfigureAddressError(f"Only {_SUPPORTED} are supported for now.")
 
@@ -180,6 +184,9 @@ def toolkits() -> Dict[str, Toolkit]:
         "item": ItemToolkit(),
         "notification": NotificationToolkit(),
         "user": UserToolkit(),
+        "region": RegionToolkit(),
+        "translation": TranslationToolkit(),
+        "monitor": MonitorToolkit(),
     }
 
 
@@ -273,13 +280,23 @@ def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
     # the first named section is where to start; "*" allows any section of a type
     command = only[0][0]
     named = [(t, n) for t, n in only if n != "*"]
+    anything = [f"any [{t}.*]" for t, n in only if n == "*"]
+    if not named:  # e.g. aimm-configure region: no section to start at
+        return (
+            f"Command: aimm-configure {command}. You may change "
+            f"{', '.join(dict.fromkeys(anything))}. Ask the user what they want (ask_user)."
+        )
     section_type, name = named[0]
-    state = "existing" if name in ws.user_cfg.get(section_type, {}) else "new"
+    exists = (
+        section_type in ws.user_cfg
+        if section_type in SINGLETONS
+        else name in ws.user_cfg.get(section_type, {})
+    )
     text = (
         f"Command: aimm-configure {command}. The active section is "
-        f"[{section_type}.{name}] ({state})."
+        f"{section_label(section_type, name)} ({'existing' if exists else 'new'})."
     )
-    others = [f"[{t}.{n}]" for t, n in named[1:]] + [f"any [{t}.*]" for t, n in only if n == "*"]
+    others = [section_label(t, n) for t, n in named[1:]] + anything
     if others:
         text += f" You may also change {', '.join(dict.fromkeys(others))} when needed."
     return text + (

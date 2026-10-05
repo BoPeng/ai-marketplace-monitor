@@ -22,6 +22,7 @@ else:
     import tomli as tomllib
 
 from ..config import load_config_dicts
+from .toolkits import SINGLETONS, section_label
 from .ui import SetupUI
 
 
@@ -189,19 +190,24 @@ SectionKey = Tuple[str, str]
 
 
 def _sections(cfg: Dict[str, Any]) -> Dict[SectionKey, Dict[str, Any]]:
-    return {
+    out = {
         (section_type, name): section
         for section_type, body in cfg.items()
-        if section_type != "monitor" and isinstance(body, dict)
+        if section_type not in SINGLETONS and isinstance(body, dict)
         for name, section in body.items()
     }
+    for section_type in SINGLETONS:  # one unnamed section, keyed (type, type)
+        if isinstance(cfg.get(section_type), dict):
+            out[(section_type, section_type)] = cfg[section_type]
+    return out
 
 
 def _owner(files: List[Path], key: SectionKey) -> Path | None:
     """The last file that defines a section (later files win when merged)."""
     owner = None
     for path in files:
-        if key[1] in read_toml(path).get(key[0], {}):
+        content = read_toml(path)
+        if (key[0] in SINGLETONS and key[0] in content) or key[1] in content.get(key[0], {}):
             owner = path
     return owner
 
@@ -242,9 +248,11 @@ def _edit_documents(
                     del doc_of(other)[key[0]][key[1]]
         doc = doc_of(path)
         section_type, name = key
-        if section_type not in doc:
-            doc[section_type] = tomlkit.table(is_super_table=True)
-        parent: Any = doc[section_type]
+        parent: Any = doc  # a singleton is a table of the document itself
+        if section_type not in SINGLETONS:
+            if section_type not in doc:
+                doc[section_type] = tomlkit.table(is_super_table=True)
+            parent = doc[section_type]
         created = name not in parent
         if created:
             parent[name] = tomlkit.table()
@@ -309,7 +317,7 @@ async def commit_sections(
     if outside:
         await ui.say(
             "Refusing to write: the change would also modify "
-            + ", ".join(f"[{t}.{n}]" for t, n in outside)
+            + ", ".join(section_label(t, n) for t, n in outside)
             + ".",
             kind="error",
         )
@@ -369,7 +377,9 @@ async def commit_sections(
         await ui.say(f"Could not update the config: {e}", kind="error")
         return CommitOutcome.FAILED
     reloaded = _sections(reloaded_cfg)
-    wrong = [f"[{t}.{n}]" for (t, n), values in changes.items() if reloaded.get((t, n)) != values]
+    wrong = [
+        section_label(t, n) for (t, n), values in changes.items() if reloaded.get((t, n)) != values
+    ]
     wrong += [
         f"[{t}.{n}] (not first)"
         for t, n in first

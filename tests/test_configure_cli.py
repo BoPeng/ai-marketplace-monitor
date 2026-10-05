@@ -12,7 +12,7 @@ runner = CliRunner()
 
 async def test_configure_section_rejects_other_types() -> None:
     with pytest.raises(flow.ConfigureAddressError, match="are supported"):
-        await flow.configure_section(ScriptedSetupUI([]), [], "region.x")
+        await flow.configure_section(ScriptedSetupUI([]), [], "listing.x")
 
 
 @pytest.mark.parametrize(
@@ -80,7 +80,7 @@ def test_configure_cli_dispatches_explicit_section(monkeypatch: pytest.MonkeyPat
 
 
 def test_configure_cli_rejects_unimplemented_sections() -> None:
-    result = runner.invoke(cli.app, ["region.x"])
+    result = runner.invoke(cli.app, ["listing.x"])
 
     assert result.exit_code == 1
     assert "are supported" in result.output

@@ -204,8 +204,25 @@ line to add to your shell profile. ``aimm-configure user.NAME`` and
 ``aimm-configure notification.NAME`` start at that section; the session may still change any user
 or notification, and nothing else.
 
+Proxy, regions and translations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three smaller section types have their own commands:
+
+- ``aimm-configure monitor`` sets up the proxy aimm's browser uses (``[monitor]``). The proxy
+  account's user name and password are written as environment-variable references.
+- ``aimm-configure region`` (or ``region.NAME``) adds a region of your own, or changes a built-in
+  one such as ``usa`` ("search the USA within 300 miles" sets only its radius). Each city is a
+  Facebook location code taken from a Marketplace URL you paste, as for marketplaces. Use a region
+  with ``search_region`` on a marketplace or item.
+- ``aimm-configure translation`` (or ``translation.NAME``) is for a Facebook in another language:
+  the AI drafts the page labels aimm looks for ("Condition", "Description", ...) in your language,
+  and you check them against a Facebook listing before saving, because they must match the page
+  exactly. Use it with ``language`` on a marketplace.
+
 In ``aimm-configure`` the AI has the tools of every section type it can configure
-(AI services, marketplaces, items, users and notifications). It sees only the section names and their
+(AI services, marketplaces, items, users, notifications, regions, translations and the monitor
+settings). It sees only the section names and their
 ``request`` summaries until it opens a section, and it changes only the sections you asked
 about; several drafted sections are saved together after one confirmation.
 
