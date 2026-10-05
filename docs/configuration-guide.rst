@@ -232,7 +232,7 @@ To send to one specific UnitySVC service instead, set ``unitysvc_service`` to it
 
     [notification.discord]
     unitysvc_api_key = '${UNITYSVC_API_KEY}'
-    unitysvc_service = 'msg-to-discord'
+    unitysvc_service = 'labs/msg-to-discord'
     message_format = 'markdown'
 
 To notify several destinations at once, for example email, SMS and a chat app, create a UnitySVC **broadcast** with up to 10 targets. Either save it as your notification destination on UnitySVC and keep the default ``notify`` service, or send to it directly:
@@ -244,7 +244,7 @@ To notify several destinations at once, for example email, SMS and a chat app, c
     unitysvc_service = 'b/my-alerts'
 
 .. note::
-   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``msg-to-discord``.
+   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
    - UnitySVC also accepts email at ``smtp.svcpass.com`` (port 587, username ``notify``, your API key as the password), so an email notification section works too, but the HTTP setup above is simpler.
 
 AI Prompt Customization

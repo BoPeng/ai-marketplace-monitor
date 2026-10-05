@@ -21,7 +21,7 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
 
     The default ``notify`` service delivers to the UnitySVC inbox and to the notification
     destination saved in the user's UnitySVC preferences; any other service path (e.g.
-    ``msg-to-discord`` or ``e/<CODE>``) delivers to that service only.
+    ``labs/msg-to-discord`` or ``e/<CODE>``) delivers to that service only.
     """
 
     notify_method = "unitysvc"
@@ -50,7 +50,7 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
         if not isinstance(self.unitysvc_service, str) or not self.unitysvc_service.strip("/ "):
             raise ValueError(
                 'unitysvc_service must be a non-empty service path such as "notify" or '
-                '"msg-to-discord".'
+                '"labs/msg-to-discord".'
             )
         self.unitysvc_service = self.unitysvc_service.strip("/ ")
 
