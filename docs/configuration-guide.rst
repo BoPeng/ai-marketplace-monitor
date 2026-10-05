@@ -209,9 +209,16 @@ Telegram Troubleshooting
 Setting Up UnitySVC Notifications
 =================================
 
-`UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider. By default, messages go to UnitySVC's ``notify`` service, which shows them in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences (for example a Discord or Slack channel). No enrollment is needed.
+`UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider and give aimm access to more than 100 notification channels and apps through one key: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
+
+By default, messages go to UnitySVC's ``notify`` service, which shows them in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your aimm config.
+
+The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notifications, so one key covers rating listings and delivering the results:
 
 .. code-block:: toml
+
+    [ai.unitysvc]
+    api_key = '${UNITYSVC_API_KEY}'
 
     [notification.unitysvc]
     unitysvc_api_key = '${UNITYSVC_API_KEY}'
@@ -225,11 +232,19 @@ To send to one specific UnitySVC service instead, set ``unitysvc_service`` to it
 
     [notification.discord]
     unitysvc_api_key = '${UNITYSVC_API_KEY}'
-    unitysvc_service = 'labs/msg-to-discord'
+    unitysvc_service = 'msg-to-discord'
     message_format = 'markdown'
 
+To notify several destinations at once, for example email, SMS and a chat app, create a UnitySVC **broadcast** with up to 10 targets. Either save it as your notification destination on UnitySVC and keep the default ``notify`` service, or send to it directly:
+
+.. code-block:: toml
+
+    [notification.everywhere]
+    unitysvc_api_key = '${UNITYSVC_API_KEY}'
+    unitysvc_service = 'b/my-alerts'
+
 .. note::
-   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
+   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``msg-to-discord``.
    - Set ``unitysvc_base_url`` (or the ``UNITYSVC_API_BASE_URL`` environment variable) to use another gateway, such as ``https://api.staging.svcpass.com``.
    - UnitySVC also accepts email at ``smtp.svcpass.com`` (port 587, username ``notify``, your API key as the password), so an email notification section works too, but the HTTP setup above is simpler.
 

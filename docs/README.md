@@ -57,7 +57,7 @@ Note that:
 3. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-4-20250514`. An `api_key` is required.
 4. [Gemini](https://ai.google.dev/) is accessed through Google's OpenAI-compatible endpoint. The default model is `gemini-2.5-flash`. An `api_key` is required and can be obtained from [Google AI Studio](https://aistudio.google.com/apikey).
 5. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
-6. [UnitySVC](https://unitysvc.com/) is accessed through its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`. The `model` selects a capability tier rather than a specific model, and UnitySVC picks the provider and fails over between them. The default is `balanced`. An `api_key` is required. The same key can also be used as the SMTP password for email notifications through UnitySVC's SMTP gateway.
+6. [UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, where `model` selects a capability tier (default `balanced`) rather than a specific model, and UnitySVC picks the provider and fails over between them. Set `base_url` to use any other LLM service from the [UnitySVC catalog](https://unitysvc.com/market) instead, including OpenAI, Anthropic and other providers with your own provider keys (see below). An `api_key` is required. The same key (`UNITYSVC_API_KEY`) is used for both UnitySVC AI and [UnitySVC notifications](#unitysvc-notification), so one key covers rating listings and delivering the results.
 7. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 8. You can use option `ai` to list the AI services for particular marketplaces or items.
 
@@ -88,6 +88,21 @@ A typical section for UnitySVC looks like the following, with the key kept in th
 [ai.unitysvc]
 api_key = '${UNITYSVC_API_KEY}'
 ```
+
+To use a specific service instead of the `llm` platform pool, set `base_url` to the service URL shown on its catalog page and `model` to a model the service offers:
+
+```toml
+[ai.unitysvc]
+api_key = '${UNITYSVC_API_KEY}'
+base_url = 'https://api.svcpass.com/<service path>'
+model = '<model name>'
+```
+
+Notes on UnitySVC services:
+
+- **Your own provider keys.** Many services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly and UnitySVC charges only a routing fee. Your aimm config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
+- **Switch providers without editing the config.** Point `base_url` at a personal alias such as `https://api.svcpass.com/a/llm`, then re-point the alias to another service or provider on UnitySVC.
+- **Request formats.** aimm sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
 
 The easiest way to set up an AI service is `aimm-configure`: it is the primary interactive configuration command, checks your `[ai.*]` sections first, helps you add or update one, and writes the section with the key referenced as an environment variable.
 
@@ -250,11 +265,14 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | Option              | Requirement | DataType | Description                                                                          |
 | ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
 | `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
-| `unitysvc_service`  | Optional    | String   | Service path, default `notify`. Use e.g. `labs/msg-to-discord` for a specific service. |
+| `unitysvc_service`  | Optional    | String   | Service path, default `notify`. Use e.g. `msg-to-discord` for a specific service. |
 | `unitysvc_base_url` | Optional    | String   | Gateway URL, default `$UNITYSVC_API_BASE_URL` or `https://api.svcpass.com`.           |
 | `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
 
+- Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]`; one key serves both AI and notifications.
+- UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 - The default `notify` service shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
+- To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
 
 ### Email notification
 

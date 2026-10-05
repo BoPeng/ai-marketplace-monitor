@@ -1055,7 +1055,7 @@
       { key: "unitysvc_api_key", label: "UnitySVC API key", type: "password", group: "UnitySVC",
         help: "Your svcpass_ key, or ${UNITYSVC_API_KEY}." },
       { key: "unitysvc_service", label: "UnitySVC service", type: "text", advanced: true,
-        help: "Default: notify (inbox plus your saved destination), or e.g. labs/msg-to-discord." },
+        help: "Default: notify (inbox plus your saved destination), or e.g. msg-to-discord." },
       { key: "email", label: "Email address", type: "text", group: "Email",
         help: "Comma-separated list of recipient addresses." },
       { key: "smtp_server", label: "SMTP server", type: "text", advanced: true },

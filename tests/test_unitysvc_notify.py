@@ -61,14 +61,14 @@ def test_specific_service_base_url_and_format(posts: List[Dict[str, Any]]) -> No
     config = UnitySVCNotificationConfig(
         name="discord",
         unitysvc_api_key=f"  {KEY} ",
-        unitysvc_service="/labs/msg-to-discord/",
+        unitysvc_service="/msg-to-discord/",
         unitysvc_base_url="https://api.staging.svcpass.com/",
         message_format="markdown",
     )
 
     config.send_message("t", "**m**")
 
-    assert posts[0]["url"] == "https://api.staging.svcpass.com/labs/msg-to-discord"
+    assert posts[0]["url"] == "https://api.staging.svcpass.com/msg-to-discord"
     assert posts[0]["headers"]["Authorization"] == f"Bearer {KEY}"
     assert posts[0]["json"]["format"] == "markdown"
 
