@@ -1,287 +1,162 @@
-# Design: AI-assisted `aimm-configure marketplace`
+# Design: AI-assisted `aimm-configure`, starting with marketplaces
 
-**Date:** 2026-10-05
+**Date:** 2026-10-05 (revised: tool-based architecture)
 **Status:** Draft, for review
 
 ## Summary
 
-`aimm-configure marketplace` (and `marketplace.NAME`) creates or updates a `[marketplace.NAME]`
-section through a conversation with an LLM. aimm first shows the existing marketplaces (their
-`request` and settings) and lets the user pick one or start a new one. The LLM is then given a
-**task**, not a script: from the current situation it works out what is missing, asks the questions
-it needs, and fills the section until it is complete and valid; the user reviews the section and
-confirms. Only that section is written, edited in place in the file that defines it.
+`aimm-configure` configures aimm through a conversation with the user's AI service. The AI acts
+only through **tools** that aimm owns: it asks the user with `ask_user`, reads and drafts a section
+with section tools (`marketplace_show`, `marketplace_update`, ...), and saves with `save`, which
+shows the change and asks the user once before anything is written. A command is a set of
+toolkits:
 
-It is the first AI-driven section builder, and it brings back the generic structure designed
-earlier (`SectionBuilder`, field guides, playbooks), which was removed before #368 merged because
-nothing concrete used it. The item builder will reuse all of it.
+- `aimm-configure marketplace[.NAME]`: the marketplace toolkit, restricted to one section.
+- `aimm-configure`: every toolkit; the user says what they want ("limit the search to 20 miles")
+  and the AI finds the section and drafts the change. No sub-conversations are entered or left.
 
-Decisions made while designing:
+The marketplace toolkit is the first one; item, user and notification toolkits follow in later
+PRs. The LLM calls go through [Mirascope](https://mirascope.com/docs) behind a small adapter;
+aimm owns the tools, validation and writing:
+
+```text
+Mirascope helps obtain tool calls.
+aimm owns the tools.
+aimm owns validation.
+aimm owns config writing.
+```
 
 | Topic | Decision |
 |---|---|
-| Structure | Generic `SectionBuilder` framework; marketplace is its first AI-driven builder |
-| Field facts | Each field's group (own / shared with items / location) comes from dataclass metadata; field guides add only human guidance |
-| LLM protocol | Structured JSON turns, validated by aimm; provider-agnostic, no tool calling |
-| Start | aimm (not the LLM) shows existing marketplaces with their `request` and settings, and asks whether to update one or create a new one |
-| Conversation | The LLM gets a task (complete the section: required fields first, then optional fields the user cares about), decides what is missing and what to ask, writes every message, and decides how the conversation ends (`ask` / `save` / `no_change` / `cancel`); aimm validates, enforces completeness, and asks the user to confirm the file change |
-| Shared fields with existing items | Items without their own value inherit the new marketplace value; items with their own value keep it. The marketplace builder never edits items (revised: an "apply to every item" option was removed after it changed an item the user meant to keep) |
-| Write path | Only the changed sections, edited key by key in place (tomlkit) in the file that defines each; comments and other sections untouched. Revised after a live run: the earlier whole-file normalized rewrite moved settings in unrelated sections and dropped comments |
+| Unit of composition | Toolkits (tools over one section type plus its playbook); a command is a set of toolkits run by one generic agent loop |
+| LLM protocol | Native tool calls via Mirascope; plain-text replies are treated as a message to the user |
+| What the LLM sees | Only what tools return: one section at a time (`*_show`), the names it may reference, and section names with their `request` (`list_sections`) |
+| Writes | Only `save`; it writes the drafted sections, each in place in the file that defines it, after one confirmation for all of them |
+| Items | The marketplace toolkit never changes items: items use marketplace values unless they set their own |
+| Start | `aimm-configure marketplace` lists existing marketplaces (with `request` and settings) and asks which to update or whether to create one, before the AI starts |
+| Ending | The AI decides (`save`, `finish`); aimm enforces completeness and never drops unsaved changes |
 
-## The pattern for every section builder
+## The pattern for every section type
 
-Each `aimm-configure` subcommand modifies **one** existing section or creates one new section, and
-nothing else:
+- **Tools touch one section.** `<type>_update(name, ...)` changes only the draft of
+  `[<type>.<name>]`; `save` writes only drafted sections (`commit_sections(only=...)` refuses any
+  other difference).
+- **The LLM sees only what it asks for.** `<type>_show(name)` returns that section (secrets
+  masked) and the names its fields may reference; `list_sections` returns section names and their
+  `request`, never contents. With a single-section command the LLM can see only that section.
+- **aimm mediates.** `user ⇄ aimm ⇄ LLM`: the LLM never talks to the user except through
+  `ask_user` (or a plain-text reply aimm shows); aimm validates every change and decides
+  completeness.
+- **Playbooks describe a task** (Goal / Subtasks / Completion / Rules), never a script.
 
-- **Writes:** only `[<type>.<name>]`, edited in place in the file that defines it.
-  `commit_sections(..., only=[(type, name)])` refuses a result that differs anywhere else, so a
-  builder cannot change another part of the config even by mistake.
-- **LLM input:** only that section (empty for a new one) and the names it may use as values
-  (e.g. users for `notify`); never other sections' contents. This keeps the conversation focused.
-- aimm itself (not the LLM) reads other sections only to validate the result (e.g. that a
-  referenced user exists, that every item still has a location); it does not show them.
+## 1. Components
 
-## Composing builders: sessions, results, and the router
-
-A builder is a sub-conversation that a caller enters and leaves:
-
-```python
-class Outcome(Enum): SAVED, UNCHANGED, CANCELLED, FAILED
-
-@dataclass
-class BuildResult:
-    outcome: Outcome
-    section: str      # "marketplace.facebook"
-    summary: str      # the closing message, for the caller
-
-async def SectionBuilder.run(ui, session, target=None, request=None) -> BuildResult
-```
-
-- **`Session`** (`configure/session.py`) holds what lives across builders: the probed AI backend
-  (probed once), config files, home (backups, house-rule playbooks), and notes already shown. Each
-  `run` re-reads the config, since an earlier run in the session may have written it.
-- **`request`** is the user's intent when the caller already has one ("limit the search to 20
-  miles"); it is the builder's first user message, so the builder starts from it instead of
-  asking what to change.
-- **Leaving:** `save` → `SAVED`; `no_change` (or a save with nothing changed) → `UNCHANGED`;
-  `cancel`, `/quit`, or quitting the start menu → `CANCELLED`; unreadable config or a failed write
-  → `FAILED`. All return to the caller; only a closed input (Ctrl-C) ends the program.
-- **`aimm-configure <type>[.<name>]`** is a thin wrapper: open a session (requires a usable AI),
-  run the builder, map `FAILED` to exit code 1 and everything else to 0.
-
-**Router (next PR, with the item builder).** `aimm-configure` without a section opens one session
-and runs a router conversation (`user ⇄ aimm ⇄ router LLM`) with its own task playbook. The
-router sees an index of the config: section types and each existing section's name and `request`
-(so "the camera one" can be matched to `item.gopro`), never section contents. Its actions are
-`ask`, `route` (section and request: aimm runs that builder's `run(...)` and feeds the
-`BuildResult` summary back into the router's history), `setup_ai` (the scripted AI setup), and
-`done`. A route to a section type without a builder is reported back as not supported yet.
-
-## Goals and non-goals
-
-Goals:
-
-- `aimm-configure marketplace` / `marketplace.NAME` creates or updates a marketplace section through
-  an LLM-led conversation, then exits after the user confirms and the file is written.
-- A usable AI is required; without one, the user is offered AI setup first.
-- A playbook and field guides tell the LLM which fields exist, which belong to the marketplace
-  only, which are shared defaults for items, how to determine each, and the accepted formats.
-- The section keeps a `request` that summarizes the user's requirements so far.
-- The framework (`SectionBuilder`, playbooks, `run_turn`, `commit_config`) is generic.
-
-Non-goals (later work): the item builder, builders for `user` / `notification` / `region`, a GUI
-front end (the `SetupUI` protocol and `JsonSetupUI` already allow one), and `aimm --chat`.
-
-## 1. Architecture and components
-
-New and changed modules (all under `src/ai_marketplace_monitor/` unless noted):
+All under `src/ai_marketplace_monitor/configure/` unless noted.
 
 | Module | Role |
 |---|---|
-| `configure/sections.py` | `FieldGroup`, `FieldGuide`, `SectionDraft`, `TurnResult`, `SectionBuilder` base class with the generic loop, `BUILDERS` registry |
-| `configure/playbooks.py` | load bundled playbooks and user house rules; build LLM instructions |
-| `configure/playbooks/AGENT.md`, `configure/playbooks/marketplace.md` | bundled playbooks (package data) |
-| `configure/llm.py` | `run_turn()`: one structured JSON turn with validation retries |
-| `configure/marketplace.py` | `MarketplaceBuilder`: field guides, `view()`, `apply()` |
-| `configure/writer.py` | add `commit_config()` (normalize, preview, back up, write, verify) |
-| `configure/flow.py`, `configure/cli.py` | `marketplace` / `marketplace.NAME` addresses; front-door entry |
-| `config_toml.py` (new, moved from `cli.py`) | `dump_config_toml(cfg)`, shared by `aimm --normalize-config` and the writer |
-| `ai.py` | `AIBackend.chat(messages, *, json_mode=False) -> str` for OpenAI-compatible providers and Anthropic |
-| `normalize/pushdown.py` | keep shared options on a marketplace that has no items (section 4A) |
+| `workspace.py` | `Workspace`: config files, user/system config (re-read after each save), drafts keyed by `(type, name)`, backup dir, UI, session notes; `SectionDraft` |
+| `toolkits.py` | `Toolkit` base (section type, config class, field guides, playbook, show/update/check/apply logic), `FieldGuide`, `FieldGroup` from `option(...)` metadata |
+| `marketplace.py` | `MarketplaceToolkit`: guides, validation, `missing()`, start menu |
+| `tools.py` | `ToolExecutor`: the tool functions (common + per toolkit), independent of Mirascope |
+| `agent.py` | the generic agent loop over a `ModelSession` (adapter interface); turn and step limits |
+| `mirascope_model.py` | `MirascopeModelSession`: maps an `[ai.*]` section to a Mirascope model, registers custom endpoints, applies timeouts, strips provider-specific history, scrubs errors |
+| `playbooks.py`, `playbooks/AGENT.md`, `playbooks/router.md`, `playbooks/marketplace.md` | task playbooks |
+| `writer.py` | `commit_sections` (diff, one confirmation, backup, write, re-read check, verify) |
+| `flow.py`, `cli.py` | commands: `aimm-configure`, `aimm-configure ai[.NAME]`, `aimm-configure marketplace[.NAME]` |
+| `../ai.py` | unchanged for this PR except removing `AIBackend.chat()` (monitor-time `evaluate()` keeps the SDKs) |
 
-### Types
+## 2. Tools
 
-```python
-class FieldGroup(Enum):
-    OWN = "own"            # marketplace only: market_type, language, username, password, ...
-    SHARED = "shared"      # default for the marketplace's items (option(...) fields)
-    LOCATION = "location"  # shared, and part of the location group (option(..., location=True))
+Every tool returns a JSON-able dict to the LLM; errors are returned (`{"ok": false, "errors":
+[...]}`), never raised, so the LLM can correct itself.
 
+**Common tools (every command)**
 
-@dataclass(frozen=True)
-class FieldGuide:
-    name: str
-    determine: str             # how to work out the value from the user's description
-    format: str                # accepted values and examples
-    default: str | None = None # what happens at runtime when the field is unset
-    secret: bool = False       # never sent to, or set by, the LLM except as a ${VAR} reference
+| Tool | Behavior |
+|---|---|
+| `ask_user(message)` | aimm shows `message`, reads the user's reply (`/show` prints the drafts, `/quit` ends the session without writing), returns `{"reply": ...}` |
+| `list_sections()` | every section type with its existing names and `request`s; types without a toolkit in this command are marked "not configurable here" |
+| `save(message)` | for every draft with unsaved changes: requires it complete (`missing()` empty) and valid; shows `message`, each section and the file diff, asks once "Write these changes?"; writes via `commit_sections`. Returns `saved`, `declined` (ask what to change) or errors |
+| `finish(message, discard_unsaved=false)` | ends the session; refused while drafts have unsaved changes unless `discard_unsaved` is true (the user chose to discard) |
 
+**Per toolkit (`<type>` = `marketplace` now)**
 
-@dataclass
-class SectionDraft:
-    section_type: str
-    name: str
-    is_new: bool
-    request: str | None
-    values: Dict[str, Any]                 # own fields + shared values, as one section
-    varies: Dict[str, Dict[str, Any]]      # shared field -> {item name: value} when items differ
+| Tool | Behavior |
+|---|---|
+| `<type>_show(name)` | `{exists, request, saved_values, values, unsaved_changes, still_required, can_reference}`; secrets masked |
+| `<type>_update(name, values={}, unset=[], request=null)` | applies to a copy of the draft: unknown fields, secrets that are not `${VAR}`, and `${VAR}` in non-secret fields are rejected; values equal to the current one in another form keep the user's form; then the toolkit validates (config class, referenced names, the whole config still loads). Errors leave the draft unchanged |
+| `<type>_check(name)` | `{still_required, errors, unsaved_changes}` |
 
+`aimm-configure` also gets `setup_ai()`: runs the scripted AI setup (`aimm-configure ai`) and
+returns its outcome.
 
-@dataclass
-class TurnResult:
-    draft: SectionDraft
-    message: str                           # what the LLM says to the user (questions included)
-    action: str                            # "ask" | "save" | "no_change" | "cancel", by the LLM
+In a single-section command, `<type>_*` tools accept only the chosen name (one-section rule), and
+`list_sections` is not offered.
 
+## 3. The agent loop
 
-class SectionBuilder:
-    section_type: str                      # "marketplace"
-    playbook: str                          # "marketplace"
-    config_class: type                     # FacebookMarketplaceConfig
-    guides: Tuple[FieldGuide, ...]
-    uses_ai: bool = True
-
-    def group(self, field: str) -> FieldGroup          # from dataclass metadata, never hand-written
-    def context(self, ctx, draft) -> Dict[str, Any]       # names it may reference (users, ais, ...)
-    def view(self, ctx, name: str) -> SectionDraft        # the section as written
-    def validate(self, values: Dict[str, Any], context: Dict[str, List[str]]) -> List[str]
-    def missing(self, draft: SectionDraft) -> List[str]   # required gaps, decided in code
-    def describe(self, draft: SectionDraft) -> str         # request + section as TOML, for the user
-    def apply(self, ctx, draft) -> Dict[str, Any]         # user config with the section replaced
-    async def converse(self, ui: SetupUI, ctx: BuilderContext, name: str | None) -> int
-
-
-BUILDERS: Dict[str, SectionBuilder] = {"marketplace": MarketplaceBuilder()}
+```text
+start: system = AGENT.md + playbooks of the command's toolkits (+ router.md for aimm-configure)
+              + the field tables; first user message = the situation (command, active section)
+loop:  reply = model call (timeout 150 s, one automatic retry on 5xx/timeout/connection)
+       tool calls   -> execute in order (ask_user waits for the user), feed outputs back
+       plain text   -> show it, read the user's reply, feed it back
+       finish/quit  -> end
 ```
 
-`BuilderContext` carries the config files, `system_cfg`, the user config dict, the backup
-directory, the loaded playbooks, and the chosen `AIBackend`.
+- **Limits:** at most 12 consecutive model calls without user input (then aimm asks the user
+  directly, "What would you like to do?"); at most 60 model calls per session (then aimm offers to
+  save unsaved, complete drafts and stops).
+- **Service errors:** shown (key scrubbed); Enter retries the same call, `/quit` ends.
+- **Ctrl-C** ends the program without writing.
+- `aimm-configure marketplace`: before the loop, aimm lists existing marketplaces (name, item
+  count, `request`, settings) and asks which to update or whether to create one (default name
+  `facebook`, else asked).
 
-Rules enforced by tests:
+## 4. Model adapter (Mirascope)
 
-- Every field of `FacebookMarketplaceConfig` except `name` and runtime fields (`monitor_config`)
-  has exactly one `FieldGuide`, and no guide names a field that does not exist.
-- `group()` reads `option(...)` metadata: a field with `FALLBACK` metadata is SHARED, plus
-  LOCATION when it has `LOCATION` metadata; every other field is OWN. `search_region` (fallback
-  `None`, `location=True`) is LOCATION.
+`MirascopeModelSession` turns the working `[ai.*]` section into a Mirascope model:
 
-**Completeness** is decided in code, not by the LLM: a draft is complete when `validate()` returns
-no errors and `missing()` is empty. For a marketplace, `missing()` requires a location: a shared
-`search_city` or `search_region`, or, when the marketplace has items, a location on every item
-(`varies` counts). Every other field is optional.
+- OpenAI-compatible providers (UnitySVC, OpenAI, DeepSeek, Gemini's OpenAI endpoint, Ollama's
+  `/v1`): `llm.register_provider("openai", scope=f"aimm-{name}/", base_url=..., api_key=...)` and
+  model `aimm-{name}/{model}`. Custom scopes use the Chat Completions API.
+- Anthropic: `register_provider("anthropic", scope=f"aimm-{name}/", api_key=...)`.
+- **Timeouts** are applied by aimm (`asyncio.wait_for`), since Mirascope providers accept only
+  `api_key` and `base_url`.
+- **History:** assistant messages are re-sent without the provider's raw message
+  (`raw_message = None`). Verified against UnitySVC's gateway, which rejects the extra
+  `reasoning` field Mirascope would otherwise echo back.
+- Errors are scrubbed of the key; `llm.TimeoutError`, `ConnectionError`, `ServerError` and 5xx
+  are retried once.
 
-The existing AI setup stays as it is (scripted, not a `SectionBuilder`).
+Verified live (spike): tool calling works through UnitySVC `/p/llm` (`balanced`, which sometimes
+answers in plain text instead of calling a tool) and through a dashscope endpoint with
+`qwen3.7-flash`.
 
-## 2. Playbooks and field guides
+Models without tool calling are out of scope; the error is shown and the user can choose another
+AI section.
 
-### Content split
+## 5. Playbooks and field guides
 
-- **Playbooks** (markdown) describe a **task**: its goal, how to achieve each subtask, and the
-  rules for completion. They are never a transcript or script: they do not say what to say or in
-  which order to ask. This is the method for **every** section builder (marketplace now; item,
-  user, notification and the rest later), each with its own playbook in the same structure.
-- **Field guides** (Python, in `configure/marketplace.py`) carry per-field facts, so a test can
-  check their coverage.
+Playbooks are markdown with `key: value` frontmatter (`section`, `summary` required). Section
+playbooks need `## Goal`, `## Subtasks`, `## Completion` (`## Rules` optional); `## Completion`
+names every requirement `missing()` can report (a test checks this). Bundled in
+`configure/playbooks/`; house rules from `~/.ai-marketplace-monitor/playbooks/<name>.md` are
+appended (they may override `summary` only).
 
-### Playbook files
+- `AGENT.md` (every command): act only through tools; change a section only with
+  `<type>_update`; talk to the user with `ask_user`; save with `save` and end with `finish`;
+  secrets only as `${VAR}`; leave defaults unset unless asked; whenever asking what to set or
+  change, list the main settings with current values; do not finish with an unanswered question;
+  never say something is saved before `save` returns `saved`.
+- `router.md` (`aimm-configure`): find what the user wants to change with `list_sections` (match
+  by name or `request`), use that type's tools, use `setup_ai` for AI services, and say plainly
+  when a section type cannot be configured here yet.
+- `marketplace.md`: as before (location from a pasted Facebook URL, never guessed; items are not
+  changed here).
 
-Markdown with simple `key: value` frontmatter between `---` lines (no YAML dependency):
-
-```markdown
----
-section: marketplace
-summary: Defaults for searching one marketplace (location, filters, schedule, notifications).
----
-## Goal
-<what the finished section achieves for the user>
-
-## Subtasks
-### <subtask>
-<what it decides, how to work it out (what to infer, what to ask, which fields), pitfalls>
-
-## Completion
-<rules for when the section is complete; the minimum is a valid section that can be added to the
-config>
-
-## Rules
-<constraints: what not to touch, secrets, interactions with other sections>
-```
-
-- `section` and `summary` are required. `AGENT.md` has `section: base` and holds the shared
-  method and reply format.
-- Section playbooks must have `## Goal`, `## Subtasks` and `## Completion`; `## Rules` is
-  optional. The loader rejects a section playbook missing a required heading.
-- `## Completion` describes the rules for the LLM; the builder's `missing()` enforces the same
-  required parts in code (a test keeps the two in step by checking that every requirement
-  `missing()` can report is named in `## Completion`).
-- Bundled playbooks live in `configure/playbooks/` and ship as package data.
-- **House rules:** `~/.ai-marketplace-monitor/playbooks/<name>.md` (same file name) is appended
-  under `## House rules (from <path>)`. It may override `summary` only. A user playbook with no
-  bundled counterpart is ignored with a warning. Bundled rules cannot be removed.
-
-### `AGENT.md` (every section)
-
-- You are helping a user configure one section of aimm. You get: the task (section playbook: goal,
-  subtasks, completion rules), the
-  field guides, the current section, the situation (new or existing, its `request`, related
-  sections and items), what is still required, and the conversation so far.
-- Each turn, evaluate what is known, what is still required, and which optional settings would
-  likely matter to this user; then decide what to ask. Ask the few questions that matter most, in
-  plain language the user understands without knowing aimm's field names, and offer sensible
-  choices. Do not walk through fields one by one.
-- Set every value you can infer from what the user said; do not ask about what you can infer.
-- Reply only with one JSON object:
-  `{"action": "ask" | "save" | "no_change" | "cancel", "message": str, "request": str,
-  "values": {field: value}, "unset": [field]}`. `message` is shown to the user as is: your
-  question, or a short summary of the section.
-- `request` is a one- or two-sentence summary of everything the user has asked for so far, in the
-  user's terms. Never a transcript.
-- You decide how the conversation continues from what the user says: `ask` for more, `save`
-  when the section is complete and the user is happy, `no_change` to keep it, `cancel` to stop.
-  aimm checks completeness itself before saving, and asks the user to confirm the file change.
-- Never invent, ask for, or repeat secrets. Fields marked secret may only be set to a `${VAR}`
-  reference, and only when the user asks.
-- Only reference names listed in the context (users, AI services, regions, translations).
-
-### `marketplace.md`
-
-- **Goal:** a marketplace section holding the defaults for searching Facebook Marketplace (the
-  only supported marketplace) that fit how this user shops. Shared values apply to every item of
-  the marketplace unless an item sets its own; own values (language, login) apply to the
-  marketplace itself.
-- **Subtasks:**
-  - *Location* (required): where to search. Infer the city and distance from what the user says;
-    a whole country or area maps to a defined region. City names must become Facebook's city
-    slug.
-  - *Who and how*: who is notified (`notify`) and which AI services rate listings (`ai`). The
-    defaults (all users, all AI services) are usually right; change them only if the user has
-    several of either and a preference.
-  - *Which listings*: condition, delivery method, how recent, availability, sort order, and a
-    price range only if it applies to everything the user searches here. Ask only about what is
-    likely to matter for this user.
-  - *Schedule*: how often to search, or fixed times. Leave unset unless the user cares.
-  - *Updating an existing section*: start from its `request` and values; find out what to change;
-    keep everything else.
-  - *Items*: this section never changes items; a marketplace value is a default that items
-    without their own value use. The LLM sees nothing about items.
-- **Completion:** the section loads as a valid marketplace config and has a location (a shared
-  city or region, or a location on every item). Optional settings the user mentioned are set;
-  anything not discussed stays unset so aimm's defaults apply.
-- **Rules:** Facebook login is optional and handled outside the conversation; if the user brings
-  it up, explain `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD`, and never set `username` / `password`
-  to anything but those references.
-
-### Field guides
+### Field guides (marketplace)
 
 Every field gets a guide; the table lists the guidance in short form. `rating`, `availability`,
 `delivery_method` and `date_listed` also accept a list of two values, for the first search and for
@@ -317,147 +192,59 @@ enums).
 | `rating` | SHARED | minimum AI rating to notify | list of ints 1–5, e.g. `[4]` |
 | `prompt`, `extra_prompt`, `rating_prompt` | SHARED | only when the user asks to change how the AI judges listings | free text; default: unset |
 
-The LLM also receives a **context** block: the names of `[user.*]`, `[ai.*]`, `[region.*]` and
+`marketplace_show` also returns the names of `[user.*]`, `[ai.*]`, `[region.*]` and
 `[translation.*]` sections, i.e. the values its fields may reference. It receives nothing about
 items (not even their names) or any other section's contents.
 
-## 3. Conversation loop
 
-### 3A. Start (aimm, no LLM)
+## 6. Writing
 
-1. `require_usable_ai` picks a working AI (offering AI setup when none works).
-2. Load and `expand()` the config.
-3. **Existing marketplaces are shown first.** For each `[marketplace.*]`: its name, its `request`
-   (when set), its settings as TOML (secrets masked), and its number of items. Then ask:
-   - one or more exist: "Update one of these, or create a new marketplace?" (`ui.choose` with each
-     marketplace, "Create a new marketplace", and Quit);
-   - none exist: say so and start a new one;
-   - `aimm-configure marketplace.NAME`: show that section when it exists (or say it is new) and
-     continue with it.
-4. A new marketplace gets a name: `facebook` when free, otherwise the user is asked
-   (`ui.ask_text`, default `facebook_2`).
-5. Build the draft with `view()`.
+`commit_sections(ui, new_user_cfg, old_user_cfg, files, backup_dir, only=[...])`:
 
-### 3B. LLM-led conversation
-
-Each round is one LLM turn, `llm.run_turn(ai, instructions, situation, history)`:
-
-- **Instructions:** `AGENT.md`, the section playbook (goal, subtasks, completion, rules), house
-  rules, and the field-guide table grouped by `FieldGroup`.
-- **Situation** (rebuilt every turn): new or existing; the current draft (secrets masked) and its
-  `request`; what is still required (`missing()`); the context (names of users, AI services,
-  regions, translations): the values it may reference. The LLM is given only this section and
-  those names, never other sections' contents.
-- **History:** previous LLM messages and user replies, in order.
-
-The reply (`action`, `message`, `request`, `values`, `unset`) is parsed and the candidate draft validated (`validate()`: the
-config class loads it, referenced names exist, secret fields hold only `${VAR}` references, the
-whole config still loads). Bad JSON, an unknown `action` or validation errors go back to the LLM,
-up to 2 retries; if it still fails the user is told "I couldn't turn that into a valid section;
-please try saying it differently" and the draft is unchanged.
-
-**The LLM decides how the conversation continues** through `action`; aimm only carries it out,
-and never interprets the user's words itself. Every user reply goes to the LLM.
-
-| `action` | aimm does |
-|---|---|
-| `ask` | show `message` (the question), read the reply, next turn |
-| `save` | if `missing()` is not empty, tell the LLM what is missing (next turn, no user prompt); otherwise show `message` and the section (`describe()`), then `commit_sections` (diff and one "Write these changes?" confirmation). Declined: ask "What would you like to change?" and continue |
-| `no_change`, `cancel` | show `message`, write nothing, exit 0 |
-
-For a new section the first turn is the LLM's: it opens the conversation itself; for an existing
-one it starts from the `request` and values and asks what to change.
-
-Commands in any reply: `/show` displays the current draft, `/quit` (or Ctrl-C) exits 0 without
-writing. After 15 LLM turns aimm stops calling the LLM: it shows the draft and offers to save it
-(only when complete) or quit.
-
-## 4. Applying and writing
-
-### 4A. Normalize change (prerequisite)
-
-`push_down` removes a marketplace's shared options **only when the marketplace has at least one
-item**. A marketplace with no items keeps them in the expanded form, as the defaults its future
-items will inherit. `compact()` already leaves them alone (it hoists only for two or more items).
-`check_equivalent` is unaffected: with no items the values have no runtime effect. The normalize
-spec's push-down rule gets the same one-line change, with tests.
-
-The monitor requires `[marketplace]`, `[user]` and `[item]` sections, but a config being built with
-aimm-configure usually lacks some of them (the first marketplace is written before any item).
-`Config.from_dicts`, `expand()` and `normalize()` therefore take `partial=True`, which skips only
-that required-sections check; aimm-configure always uses it. Empty section groups are dropped
-from the result.
-
-### 4B. `MarketplaceBuilder.view` and `apply` (revised)
-
-The draft is the marketplace section **as the user wrote it** (merged across files), not a view of
-the expanded config. Nothing about items is shown, to the LLM or in the review; the start menu
-shows only each marketplace's item count.
-
-`apply()` returns the user config with `[marketplace.NAME]` replaced by `request` + the draft
-values. Items are never changed: they use marketplace values unless they set their own; changing
-an item belongs to the item builder. `validate()` loads the result
-(`expand(..., partial=True)`) to catch cross-section errors.
-
-### 4C. `commit_sections(ui, new_user_cfg, old_user_cfg, files, backup_dir) -> CommitOutcome`
-
-1. The changed sections are those that differ between the old and new user configs.
+1. Changed sections = those that differ between the old and new user config; anything outside
+   `only` is refused.
 2. Each is edited key by key with tomlkit in the last file that defines it (new sections go to the
    last config file); comments, order and other sections are kept.
-3. Preview a unified diff per file; confirm; back up (mode 0600); write.
-4. Reload and check each changed section reads back as written; a later file overriding keys is
-   reported (`FAILED`).
-5. Nothing changed: say so and write nothing. A draft whose values are unchanged (only the LLM's
-   `request` differs) is not written either.
+3. One diff preview for all files, one "Write these changes?".
+4. **After confirmation, each target file is re-read; if it changed since the preview, nothing is
+   written** and the user is told to try again.
+5. Back up (mode 0600), write, reload and check each section reads back as written.
 
-The section-4A normalize changes (item-less marketplaces keep options; `partial=True`) remain:
-`partial` is used for validation, as the config may not have every section yet.
+## 7. Normalize changes (prerequisite)
 
-### 4D. Entry points
-
-- `aimm-configure marketplace`: show existing marketplaces and choose one or a new one (3A).
-- `aimm-configure marketplace.NAME`: edit or create that marketplace.
-- The front-door menu gains "Marketplace".
-- Every path calls `require_usable_ai` first and offers AI setup when no AI works.
-- `validate_section_address` accepts `marketplace` and `marketplace.<name>`.
+`push_down` keeps a marketplace's shared options when the marketplace has no items (defaults for
+future items). `Config.from_dicts`, `expand()` and `normalize()` take `partial=True`, which skips
+the check that `[marketplace]`, `[user]` and `[item]` exist; aimm-configure uses it to validate a
+config that is still being built. Empty section groups are dropped.
 
 ## Errors
 
 | Situation | Behavior |
 |---|---|
-| No usable AI | offer AI setup; exit 0 if the user quits, 1 if setup fails |
-| Config invalid (does not load / expand) | show the error; exit 1; nothing written |
-| LLM call fails (network, auth) | show a scrubbed error; offer retry or quit |
-| LLM output invalid after retries | tell the user to rephrase; draft unchanged |
-| Write declined | back to review |
-| Write failed / overridden by another file | show the reason; exit 1 |
-| Ctrl-C, `/quit` | "Cancelled."; exit 0; nothing written |
+| No usable AI | `aimm-configure`: offer AI setup; section commands: tell the user to run `aimm-configure ai`, exit 1 |
+| Config unreadable | message, exit 1 |
+| Model call fails | scrubbed message; Enter retries, `/quit` ends |
+| Tool argument errors / validation errors | returned to the LLM |
+| Write declined | `save` returns `declined`; the conversation continues |
+| File changed during confirmation | nothing written; `save` returns an error |
+| `/quit`, Ctrl-C | nothing written; exit 0 |
 
 ## Testing
 
-- Field guides cover every field; groups match metadata; enum formats match the enums.
-- Playbooks: frontmatter parsing, house rules appended, unknown user playbooks ignored, required
-  headings (`Goal`, `Subtasks`, `Completion`) enforced, `missing()` requirements named in
-  `## Completion`.
-- `run_turn`: JSON parsing, validation errors fed back, retry limit, secrets masked in the
-  prompt, secret fields set to non-`${VAR}` values dropped.
-- Completeness: `missing()` for no location / shared location / per-item locations; an LLM
-  `save` with missing fields goes back to the LLM, not to the user.
-- Start: existing marketplaces listed with `request` and settings; choose existing / new / quit.
-- `apply`: no items; items all inheriting; an item with its own value; a varying field; location
-  keys as a group.
-- Normalize: a no-items marketplace keeps shared options through expand and normalize.
-- `commit_config`: single file (normalized rewrite, backup, diff), several files (section writes
-  into defining files), declined, overridden.
-- `converse`: full sessions with a scripted fake LLM (canned JSON per turn) and `ScriptedSetupUI`:
-  new marketplace, update an existing one, "No" at review then a change, invalid-then-valid
-  output, quit.
-- `AIBackend.chat` for OpenAI-compatible and Anthropic clients, mocked.
-- Live check (manual, not in CI): a simulated `aimm-configure marketplace` session with UnitySVC
-  against a temporary config file.
+- Toolkit: guide coverage, groups from metadata, enum formats, validation (bad values, unknown
+  names, `search_city` format, `city_name` only with a new city), `missing()`, apply never changes
+  items, `${VAR}` in non-secret fields rejected and never expanded.
+- Tools (executor, no LLM): show/update/check results; update errors leave the draft unchanged;
+  `save` refuses incomplete drafts, previews once, writes only drafted sections, returns
+  `declined`; `finish` refuses with unsaved changes; single-section restriction.
+- Agent loop with a fake `ModelSession` (scripted tool calls): ask_user returns control to the
+  UI; plain-text replies; limits; service errors and retry; `/quit`.
+- Writer: in-place edits, `only`, file changed during confirmation, override by a later file.
+- Adapter: `[ai.*]` sections map to the right provider registration and model id (mocked); history
+  stripping; timeouts; error scrubbing.
+- Live (manual): `aimm-configure marketplace` and `aimm-configure` with UnitySVC and the dashscope
+  endpoint.
 
 ## Documentation
 
-- `docs/usage.rst`: `aimm-configure marketplace`, with an example description and the review loop.
-- CHANGELOG entry under Unreleased.
-- The normalize spec's push-down rule (section 4A).
+`docs/usage.rst` (`aimm-configure` and `aimm-configure marketplace`), CHANGELOG under Unreleased.
