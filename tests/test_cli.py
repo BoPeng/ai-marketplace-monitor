@@ -79,9 +79,7 @@ ai = ["openai"]
         "ai": {"openai": {"api_key": "sk-test"}},
         "marketplace": {"facebook": {}},
         "user": {"user1": {}},
-        "notification": {
-            "pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
-        },
+        "notification": {"pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}},
         "item": {"name": {"search_city": "dallas", "search_phrases": "search word one"}},
     }
 

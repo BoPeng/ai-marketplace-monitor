@@ -33,11 +33,7 @@ def _with_runtime_enabled(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def _user_view(user: UserConfig) -> Dict[str, Any]:
     return _with_runtime_enabled(
-        {
-            k: v
-            for k, v in asdict(user).items()
-            if k not in _USER_EXCLUDE and not k.startswith("_")
-        }
+        {k: v for k, v in asdict(user).items() if k not in _USER_EXCLUDE and not k.startswith("_")}
     )
 
 
