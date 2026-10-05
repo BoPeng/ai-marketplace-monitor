@@ -54,6 +54,7 @@ class Workspace:
     drafts: Dict[SectionKey, SectionDraft] = field(default_factory=dict)
     shown: Set[str] = field(default_factory=set)  # notes already shown to the user
     user_said: List[str] = field(default_factory=list)  # the user's messages in this session
+    ai_in_use: str | None = None  # the [ai.*] section this session runs on
 
     @property
     def backup_dir(self: "Workspace") -> Path:

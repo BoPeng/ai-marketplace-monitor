@@ -102,6 +102,15 @@ For UnitySVC and Ollama it also asks for the base URL (UnitySVC's default is
 too). Whenever the provider can list its models (the key is set), you choose the model from
 that list.
 
+When your default AI works, ``aimm-configure ai`` lets that AI help instead: tell it what you
+want ("use a cheaper model", "add Claude as a backup", "make the backup the default") and it does
+what the menus above do, with the same checks. It tries a section before saving, offers the
+models the provider lists, and writes a new section first (the new default) unless you want it as
+a backup. A section only becomes the default if it works. The session keeps using the AI it
+started with; changes take effect the next time aimm or aimm-configure starts. The key's
+environment variable must be set before an AI section is saved, because aimm cannot start with an
+unset AI key. Without a working AI, ``aimm-configure ai`` runs the menus.
+
 Use ``aimm-configure ai.NAME`` to work on one section. A section named after a provider
 uses that provider, so ``aimm-configure ai.openai`` sets up ``[ai.openai]`` without asking
 which AI; an existing section keeps its own provider. To use two keys for the same
@@ -196,7 +205,7 @@ line to add to your shell profile. ``aimm-configure user.NAME`` and
 or notification, and nothing else.
 
 In ``aimm-configure`` the AI has the tools of every section type it can configure
-(marketplaces, items, users and notifications). It sees only the section names and their
+(AI services, marketplaces, items, users and notifications). It sees only the section names and their
 ``request`` summaries until it opens a section, and it changes only the sections you asked
 about; several drafted sections are saved together after one confirmation.
 

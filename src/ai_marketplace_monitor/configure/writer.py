@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import os
+import re
 import shutil
 import sys
 from dataclasses import dataclass
@@ -205,25 +206,47 @@ def _owner(files: List[Path], key: SectionKey) -> Path | None:
     return owner
 
 
+def _first_owner(files: List[Path], section_type: str) -> Path | None:
+    """The file that defines the first section of a type (merged order is first appearance)."""
+    return next((path for path in files if read_toml(path).get(section_type)), None)
+
+
 def _edit_documents(
-    files: List[Path], changes: Dict[SectionKey, Dict[str, Any]], default: Path
+    files: List[Path],
+    changes: Dict[SectionKey, Dict[str, Any]],
+    default: Path,
+    first: List[SectionKey] = (),  # type: ignore[assignment]
 ) -> Dict[Path, str]:
     """New text of each file that holds a changed section, edited key by key in place.
 
-    Comments, key order and every other section of the file are kept.
+    Comments, key order and every other section of the file are kept. A section in ``first``
+    is placed before the others of its type, in the file holding the current first one (and
+    removed from any other file).
     """
     docs: Dict[Path, Any] = {}
-    for key, values in changes.items():
-        path = _owner(files, key) or default
+    moves: Dict[Path, List[Tuple[str, str, Any]]] = {}
+
+    def doc_of(path: Path) -> Any:
         if path not in docs:
             text = path.read_text(encoding="utf-8") if path.exists() else ""
             docs[path] = tomlkit.parse(text) if text else tomlkit.document()
-        doc = docs[path]
+        return docs[path]
+
+    for key, values in changes.items():
+        owner = _owner(files, key)
+        path = owner or default
+        if key in first:
+            path = _first_owner(files, key[0]) or path
+            for other in files:
+                if other != path and key[1] in read_toml(other).get(key[0], {}):
+                    del doc_of(other)[key[0]][key[1]]
+        doc = doc_of(path)
         section_type, name = key
         if section_type not in doc:
             doc[section_type] = tomlkit.table(is_super_table=True)
         parent: Any = doc[section_type]
-        if name not in parent:
+        created = name not in parent
+        if created:
             parent[name] = tomlkit.table()
         table = parent[name]
         for k in [k for k in table if k not in values]:
@@ -231,7 +254,30 @@ def _edit_documents(
         for k, v in values.items():
             if k not in table or table[k] != v:
                 table[k] = v
-    return {path: tomlkit.dumps(doc) for path, doc in docs.items()}
+        if created:
+            table.add(tomlkit.nl())  # a blank line before whatever table follows
+        if key in first:
+            moves.setdefault(path, []).append((section_type, name, table))
+            del parent[name]
+    texts = {path: tomlkit.dumps(doc) for path, doc in docs.items()}
+    for path, sections in moves.items():
+        for section_type, name, table in reversed(sections):
+            texts[path] = _insert_first(texts[path], section_type, name, table)
+    return texts
+
+
+def _insert_first(text: str, section_type: str, name: str, table: Any) -> str:
+    """Insert a section before the first table of its type (they may be spread out)."""
+    doc = tomlkit.document()
+    parent: Any = tomlkit.table(is_super_table=True)
+    parent[name] = table
+    doc[section_type] = parent
+    rendered = tomlkit.dumps(doc).strip("\n") + "\n\n"
+    header = re.compile(rf"^\[\s*{re.escape(section_type)}\s*[.\]]", re.MULTILINE)
+    match = header.search(text)
+    if match is None:
+        return text.rstrip("\n") + ("\n\n" if text.strip() else "") + rendered
+    return text[: match.start()] + rendered + text[match.start() :]
 
 
 async def commit_sections(
@@ -242,6 +288,7 @@ async def commit_sections(
     backup_dir: Path,
     default_file: Path | None = None,
     only: List[SectionKey] | None = None,
+    first: List[SectionKey] | None = None,
 ) -> CommitOutcome:
     """Write the sections that differ between two user configs; leave everything else alone.
 
@@ -253,6 +300,10 @@ async def commit_sections(
     """
     old, new = _sections(old_user_cfg), _sections(new_user_cfg)
     changes = {key: values for key, values in new.items() if old.get(key) != values}
+    first = first or []
+    for key in first:  # moving a section first is a change even when its values are not
+        if key in new and next(iter(old_user_cfg.get(key[0], {})), None) != key[1]:
+            changes.setdefault(key, new[key])
     removed = [key for key in old if key not in new]
     outside = [k for k in [*changes, *removed] if only is not None and k not in only]
     if outside:
@@ -271,7 +322,7 @@ async def commit_sections(
         await ui.say("No config file to write to.", kind="error")
         return CommitOutcome.FAILED
     try:
-        plans = _edit_documents(files, changes, target)
+        plans = _edit_documents(files, changes, target, first)
     except (ParseError, OSError, ConfigReadError) as e:
         await ui.say(f"Could not prepare the change: {e}", kind="error")
         return CommitOutcome.FAILED
@@ -319,6 +370,11 @@ async def commit_sections(
         return CommitOutcome.FAILED
     reloaded = _sections(reloaded_cfg)
     wrong = [f"[{t}.{n}]" for (t, n), values in changes.items() if reloaded.get((t, n)) != values]
+    wrong += [
+        f"[{t}.{n}] (not first)"
+        for t, n in first
+        if next(iter(reloaded_cfg.get(t, {})), None) != n
+    ]
     if wrong:
         await ui.say(
             f"Saved, but {', '.join(wrong)} does not read back as written; another config "

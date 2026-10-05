@@ -245,13 +245,19 @@ async def test_aimm_configure_routes_a_request_to_the_section(
         "max_price": 300,
     }
     model = made[0]
-    assert {"list_sections", "setup_ai", "section_guide", "section_update"} <= set(model.tools)
+    assert {"list_sections", "section_guide", "section_update"} <= set(model.tools)
+    assert "setup_ai" not in model.tools  # AI services have a toolkit too
     assert "# The aimm-configure command" in model.system
     listed = model.results("list_sections")[0]["section_types"]
     assert {
         "type": "marketplace",
         "configurable_here": True,
         "sections": [{"name": "facebook", "request": None}],
+    } in listed
+    assert {
+        "type": "ai",
+        "configurable_here": True,
+        "sections": [{"name": "unitysvc", "request": None}],
     } in listed
 
 
