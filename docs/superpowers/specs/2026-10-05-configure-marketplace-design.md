@@ -41,6 +41,42 @@ nothing else:
 - aimm itself (not the LLM) reads other sections only to validate the result (e.g. that a
   referenced user exists, that every item still has a location); it does not show them.
 
+## Composing builders: sessions, results, and the router
+
+A builder is a sub-conversation that a caller enters and leaves:
+
+```python
+class Outcome(Enum): SAVED, UNCHANGED, CANCELLED, FAILED
+
+@dataclass
+class BuildResult:
+    outcome: Outcome
+    section: str      # "marketplace.facebook"
+    summary: str      # the closing message, for the caller
+
+async def SectionBuilder.run(ui, session, target=None, request=None) -> BuildResult
+```
+
+- **`Session`** (`configure/session.py`) holds what lives across builders: the probed AI backend
+  (probed once), config files, home (backups, house-rule playbooks), and notes already shown. Each
+  `run` re-reads the config, since an earlier run in the session may have written it.
+- **`request`** is the user's intent when the caller already has one ("limit the search to 20
+  miles"); it is the builder's first user message, so the builder starts from it instead of
+  asking what to change.
+- **Leaving:** `save` → `SAVED`; `no_change` (or a save with nothing changed) → `UNCHANGED`;
+  `cancel`, `/quit`, or quitting the start menu → `CANCELLED`; unreadable config or a failed write
+  → `FAILED`. All return to the caller; only a closed input (Ctrl-C) ends the program.
+- **`aimm-configure <type>[.<name>]`** is a thin wrapper: open a session (requires a usable AI),
+  run the builder, map `FAILED` to exit code 1 and everything else to 0.
+
+**Router (next PR, with the item builder).** `aimm-configure` without a section opens one session
+and runs a router conversation (`user ⇄ aimm ⇄ router LLM`) with its own task playbook. The
+router sees an index of the config: section types and each existing section's name and `request`
+(so "the camera one" can be matched to `item.gopro`), never section contents. Its actions are
+`ask`, `route` (section and request: aimm runs that builder's `run(...)` and feeds the
+`BuildResult` summary back into the router's history), `setup_ai` (the scripted AI setup), and
+`done`. A route to a section type without a builder is reported back as not supported yet.
+
 ## Goals and non-goals
 
 Goals:

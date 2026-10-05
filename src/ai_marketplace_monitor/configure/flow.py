@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import warnings
 from pathlib import Path
 from typing import List
 
 from ..ai import AIBackend
-from ..config import load_config_dicts, supported_ai_backends
-from ..normalize import NormalizeError, expand
+from ..config import supported_ai_backends
 from ..utils import amm_home
 from .ai_setup import AISection, configure_ai, load_ai_sections, probe_sections
-from .playbooks import PlaybookError, load_playbooks
-from .sections import BuilderContext, builders
+from .sections import BuildResult, Outcome, builders
+from .session import Session
 from .ui import Choice, SetupClosedError, SetupUI
 from .writer import ConfigReadError
 
@@ -139,6 +137,20 @@ async def configure_section(
     return 1
 
 
+async def open_session(
+    ui: SetupUI, config_files: List[Path], *, home: Path | None = None
+) -> Session | None:
+    """A configure session with a working AI, or None (after telling the user why)."""
+    ai = await find_usable_ai(ui, config_files)
+    if ai is None:
+        return None
+    return Session(files=list(config_files), ai=ai, home=home or amm_home)
+
+
+def exit_code(result: BuildResult) -> int:
+    return 1 if result.outcome is Outcome.FAILED else 0
+
+
 async def build_section(
     ui: SetupUI,
     config_files: List[Path],
@@ -147,35 +159,14 @@ async def build_section(
     *,
     home: Path | None = None,
 ) -> int:
-    """Create or update a section with its AI-led builder."""
-    ai = await find_usable_ai(ui, config_files)
-    if ai is None:
-        return 1
-    home = home or amm_home
-    builder = builders()[section_type]
-    notes: List[str] = []
+    """``aimm-configure <type>[.<name>]``: run one builder on its own; return an exit code."""
     try:
-        system, user = load_config_dicts(config_files)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            expand(user, system, partial=True)  # the config must load before we edit it
-        notes += list(dict.fromkeys(str(w.message) for w in caught))
-        ctx = BuilderContext(
-            files=list(config_files),
-            system_cfg=system,
-            user_cfg=user,
-            backup_dir=home / "backups",
-            playbooks=load_playbooks(
-                ["AGENT", builder.playbook], home / "playbooks", warn=notes.append
-            ),
-            ai=ai,
-        )
-    except (ValueError, OSError, NormalizeError, PlaybookError) as e:
-        await ui.say(f"Cannot read the configuration: {e}", kind="error")
-        return 1
-    for note in notes:
-        await ui.say(note, kind="warning")
-    return await builder.converse(ui, ctx, name)
+        session = await open_session(ui, config_files, home=home)
+        if session is None:
+            return 1
+        return exit_code(await builders()[section_type].run(ui, session, name))
+    except SetupClosedError:
+        return 0
 
 
 async def configure_front_door(

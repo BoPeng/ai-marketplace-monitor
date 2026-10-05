@@ -11,7 +11,7 @@ else:
 
 from ai_marketplace_monitor.configure import llm
 from ai_marketplace_monitor.configure.marketplace import MARKETPLACE_GUIDES, MarketplaceBuilder
-from ai_marketplace_monitor.configure.sections import FieldGroup, TurnError
+from ai_marketplace_monitor.configure.sections import FieldGroup, Outcome, TurnError
 from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
 from ai_marketplace_monitor.facebook import (
     Condition,
@@ -158,7 +158,7 @@ async def test_marketplace_default_never_changes_items(tmp_path: Path) -> None:
         ],
     )
     ui = ScriptedSetupUI(["facebook", "yes"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.SAVED
     written = tomllib.loads(ctx.files[0].read_text())
     assert written["marketplace"]["facebook"]["max_price"] == "1000"
     assert written["item"]["example"] == ctx.user_cfg["item"]["example"]
@@ -263,7 +263,7 @@ async def test_new_marketplace_conversation_writes_normalized_file(tmp_path: Pat
         ],
     )
     ui = ScriptedSetupUI(["Houston, about 40 miles, good used stuff", "yes"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.SAVED
 
     written = tomllib.loads(ctx.files[0].read_text())
     assert written["marketplace"]["facebook"] == {
@@ -290,7 +290,7 @@ async def test_save_with_missing_location_goes_back_to_the_llm(tmp_path: Path) -
         ],
     )
     ui = ScriptedSetupUI(["/quit"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.CANCELLED
     second = ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
     assert "Still required: location" in second
     assert ui.questions == ["You"]  # no review was shown
@@ -311,7 +311,7 @@ async def test_existing_marketplace_change_then_declined_write(tmp_path: Path) -
         ],
     )
     ui = ScriptedSetupUI(["facebook", "include shipping", "no", "/quit"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.CANCELLED
     assert ui.questions == [
         "Update one of these, or create a new marketplace?",
         "You",
@@ -325,7 +325,7 @@ async def test_existing_marketplace_change_then_declined_write(tmp_path: Path) -
 async def test_quit_from_the_start_menu(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, BASE + '\n[marketplace.facebook]\nsearch_city = "houston"\n')
     ui = ScriptedSetupUI(["__quit__"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.CANCELLED
 
 
 async def test_new_name_when_facebook_is_taken(tmp_path: Path) -> None:
@@ -338,7 +338,7 @@ async def test_new_name_when_facebook_is_taken(tmp_path: Path) -> None:
 async def test_show_command_and_turn_errors(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, BASE, [RuntimeError("boom"), reply("Which city?")])
     ui = ScriptedSetupUI(["", "/show", "/quit"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.CANCELLED
     assert any("boom" in m for m in ui.said("error"))
 
 
@@ -367,7 +367,7 @@ async def test_no_goes_to_the_llm_which_decides_to_keep_the_section(tmp_path: Pa
     )
     before = ctx.files[0].read_text()
     ui = ScriptedSetupUI(["facebook", "no"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.UNCHANGED
     assert len(ctx.ai.calls) == 2  # type: ignore[attr-defined]  # "no" went to the AI
     assert "User: no" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
     assert ui.questions == ["Update one of these, or create a new marketplace?", "You"]
@@ -384,7 +384,7 @@ async def test_save_without_changes_writes_nothing(tmp_path: Path) -> None:
     )
     before = ctx.files[0].read_text()
     ui = ScriptedSetupUI(["facebook"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.UNCHANGED
     assert "Nothing changed; your config is left as it is." in ui.said("success")
     assert ctx.files[0].read_text() == before
 
@@ -399,7 +399,7 @@ async def test_unknown_action_is_sent_back(tmp_path: Path) -> None:
 async def test_no_still_goes_to_the_ai_while_something_is_missing(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, BASE, [reply("Which city?"), reply("I need a city to search.")])
     ui = ScriptedSetupUI(["no", "/quit"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.CANCELLED
     assert len(ctx.ai.calls) == 2  # type: ignore[attr-defined]
 
 
@@ -436,7 +436,7 @@ async def test_service_failure_offers_retry_with_the_same_message(tmp_path: Path
         ],
     )
     ui = ScriptedSetupUI(["Austin", "", "/quit"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.CANCELLED
     assert "Press Enter to try again, or type something else (/quit to stop)" in ui.questions
     last = ctx.ai.calls[-1][1]["content"]  # type: ignore[attr-defined]
     assert last.count("User: Austin") == 1 and "User: \n" not in last
@@ -506,7 +506,7 @@ async def test_no_change_with_unsaved_changes_goes_back_to_the_llm(tmp_path: Pat
         ],
     )
     ui = ScriptedSetupUI(["facebook", "set max price to $1000", "no", "yes"])
-    assert await B.converse(ui, ctx, None) == 0
+    assert (await B.converse(ui, ctx)).outcome is Outcome.SAVED
     third = ctx.ai.calls[3][1]["content"]  # type: ignore[attr-defined]
     assert "There are unsaved changes (max_price: '1000')" in third
     assert (
@@ -550,3 +550,59 @@ def test_playbook_explains_url_codes() -> None:
     text = load_playbook("marketplace").text()
     assert "never guess it" in text and "paste the URL" in text
     assert "`111979382146893`" in text
+
+
+async def test_initial_request_starts_the_conversation(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path,
+        ONE_ITEM,
+        [reply("Saving radius 20.", {"radius": 20}, action="save", request="Within 20 miles.")],
+    )
+    ui = ScriptedSetupUI(["yes"])
+    result = await B.converse(ui, ctx, "facebook", request="limit the search to 20 miles")
+    assert result.outcome is Outcome.SAVED and result.section == "marketplace.facebook"
+    assert result.summary == "Saving radius 20."
+    first = ctx.ai.calls[0][1]["content"]  # type: ignore[attr-defined]
+    assert "User: limit the search to 20 miles" in first
+    assert ui.questions == ["Write these changes?"]  # no menu, no "what to change?"
+
+
+async def test_quit_returns_to_the_caller(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path, BASE, [reply("Which city?")])
+    result = await B.converse(ScriptedSetupUI(["/quit"]), ctx, "facebook")
+    assert result == build_result(
+        "CANCELLED", "marketplace.facebook", "Stopped; nothing was written."
+    )
+
+
+def build_result(outcome: str, section: str, summary: str) -> object:
+    from ai_marketplace_monitor.configure.sections import BuildResult
+
+    return BuildResult(Outcome[outcome], section, summary)
+
+
+async def test_session_reads_config_per_run_and_shows_notes_once(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.session import Session
+    from tests.configure_util import FakeAI
+
+    config = tmp_path / "config.toml"
+    config.write_text(BASE + '\n[user.you]\npushbullet_token = "${AIMM_TEST_UNSET_VAR}"\n')
+    session = Session(files=[config], ai=FakeAI([reply("Bye.", action="cancel")] * 2), home=tmp_path)  # type: ignore[arg-type]
+    ui = ScriptedSetupUI([])
+    first = await B.run(ui, session, "facebook")
+    second = await B.run(ui, session, "facebook")
+    assert first.outcome is second.outcome is Outcome.CANCELLED
+    notes = [m for m in ui.said("warning") if "AIMM_TEST_UNSET_VAR" in m]
+    assert len(notes) == 1
+
+
+async def test_run_reports_an_unreadable_config(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.session import Session
+    from tests.configure_util import FakeAI
+
+    config = tmp_path / "config.toml"
+    config.write_text('[marketplace.facebook]\ncondition = ["mint"]\n')
+    ui = ScriptedSetupUI([])
+    result = await B.run(ui, Session(files=[config], ai=FakeAI([]), home=tmp_path), "facebook")  # type: ignore[arg-type]
+    assert result.outcome is Outcome.FAILED
+    assert "Cannot read the configuration" in ui.said("error")[0]

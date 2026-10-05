@@ -270,3 +270,19 @@ async def test_configure_marketplace_reports_invalid_config(
     ui = ScriptedSetupUI([])
     assert await flow.configure_section(ui, [config], "marketplace", home=tmp_path) == 1
     assert "Cannot read the configuration" in ui.said("error")[0]
+
+
+async def test_ctrl_c_inside_a_builder_exits_the_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.configure_util import BASE, FakeAI, reply
+
+    config = tmp_path / "config.toml"
+    config.write_text(BASE, encoding="utf-8")
+
+    async def fake_find(ui: Any, files: List[Path]) -> Any:
+        return FakeAI([reply("Which city?")])
+
+    monkeypatch.setattr(flow, "find_usable_ai", fake_find)
+    ui = ScriptedSetupUI(["<close>"])
+    assert await flow.configure_section(ui, [config], "marketplace", home=tmp_path) == 0

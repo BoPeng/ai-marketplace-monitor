@@ -15,13 +15,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..marketplace import FALLBACK, LOCATION
-from .ui import SetupClosedError, SetupUI
+from .ui import SetupUI
 from .writer import CommitOutcome, commit_sections
 
 if TYPE_CHECKING:
     from ..ai import AIBackend
     from .llm import Exchange
     from .playbooks import Playbook
+    from .session import Session
 
 # dataclass fields that are never configured through a builder
 _NOT_CONFIGURED = {"name", "request", "monitor_config"}
@@ -77,6 +78,22 @@ class TurnResult:
 
 # what the LLM asks aimm to do after a turn
 ACTIONS = ("ask", "save", "no_change", "cancel")
+
+
+class Outcome(Enum):
+    SAVED = "saved"  # the section was written
+    UNCHANGED = "unchanged"  # the user kept the section as it is
+    CANCELLED = "cancelled"  # the user stopped (/quit, cancel); nothing written
+    FAILED = "failed"  # the config could not be read or written
+
+
+@dataclass
+class BuildResult:
+    """What a builder run returns to its caller (a CLI command, or the router later)."""
+
+    outcome: Outcome
+    section: str  # e.g. "marketplace.facebook"; "" if no section was chosen
+    summary: str = ""  # the closing message, for the caller to report or pass on
 
 
 class TurnError(Exception):
@@ -219,90 +236,127 @@ class SectionBuilder:
 
         return await run_turn(self, ctx, draft, history, feedback)
 
-    async def converse(
-        self: "SectionBuilder", ui: SetupUI, ctx: BuilderContext, name: str | None
-    ) -> int:
-        """Choose a section, let the LLM complete it, confirm, write. Returns an exit code."""
-        from .llm import Exchange
+    async def run(
+        self: "SectionBuilder",
+        ui: SetupUI,
+        session: "Session",
+        target: str | None = None,
+        request: str | None = None,
+    ) -> BuildResult:
+        """Run this builder in a session: read the config, then converse.
+
+        ``target`` is the section name (``None`` lets the user choose); ``request`` is the
+        user's intent when the caller already has one, e.g. "search within 20 miles".
+        """
+        from .session import ConfigLoadError
 
         try:
-            draft = await self.choose_target(ui, ctx, name)
-            if draft is None:
-                return 0
-            history: List[Exchange] = []
-            feedback: List[str] = []
-            for _ in range(self.max_turns):
-                await ui.say("Thinking...", kind="progress")
-                try:
-                    result = await self.run_turn(ctx, draft, history, feedback)
-                except TurnError as e:
-                    await ui.say(str(e), kind="error")
-                    prompt = (
-                        "Press Enter to try again, or type something else (/quit to stop)"
-                        if e.service
-                        else "Try saying it differently (or /quit)"
-                    )
-                    reply = await self._reply(ui, ctx, draft, prompt)
-                    if reply is None:
-                        return 0
-                    if reply or not e.service:
-                        history.append(Exchange("user", reply))
-                    feedback = []
-                    continue
-                draft = result.draft
-                history.append(Exchange("assistant", result.message))
-                feedback = []
-                if result.action == "save":
-                    missing = self.missing(ctx, draft)
-                    if missing:
-                        # aimm decides completeness: send the LLM back, not the user
-                        feedback = [f"Cannot save yet. Still required: {m}" for m in missing]
-                        continue
-                    await ui.say(result.message)
-                    code = await self._save(ui, ctx, draft)
-                    if code is not None:
-                        return code
-                    reply = await self._reply(ui, ctx, draft, "What would you like to change?")
-                elif result.action == "no_change" and draft.unsaved_changes():
-                    # never drop the user's changes silently: make the LLM save or cancel
-                    pending = ", ".join(
-                        f"{k}: {v!r}" for k, v in self.masked(draft.unsaved_changes()).items()
-                    )
-                    feedback = [
-                        (
-                            f"There are unsaved changes ({pending}). Use `save` to keep them, "
-                            "or `cancel` only if the user wants to discard them."
-                        )
-                    ]
-                    continue
-                elif result.action in ("no_change", "cancel"):
-                    await ui.say(result.message)
-                    await ui.say("Nothing was written.", kind="success")
-                    return 0
-                else:
-                    await ui.say(result.message)
-                    reply = await self._reply(ui, ctx, draft, "You")
+            ctx = await session.context(ui, self)
+        except ConfigLoadError as e:
+            await ui.say(str(e), kind="error")
+            return BuildResult(Outcome.FAILED, "", str(e))
+        return await self.converse(ui, ctx, target, request)
+
+    async def converse(
+        self: "SectionBuilder",
+        ui: SetupUI,
+        ctx: BuilderContext,
+        target: str | None = None,
+        request: str | None = None,
+    ) -> BuildResult:
+        """Choose a section, let the LLM complete it, confirm, write.
+
+        /quit and ``cancel`` return to the caller; only a closed input (Ctrl-C) propagates
+        as ``SetupClosedError``.
+        """
+        from .llm import Exchange
+
+        draft = await self.choose_target(ui, ctx, target)
+        if draft is None:
+            return BuildResult(Outcome.CANCELLED, "")
+        label = f"{self.section_type}.{draft.name}"
+
+        def cancelled() -> BuildResult:
+            return BuildResult(Outcome.CANCELLED, label, "Stopped; nothing was written.")
+
+        history: List[Exchange] = [Exchange("user", request)] if request else []
+        feedback: List[str] = []
+        for _ in range(self.max_turns):
+            await ui.say("Thinking...", kind="progress")
+            try:
+                result = await self.run_turn(ctx, draft, history, feedback)
+            except TurnError as e:
+                await ui.say(str(e), kind="error")
+                prompt = (
+                    "Press Enter to try again, or type something else (/quit to stop)"
+                    if e.service
+                    else "Try saying it differently (or /quit)"
+                )
+                reply = await self._reply(ui, ctx, draft, prompt)
                 if reply is None:
-                    return 0
-                history.append(Exchange("user", reply))
-            await ui.say(f"Stopping after {self.max_turns} turns with the AI.", kind="warning")
-            if not self.missing(ctx, draft) and not self.validate(ctx, draft):
-                code = await self._save(ui, ctx, draft)
-                if code is not None:
-                    return code
-            return 0
-        except SetupClosedError:
-            return 0
+                    return cancelled()
+                if reply or not e.service:
+                    history.append(Exchange("user", reply))
+                feedback = []
+                continue
+            draft = result.draft
+            history.append(Exchange("assistant", result.message))
+            feedback = []
+            if result.action == "save":
+                missing = self.missing(ctx, draft)
+                if missing:
+                    # aimm decides completeness: send the LLM back, not the user
+                    feedback = [f"Cannot save yet. Still required: {m}" for m in missing]
+                    continue
+                await ui.say(result.message)
+                done = await self._save(ui, ctx, draft, label, result.message)
+                if done is not None:
+                    return done
+                reply = await self._reply(ui, ctx, draft, "What would you like to change?")
+            elif result.action == "no_change" and draft.unsaved_changes():
+                # never drop the user's changes silently: make the LLM save or cancel
+                pending = ", ".join(
+                    f"{k}: {v!r}" for k, v in self.masked(draft.unsaved_changes()).items()
+                )
+                feedback = [
+                    (
+                        f"There are unsaved changes ({pending}). Use `save` to keep them, "
+                        "or `cancel` only if the user wants to discard them."
+                    )
+                ]
+                continue
+            elif result.action in ("no_change", "cancel"):
+                await ui.say(result.message)
+                await ui.say("Nothing was written.", kind="success")
+                outcome = Outcome.UNCHANGED if result.action == "no_change" else Outcome.CANCELLED
+                return BuildResult(outcome, label, result.message)
+            else:
+                await ui.say(result.message)
+                reply = await self._reply(ui, ctx, draft, "You")
+            if reply is None:
+                return cancelled()
+            history.append(Exchange("user", reply))
+        await ui.say(f"Stopping after {self.max_turns} turns with the AI.", kind="warning")
+        if not self.missing(ctx, draft) and not self.validate(ctx, draft):
+            done = await self._save(ui, ctx, draft, label, "")
+            if done is not None:
+                return done
+        return cancelled()
 
     async def _save(
-        self: "SectionBuilder", ui: SetupUI, ctx: BuilderContext, draft: SectionDraft
-    ) -> int | None:
+        self: "SectionBuilder",
+        ui: SetupUI,
+        ctx: BuilderContext,
+        draft: SectionDraft,
+        label: str,
+        summary: str,
+    ) -> BuildResult | None:
         """Show the section and write it after one confirmation. None means "keep talking"."""
         await ui.say(self.describe(ctx, draft), markdown=True)
         if not draft.is_new and draft.values == draft.original:
             # only the AI's summary changed; nothing the user asked for
             await ui.say("Nothing changed; your config is left as it is.", kind="success")
-            return 0
+            return BuildResult(Outcome.UNCHANGED, label, summary)
         # a builder changes its own section only; commit_sections refuses anything else
         outcome = await commit_sections(
             ui,
@@ -313,9 +367,9 @@ class SectionBuilder:
             only=[(self.section_type, draft.name)],
         )
         if outcome is CommitOutcome.WRITTEN:
-            return 0
+            return BuildResult(Outcome.SAVED, label, summary)
         if outcome is CommitOutcome.FAILED:
-            return 1
+            return BuildResult(Outcome.FAILED, label, "The section could not be written.")
         return None
 
     async def _reply(
