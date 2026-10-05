@@ -25,6 +25,13 @@ from .notification import (
 )
 from .utils import fetch_with_retry, hilight, resize_image_data
 
+# Preset for UnitySVC's SMTP gateway: the SMTP username selects the UnitySVC service and the
+# API key is the password. smtp-to-mailbox delivers to the account's registered email address
+# whatever the To header says, so no recipient is needed.
+UNITYSVC_SMTP_SERVER = "smtp.svcpass.com"
+UNITYSVC_SMTP_USERNAME = "smtp-to-mailbox"
+UNITYSVC_SMTP_FROM = "notify@svcpass.com"
+
 
 @dataclass
 class EmailNotificationConfig(NotificationConfig):
@@ -92,6 +99,22 @@ class EmailNotificationConfig(NotificationConfig):
         if not isinstance(self.smtp_from, str):
             raise ValueError("user requires a string smtp_from.")
         self.smtp_from = self.smtp_from.strip()
+
+    @property
+    def uses_unitysvc_smtp(self: "EmailNotificationConfig") -> bool:
+        """Whether this sends through UnitySVC's SMTP gateway.
+
+        True for ``smtp_server = "smtp.svcpass.com"``, or for a UnitySVC API key as
+        ``smtp_password`` with no ``smtp_server`` (a svcpass key only works there).
+        """
+        if self.smtp_server:
+            return self.smtp_server.lower() == UNITYSVC_SMTP_SERVER
+        return isinstance(self.smtp_password, str) and self.smtp_password.startswith("svcpass_")
+
+    def _has_required_fields(self: "EmailNotificationConfig") -> bool:
+        if self.uses_unitysvc_smtp:
+            return self.smtp_password is not None
+        return super()._has_required_fields()
 
     def get_title(
         self: "EmailNotificationConfig",
@@ -267,24 +290,27 @@ class EmailNotificationConfig(NotificationConfig):
         images: List[Tuple[bytes, str, str]],
         logger: Logger | None = None,
     ) -> bool:
-        if not self.email:
-            if logger:
-                logger.debug("No recipients specified. No email sent.")
-            return False
-
-        sender = self.smtp_from or self.smtp_username or self.email[0]
-
-        if self.smtp_server:
-            smtp_server = self.smtp_server
+        unitysvc = self.uses_unitysvc_smtp
+        if unitysvc:
+            # the To header is required by SMTP but UnitySVC decides the actual recipient
+            recipients = self.email or [UNITYSVC_SMTP_FROM]
+            sender = self.smtp_from or UNITYSVC_SMTP_FROM
+            smtp_server = UNITYSVC_SMTP_SERVER
         else:
-            smtp_server = f"""smtp.{sender.split("@")[1]}"""
+            if not self.email:
+                if logger:
+                    logger.debug("No recipients specified. No email sent.")
+                return False
+            recipients = self.email
+            sender = self.smtp_from or self.smtp_username or self.email[0]
+            smtp_server = self.smtp_server or f"""smtp.{sender.split("@")[1]}"""
 
         # s.starttls()
         msg = MIMEMultipart("related")
         msg["Subject"] = title
         # can use the humanized version of self.name as well
         msg["From"] = formataddr(("AI Marketplace Monitor", sender))
-        msg["To"] = ", ".join(self.email)
+        msg["To"] = ", ".join(recipients)
 
         # Create alternative part
         alt_part = MIMEMultipart("alternative")
@@ -303,7 +329,9 @@ class EmailNotificationConfig(NotificationConfig):
         for attempt in range(self.max_retries):
             try:
                 smtp_port = self.smtp_port or 587
-                smtp_username = self.smtp_username or sender
+                smtp_username = self.smtp_username or (
+                    UNITYSVC_SMTP_USERNAME if unitysvc else sender
+                )
                 if not smtp_username:
                     if logger:
                         logger.error("No smtp username.")
