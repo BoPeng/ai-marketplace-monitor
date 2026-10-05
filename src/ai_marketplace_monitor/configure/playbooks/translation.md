@@ -27,7 +27,7 @@ Labels left unset stay in English.
 ### Using it
 
 A marketplace uses a translation through its `language` field, which this command does not
-change; tell the user to run `aimm-configure marketplace` (or ask for it in `aimm-configure`).
+change; tell the user to run `aimm configure marketplace` (or ask for it in `aimm configure`).
 `section_show` lists `used_by_marketplaces`.
 
 ## Completion

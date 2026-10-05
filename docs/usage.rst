@@ -9,19 +9,22 @@ Run the monitor with default configuration:
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor
+    $ aimm
+
+``aimm`` is the same as ``aimm run``. The longer ``ai-marketplace-monitor`` command provides
+the same interface.
 
 Run with a custom configuration file:
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --config /path/to/your/config.toml
+    $ aimm run --config /path/to/your/config.toml
 
 Run in headless mode (without browser window):
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --headless
+    $ aimm run --headless
 
 Check Individual Listings
 -------------------------
@@ -30,13 +33,13 @@ You can check why a listing was excluded or test a listing against your configur
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --check https://facebook.com/marketplace/item/123456789
+    $ aimm check https://facebook.com/marketplace/item/123456789
 
 For specific item configurations:
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --check https://facebook.com/marketplace/item/123456789 --for item_name
+    $ aimm check https://facebook.com/marketplace/item/123456789 --for item_name
 
 Cache Management
 ---------------
@@ -45,11 +48,11 @@ Clear different types of cache:
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --clear-cache listing-details
-    $ ai-marketplace-monitor --clear-cache ai-inquiries
-    $ ai-marketplace-monitor --clear-cache user-notification
-    $ ai-marketplace-monitor --clear-cache counters
-    $ ai-marketplace-monitor --clear-cache all
+    $ aimm admin --clear-cache listing-details
+    $ aimm admin --clear-cache ai-inquiries
+    $ aimm admin --clear-cache user-notification
+    $ aimm admin --clear-cache counters
+    $ aimm admin --clear-cache all
 
 Important Notes
 --------------
@@ -85,11 +88,11 @@ You can disable this feature by define environment variable `DISABLE_PYNPUT=true
 Interactive configuration
 -------------------------
 
-Run ``aimm-configure`` as the primary interactive configuration command. It uses your
+Run ``aimm configure`` as the primary interactive configuration command. It uses your
 default AI service (the first ``[ai.*]`` section) to help you: tell it what you want in your
 own words, for example "limit my Houston search to 20 miles", and it finds the section,
 drafts the change and asks you to confirm before writing. If you have no usable AI service
-yet, it starts with the AI setup, ``aimm-configure ai``, which works without AI.
+yet, it starts with the AI setup, ``aimm configure ai``, which works without AI.
 
 aimm uses the **first** ``[ai.*]`` section as your default AI, and the others only if it
 fails. So the AI setup checks only the default and lists the others, then offers to keep or
@@ -102,19 +105,19 @@ For UnitySVC and Ollama it also asks for the base URL (UnitySVC's default is
 too). Whenever the provider can list its models (the key is set), you choose the model from
 that list.
 
-When your default AI works, ``aimm-configure ai`` lets that AI help instead: tell it what you
+When your default AI works, ``aimm configure ai`` lets that AI help instead: tell it what you
 want ("use a cheaper model", "add Claude as a backup", "make the backup the default") and it does
 what the menus above do, with the same checks. It tries a section before saving, offers the
 models the provider lists, and writes a new section first (the new default) unless you want it as
 a backup. A section only becomes the default if it works. The session keeps using the AI it
-started with; changes take effect the next time aimm or aimm-configure starts. The key's
+started with; changes take effect the next time aimm starts. The key's
 environment variable must be set before an AI section is saved, because aimm cannot start with an
-unset AI key. Without a working AI, ``aimm-configure ai`` runs the menus.
+unset AI key. Without a working AI, ``aimm configure ai`` runs the menus.
 
-Use ``aimm-configure ai.NAME`` to work on one section. A section named after a provider
-uses that provider, so ``aimm-configure ai.openai`` sets up ``[ai.openai]`` without asking
+Use ``aimm configure ai.NAME`` to work on one section. A section named after a provider
+uses that provider, so ``aimm configure ai.openai`` sets up ``[ai.openai]`` without asking
 which AI; an existing section keeps its own provider. To use two keys for the same
-provider, give the second section another name, such as ``aimm-configure ai.openai2``,
+provider, give the second section another name, such as ``aimm configure ai.openai2``,
 which asks for the provider once and writes it as ``provider = "openai"``.
 
 For hosted providers, the command writes the API key as an environment-variable
@@ -127,11 +130,11 @@ Use ``--config`` or ``--config-file`` to read and update a specific config file.
 Marketplaces
 ~~~~~~~~~~~~
 
-``aimm-configure marketplace`` sets up where and how to search Facebook Marketplace with
+``aimm configure marketplace`` sets up where and how to search Facebook Marketplace with
 the help of your default AI service (the AI setup runs first if it cannot be used). It lists your
 existing marketplaces, each with its ``request`` (a short summary of what you asked for)
 and its settings, and asks whether to update one or create a new one;
-``aimm-configure marketplace.NAME`` goes straight to one section.
+``aimm configure marketplace.NAME`` goes straight to one section.
 
 The AI then leads a short conversation. You answer in your own words, for example:
 
@@ -161,8 +164,8 @@ playbook.
 Items
 ~~~~~
 
-``aimm-configure item`` adds or updates what to search for. It lists your existing items
-and asks whether to update one or add a new one; ``aimm-configure item.NAME`` goes straight
+``aimm configure item`` adds or updates what to search for. It lists your existing items
+and asks whether to update one or add a new one; ``aimm configure item.NAME`` goes straight
 to one item. Describe what you want, for example:
 
 .. code-block:: text
@@ -184,7 +187,7 @@ sections after one confirmation. No other section is changed.
 Notifications and users
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-``aimm-configure notification`` (or ``aimm-configure user``) sets up how and to whom aimm sends
+``aimm configure notification`` (or ``aimm configure user``) sets up how and to whom aimm sends
 notifications. Users and notifications are set up together: a ``[notification.NAME]`` section is
 one channel with its servers and credentials, and a ``[user.NAME]`` section says where a person
 receives it (email address, chat ID, ...) and which notifications they get (``notify_with``). If
@@ -200,8 +203,8 @@ UnitySVC key, sent to your UnitySVC-registered address) or Gmail (which needs an
 UnitySVC notifications, Pushbullet, Pushover, ntfy or Telegram. Passwords, tokens and keys are
 written only as environment-variable references such as ``${GMAIL_APP_PASSWORD}``; you never type
 them in the chat. After saving, aimm lists any variable that is not set yet, with the ``export``
-line to add to your shell profile. ``aimm-configure user.NAME`` and
-``aimm-configure notification.NAME`` start at that section; the session may still change any user
+line to add to your shell profile. ``aimm configure user.NAME`` and
+``aimm configure notification.NAME`` start at that section; the session may still change any user
 or notification, and nothing else.
 
 Proxy, regions and translations
@@ -209,18 +212,18 @@ Proxy, regions and translations
 
 Three smaller section types have their own commands:
 
-- ``aimm-configure monitor`` sets up the proxy aimm's browser uses (``[monitor]``). The proxy
+- ``aimm configure monitor`` sets up the proxy aimm's browser uses (``[monitor]``). The proxy
   account's user name and password are written as environment-variable references.
-- ``aimm-configure region`` (or ``region.NAME``) adds a region of your own, or changes a built-in
+- ``aimm configure region`` (or ``region.NAME``) adds a region of your own, or changes a built-in
   one such as ``usa`` ("search the USA within 300 miles" sets only its radius). Each city is a
   Facebook location code taken from a Marketplace URL you paste, as for marketplaces. Use a region
   with ``search_region`` on a marketplace or item.
-- ``aimm-configure translation`` (or ``translation.NAME``) is for a Facebook in another language:
+- ``aimm configure translation`` (or ``translation.NAME``) is for a Facebook in another language:
   the AI drafts the page labels aimm looks for ("Condition", "Description", ...) in your language,
   and you check them against a Facebook listing before saving, because they must match the page
   exactly. Use it with ``language`` on a marketplace.
 
-In ``aimm-configure`` the AI has the tools of every section type it can configure
+In ``aimm configure`` the AI has the tools of every section type it can configure
 (AI services, marketplaces, items, users, notifications, regions, translations and the monitor
 settings). It sees only the section names and their
 ``request`` summaries until it opens a section, and it changes only the sections you asked

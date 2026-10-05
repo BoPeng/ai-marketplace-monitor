@@ -32,7 +32,7 @@ def model_id(backend: AIBackend) -> str:
     model = str(config.model or getattr(backend, "default_model", ""))
     if "/" in model:
         raise ServiceError(
-            f'The model "{model}" of [ai.{config.name}] contains "/", which aimm-configure '
+            f'The model "{model}" of [ai.{config.name}] contains "/", which aimm configure '
             "cannot pass through; use another AI section."
         )
     if isinstance(backend, AnthropicBackend):

@@ -231,7 +231,7 @@ class ItemToolkit(Toolkit):
         section.update(self.masked(draft.values))
         return f"```toml\n{dump_config_toml({'item': {draft.name: section}})}```"
 
-    # --- choosing what to edit (aimm-configure item) ------------------------------------------
+    # --- choosing what to edit (aimm configure item) ------------------------------------------
     async def choose_target(
         self: "ItemToolkit", ui: SetupUI, ws: "Workspace", name: str | None
     ) -> str | None:

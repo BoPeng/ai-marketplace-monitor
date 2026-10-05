@@ -101,30 +101,40 @@ pip install ai-marketplace-monitor
 playwright install
 ```
 
-### Basic Configuration
+### Configure with AI
 
-Create `~/.ai-marketplace-monitor/config.toml`:
+Most users do not need to write a configuration file by hand. Set one AI provider
+key, then let `aimm configure` create or update `~/.ai-marketplace-monitor/config.toml`
+through a guided conversation:
 
-```toml
-[marketplace.facebook]
-search_city = 'houston'  # Replace with your city
+```bash
+export OPENAI_API_KEY='your_openai_key'
+# or: export ANTHROPIC_API_KEY='your_anthropic_key'
+# or: export UNITYSVC_API_KEY='your_unitysvc_key'
 
-[item.gopro]
-search_phrases = 'Go Pro Hero 11'
-min_price = 100
-max_price = 300
+aimm configure
+```
 
-[user.me]
-pushbullet_token = 'your_token_here'  # Get from pushbullet.com
+`aimm configure` checks or creates the AI setup first, then asks what you want to
+configure: marketplace searches, items to watch, notifications, regions,
+translations, or monitor settings. It explains proposed changes and asks before
+writing them.
+
+You can also jump directly to one section:
+
+```bash
+aimm configure ai
+aimm configure marketplace
+aimm configure item.gopro
 ```
 
 ### Run the Monitor
 
 ```bash
-ai-marketplace-monitor
+aimm
 ```
 
-The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md).
+The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
 
 ### Run with Docker
 
@@ -147,6 +157,9 @@ Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and log
 To build the image yourself instead of pulling: `docker build -t aimm .` from a checkout of this repo.
 
 ## 💡 Example Usage
+
+These are examples of configuration sections that `aimm configure` can create or
+update for you. Advanced users can still edit the TOML file directly.
 
 **Find GoPro cameras under $300:**
 
