@@ -1075,7 +1075,7 @@
       { key: "api_key", label: "API key", type: "password",
         help: "If left blank, the env var for the provider is used (e.g. ${OPENAI_API_KEY}, ${ANTHROPIC_API_KEY}, ${DEEPSEEK_API_KEY})." },
       { key: "model", label: "Model", type: "text",
-        help: "e.g. 'gpt-4o', 'deepseek-chat', 'deepseek-r1:14b', 'claude-sonnet-4-20250514'" },
+        help: "e.g. 'gpt-4o', 'deepseek-chat', 'deepseek-r1:14b', 'claude-sonnet-5-5'" },
       { key: "provider", label: "Provider override", type: "text", advanced: true,
         help: "Override the provider (auto-detected from section name). Only needed for custom OpenAI-compatible endpoints." },
       { key: "base_url", label: "Base URL", type: "text", advanced: true,

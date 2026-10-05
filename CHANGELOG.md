@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `aimm` and `aimm-configure` start much faster: the OpenAI, Anthropic, inflect and Playwright packages are loaded only when needed (a cold `aimm-configure` start drops from about 13 s to under 2 s)
+- `aimm-configure ai` no longer proposes a model the provider does not offer: it lists the models the check found (keeping the current one when it still works, else the newest of the same family), warns about a model that is no longer available, and offers to fix a failing `[ai.*]` section before setting up a new one
+- `aimm-configure ai` checks only the default (first) AI section, lists the others, and offers to keep, update or fix it, make another section the default (moving it to the top), or create a new section, which becomes the default; other flows fall back to the next section with a warning when the default fails
+- UnitySVC setup asks for the base URL (default `https://api.svcpass.com/p/llm`) and offers the models that URL lists, tiers and specific models alike, instead of a fixed list of four tiers; every provider's model list is fetched during setup when its key is set
+- The model menu also accepts a typed model name; when requests to a base URL are not found (404) but the same request works under `<base_url>/v1`, setup says so and offers to save the `/v1` URL
+- The default Anthropic model is now `claude-sonnet-5-5` (`claude-sonnet-4-20250514` is no longer offered)
 
 ## [0.10.3] - 2026-10-05
 

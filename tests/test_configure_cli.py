@@ -152,3 +152,26 @@ def test_ctrl_c_during_setup_exits_cleanly(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result.exit_code == 0
     assert "Cancelled." in result.output
+
+
+@pytest.mark.parametrize("first_ok, checked", [(True, ["first"]), (False, ["first", "second"])])
+async def test_require_usable_ai_checks_the_default_first(
+    monkeypatch: pytest.MonkeyPatch, first_ok: bool, checked: List[str]
+) -> None:
+    from ai_marketplace_monitor.configure.ai_setup import AISection, ProbeResult
+
+    sections = [AISection("first", {}, []), AISection("second", {}, [])]
+    monkeypatch.setattr(flow, "load_ai_sections", lambda files: sections)
+    seen: List[str] = []
+
+    async def probe(batch: List[AISection]) -> List[ProbeResult]:
+        seen.extend(s.name for s in batch)
+        ok = first_ok or batch[0].name == "second"
+        return [ProbeResult(ok, "request", "m", "" if ok else "broken")]
+
+    monkeypatch.setattr(flow, "probe_sections", probe)
+    ui = ScriptedSetupUI([])
+    assert await flow.require_usable_ai(ui, []) is True
+    assert seen == checked
+    fallback = any("Your default AI [ai.first] does not work" in m for m in ui.said("warning"))
+    assert fallback is not first_ok

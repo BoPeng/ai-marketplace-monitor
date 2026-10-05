@@ -44,7 +44,7 @@ def validate_section_address(section: str) -> None:
 
 
 async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
-    """Return true when at least one enabled AI section can answer a test request."""
+    """Return true when an enabled AI section works, checking them in order (first = default)."""
     try:
         sections = [section for section in load_ai_sections(config_files) if section.enabled]
     except ConfigReadError as e:
@@ -57,10 +57,17 @@ async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
         )
         return False
 
-    await ui.say(f"Checking {len(sections)} AI service(s)...")
-    results = await probe_sections(sections)
-    for section, result in zip(sections, results):
+    # aimm uses the first AI section; check the others only if it does not work
+    for index, section in enumerate(sections):
+        await ui.say(f"Checking [ai.{section.name}]...")
+        [result] = await probe_sections([section])
         if result.ok:
+            if index:
+                await ui.say(
+                    f"Your default AI [ai.{sections[0].name}] does not work; using "
+                    f"[ai.{section.name}]. Run `aimm-configure ai` to fix it.",
+                    kind="warning",
+                )
             await ui.say(f"Using [ai.{section.name}] ({result.model}).", kind="success")
             return True
         await ui.say(f"[ai.{section.name}] - {result.message}", kind="warning")

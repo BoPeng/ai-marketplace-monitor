@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import os
 import re
 import threading
@@ -12,7 +13,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Type, TypeVar
 
-from ..ai import AIBackend, AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
+from ..ai import (
+    AIBackend,
+    AIConfig,
+    AnthropicBackend,
+    UnitySVCBackend,
+)
 from ..config import supported_ai_backends
 from ..utils import amm_home, merge_dicts
 from .ui import Choice, SetupClosedError, SetupUI
@@ -20,9 +26,12 @@ from .writer import (
     CommitOutcome,
     ConfigReadError,
     SectionWrite,
+    backup_file,
     commit_section,
     read_toml,
+    remove_section,
     render_section,
+    write_section,
 )
 
 _PLACEHOLDER = re.compile(r"^\$\{(\w+)\}$")
@@ -31,7 +40,7 @@ _TYPED_KEY = re.compile(r"^(svcpass_|sk-ant-|sk-)\S{8,}")
 _MARKUP = re.compile(r"\[/?[a-z ]+\]")
 _PING = [{"role": "user", "content": "ping"}]
 
-UNITYSVC_TIERS = ["fast", "balanced", "coding", "premium"]
+UNITYSVC_URL = UnitySVCBackend.base_url
 OLLAMA_URL = "http://localhost:11434/v1"
 SHARED_AI_KEYS = {"max_retries", "timeout"}
 
@@ -66,6 +75,7 @@ class ProbeResult:
     model: str
     message: str
     available: List[str] = field(default_factory=list)
+    suggested_base_url: str | None = None  # a base URL that works when the configured one 404s
 
 
 @dataclass(frozen=True)
@@ -82,6 +92,8 @@ class AISetupContext:
     files: List[Path]
     default_file: Path
     backup_dir: Path
+    # results of checking the existing sections, by section name
+    probes: Dict[str, ProbeResult] = field(default_factory=dict)
 
 
 @dataclass
@@ -90,9 +102,12 @@ class AISectionProposal:
     values: Dict[str, Any]
     request: str | None
     target_file: Path
+    first: bool = False  # write as the first [ai.*] section, i.e. the default AI
 
     def to_write(self: "AISectionProposal") -> SectionWrite:
-        return SectionWrite("ai", self.name, self.values, self.request, self.target_file)
+        return SectionWrite(
+            "ai", self.name, self.values, self.request, self.target_file, first=self.first
+        )
 
 
 PROVIDERS = [
@@ -276,8 +291,30 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
         return ProbeResult(False, "request", model, f"Can't reach {_base_url(backend)}", available)
     except Exception as e:
         message = f"{section.name} request failed: {scrub(str(e), secret)[:200]}"
-        return ProbeResult(False, "request", model, message, available)
+        alternative = _v1_alternative(section.config, backend_class, model, timeout, e)
+        if alternative:
+            message = (
+                f"{section.name}: requests to {_base_url(backend)} are not found (404), "
+                f"but {alternative} works; use it as base_url"
+            )
+        return ProbeResult(False, "request", model, message, available, alternative)
     return ProbeResult(True, "request", model, f"{section.name} - {model}", available)
+
+
+def _v1_alternative(
+    config: AIConfig, backend_class: Any, model: str, timeout: float, error: Exception
+) -> str | None:
+    """``<base_url>/v1`` when the configured base URL returns 404 and that one works."""
+    url = str(getattr(config, "base_url", None) or "").rstrip("/")
+    if getattr(error, "status_code", None) != 404 or not url or url.endswith("/v1"):
+        return None
+    alternative = f"{url}/v1"
+    try:
+        backend = backend_class(config=dataclasses.replace(config, base_url=alternative))
+        _ping(backend, _probe_client(backend, timeout), model)
+    except Exception:
+        return None
+    return alternative
 
 
 async def configure_ai(
@@ -296,11 +333,26 @@ async def configure_ai(
         backup_dir=home / "backups",
     )
     try:
-        await _check_existing_ai(ui, ctx)
+        make_first = False
+        if section_name is None:
+            # work on the default (first) AI; the others only when asked
+            while True:
+                action, name = await _default_ai_menu(ui, ctx)
+                if action == "quit":
+                    return 0
+                if action == "default":
+                    if await make_default(ui, ctx, name) is CommitOutcome.FAILED:
+                        return 1
+                    continue  # check and offer the new default
+                section_name, make_first = name, action == "new"
+                break
+        else:
+            await _check_sections(ui, ctx, [section_name])
         while True:
             proposal = await propose_ai_section(ui, ctx, section_name=section_name)
             if proposal is None:
                 return 0
+            proposal.first = proposal.first or make_first
             outcome = await commit_ai_section(ui, proposal, ctx)
             if outcome is CommitOutcome.DECLINED:
                 continue
@@ -377,23 +429,26 @@ async def propose_ai_section(
     if spec.env_var:
         var = env_var_name(old.get("api_key")) or spec.env_var
         values["api_key"] = f"${{{var}}}"
-    if provider == "unitysvc":
-        current = old.get("model")
-        default_tier = current if current in UNITYSVC_TIERS else "balanced"
-        tiers = [Choice(tier, tier) for tier in UNITYSVC_TIERS]
-        values["model"] = await ui.choose("Which UnitySVC tier?", tiers, default_tier)
-    elif provider == "ollama":
-        values["base_url"] = await _ask_safe_text(
-            ui, "Ollama URL", old.get("base_url") or OLLAMA_URL
+    default_url = {"unitysvc": UNITYSVC_URL, "ollama": OLLAMA_URL}.get(provider)
+    if default_url is not None:
+        label = PROVIDER_LABELS[provider]
+        checked = ctx.probes.get(target.name) if target else None
+        suggested = checked.suggested_base_url if checked else None
+        values["base_url"] = await _ask_url(
+            ui, f"{label} base URL", suggested or old.get("base_url") or default_url
         )
-        values["model"] = await _ask_safe_text(
-            ui, "Model", old.get("model") or OllamaBackend.default_model
-        )
-    else:
-        backend = OpenAIBackend if provider == "openai" else AnthropicBackend
-        values["model"] = await _ask_safe_text(
-            ui, "Model", old.get("model") or backend.default_model
-        )
+    backend = supported_ai_backends[provider]
+    # the models the check found for this section, else ask the provider now
+    probe = ctx.probes.get(target.name) if target else None
+    same_url = values.get("base_url", default_url) == (old.get("base_url") or default_url)
+    available = probe.available if probe and same_url else []
+    if not available:
+        available = await fetch_models(provider, values)
+    values["model"] = await _ask_model(
+        ui, old.get("model"), backend.default_model, available  # type: ignore[attr-defined]
+    )
+    if provider == "unitysvc" and values["base_url"] == UNITYSVC_URL:
+        values.pop("base_url")  # the default
 
     # shared settings: the section's own when updating, else from an existing AI section
     template = target or (sections[0] if sections else None)
@@ -403,30 +458,101 @@ async def propose_ai_section(
     if name.lower() == provider:
         values.pop("provider")
     request = f"Use {spec.label} ({values['model']}) to rate marketplace listings."
+    # a new section becomes the default AI: first, in the file holding the current first one
     return AISectionProposal(
         name=name,
         values=values,
         request=request,
-        target_file=target.files[-1] if target else ctx.default_file,
+        target_file=(
+            target.files[-1] if target else sections[0].files[0] if sections else ctx.default_file
+        ),
+        first=target is None,
     )
 
 
-async def _check_existing_ai(ui: SetupUI, ctx: AISetupContext) -> None:
-    sections = load_ai_sections(ctx.files)
-    enabled = [section for section in sections if section.enabled]
-    if not enabled:
+async def _check_sections(ui: SetupUI, ctx: AISetupContext, names: List[str]) -> None:
+    """Check the named sections (when they exist and are enabled) and report the results."""
+    sections = [s for s in load_ai_sections(ctx.files) if s.name in names and s.enabled]
+    if not sections:
         return
-    await ui.say(f"Checking {len(enabled)} AI service(s)...")
-    results = await probe_sections(enabled)
-    by_name = dict(zip([section.name for section in enabled], results))
-    for section in sections:
-        result = by_name.get(section.name)
-        if result is None:
-            await ui.say(f"- {section.name} - disabled")
-        elif result.ok:
+    results = await probe_sections(sections)
+    for section, result in zip(sections, results):
+        ctx.probes[section.name] = result
+        if result.ok:
             await ui.say(f"OK {_label(section, result)}", kind="success")
         else:
             await ui.say(f"{section.name} - {result.message}", kind="warning")
+
+
+async def _default_ai_menu(ui: SetupUI, ctx: AISetupContext) -> Tuple[str, str | None]:
+    """Check the default (first enabled) AI and ask what to do.
+
+    Returns ``(action, name)``: ``quit`` (also for keeping it as is), ``edit`` a section,
+    make another section the ``default``, or set up a ``new`` one.
+    """
+    enabled = [s for s in load_ai_sections(ctx.files) if s.enabled]
+    if not enabled:
+        return "new", None
+    first, others = enabled[0], enabled[1:]
+    await ui.say(f"Checking [ai.{first.name}] (your default AI)...")
+    await _check_sections(ui, ctx, [first.name])
+    ok = ctx.probes[first.name].ok
+    if others:
+        names = ", ".join(s.name for s in others)
+        await ui.say(f"Also configured: {names} (used only if {first.name} fails).")
+    if ok:
+        options = [
+            Choice("keep", f"Keep [ai.{first.name}] as is"),
+            Choice(f"edit:{first.name}", f"Update [ai.{first.name}]"),
+        ]
+    else:
+        options = [
+            Choice(f"edit:{first.name}", f"Fix [ai.{first.name}]", ctx.probes[first.name].message)
+        ]
+    options += [Choice(f"default:{s.name}", f"Make [ai.{s.name}] the default") for s in others]
+    options += [Choice("new", "Create a new AI section"), Choice("quit", "Quit")]
+    choice = await ui.choose("What would you like to do?", options, options[0].value)
+    if choice in ("keep", "quit"):
+        return "quit", None
+    if choice == "new":
+        return "new", None
+    action, _, name = choice.partition(":")
+    return action, name
+
+
+async def make_default(ui: SetupUI, ctx: AISetupContext, name: str | None) -> CommitOutcome:
+    """Move ``[ai.NAME]`` before the other AI sections so that aimm uses it first."""
+    sections = load_ai_sections(ctx.files)
+    section = next(s for s in sections if s.name == name)
+    # the merged order follows first appearance, so the section moves into the file that
+    # holds the current first AI section, and out of any other file
+    target = sections[0].files[0]
+    values = {k: v for k, v in section.raw.items() if k != "request"}
+    write = SectionWrite("ai", section.name, values, section.raw.get("request"), target, True)
+    removals = [path for path in section.files if path != target]
+    order = [section.name, *(s.name for s in sections if s.name != section.name)]
+    await ui.say(f"New order of AI sections: {', '.join(order)}.")
+    if removals:
+        moved = ", ".join(str(p) for p in removals)
+        await ui.say(f"[ai.{section.name}] moves from {moved} into {target}.")
+    if not await ui.confirm(f"Make [ai.{section.name}] the default?"):
+        return CommitOutcome.DECLINED
+    try:
+        for path in dict.fromkeys([target, *removals]):
+            if path.exists():
+                backup_file(path, ctx.backup_dir)
+        write_section(write)
+        for path in removals:
+            remove_section(path, "ai", section.name)
+        first = load_ai_sections(ctx.files)[0].name
+    except (ConfigReadError, OSError, ValueError) as e:
+        await ui.say(f"Could not reorder the AI sections: {e}", kind="error")
+        return CommitOutcome.FAILED
+    if first != section.name:
+        await ui.say(f"[ai.{first}] still comes first; reorder the files by hand.", kind="error")
+        return CommitOutcome.FAILED
+    await ui.say(f"[ai.{section.name}] is now the default AI.", kind="success")
+    return CommitOutcome.WRITTEN
 
 
 async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupContext) -> bool:
@@ -444,6 +570,13 @@ async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupCo
         if result.ok:
             await ui.say(f"{section.name} works ({result.model}).", kind="success")
             return False
+        if result.suggested_base_url:
+            # the same settings work under <base_url>/v1: offer to save that and check again
+            await ui.say(result.message, kind="warning")
+            proposal.values["base_url"] = result.suggested_base_url
+            if await commit_ai_section(ui, proposal, ctx) is CommitOutcome.WRITTEN:
+                return await _after_commit(ui, proposal, ctx)
+            return False
         await ui.say(result.message, kind="error")
         return True
 
@@ -458,6 +591,82 @@ async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupCo
         markdown=True,
     )
     return False
+
+
+def _family(model: str) -> str:
+    """The model name without its version, e.g. ``claude-sonnet`` or ``gpt``."""
+    match = re.match(r"[A-Za-z_.-]*?[A-Za-z](?=[-.:]?\d)", model)
+    return match.group(0) if match else model
+
+
+def pick_model(current: str | None, default: str, available: List[str]) -> str:
+    """The model to propose: current or default when available, else the newest of their family.
+
+    Providers list models newest first, so the first family match is the newest.
+    """
+    for candidate in (current, default):
+        if candidate and model_matches(candidate, available):
+            return next(m for m in available if model_matches(candidate, [m]))
+    for candidate in (current, default):
+        family = _family(candidate) if candidate else ""
+        match = next((m for m in available if family and m.startswith(family)), None)
+        if match:
+            return match
+    return available[0]
+
+
+async def fetch_models(provider: str, values: Dict[str, Any], timeout: float = 10.0) -> List[str]:
+    """The models the provider lists for these settings; empty when they cannot be listed."""
+    models = await _list_models(provider, values, timeout)
+    url = str(values.get("base_url") or "").rstrip("/")
+    if not models and url.endswith("/v1"):
+        # some services list their models without the /v1 their requests need
+        models = await _list_models(provider, {**values, "base_url": url[: -len("/v1")]}, timeout)
+    return models
+
+
+async def _list_models(provider: str, values: Dict[str, Any], timeout: float) -> List[str]:
+    config, _problem = _build_ai_config(provider, values)
+    backend_class = supported_ai_backends.get(provider)
+    if config is None or backend_class is None:
+        return []
+    backend = backend_class(config=config)
+
+    def listing() -> List[str]:
+        return [model.id for model in _probe_client(backend, timeout).models.list()]
+
+    try:
+        return await run_in_daemon_thread(listing)
+    except Exception:
+        return []
+
+
+async def _ask_url(ui: SetupUI, prompt: str, default: str) -> str:
+    while True:
+        url = (await _ask_safe_text(ui, prompt, default)).rstrip("/")
+        if url.startswith(("https://", "http://")):
+            return url
+        await ui.say("The URL must start with https:// or http://.", kind="warning")
+
+
+async def _ask_model(ui: SetupUI, current: str | None, default: str, available: List[str]) -> str:
+    """Ask for a model, choosing from the provider's list when the check found one."""
+    if not available:
+        return await _ask_safe_text(ui, "Model", current or default)
+    if current and not model_matches(current, available):
+        await ui.say(f'Model "{current}" is no longer available.', kind="warning")
+    proposed = pick_model(current, default, available)
+    shown = [proposed, *(m for m in available if m != proposed)][:30]
+    options = [Choice(m, m) for m in shown]
+    while True:
+        choice = await ui.choose("Which model?", options, proposed, allow_text=True)
+        if not _TYPED_KEY.match(choice):
+            return choice
+        await ui.say(
+            "That looks like an API key. Keys never go into aimm; set the key as an "
+            "environment variable instead.",
+            kind="warning",
+        )
 
 
 async def _ask_safe_text(ui: SetupUI, prompt: str, default: str) -> str:

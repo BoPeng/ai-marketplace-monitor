@@ -30,8 +30,15 @@ class SetupUI(Protocol):
     ) -> None: ...
 
     async def choose(
-        self: "SetupUI", prompt: str, options: List[Choice], default: str | None = None
-    ) -> str: ...
+        self: "SetupUI",
+        prompt: str,
+        options: List[Choice],
+        default: str | None = None,
+        *,
+        allow_text: bool = False,
+    ) -> str:
+        """One of the option values; with ``allow_text``, any other answer typed instead."""
+        ...
 
     async def ask_text(self: "SetupUI", prompt: str, default: str | None = None) -> str: ...
 
@@ -59,13 +66,20 @@ class JsonSetupUI:
         await self._send({"type": "message", "kind": kind, "text": text, "markdown": markdown})
 
     async def choose(
-        self: "JsonSetupUI", prompt: str, options: List[Choice], default: str | None = None
+        self: "JsonSetupUI",
+        prompt: str,
+        options: List[Choice],
+        default: str | None = None,
+        *,
+        allow_text: bool = False,
     ) -> str:
         allowed = {option.value for option in options}
 
         def parse(answer: Any) -> str:
             if answer in (None, "") and default is not None:
                 return default
+            if allow_text and isinstance(answer, str) and answer.strip():
+                return answer.strip()
             if not isinstance(answer, str) or answer not in allowed:
                 raise ValueError(f"Choose one of: {', '.join(sorted(allowed))}.")
             return answer
@@ -76,6 +90,7 @@ class JsonSetupUI:
             "prompt": prompt,
             "options": [option.to_json() for option in options],
             "default": default,
+            "allow_text": allow_text,
         }
         return await self._prompt(message, parse)  # type: ignore[no-any-return]
 
@@ -159,8 +174,15 @@ class ConsoleSetupUI:
         self.console.print(text, style=self._styles.get(kind, ""), markup=False, highlight=False)
 
     async def choose(
-        self: "ConsoleSetupUI", prompt: str, options: List[Choice], default: str | None = None
+        self: "ConsoleSetupUI",
+        prompt: str,
+        options: List[Choice],
+        default: str | None = None,
+        *,
+        allow_text: bool = False,
     ) -> str:
+        if allow_text:
+            prompt += " (enter a number, or type a value)"
         self.console.print(prompt, markup=False, highlight=False)
         for index, option in enumerate(options, 1):
             hint = f" - {option.hint}" if option.hint else ""
@@ -174,6 +196,8 @@ class ConsoleSetupUI:
                 return default
             if raw.isdecimal() and 1 <= int(raw) <= len(options):
                 return options[int(raw) - 1].value
+            if allow_text and raw and not raw.isdecimal():
+                return raw
             self.console.print(f"Please enter a number from 1 to {len(options)}.", style="yellow")
 
     async def ask_text(self: "ConsoleSetupUI", prompt: str, default: str | None = None) -> str:
@@ -216,13 +240,18 @@ class ScriptedSetupUI:
         self.messages.append((kind, text))
 
     async def choose(
-        self: "ScriptedSetupUI", prompt: str, options: List[Choice], default: str | None = None
+        self: "ScriptedSetupUI",
+        prompt: str,
+        options: List[Choice],
+        default: str | None = None,
+        *,
+        allow_text: bool = False,
     ) -> str:
         answer = self._answer(prompt)
         if not answer and default is not None:
             return default
         allowed = {option.value for option in options}
-        if answer not in allowed:
+        if answer not in allowed and not allow_text:
             raise AssertionError(f"{answer!r} is not one of {sorted(allowed)}")
         return answer
 

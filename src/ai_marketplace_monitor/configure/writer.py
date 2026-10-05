@@ -45,6 +45,7 @@ class SectionWrite:
     values: Dict[str, Any]
     request: str | None
     target_file: Path
+    first: bool = False  # place the section before the others of its type
 
     @property
     def label(self: "SectionWrite") -> str:
@@ -95,8 +96,31 @@ def write_section(write: SectionWrite) -> None:
     for key, value in write.values.items():
         table[key] = value
     parent[write.name] = table
+    if write.first:
+        _put_first(path, parent, write.name)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+
+
+def _put_first(path: Path, parent: Any, name: str) -> None:
+    """Reorder the tables of a section type so that ``name`` comes first."""
+    try:
+        tables = {key: parent[key] for key in list(parent.keys())}
+        for key in tables:
+            del parent[key]
+        for key in [name, *(k for k in tables if k != name)]:
+            parent[key] = tables[key]
+    except Exception as e:  # e.g. tables of this type scattered through the file
+        raise ConfigReadError(path, f"cannot move [{name}] to the top automatically ({e})") from e
+
+
+def remove_section(path: Path, section_type: str, name: str) -> None:
+    """Delete one section from a file, preserving the rest."""
+    doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+    parent: Any = doc.get(section_type)
+    if parent is not None and name in parent:
+        del parent[name]
+        path.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
 
 def section_conflicts(files: List[Path], write: SectionWrite) -> List[Tuple[Path, List[str]]]:
