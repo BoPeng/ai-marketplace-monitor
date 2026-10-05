@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-10-05
+
 ### Added
 - `aimm-configure`: interactive setup that checks `[ai.*]` sections and writes an AI service configuration with API keys kept in environment variables
 
