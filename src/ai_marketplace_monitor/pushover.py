@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import ClassVar, List
 
-from .notification import PushNotificationConfig
+from .notification import CHANNEL, RECIPIENT, PushNotificationConfig, notification_field
 from .utils import hilight
 
 
@@ -14,8 +14,8 @@ class PushoverNotificationConfig(PushNotificationConfig):
     notify_method = "pushover"
     required_fields: ClassVar[List[str]] = ["pushover_user_key", "pushover_api_token"]
 
-    pushover_user_key: str | None = None
-    pushover_api_token: str | None = None
+    pushover_user_key: str | None = notification_field(RECIPIENT)
+    pushover_api_token: str | None = notification_field(CHANNEL)
 
     def handle_pushover_user_key(self: "PushoverNotificationConfig") -> None:
         if self.pushover_user_key is None:

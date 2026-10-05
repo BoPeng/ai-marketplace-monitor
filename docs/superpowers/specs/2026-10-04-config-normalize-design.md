@@ -159,6 +159,20 @@ Contract:
    `facebook.py`, `monitor.py`, and `ai.py` are switched to the helper. The plan must
    enumerate every call site; the list above is indicative.
 
+3. **Field facts live on the fields** (dataclass metadata), not in separate tables:
+   - common options are declared with `option(rule, item_only_in=..., location=...)`
+     (`marketplace.py`), and `option_fallbacks(cls)`, `site_fallbacks(cls)`,
+     `location_keys(cls)` read them; `resolve_option` takes the rules from the item's
+     own class;
+   - notification fields are declared with `notification_field(role)` where role is
+     `recipient`, `channel` or `common` (`notification.py`), read by
+     `fields_with_role(cls, role)`.
+
+   A new option or notification field therefore declares its normalization behavior
+   where it is defined, and tests fail if one is declared without a rule/role. Secret
+   detection stays name-based (`is_sensitive_key`), because the web UI redacts raw TOML
+   keys that may not belong to any config class.
+
 ### Expanded form: rules
 
 `request` always stays in the section where it was written.
@@ -234,19 +248,28 @@ section in `notify_with` order (all notification sections when unset):
    notification section (e.g. a shared group `telegram_chat_id`).
 3. **One channel section per type** that has at least one type-specific channel field
    with `P[f]` present, containing those fields.
-4. **Common fields:** in each channel section, write a common field when `P[f]` is present
-   or `E[f]` differs from the default of the class that section loads as; otherwise omit
-   it (the default re-applies). Thus every section applies exactly `E[f]` and the result
-   does not depend on section order. A shadowed inline value (e.g. `max_retries = 3`
-   overridden by a section default) is dropped with a `remove` change. If the user ends
-   up with **no** channel sections, common fields with `P[f]` present stay in the user.
+4. **Common fields:** in each channel section, write a common field only when the value
+   the section would load to differs from `E[f]`; "default" means the value the section
+   actually loads with (a real load, not the dataclass default, since `handle_*` hooks
+   can set values, e.g. `message_format` becomes `"plain_text"`). Explicit values equal
+   to that loaded value are dropped (no runtime effect; disk always holds normalized
+   output). Raw values that loading always overrides (e.g. an inline user
+   `message_format = "markdown"`, which a `UserConfig` load forces to `"plain_text"`) count
+   as not set. If a section's loaded class **cannot hold** `E[f]` (its hook forces another
+   value), `f` is not written there and the section is a **forcing** section (see step 6).
+   Every non-forcing section then applies exactly `E[f]`. A shadowed inline value (e.g.
+   `max_retries = 3` overridden by a section default) is dropped and reported as a
+   removed key in the change list. If the user ends up with **no** channel sections,
+   common fields with `P[f]` present stay in the user.
 5. **Sharing and naming:** users whose sections for a type have identical content share
    one section. Name, in order of preference: the existing section that supplied the
    winning type-specific fields (if not already claimed by a different content); else the
    type name (`email`, `telegram`, `pushbullet`, `pushover`, `ntfy`) if free; else
    `<type>_<first user>`.
-6. **`notify_with`** is set to exactly the user's channel sections, in the fixed type order
-   email, pushbullet, pushover, ntfy, telegram; `[]` if none (`[]` means none, unset
+6. **`notify_with`** is set to exactly the user's channel sections: forcing sections first,
+   then the rest, each group in the fixed type order email, pushbullet, pushover, ntfy,
+   telegram (so a section that forces e.g. `message_format = "plain_text"` is merged before
+   the section that carries the user's real value); `[]` if none (`[]` means none, unset
    means all).
 7. **Leftovers:** existing notification sections not claimed in step 5, and disabled ones,
    are kept unchanged. Normalize never deletes user-authored sections.
@@ -271,6 +294,9 @@ monitor only pair an item with that marketplace).
   keys is copied to it. Otherwise each is copied independently by the rule above. If the
   copied result fails to load (e.g. a marketplace `radius` list whose length does not
   match the item's own `search_city`), `NormalizeError` names the item and key.
+  Likewise, an item with its own `search_city` that would inherit `radius` / `currency`
+  from a marketplace's `search_region` raises `NormalizeError` naming the item (set them
+  on the item or give it its own `search_region`).
 - **Explicit defaults:** after push-down, an item with no `notify` gets the list of all
   users; an item with no `ai` gets the list of all `[ai.*]` sections. If no AI sections
   exist, `ai` is omitted. `ai = []` is kept (it means "no AI").
@@ -284,7 +310,8 @@ monitor only pair an item with that marketplace).
   it as a `set` change with a detail saying so.
 
 A consequence of explicit `notify`: users added **later** are not notified automatically;
-`interpret` / chat add them where intended.
+`interpret` / chat add them where intended. This holds in normalized (on-disk) files too,
+so a future CLI should warn when it adds explicit lists.
 
 #### Everything else
 
@@ -351,8 +378,10 @@ entry point is `normalize()`.
    a common option to the **same raw value**, set that value on the marketplace and remove
    it from the items. Values that differ stay on the items; there are no partial
    ("most common value") hoists.
-   - Because an item loses only a value equal to the hoisted one, fallback under both the
-     *truthy* and *not-None* rules yields the same value.
+   - Because an item loses only a value equal to the hoisted one, fallback yields the same
+     value under the *not-None* rule, and under the *truthy* rule **only for truthy
+     values**: a shared falsy value (e.g. `rating = []`) of a truthy-rule option is never
+     hoisted, since `[] or None` (item keeps it) and `None or []` (hoisted) differ.
    - **Never hoist an option that has an item-only use site** in `resolve_option`
      (currently `min_price` / `max_price`, read only from the item by the AI prompt).
    - Items are grouped by bound marketplace (explicit key, else the first marketplace).

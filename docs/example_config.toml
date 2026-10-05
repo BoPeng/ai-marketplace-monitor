@@ -61,6 +61,6 @@ description = "it should be from manufacture, the seller should not offer shippi
 keywords = ['search word']
 antikeywords = ['exclude word one', 'exclude word two']
 notify = 'user2'
-search_city = 'another city'
+search_city = 'anothercity'
 seller_locations = ['another city', 'surrounding city']
 exclude_sellers = []

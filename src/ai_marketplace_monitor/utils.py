@@ -283,6 +283,8 @@ def hash_dict(obj: Dict[str, Any]) -> str:
 class BaseConfig:
     name: str
     enabled: bool | None = None
+    # free-text intent for this section; never used at runtime, never env-expanded
+    request: str | None = None
 
     def __post_init__(self: "BaseConfig") -> None:
         """Handle all methods that start with 'handle_' in the dataclass."""
@@ -290,10 +292,11 @@ class BaseConfig:
             # test the type of field f, if it is a string or a list of string
             # try to expand the string with environment variables
             fvalue = getattr(self, f.name)
-            if isinstance(fvalue, str):
-                setattr(self, f.name, self._value_from_environ(fvalue))
-            elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
-                setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
+            if f.name != "request":
+                if isinstance(fvalue, str):
+                    setattr(self, f.name, self._value_from_environ(fvalue))
+                elif isinstance(fvalue, list) and all(isinstance(x, str) for x in fvalue):
+                    setattr(self, f.name, [self._value_from_environ(x) for x in fvalue])
 
             handle_method = getattr(self, f"handle_{f.name}", None)
             if handle_method:
@@ -324,9 +327,18 @@ class BaseConfig:
         if not isinstance(self.enabled, bool):
             raise ValueError(f"Item {hilight(self.name)} enabled must be a boolean.")
 
+    def handle_request(self: "BaseConfig") -> None:
+        if self.request is None:
+            return
+        if not isinstance(self.request, str):
+            raise ValueError(f"Section {hilight(self.name)} request must be a string.")
+
     @property
     def hash(self: "BaseConfig") -> str:
-        return hash_dict(asdict(self))
+        # editing `request` must not invalidate cached AI results
+        values = asdict(self)
+        values.pop("request", None)
+        return hash_dict(values)
 
 
 @dataclass
@@ -610,8 +622,11 @@ def extract_price(price: str) -> str:
 
 def convert_to_seconds(time_str: str) -> int:
     cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
-    time_struct, _ = cal.parse(time_str)
-    return int(time.mktime(time_struct) - time.mktime(time.localtime()))
+    # parse and subtract against the same "now"; reading the clock twice made
+    # "1d" come out as 86399 whenever a second ticked in between
+    now = time.localtime()
+    time_struct, _ = cal.parse(time_str, sourceTime=now)
+    return int(time.mktime(time_struct) - time.mktime(now))
 
 
 def hilight(text: str, style: str = "name") -> str:
@@ -724,7 +739,7 @@ class Translator:
 
 
 # keys of a [translation.*] section that are settings, not words to translate
-TRANSLATION_FIELDS: Tuple[str, ...] = ("enabled", "locale")
+TRANSLATION_FIELDS: Tuple[str, ...] = ("request", "enabled", "locale")
 
 
 @dataclass
@@ -741,3 +756,17 @@ class TranslationConfig(BaseConfig):
             raise ValueError(
                 f"Translation section {hilight(self.name)} translations must be strings."
             )
+
+
+# Key names treated as sensitive. Case-insensitive substring match,
+# applied to the TOML key (e.g. ``pushbullet_token`` matches ``token``).
+_SENSITIVE_SUBSTRINGS = ("password", "token", "api_key", "secret")
+# Exact-match keys that don't contain one of the substrings above but
+# are still sensitive (identifiers that reveal the user's identity).
+_SENSITIVE_EXACT = {"username", "api_secret"}
+
+
+def is_sensitive_key(key: str) -> bool:
+    """Whether a config key holds a secret that must never be displayed."""
+    k = key.lower()
+    return k in _SENSITIVE_EXACT or any(s in k for s in _SENSITIVE_SUBSTRINGS)
