@@ -2,32 +2,33 @@
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 import rich
 import typer
 
-from .ai_setup import ConsoleSetupUI, configure_ai, resolve_setup_config_files
+from .ai_setup import ConsoleSetupUI, resolve_setup_config_files
+from .configure import (
+    ConfigureAddressError,
+    configure_front_door,
+    configure_section,
+    validate_section_address,
+)
 
 app = typer.Typer()
-
-
-def _ai_section_name(section: str) -> str | None:
-    if section == "ai":
-        return None
-    if section.startswith("ai."):
-        name = section.split(".", 1)[1]
-        if name:
-            return name
-    raise typer.BadParameter("Only 'ai' and 'ai.<name>' are supported for now.")
 
 
 @app.command()
 def main(
     section: Annotated[
-        str,
-        typer.Argument(help="Section to configure. Currently supports only 'ai' or 'ai.<name>'."),
-    ] = "ai",
+        Optional[str],
+        typer.Argument(
+            help=(
+                "Optional section to configure. Currently supports 'ai', "
+                "'ai.<name>', 'item', or 'item.<name>'."
+            )
+        ),
+    ] = None,
     config_files: Annotated[
         List[Path] | None,
         typer.Option(
@@ -40,13 +41,19 @@ def main(
 ) -> None:
     """Interactively add or update supported config sections."""
     try:
-        section_name = _ai_section_name(section)
+        if section is not None:
+            validate_section_address(section)
         ui = ConsoleSetupUI()
         files = resolve_setup_config_files(config_files)
-    except (RuntimeError, FileNotFoundError, typer.BadParameter) as e:
+        exit_code = (
+            asyncio.run(configure_front_door(ui, files))
+            if section is None
+            else asyncio.run(configure_section(ui, files, section))
+        )
+    except (RuntimeError, FileNotFoundError, ConfigureAddressError) as e:
         rich.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
-    raise typer.Exit(asyncio.run(configure_ai(ui, files, section_name=section_name)))
+    raise typer.Exit(exit_code)
 
 
 if __name__ == "__main__":

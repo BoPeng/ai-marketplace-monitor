@@ -82,13 +82,15 @@ pip install 'ai-marketplace-monitor[pynput]'
 
 You can disable this feature by define environment variable `DISABLE_PYNPUT=true` if `pynput` is already installed.
 
-Interactive AI setup
---------------------
+Interactive configuration
+-------------------------
 
-Run ``aimm-configure`` to check existing ``[ai.*]`` sections and add or update an AI
-service. The setup offers UnitySVC (recommended: one key covers AI and email
-notifications), OpenAI, Anthropic, or Ollama. ``aimm-configure ai`` is the explicit
-form; use ``aimm-configure ai.NAME`` to add or update a named AI section.
+Run ``aimm-configure`` as the primary interactive configuration command. With no
+section argument, it starts by checking existing ``[ai.*]`` sections and helping you
+add or update an AI service, then asks what to configure next. ``aimm-configure ai``
+is the explicit AI form; use ``aimm-configure ai.NAME`` to add or update a named AI
+section. The AI setup offers UnitySVC (recommended: one key covers AI and email
+notifications), OpenAI, Anthropic, or Ollama.
 
 For hosted providers, the command writes the API key as an environment-variable
 reference such as ``${UNITYSVC_API_KEY}``; the key itself is never written to the config
@@ -97,7 +99,8 @@ backup in ``~/.ai-marketplace-monitor/backups/``.
 
 Use ``--config`` or ``--config-file`` to read and update a specific config file.
 Future configuration helpers can follow the same section-address pattern, such as
-``item`` for a new item or ``item.gopro`` for an existing named item.
+``item`` for a new item or ``item.gopro`` for an existing named item. AI-assisted
+section helpers such as ``item`` require a configured and usable AI service.
 
 The command is a terminal front end over a reusable async setup flow. Web UI code can
 drive the same flow through JSON prompt/answer messages over a websocket instead of

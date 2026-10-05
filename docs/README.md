@@ -89,7 +89,7 @@ A typical section for UnitySVC looks like the following, with the key kept in th
 api_key = '${UNITYSVC_API_KEY}'
 ```
 
-The easiest way to set up an AI service is `aimm-configure`: it checks your `[ai.*]` sections, helps you add or update one, and writes the section with the key referenced as an environment variable.
+The easiest way to set up an AI service is `aimm-configure`: it is the primary interactive configuration command, checks your `[ai.*]` sections first, helps you add or update one, and writes the section with the key referenced as an environment variable.
 
 ### Marketplaces
 
