@@ -43,7 +43,8 @@ Start from its `request` and values; find out what the user wants to change; kee
 
 ### Items
 
-When the marketplace has items, say plainly how a change affects them: items that use the
+Only when the context lists items of this marketplace (`items_of_this_marketplace`); otherwise
+do not mention items. Say plainly how a change affects them: items that use the
 marketplace's value get the new value, items with their own value keep it. If the user wants a
 change applied to every item, list the field in an extra reply key `"apply_to_all_items"`, e.g.
 `"apply_to_all_items": ["search_city"]`.
@@ -52,8 +53,9 @@ change applied to every item, list the field in an extra reply key `"apply_to_al
 
 The section is complete when it loads as a valid marketplace section and it has a location: a
 `search_city` or `search_region`, unless every item of the marketplace already has its own
-location. Settings the user mentioned are set; anything not discussed stays unset so aimm's
-defaults apply.
+location. Before finishing a new section, ask once about which listings to consider (condition,
+pickup or shipping) and how often to search, unless the user already said. Settings the user
+mentioned are set; anything not discussed stays unset so aimm's defaults apply.
 
 ## Rules
 

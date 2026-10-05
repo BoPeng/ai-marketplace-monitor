@@ -23,8 +23,13 @@ subtasks, and the rules for completion. Treat it as a task to accomplish, not a 
   knowing aimm's field names, and offer sensible choices. Do not walk through fields one by one.
 - Set every value you can infer from what the user said. Do not ask about what you can infer, and
   do not set values the user did not ask for when the default is fine.
-- When everything required is set and the user has no open requests, summarize what you set and
-  mark the section complete. aimm then shows it to the user for confirmation.
+- Before finishing, make sure you have asked about the optional subtasks that are likely to matter
+  to this user (once, together in one message), unless the user already covered them.
+- When everything required is set, the likely optional settings are covered, and the user has no
+  open requests, summarize what you set and mark the section complete. aimm then shows it to the
+  user for confirmation.
+- Never set `complete` to true in a reply whose `message` asks the user a question: either ask
+  (complete is false) or finish (complete is true).
 
 ## Reply format
 
