@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `aimm` and `aimm-configure` start much faster: the OpenAI, Anthropic, inflect and Playwright packages are loaded only when needed (a cold `aimm-configure` start drops from about 13 s to under 2 s)
+- `aimm-configure ai` no longer proposes a model the provider does not offer: it lists the models the check found (keeping the current one when it still works, else the newest of the same family), warns about a model that is no longer available, and offers to fix a failing `[ai.*]` section before setting up a new one
+- The default Anthropic model is now `claude-sonnet-5-5` (`claude-sonnet-4-20250514` is no longer offered)
 
 ## [0.10.3] - 2026-10-05
 

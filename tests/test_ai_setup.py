@@ -601,3 +601,101 @@ async def test_commit_earlier_file_with_other_value_is_not_a_conflict(tmp_path: 
     outcome = await commit_ai_section(ScriptedSetupUI(["yes"]), proposal(later), ctx)
 
     assert outcome is CommitOutcome.WRITTEN  # later.toml is read last, so it wins
+
+
+ANTHROPIC_MODELS = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-4-6", "claude-opus-4-6"]
+STALE_ANTHROPIC = """\
+[ai.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
+model = "claude-sonnet-4-20250514"
+"""
+
+
+@pytest.mark.parametrize(
+    "current, default, available, expected",
+    [
+        ("claude-opus-5-5", "claude-sonnet-5-5", ANTHROPIC_MODELS, "claude-opus-5-5"),
+        (None, "claude-sonnet-5-5", ANTHROPIC_MODELS, "claude-sonnet-5-5"),
+        ("claude-sonnet-4-20250514", "claude-x", ANTHROPIC_MODELS, "claude-sonnet-5-5"),
+        ("claude-opus-4-1", "claude-x", ANTHROPIC_MODELS, "claude-opus-5-5"),
+        (None, "gpt-4o", ["o3", "gpt-5", "gpt-4.1"], "gpt-5"),
+        (None, "llama3", ["qwen3:8b"], "qwen3:8b"),
+        ("deepseek-r1:14b", "x", ["llama3:latest", "deepseek-r1:7b"], "deepseek-r1:7b"),
+    ],
+)
+def test_pick_model(
+    current: str | None, default: str, available: List[str], expected: str
+) -> None:
+    assert ai_setup.pick_model(current, default, available) == expected
+
+
+def stale_probe(monkeypatch: pytest.MonkeyPatch) -> List[str]:
+    """First check fails with a model list; the check after writing succeeds."""
+    calls: List[str] = []
+
+    def probe(section: AISection) -> ProbeResult:
+        calls.append(str(section.raw.get("model")))
+        if len(calls) == 1:
+            return ProbeResult(
+                False, "models", calls[0], f'Model "{calls[0]}" is not available', ANTHROPIC_MODELS
+            )
+        return ProbeResult(True, "request", calls[-1], "ok", ANTHROPIC_MODELS)
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr(ai_setup, "probe_ai_section", probe)
+    return calls
+
+
+async def test_configure_ai_offers_to_fix_a_broken_section_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = stale_probe(monkeypatch)
+    config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
+    ui = ScriptedSetupUI(["", "", "yes"])
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+
+    assert ui.questions[:2] == ["What would you like to do?", "Which model?"]
+    assert 'Model "claude-sonnet-4-20250514" is no longer available.' in ui.said("warning")
+    assert 'model = "claude-sonnet-5-5"' in config.read_text()
+    assert calls == ["claude-sonnet-4-20250514", "claude-sonnet-5-5"]
+
+
+async def test_model_menu_other_accepts_a_typed_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale_probe(monkeypatch)
+    config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
+    ui = ScriptedSetupUI(["anthropic", "__other__", "claude-sonnet-4-6", "yes"])
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert 'model = "claude-sonnet-4-6"' in config.read_text()
+
+
+async def test_broken_section_menu_can_set_up_another_ai(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale_probe(monkeypatch)
+    monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
+    config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
+    ui = ScriptedSetupUI(["__other__", "unitysvc", "balanced", "yes"])
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert ui.questions[:2] == ["What would you like to do?", "Which AI do you want to configure?"]
+    assert "[ai.unitysvc]" in config.read_text()
+
+
+async def test_broken_section_menu_quit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    stale_probe(monkeypatch)
+    config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
+    assert await configure_ai(ScriptedSetupUI(["quit"]), [config], home=tmp_path / "h") == 0
+    assert config.read_text() == STALE_ANTHROPIC
+
+
+async def test_model_is_free_text_without_a_model_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    ui = ScriptedSetupUI(["anthropic", "", "no", "quit"])
+    await configure_ai(ui, [], home=tmp_path / "home")
+    assert ui.questions[1] == "Model"

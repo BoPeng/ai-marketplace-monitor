@@ -420,7 +420,7 @@ class UnitySVCBackend(OpenAIBackend):
 
 
 class AnthropicBackend(AIBackend):
-    default_model = "claude-sonnet-4-20250514"
+    default_model = "claude-sonnet-5-5"
 
     @classmethod
     def get_config(cls: Type["AnthropicBackend"], **kwargs: Any) -> AnthropicConfig:

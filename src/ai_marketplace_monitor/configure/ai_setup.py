@@ -82,6 +82,8 @@ class AISetupContext:
     files: List[Path]
     default_file: Path
     backup_dir: Path
+    # results of checking the existing sections, by section name
+    probes: Dict[str, ProbeResult] = field(default_factory=dict)
 
 
 @dataclass
@@ -297,6 +299,12 @@ async def configure_ai(
     )
     try:
         await _check_existing_ai(ui, ctx)
+        if section_name is None:
+            # a section that stopped working comes first: offer to fix it
+            choice = await _choose_broken_section(ui, ctx)
+            if choice == "quit":
+                return 0
+            section_name = choice
         while True:
             proposal = await propose_ai_section(ui, ctx, section_name=section_name)
             if proposal is None:
@@ -382,17 +390,17 @@ async def propose_ai_section(
         default_tier = current if current in UNITYSVC_TIERS else "balanced"
         tiers = [Choice(tier, tier) for tier in UNITYSVC_TIERS]
         values["model"] = await ui.choose("Which UnitySVC tier?", tiers, default_tier)
-    elif provider == "ollama":
-        values["base_url"] = await _ask_safe_text(
-            ui, "Ollama URL", old.get("base_url") or OLLAMA_URL
-        )
-        values["model"] = await _ask_safe_text(
-            ui, "Model", old.get("model") or OllamaBackend.default_model
-        )
     else:
-        backend = OpenAIBackend if provider == "openai" else AnthropicBackend
-        values["model"] = await _ask_safe_text(
-            ui, "Model", old.get("model") or backend.default_model
+        if provider == "ollama":
+            values["base_url"] = await _ask_safe_text(
+                ui, "Ollama URL", old.get("base_url") or OLLAMA_URL
+            )
+        backend = {"ollama": OllamaBackend, "openai": OpenAIBackend}.get(
+            provider, AnthropicBackend
+        )
+        probe = ctx.probes.get(target.name) if target else None
+        values["model"] = await _ask_model(
+            ui, old.get("model"), backend.default_model, probe.available if probe else []
         )
 
     # shared settings: the section's own when updating, else from an existing AI section
@@ -419,6 +427,7 @@ async def _check_existing_ai(ui: SetupUI, ctx: AISetupContext) -> None:
     await ui.say(f"Checking {len(enabled)} AI service(s)...")
     results = await probe_sections(enabled)
     by_name = dict(zip([section.name for section in enabled], results))
+    ctx.probes.update(by_name)
     for section in sections:
         result = by_name.get(section.name)
         if result is None:
@@ -427,6 +436,17 @@ async def _check_existing_ai(ui: SetupUI, ctx: AISetupContext) -> None:
             await ui.say(f"OK {_label(section, result)}", kind="success")
         else:
             await ui.say(f"{section.name} - {result.message}", kind="warning")
+
+
+async def _choose_broken_section(ui: SetupUI, ctx: AISetupContext) -> str | None:
+    """Offer to fix sections that failed the check; None means set up an AI as usual."""
+    broken = [name for name, result in ctx.probes.items() if not result.ok]
+    if not broken:
+        return None
+    options = [Choice(name, f"Fix [ai.{name}]", ctx.probes[name].message) for name in broken]
+    options += [Choice("__other__", "Set up another AI service"), Choice("quit", "Quit")]
+    choice = await ui.choose("What would you like to do?", options, broken[0])
+    return None if choice == "__other__" else choice
 
 
 async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupContext) -> bool:
@@ -458,6 +478,43 @@ async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupCo
         markdown=True,
     )
     return False
+
+
+def _family(model: str) -> str:
+    """The model name without its version, e.g. ``claude-sonnet`` or ``gpt``."""
+    match = re.match(r"[A-Za-z_.-]*?[A-Za-z](?=[-.:]?\d)", model)
+    return match.group(0) if match else model
+
+
+def pick_model(current: str | None, default: str, available: List[str]) -> str:
+    """The model to propose: current or default when available, else the newest of their family.
+
+    Providers list models newest first, so the first family match is the newest.
+    """
+    for candidate in (current, default):
+        if candidate and model_matches(candidate, available):
+            return next(m for m in available if model_matches(candidate, [m]))
+    for candidate in (current, default):
+        family = _family(candidate) if candidate else ""
+        match = next((m for m in available if family and m.startswith(family)), None)
+        if match:
+            return match
+    return available[0]
+
+
+async def _ask_model(ui: SetupUI, current: str | None, default: str, available: List[str]) -> str:
+    """Ask for a model, choosing from the provider's list when the check found one."""
+    if not available:
+        return await _ask_safe_text(ui, "Model", current or default)
+    if current and not model_matches(current, available):
+        await ui.say(f'Model "{current}" is no longer available.', kind="warning")
+    proposed = pick_model(current, default, available)
+    shown = [proposed, *(m for m in available if m != proposed)][:10]
+    options = [Choice(m, m) for m in shown] + [Choice("__other__", "Other...")]
+    choice = await ui.choose("Which model?", options, proposed)
+    if choice != "__other__":
+        return choice
+    return await _ask_safe_text(ui, "Model", proposed)
 
 
 async def _ask_safe_text(ui: SetupUI, prompt: str, default: str) -> str:
