@@ -6,8 +6,12 @@ from pathlib import Path
 from typing import List
 
 from ..ai import AIBackend
-from ..config import supported_ai_backends
+from ..config import load_config_dicts, supported_ai_backends
+from ..normalize import NormalizeError, expand, normalize
+from ..utils import amm_home
 from .ai_setup import AISection, configure_ai, load_ai_sections, probe_sections
+from .playbooks import PlaybookError, load_playbooks
+from .sections import BuilderContext, builders
 from .ui import Choice, SetupClosedError, SetupUI
 from .writer import ConfigReadError
 
@@ -32,17 +36,29 @@ def ai_section_name(section: str) -> str | None:
     raise ConfigureAddressError("Only 'ai' and 'ai.<name>' are supported for now.")
 
 
+_SUPPORTED = "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', and 'item.<name>'"
+
+
+def section_name(section: str) -> str | None:
+    """The ``<name>`` of ``<type>.<name>``, or ``None`` for a bare section type."""
+    if "." not in section:
+        return None
+    name = section.split(".", 1)[1]
+    if not name:
+        raise ConfigureAddressError(f"Only {_SUPPORTED} are supported for now.")
+    return name
+
+
 def validate_section_address(section: str) -> None:
     """Validate a section address that the dispatcher knows how to route."""
     family = section_family(section)
     if family == "ai":
         ai_section_name(section)
         return
-    if family == "item" and section not in ("item.",):
+    if family in ("marketplace", "item"):
+        section_name(section)
         return
-    raise ConfigureAddressError(
-        "Only 'ai', 'ai.<name>', 'item', and 'item.<name>' are supported for now."
-    )
+    raise ConfigureAddressError(f"Only {_SUPPORTED} are supported for now.")
 
 
 async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
@@ -110,6 +126,8 @@ async def configure_section(
             section_name=ai_section_name(section),
             home=home,
         )
+    if family in builders():
+        return await build_section(ui, config_files, family, section_name(section), home=home)
     if not await require_usable_ai(ui, config_files):
         return 1
     await ui.say(
@@ -118,6 +136,43 @@ async def configure_section(
         markdown=True,
     )
     return 1
+
+
+async def build_section(
+    ui: SetupUI,
+    config_files: List[Path],
+    section_type: str,
+    name: str | None,
+    *,
+    home: Path | None = None,
+) -> int:
+    """Create or update a section with its AI-led builder."""
+    ai = await find_usable_ai(ui, config_files)
+    if ai is None:
+        return 1
+    home = home or amm_home
+    builder = builders()[section_type]
+    warnings: List[str] = []
+    try:
+        system, user = load_config_dicts(config_files)
+        ctx = BuilderContext(
+            files=list(config_files),
+            system_cfg=system,
+            user_cfg=user,
+            expanded=expand(user, system, partial=True).config,
+            normalized=normalize(user, system, partial=True).config,
+            backup_dir=home / "backups",
+            playbooks=load_playbooks(
+                ["AGENT", builder.playbook], home / "playbooks", warn=warnings.append
+            ),
+            ai=ai,
+        )
+    except (ValueError, OSError, NormalizeError, PlaybookError) as e:
+        await ui.say(f"Cannot read the configuration: {e}", kind="error")
+        return 1
+    for warning in warnings:
+        await ui.say(warning, kind="warning")
+    return await builder.converse(ui, ctx, name)
 
 
 async def configure_front_door(
@@ -137,6 +192,11 @@ async def configure_front_door(
                 "What would you like to configure next?",
                 [
                     Choice("ai", "AI services", "add or update [ai.*] sections"),
+                    Choice(
+                        "marketplace",
+                        "Marketplace",
+                        "where and how to search Facebook Marketplace",
+                    ),
                     Choice("quit", "Quit"),
                 ],
                 default="quit",

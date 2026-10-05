@@ -113,7 +113,7 @@ def test_configure_cli_rejects_unimplemented_sections() -> None:
     result = runner.invoke(cli.app, ["user.me"])
 
     assert result.exit_code == 1
-    assert "Only 'ai', 'ai.<name>', 'item', and 'item.<name>'" in result.output
+    assert "Only 'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>'" in result.output
 
 
 def test_configure_cli_needs_terminal() -> None:
@@ -199,3 +199,74 @@ async def test_find_usable_ai_returns_backend_of_first_working_section(
     assert isinstance(backend, UnitySVCBackend)
     assert backend.config.name == "unitysvc"
     assert "Using [ai.unitysvc] (balanced)." in ui.said("success")
+
+
+@pytest.mark.parametrize("address", ["marketplace", "marketplace.facebook", "item", "item.bike"])
+def test_marketplace_and_item_addresses_are_valid(address: str) -> None:
+    flow.validate_section_address(address)
+
+
+def test_empty_section_name_is_rejected() -> None:
+    with pytest.raises(flow.ConfigureAddressError):
+        flow.validate_section_address("marketplace.")
+
+
+async def test_configure_marketplace_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+
+    from tests.configure_util import BASE, FakeAI, reply
+
+    config = tmp_path / "config.toml"
+    config.write_text(BASE, encoding="utf-8")
+    ai = FakeAI(
+        [
+            reply(
+                "Searching Austin within 25 miles.",
+                {"search_city": ["austin"], "radius": [25]},
+                complete=True,
+                request="Search around Austin within 25 miles.",
+            )
+        ]
+    )
+
+    async def fake_find(ui: Any, files: List[Path]) -> Any:
+        return ai
+
+    monkeypatch.setattr(flow, "find_usable_ai", fake_find)
+    ui = ScriptedSetupUI(["yes", "yes"])
+    assert await flow.configure_section(ui, [config], "marketplace.home", home=tmp_path) == 0
+    written = tomllib.loads(config.read_text())
+    assert written["marketplace"]["home"]["search_city"] == ["austin"]
+    assert "[marketplace.home] is new." in ui.said()
+
+
+async def test_configure_marketplace_needs_a_usable_ai(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def none(ui: Any, files: List[Path]) -> Any:
+        return None
+
+    monkeypatch.setattr(flow, "find_usable_ai", none)
+    assert await flow.configure_section(ScriptedSetupUI([]), [], "marketplace") == 1
+
+
+async def test_configure_marketplace_reports_invalid_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text('[marketplace.facebook]\ncondition = ["mint"]\n', encoding="utf-8")
+
+    async def fake_find(ui: Any, files: List[Path]) -> Any:
+        return object()
+
+    monkeypatch.setattr(flow, "find_usable_ai", fake_find)
+    ui = ScriptedSetupUI([])
+    assert await flow.configure_section(ui, [config], "marketplace", home=tmp_path) == 1
+    assert "Cannot read the configuration" in ui.said("error")[0]

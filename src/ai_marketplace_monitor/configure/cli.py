@@ -46,8 +46,8 @@ def main(
         Optional[str],
         typer.Argument(
             help=(
-                "Optional section to configure. Currently supports 'ai', "
-                "'ai.<name>', 'item', or 'item.<name>'."
+                "Optional section to configure: 'ai', 'ai.<name>', 'marketplace', "
+                "or 'marketplace.<name>' ('item' is reserved)."
             )
         ),
     ] = None,
