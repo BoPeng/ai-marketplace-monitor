@@ -165,14 +165,17 @@ def read(path: Path) -> Dict[str, Any]:
 async def test_configure_marketplace_end_to_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tests.configure_util import BASE
+    from tests.configure_util import BASE, url
 
     config = tmp_path / "config.toml"
     config.write_text(BASE, encoding="utf-8")
     made = use_fake_model(
         monkeypatch,
         [
-            [("section_show", {"section_type": "marketplace", "name": "home"})],
+            [
+                ("section_show", {"section_type": "marketplace", "name": "home"}),
+                ("ask_user", {"message": "Paste a Marketplace URL for your location."}),
+            ],
             [
                 (
                     "section_update",
@@ -188,7 +191,7 @@ async def test_configure_marketplace_end_to_end(
             [("finish", {"message": "Done."})],
         ],
     )
-    ui = ScriptedSetupUI(["yes"])
+    ui = ScriptedSetupUI([url("austin") + " and 25 miles", "yes"])
     assert await flow.configure_section(ui, [config], "marketplace.home", home=tmp_path) == 0
     assert read(config)["marketplace"]["home"] == {
         "search_city": ["austin"],

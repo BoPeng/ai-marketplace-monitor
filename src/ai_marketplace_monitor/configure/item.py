@@ -175,6 +175,9 @@ class ItemToolkit(Toolkit):
                 FacebookItemConfig(name=draft.name, **values)
         except Exception as e:
             return [_plain(e)]
+        guessed = ws.unconfirmed_cities(draft.values)
+        if guessed:
+            return guessed
         context = self.context(ws)
         refs = {
             "notify": "users",

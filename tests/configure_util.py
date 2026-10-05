@@ -31,6 +31,12 @@ max_price = 300
 """
 )
 
+
+def url(code: str) -> str:
+    """A Facebook Marketplace results URL for a location code, as a user would paste it."""
+    return f"https://www.facebook.com/marketplace/{code}/search?query=bike"
+
+
 Call = Tuple[str, Dict[str, Any]]
 # a scripted model step: tool calls, a plain-text reply, or a service failure
 Step = Union[List[Call], str, ServiceError]

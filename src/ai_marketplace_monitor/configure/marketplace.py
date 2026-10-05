@@ -276,6 +276,9 @@ class MarketplaceToolkit(Toolkit):
                     "city as it is."
                 )
             ]
+        guessed = ws.unconfirmed_cities(draft.values)
+        if guessed:
+            return guessed
         context = self.context(ws)
         refs = {
             "notify": "users",

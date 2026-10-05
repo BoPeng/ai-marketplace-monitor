@@ -15,7 +15,7 @@ from ai_marketplace_monitor.facebook import (
     SortBy,
 )
 from ai_marketplace_monitor.marketplace import FALLBACK, LOCATION
-from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of
+from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of, url
 
 T = MarketplaceToolkit()
 ITEMS = (
@@ -95,6 +95,7 @@ async def test_view(tmp_path: Path) -> None:
 
 async def test_validate(tmp_path: Path) -> None:
     ws = await make_ws(tmp_path, BASE)
+    ws.user_said += [url("houston"), url("austin")]
     draft = T.view(ws, "facebook")
     draft.values = {"search_city": ["houston"], "condition": ["mint"]}
     assert "condition" in T.validate(ws, draft)[0]
@@ -117,6 +118,7 @@ async def test_validate(tmp_path: Path) -> None:
 )
 async def test_search_city_must_be_a_location_code(tmp_path: Path, city: object, ok: bool) -> None:
     ws = await make_ws(tmp_path, BASE)
+    ws.user_said += [url("houston"), url("sanfrancisco"), url("111979382146893")]
     draft = T.view(ws, "facebook")
     draft.values = {"search_city": city}
     errors = T.validate(ws, draft)
@@ -131,6 +133,7 @@ async def test_city_name_only_changes_with_a_new_city(tmp_path: Path) -> None:
     draft.values["city_name"] = ["Houston"]
     assert "`city_name` may only change" in T.validate(ws, draft)[0]
     draft.values = {"search_city": ["austin"], "city_name": ["Austin"]}
+    ws.user_said.append(url("austin"))
     assert T.validate(ws, draft) == []
 
 
@@ -219,3 +222,19 @@ async def test_start_menu_quit_new_and_names(tmp_path: Path) -> None:
     assert await T.choose_target(ws.ui, ws, None) == "facebook"
     assert await T.choose_target(ws.ui, ws, "home") == "home"
     assert "[marketplace.home] is new." in ui_of(ws).said()
+
+
+async def test_search_city_must_come_from_a_pasted_url(tmp_path: Path) -> None:
+    ws = await make_ws(tmp_path, ONE_ITEM)
+    draft = T.view(ws, "facebook")
+    draft.values = {"search_city": ["houston"]}  # already in the config
+    assert T.validate(ws, draft) == []
+    draft.values = {"search_city": ["austin"], "city_name": ["Austin"]}
+    [error] = T.validate(ws, draft)
+    assert "['austin'] is not from a Facebook Marketplace URL" in error and "Never guess" in error
+    ws.user_said.append("I'm in Austin, here: https://m.facebook.com/marketplace/austin/?ref=x")
+    assert T.validate(ws, draft) == []
+    # paths that are not locations do not count
+    ws.user_said = ["https://www.facebook.com/marketplace/search/?query=bike"]
+    draft.values = {"search_city": ["search"]}
+    assert "not from a Facebook Marketplace URL" in T.validate(ws, draft)[0]

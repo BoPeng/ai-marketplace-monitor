@@ -17,7 +17,7 @@ from ai_marketplace_monitor.configure.marketplace import MarketplaceToolkit
 from ai_marketplace_monitor.configure.toolkits import FieldGroup
 from ai_marketplace_monitor.configure.tools import Outcome, ToolExecutor
 from ai_marketplace_monitor.facebook import FacebookItemConfig
-from tests.configure_util import BASE, ONE_ITEM, FakeModel, make_ws, ui_of
+from tests.configure_util import BASE, ONE_ITEM, FakeModel, make_ws, ui_of, url
 
 T = ItemToolkit()
 KITS: Dict[str, Any] = {"marketplace": MarketplaceToolkit(), "item": T}
@@ -126,7 +126,8 @@ async def test_start_menu(tmp_path: Path) -> None:
 
 # --- an item session that also creates the marketplace -----------------------------------------
 async def test_item_session_creates_its_marketplace(tmp_path: Path) -> None:
-    ws = await ws_for(tmp_path, BASE, ["action camera under $200 within 20 miles", "yes"])
+    answer = f"action camera under $200 within 20 miles of {url('houston')}"
+    ws = await ws_for(tmp_path, BASE, [answer, "yes"])
     only = [("item", "action_camera"), *T.companions(ws, "action_camera")]
     executor = ToolExecutor(ws, only=set(only))
     executor.guides_read.update(["item", "marketplace"])
@@ -195,8 +196,18 @@ async def test_item_session_cannot_touch_other_sections(tmp_path: Path) -> None:
 
 async def test_an_incomplete_item_does_not_block_its_marketplace(tmp_path: Path) -> None:
     ws = await ws_for(tmp_path, BASE)
+    ws.user_said.append(url("houston"))
     ws.draft("item", "gopro").values = {"max_price": "200"}  # no search phrases yet
     market = ws.draft("marketplace", "facebook")
     market.values = {"search_city": "houston", "radius": 20}
     assert MarketplaceToolkit().validate(ws, market) == []
     assert "item" not in ws.config_with_drafts()
+
+
+async def test_an_item_city_must_come_from_a_pasted_url(tmp_path: Path) -> None:
+    ws = await ws_for(tmp_path, ONE_ITEM)
+    draft = T.view(ws, "gopro")
+    draft.values = {"search_phrases": ["gopro"], "search_city": "houston"}  # the marketplace's
+    assert T.validate(ws, draft) == []
+    draft.values["search_city"] = "dallas"
+    assert "Never guess" in T.validate(ws, draft)[0]

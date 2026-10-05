@@ -77,6 +77,7 @@ class ToolExecutor:
                     await self.show_drafts()
                     continue
                 self.steps_without_user = 0
+                self.ws.user_said.append(reply)
                 return reply
         except SetupClosedError:
             self.closed = True

@@ -5,6 +5,7 @@ Drafts are sections being edited; they live only here until the ``save`` tool wr
 
 from __future__ import annotations
 
+import re
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +18,24 @@ from .toolkits import SectionDraft, Toolkit
 from .ui import SetupUI
 
 SectionKey = Tuple[str, str]
+
+# the location code in a Marketplace URL: facebook.com/marketplace/<code>/search?...
+_URL_CODE = re.compile(r"facebook\.com/marketplace/([A-Za-z0-9_-]+)", re.IGNORECASE)
+_NOT_A_LOCATION = {
+    "search",
+    "category",
+    "item",
+    "you",
+    "create",
+    "inbox",
+    "saved",
+    "notifications",
+}
+
+
+def _codes(value: Any) -> Set[str]:
+    values = value if isinstance(value, list) else [value]
+    return {str(v) for v in values if v}
 
 
 class ConfigLoadError(Exception):
@@ -34,6 +53,7 @@ class Workspace:
     playbooks: Dict[str, Playbook] = field(default_factory=dict)
     drafts: Dict[SectionKey, SectionDraft] = field(default_factory=dict)
     shown: Set[str] = field(default_factory=set)  # notes already shown to the user
+    user_said: List[str] = field(default_factory=list)  # the user's messages in this session
 
     @property
     def backup_dir(self: "Workspace") -> Path:
@@ -79,6 +99,34 @@ class Workspace:
             if key != exclude and not toolkit.missing(self, draft):
                 cfg = toolkit.apply(cfg, draft)
         return cfg
+
+    def known_city_codes(self: "Workspace") -> Set[str]:
+        """Location codes the user gave: in their config, or in Marketplace URLs they pasted.
+
+        A `search_city` code cannot be derived from a place name, so any other code is a guess.
+        """
+        codes: Set[str] = set()
+        for section_type in ("marketplace", "item"):
+            for section in self.user_cfg.get(section_type, {}).values():
+                if isinstance(section, dict):
+                    codes |= _codes(section.get("search_city"))
+        for text in self.user_said:
+            codes |= {
+                m.group(1) for m in _URL_CODE.finditer(text) if m.group(1) not in _NOT_A_LOCATION
+            }
+        return codes
+
+    def unconfirmed_cities(self: "Workspace", values: Dict[str, Any]) -> List[str]:
+        """An error if `search_city` has a code the user did not give (see known_city_codes)."""
+        guessed = sorted(_codes(values.get("search_city")) - self.known_city_codes())
+        if not guessed:
+            return []
+        error = (
+            f"`search_city` {guessed} is not from a Facebook Marketplace URL the user pasted. "
+            "Never guess a location code: ask the user to open Facebook Marketplace, set the "
+            "location and distance, search for anything, and paste the URL of the results page."
+        )
+        return [error]
 
     def section(self: "Workspace", section_type: str, name: str) -> Dict[str, Any] | None:
         """A section as drafted in this session, else as saved (None if neither)."""

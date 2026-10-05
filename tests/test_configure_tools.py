@@ -11,7 +11,7 @@ else:
     import tomli as tomllib
 
 from ai_marketplace_monitor.configure.tools import Outcome, ToolExecutor
-from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of
+from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of, url
 
 
 def ready(ws: Any, **kw: Any) -> ToolExecutor:
@@ -112,6 +112,7 @@ async def test_list_sections_shows_names_and_requests_only(tmp_path: Path) -> No
 
 async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None:
     ex = ready(await make_ws(tmp_path, ONE_ITEM, ["yes"]))
+    ex.ws.user_said.append(url("austin"))
     await call(
         ex,
         "section_update",
@@ -151,6 +152,7 @@ async def test_save_refuses_incomplete_and_reports_declined(tmp_path: Path) -> N
     )
     out = await call(ex, "save", message="")
     assert not out["ok"] and "still required: location" in out["errors"][0]
+    ex.ws.user_said.append(url("houston"))
     await call(
         ex,
         "section_update",
