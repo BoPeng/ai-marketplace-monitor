@@ -1,7 +1,7 @@
 import threading
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from logging import Logger
 from typing import Any, ClassVar, DefaultDict, Deque, List, Optional, Tuple, Type
@@ -21,17 +21,36 @@ class NotificationStatus(Enum):
     LISTING_DISCOUNTED = 4
 
 
+# dataclass metadata key and values describing where a notification field belongs
+ROLE = "role"
+RECIPIENT = "recipient"  # who receives: stays on [user.*]
+CHANNEL = "channel"  # how it is sent (credentials, servers): [notification.*]
+COMMON = "common"  # delivery settings shared by every channel type
+
+
+def notification_field(role: str, default: Any = None) -> Any:
+    """Declare a notification field together with its role."""
+    return field(default=default, metadata={ROLE: role})
+
+
+def fields_with_role(cls: type, role: str) -> Tuple[str, ...]:
+    """Names of the fields of a notification class that have the given role."""
+    return tuple(f.name for f in fields(cls) if f.metadata.get(ROLE) == role)
+
+
 @dataclass
 class NotificationConfig(BaseConfig):
     required_fields: ClassVar[List[str]] = []
 
-    max_retries: int = 5
-    retry_delay: int = 60
+    max_retries: int = notification_field(COMMON, 5)
+    retry_delay: int = notification_field(COMMON, 60)
 
     # Rate limiting configuration (disabled by default, but public for user config)
-    rate_limit_enabled: bool = False
-    instance_rate_limit: float = 1.0  # seconds between sends per instance
-    global_rate_limit: int = 10  # messages per second across all instances
+    rate_limit_enabled: bool = notification_field(COMMON, False)
+    # seconds between sends per instance
+    instance_rate_limit: float = notification_field(COMMON, 1.0)
+    # messages per second across all instances
+    global_rate_limit: int = notification_field(COMMON, 10)
 
     # Subclasses that handle rate limiting in their own send path (e.g.
     # Telegram's async _wait_for_rate_limit) should set this to True so
@@ -285,8 +304,8 @@ class NotificationConfig(BaseConfig):
 @dataclass
 class PushNotificationConfig(NotificationConfig):
     notify_method = "push_notification"
-    message_format: str | None = None
-    with_description: int | None = None
+    message_format: str | None = notification_field(COMMON)
+    with_description: int | None = notification_field(COMMON)
 
     def handle_message_format(self: "PushNotificationConfig") -> None:
         if self.message_format is None:

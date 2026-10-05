@@ -5,7 +5,13 @@ from datetime import timedelta
 from logging import Logger
 from typing import TYPE_CHECKING, ClassVar, List
 
-from .notification import PushNotificationConfig
+from .notification import (
+    CHANNEL,
+    COMMON,
+    RECIPIENT,
+    PushNotificationConfig,
+    notification_field,
+)
 
 if TYPE_CHECKING:
     import telegram
@@ -16,12 +22,12 @@ class TelegramNotificationConfig(PushNotificationConfig):
     notify_method = "telegram"
     required_fields: ClassVar[List[str]] = ["telegram_token", "telegram_chat_id"]
 
-    telegram_token: str | None = None
-    telegram_chat_id: str | None = None
+    telegram_token: str | None = notification_field(CHANNEL)
+    telegram_chat_id: str | None = notification_field(RECIPIENT)
 
     # Enable rate limiting with Telegram-specific settings
-    rate_limit_enabled: bool = True
-    global_rate_limit: int = 30  # Telegram's higher limit
+    rate_limit_enabled: bool = notification_field(COMMON, True)
+    global_rate_limit: int = notification_field(COMMON, 30)  # Telegram's higher limit
     # Telegram handles rate limiting in its own async _send_message_async
     # path — tell the base class not to also apply sync rate limiting.
     _handles_own_rate_limiting: bool = True

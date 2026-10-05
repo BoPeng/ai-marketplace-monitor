@@ -16,7 +16,13 @@ from markupsafe import Markup, escape
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .notification import NotificationConfig, NotificationStatus
+from .notification import (
+    CHANNEL,
+    RECIPIENT,
+    NotificationConfig,
+    NotificationStatus,
+    notification_field,
+)
 from .utils import fetch_with_retry, hilight, resize_image_data
 
 
@@ -25,12 +31,12 @@ class EmailNotificationConfig(NotificationConfig):
     notify_method = "email"
     required_fields: ClassVar[List[str]] = ["email", "smtp_password"]
 
-    email: List[str] | None = None
-    smtp_server: str | None = None
-    smtp_port: int | None = None
-    smtp_username: str | None = None
-    smtp_password: str | None = None
-    smtp_from: str | None = None
+    email: List[str] | None = notification_field(RECIPIENT)
+    smtp_server: str | None = notification_field(CHANNEL)
+    smtp_port: int | None = notification_field(CHANNEL)
+    smtp_username: str | None = notification_field(CHANNEL)
+    smtp_password: str | None = notification_field(CHANNEL)
+    smtp_from: str | None = notification_field(CHANNEL)
 
     def handle_email(self: "EmailNotificationConfig") -> None:
         if self.email is None:

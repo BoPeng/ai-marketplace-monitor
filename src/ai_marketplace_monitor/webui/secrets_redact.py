@@ -29,20 +29,10 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Tuple
 
+from ..utils import is_sensitive_key as _is_sensitive
+
 # The literal we render in place of real secret values.
 MASK = "<REDACTED>"
-
-# Key names treated as sensitive. Case-insensitive substring match,
-# applied to the TOML key (e.g. ``pushbullet_token`` matches ``token``).
-_SENSITIVE_SUBSTRINGS = (
-    "password",
-    "token",
-    "api_key",
-    "secret",
-)
-# Exact-match keys that don't contain one of the substrings above but
-# are still sensitive (identifiers that reveal the user's identity).
-_SENSITIVE_EXACT = {"username", "api_secret"}
 
 # A simple `section.path = value` line. We only match double- and
 # single-quoted scalar string values on the same line. Leading/trailing
@@ -58,13 +48,6 @@ _ASSIGN_RE = re.compile(
 
 
 SecretMap = Dict[Tuple[str, str], str]
-
-
-def _is_sensitive(key: str) -> bool:
-    k = key.lower()
-    if k in _SENSITIVE_EXACT:
-        return True
-    return any(s in k for s in _SENSITIVE_SUBSTRINGS)
 
 
 def redact(content: str) -> Tuple[str, SecretMap]:
