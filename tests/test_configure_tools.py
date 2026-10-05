@@ -77,7 +77,7 @@ async def test_non_secret_reference_is_rejected_and_never_expanded(
 
 
 async def test_single_section_restriction(tmp_path: Path) -> None:
-    ex = ready(await make_ws(tmp_path, ONE_ITEM), only=("marketplace", "facebook"))
+    ex = ready(await make_ws(tmp_path, ONE_ITEM), only={("marketplace", "facebook")})
     out = await call(
         ex,
         "section_update",

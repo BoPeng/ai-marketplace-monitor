@@ -149,8 +149,31 @@ each part, and when the section is complete. You can add your own rules for a se
 ``~/.ai-marketplace-monitor/playbooks/marketplace.md``; they are appended to the bundled
 playbook.
 
-In ``aimm-configure`` the AI has the tools of every section type it can configure (only
-marketplaces for now; items will follow). It sees only the section names and their
+Items
+~~~~~
+
+``aimm-configure item`` adds or updates what to search for. It lists your existing items
+and asks whether to update one or add a new one; ``aimm-configure item.NAME`` goes straight
+to one item. Describe what you want, for example:
+
+.. code-block:: text
+
+    Search for an action camera within $200 and within 20 miles. Skip anything that needs
+    repair.
+
+The AI fills in the search phrases, a ``description`` of what you want (which the AI that
+rates listings reads), the price range, and any extra requests in ``extra_prompt``, in your
+own words. You can refine it afterwards in the same conversation: "make the max price
+$300".
+
+An item uses its marketplace's values (location, distance, schedule, notifications) unless
+it sets its own, and the AI sees what the item inherits, so it sets a value on the item only
+when this item should differ. If the marketplace does not exist yet, or has no location,
+the same conversation creates it or adds the location, tells you so, and saves both
+sections after one confirmation. No other section is changed.
+
+In ``aimm-configure`` the AI has the tools of every section type it can configure
+(marketplaces and items for now). It sees only the section names and their
 ``request`` summaries until it opens a section, and it changes only the sections you asked
 about; several drafted sections are saved together after one confirmation.
 

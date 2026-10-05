@@ -295,7 +295,11 @@ class MarketplaceToolkit(Toolkit):
             # the whole config must still load (e.g. an item's cities against a new radius)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                expand(self.apply(ws.user_cfg, draft), ws.system_cfg, partial=True)
+                expand(
+                    self.apply(ws.config_with_drafts(exclude=draft.key), draft),
+                    ws.system_cfg,
+                    partial=True,
+                )
         except NormalizeError as e:
             errors.append(str(e))
         return errors

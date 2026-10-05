@@ -35,8 +35,9 @@ class Outcome(Enum):
 @dataclass
 class ToolExecutor:
     ws: Workspace
-    # a single-section command: section tools work on this section only
-    only: SectionKey | None = None
+    # a single-section command: section tools work on these sections only (the chosen
+    # section, and companions such as an item's marketplace)
+    only: Set[SectionKey] | None = None
     # runs `aimm-configure ai` (offered by the aimm-configure wrapper only); returns exit code
     setup_ai: Callable[[], Awaitable[int]] | None = None
     done: bool = False
@@ -124,8 +125,9 @@ class ToolExecutor:
     ) -> Tuple[Toolkit | None, str | None]:
         if section_type not in self.ws.toolkits:
             return None, f"[{section_type}.*] sections cannot be configured here."
-        if self.only is not None and (section_type, name) != self.only:
-            return None, f"Only [{self.only[0]}.{self.only[1]}] can be changed in this session."
+        if self.only is not None and (section_type, name) not in self.only:
+            allowed = ", ".join(f"[{t}.{n}]" for t, n in sorted(self.only))
+            return None, f"Only {allowed} can be changed in this session."
         if not name or not isinstance(name, str):
             return None, "A section name is required."
         return self.ws.toolkits[section_type], None
@@ -146,9 +148,11 @@ class ToolExecutor:
         toolkit, error = self._toolkit(section_type, name)
         if toolkit is None:
             return {"ok": False, "errors": [error]}
+        draft = self.ws.draft(section_type, name)
         return {
             "ok": True,
             **self._summary(toolkit, (section_type, name)),
+            **toolkit.show_extra(self.ws, draft),
             "can_reference": toolkit.context(self.ws),
         }
 

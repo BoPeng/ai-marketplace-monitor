@@ -25,7 +25,7 @@ async def run(
     tmp_path: Path, steps: List[Step], answers: List[str], text: str = ONE_ITEM
 ) -> tuple[Outcome, ToolExecutor, FakeModel]:
     ws = await make_ws(tmp_path, text, answers)
-    executor = ToolExecutor(ws, only=("marketplace", "facebook"))
+    executor = ToolExecutor(ws, only={("marketplace", "facebook")})
     executor.guides_read.add("marketplace")  # in the system prompt for single-section commands
     model = FakeModel(steps).bind(executor.tools_for_model(), lambda: executor.done)
     outcome = await run_agent(executor, model, "system", "opening")

@@ -67,6 +67,30 @@ class Workspace:
             self.drafts[key] = self.toolkits[section_type].view(self, name)
         return self.drafts[key]
 
+    def config_with_drafts(self: "Workspace", exclude: SectionKey | None = None) -> Dict[str, Any]:
+        """The user config with this session's complete drafts applied (except ``exclude``).
+
+        An incomplete draft (a new item without search phrases, say) is left out: it is not
+        saved as it is, so it must not make other sections fail validation.
+        """
+        cfg = self.user_cfg
+        for key, draft in self.drafts.items():
+            toolkit = self.toolkits[draft.section_type]
+            if key != exclude and not toolkit.missing(self, draft):
+                cfg = toolkit.apply(cfg, draft)
+        return cfg
+
+    def section(self: "Workspace", section_type: str, name: str) -> Dict[str, Any] | None:
+        """A section as drafted in this session, else as saved (None if neither)."""
+        key = (section_type, name)
+        if key in self.drafts:
+            draft = self.drafts[key]
+            if draft.is_new and not draft.values:
+                return None
+            return dict(draft.values)
+        section = self.user_cfg.get(section_type, {}).get(name)
+        return dict(section) if isinstance(section, dict) else None
+
     def pending(self: "Workspace") -> List[SectionDraft]:
         """Drafts with changes that are not saved yet (a new section once it has values)."""
         return [d for d in self.drafts.values() if d.has_changes()]
