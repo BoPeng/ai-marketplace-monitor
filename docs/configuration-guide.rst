@@ -245,7 +245,27 @@ To notify several destinations at once, for example email, SMS and a chat app, c
 
 .. note::
    - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
-   - UnitySVC also accepts email at ``smtp.svcpass.com`` (port 587, username ``notify``, your API key as the password), so an email notification section works too, but the HTTP setup above is simpler.
+
+Sending through UnitySVC's SMTP gateway
+---------------------------------------
+
+Instead of the HTTP API, you can send aimm's regular email notifications through UnitySVC's SMTP gateway by setting the ``smtp_*`` options yourself. aimm then sends its full HTML email with listing images, which suits forwarding emails through UnitySVC's email services. The SMTP username selects the service and your API key is the password:
+
+.. code-block:: toml
+
+    [notification.unitysvc_email]
+    smtp_server = 'smtp.svcpass.com'
+    smtp_port = 587
+    smtp_username = 'notify'
+    smtp_password = '${UNITYSVC_API_KEY}'
+    smtp_from = 'me@example.com'
+
+    [user.me]
+    email = 'me@example.com'
+    notify_with = 'unitysvc_email'
+
+- ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To use another UnitySVC email service, such as an email relay, set ``smtp_username`` to the SMTP username shown on that service's catalog page, or to ``a/<alias>`` for one of your aliases.
+- Set ``smtp_from`` to an email address; otherwise aimm would use the SMTP username as the sender address. ``email`` is still required by the email backend, so set it to the address you want in the ``To`` header.
 
 AI Prompt Customization
 =======================

@@ -272,6 +272,7 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]`; one key serves both AI and notifications.
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 - The default `notify` service shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
+- To send aimm's HTML email notifications (with listing images) through UnitySVC instead of the HTTP API, for example to forward emails, use an email notification section with `smtp_server = "smtp.svcpass.com"`, `smtp_port = 587`, `smtp_username = "notify"` (or another UnitySVC service's SMTP username), `smtp_password = "${UNITYSVC_API_KEY}"`, and `smtp_from` set to your email address. See the configuration guide for an example.
 - To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
 
 ### Email notification
