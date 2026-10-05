@@ -276,8 +276,11 @@ async def commit_sections(
         await ui.say(f"Could not prepare the change: {e}", kind="error")
         return CommitOutcome.FAILED
 
+    originals = {
+        path: path.read_text(encoding="utf-8") if path.exists() else None for path in plans
+    }
     for path, text in plans.items():
-        before = path.read_text(encoding="utf-8") if path.exists() else ""
+        before = originals[path] or ""
         diff = "".join(
             difflib.unified_diff(
                 before.splitlines(keepends=True),
@@ -289,6 +292,19 @@ async def commit_sections(
         await ui.say(f"```diff\n{diff}```", markdown=True)
     if not await ui.confirm("Write these changes?"):
         return CommitOutcome.DECLINED
+    # the files may have changed while the user was reading the preview
+    changed = [
+        str(path)
+        for path, text in originals.items()
+        if (path.read_text(encoding="utf-8") if path.exists() else None) != text
+    ]
+    if changed:
+        await ui.say(
+            f"Not written: {', '.join(changed)} changed while you were reviewing; "
+            "please try again.",
+            kind="error",
+        )
+        return CommitOutcome.FAILED
 
     try:
         for path, text in plans.items():

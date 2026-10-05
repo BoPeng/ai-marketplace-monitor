@@ -85,9 +85,11 @@ You can disable this feature by define environment variable `DISABLE_PYNPUT=true
 Interactive configuration
 -------------------------
 
-Run ``aimm-configure`` as the primary interactive configuration command. With no
-section argument, it starts with your AI service, then asks what to configure next.
-``aimm-configure ai`` is the explicit AI form.
+Run ``aimm-configure`` as the primary interactive configuration command. It uses your
+default AI service (the first ``[ai.*]`` section) to help you: tell it what you want in your
+own words, for example "limit my Houston search to 20 miles", and it finds the section,
+drafts the change and asks you to confirm before writing. If you have no usable AI service
+yet, it starts with the AI setup, ``aimm-configure ai``, which works without AI.
 
 aimm uses the **first** ``[ai.*]`` section as your default AI, and the others only if it
 fails. So the AI setup checks only the default and lists the others, then offers to keep or
@@ -117,7 +119,7 @@ Marketplaces
 ~~~~~~~~~~~~
 
 ``aimm-configure marketplace`` sets up where and how to search Facebook Marketplace with
-the help of your AI service, so it needs a working ``[ai.*]`` section first. It lists your
+the help of your default AI service (the AI setup runs first if it cannot be used). It lists your
 existing marketplaces, each with its ``request`` (a short summary of what you asked for)
 and its settings, and asks whether to update one or create a new one;
 ``aimm-configure marketplace.NAME`` goes straight to one section.
@@ -130,11 +132,11 @@ The AI then leads a short conversation. You answer in your own words, for exampl
     good condition or better. Checking every hour is fine.
 
 It works out what is still needed (a location is required), asks about what is likely
-to matter to you, fills in the section, and decides from your answers when you are done:
-to save the section, keep it unchanged, or stop. aimm checks every value and that nothing
-required is missing; before saving it shows the section and the change to your config file
-and asks you to confirm. Type ``/show`` to see the section so far, or ``/quit`` to stop
-without writing.
+to matter to you, fills in the section, and decides from your answers when you are done.
+The AI acts only through tools that aimm provides: it can read and draft this one section,
+and ask you questions; aimm checks every value, and nothing is written until you confirm
+the change to your config file. Type ``/show`` to see the drafts so far, or ``/quit`` to
+stop without writing.
 
 Marketplace values are defaults for all items of that marketplace: items without their own
 value use them, and items with their own value keep it. This command never changes items.
@@ -147,7 +149,10 @@ each part, and when the section is complete. You can add your own rules for a se
 ``~/.ai-marketplace-monitor/playbooks/marketplace.md``; they are appended to the bundled
 playbook.
 
-Configuring items (``aimm-configure item``) will follow the same pattern.
+In ``aimm-configure`` the AI has the tools of every section type it can configure (only
+marketplaces for now; items will follow). It sees only the section names and their
+``request`` summaries until it opens a section, and it changes only the sections you asked
+about; several drafted sections are saved together after one confirmation.
 
 The command is a terminal front end over a reusable async setup flow. Web UI code can
 drive the same flow through JSON prompt/answer messages over a websocket instead of

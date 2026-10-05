@@ -44,6 +44,7 @@ dependencies = [
   "bcrypt>=4.0",
   "python-multipart>=0.0.9",
   "tomlkit>=0.13",
+  "mirascope[openai,anthropic]>=2.5,<3",
 ]
 
 [project.urls]
@@ -217,7 +218,7 @@ warn_return_any = false
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["pytest.*", "invoke.*", "nox.*"]
+module = ["pytest.*", "invoke.*", "nox.*", "mirascope", "mirascope.*"]
 allow_redefinition = false
 check_untyped_defs = true
 ignore_errors = false

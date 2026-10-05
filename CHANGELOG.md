@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `aimm-configure marketplace` / `marketplace.NAME`: set up a marketplace through a conversation with your AI service, which works out what is missing, asks about what matters, and fills the section; you confirm the section and the file changes before anything is written
+- `aimm-configure` (and `aimm-configure marketplace` / `marketplace.NAME`): describe what you want and your default AI service drafts the change through aimm's tools (read a section, update its draft, ask you, save); aimm validates every value and writes only the drafted sections after you confirm. Built on Mirascope for tool calling across providers
 - Playbooks for AI-assisted configuration (goal, subtasks, completion rules), with optional house rules in `~/.ai-marketplace-monitor/playbooks/`
 - `aimm-configure`: primary interactive configuration command, starting with `[ai.*]` setup and writing API keys as environment-variable references
 - UnitySVC notifications (`[notification.unitysvc]` with `unitysvc_api_key`): messages go to UnitySVC's `notify` service (inbox plus your saved notification destination) or to a specific service set with `unitysvc_service`

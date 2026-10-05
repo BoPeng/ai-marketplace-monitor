@@ -127,3 +127,21 @@ async def test_override_in_a_later_file_is_reported(tmp_path: Path) -> None:
     ui = ScriptedSetupUI(["yes"])
     assert await commit_sections(ui, new, user, files, tmp_path / "b") is CommitOutcome.FAILED
     assert "does not read back as written" in ui.said("error")[0]
+
+
+async def test_file_changed_during_confirmation_is_not_overwritten(tmp_path: Path) -> None:
+    files, user = setup(tmp_path, MAIN)
+    new = copy.deepcopy(user)
+    new["marketplace"]["facebook"]["radius"] = 50
+
+    class EditingUI(ScriptedSetupUI):
+        async def confirm(self, prompt: str, default: bool = True) -> bool:
+            files[0].write_text(files[0].read_text() + "\n# edited meanwhile\n")
+            return True
+
+    ui = EditingUI([])
+    assert await commit_sections(ui, new, user, files, tmp_path / "b") is CommitOutcome.FAILED
+    assert "changed while you were reviewing" in ui.said("error")[0]
+    text = files[0].read_text()
+    assert "# edited meanwhile" in text and "radius = 30" in text
+    assert not (tmp_path / "b").exists()  # nothing backed up or written

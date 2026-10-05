@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple
 
 from ..ai import AIBackend
 from ..config import supported_ai_backends
 from ..utils import amm_home
+from .agent import ServiceError, run_agent
 from .ai_setup import AISection, configure_ai, load_ai_sections, probe_sections
-from .sections import BuildResult, Outcome, builders
-from .session import Session
-from .ui import Choice, SetupClosedError, SetupUI
+from .marketplace import MarketplaceToolkit
+from .toolkits import Toolkit
+from .tools import Outcome, ToolExecutor
+from .ui import SetupClosedError, SetupUI
+from .workspace import ConfigLoadError, Workspace
 from .writer import ConfigReadError
 
 
@@ -65,12 +68,50 @@ async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
     return await _first_usable_ai(ui, config_files) is not None
 
 
-async def find_usable_ai(ui: SetupUI, config_files: List[Path]) -> AIBackend | None:
-    """The backend of the AI section aimm would use (the default, or the first that works)."""
-    section = await _first_usable_ai(ui, config_files)
-    if section is None or section.config is None:
+def default_ai(config_files: List[Path]) -> Tuple[AIBackend | None, str]:
+    """The backend of aimm's default AI (the first enabled ``[ai.*]`` section).
+
+    It is not probed; its Mirascope model is registered. Returns None and the reason if it
+    cannot be used.
+    """
+    from .mirascope_model import model_id
+
+    try:
+        sections = [s for s in load_ai_sections(config_files) if s.enabled]
+    except ConfigReadError as e:
+        return None, str(e)
+    if not sections:
+        return None, "No AI service is configured yet."
+    section = sections[0]
+    if section.config is None:
+        return None, f"[ai.{section.name}] cannot be used: {section.problem}"
+    backend = supported_ai_backends[section.provider](config=section.config)
+    try:
+        model_id(backend)
+    except ServiceError as e:
+        return None, str(e)
+    return backend, ""
+
+
+async def ai_for_configure(
+    ui: SetupUI, config_files: List[Path], *, home: Path | None = None
+) -> AIBackend | None:
+    """The AI that assists configuration: the default ``[ai.*]`` section.
+
+    Only if it cannot be used does the user go through ``aimm-configure ai`` (which no AI can
+    assist).
+    """
+    backend, problem = default_ai(config_files)
+    if backend is not None:
+        await ui.say(f"Using [ai.{backend.config.name}].", kind="progress")
+        return backend
+    await ui.say(f"{problem} Let's set up an AI service first.", kind="warning")
+    if await configure_ai(ui, config_files, home=home):
         return None
-    return supported_ai_backends[section.provider](config=section.config)
+    backend, problem = default_ai(config_files)
+    if backend is None:
+        await ui.say(problem, kind="error")
+    return backend
 
 
 async def _first_usable_ai(ui: SetupUI, config_files: List[Path]) -> AISection | None:
@@ -125,8 +166,21 @@ async def configure_section(
             section_name=ai_section_name(section),
             home=home,
         )
-    if family in builders():
-        return await build_section(ui, config_files, family, section_name(section), home=home)
+    if family in toolkits():
+        try:
+            ai = await ai_for_configure(ui, config_files, home=home)
+        except SetupClosedError:
+            return 0
+        if ai is None:
+            return 1
+        return await run_session(
+            ui,
+            config_files,
+            ai,
+            {family: toolkits()[family]},
+            home=home,
+            target=(family, section_name(section)),
+        )
     if not await require_usable_ai(ui, config_files):
         return 1
     await ui.say(
@@ -137,36 +191,81 @@ async def configure_section(
     return 1
 
 
-async def open_session(
-    ui: SetupUI, config_files: List[Path], *, home: Path | None = None
-) -> Session | None:
-    """A configure session with a working AI, or None (after telling the user why)."""
-    ai = await find_usable_ai(ui, config_files)
-    if ai is None:
-        return None
-    return Session(files=list(config_files), ai=ai, home=home or amm_home)
+def toolkits() -> Dict[str, Toolkit]:
+    """The section types aimm-configure can edit with the AI, by type."""
+    return {"marketplace": MarketplaceToolkit()}
 
 
-def exit_code(result: BuildResult) -> int:
-    return 1 if result.outcome is Outcome.FAILED else 0
+def system_prompt(ws: Workspace, router: bool) -> str:
+    parts = [ws.playbooks["AGENT"].text()]
+    if router:
+        parts.append(f"# The aimm-configure command\n\n{ws.playbooks['router'].text()}")
+    for section_type, toolkit in ws.toolkits.items():
+        parts.append(
+            f"# Task: [{section_type}.*] sections\n\n{ws.playbooks[toolkit.playbook].text()}"
+        )
+        parts.append(toolkit.guide_table())
+    return "\n\n".join(parts)
 
 
-async def build_section(
+async def run_session(
     ui: SetupUI,
     config_files: List[Path],
-    section_type: str,
-    name: str | None,
+    ai: AIBackend,
+    kits: Dict[str, Toolkit],
     *,
     home: Path | None = None,
+    target: Tuple[str, str | None] | None = None,
 ) -> int:
-    """``aimm-configure <type>[.<name>]``: run one builder on its own; return an exit code."""
+    """Run the AI over a set of toolkits; ``target`` limits it to one section. Exit code."""
+    from .mirascope_model import MirascopeModelSession
+
+    home = home or amm_home
+    router = target is None
+    ws = Workspace(ui=ui, files=list(config_files), home=home, toolkits=kits)
     try:
-        session = await open_session(ui, config_files, home=home)
-        if session is None:
+        await ws.load(["router"] if router else [])
+        only = None
+        if target is not None:
+            section_type, name = target
+            chosen = await kits[section_type].choose_target(ui, ws, name)
+            if chosen is None:
+                return 0
+            only = (section_type, chosen)
+
+        async def setup_ai() -> int:
+            return await configure_ai(ui, config_files, home=home)
+
+        executor = ToolExecutor(ws, only=only, setup_ai=setup_ai if router else None)
+        try:
+            model = MirascopeModelSession(
+                ai, executor.tools_for_model(), stop=lambda: executor.done
+            )
+        except ServiceError as e:
+            await ui.say(str(e), kind="error")
             return 1
-        return exit_code(await builders()[section_type].run(ui, session, name))
+        outcome = await run_agent(executor, model, system_prompt(ws, router), _opening(ws, only))
+    except ConfigLoadError as e:
+        await ui.say(str(e), kind="error")
+        return 1
     except SetupClosedError:
         return 0
+    return 1 if outcome is Outcome.FAILED else 0
+
+
+def _opening(ws: Workspace, only: Tuple[str, str] | None) -> str:
+    if only is None:
+        return (
+            "Command: aimm-configure. The user has not said anything yet. Briefly say what you "
+            "can help configure, then ask what they want (ask_user)."
+        )
+    section_type, name = only
+    state = "existing" if name in ws.user_cfg.get(section_type, {}) else "new"
+    return (
+        f"Command: aimm-configure {section_type}. The active section is "
+        f"[{section_type}.{name}] ({state}); only it can be changed. Start with "
+        f"{section_type}_show(name={name!r}), then talk to the user (ask_user)."
+    )
 
 
 async def configure_front_door(
@@ -175,30 +274,11 @@ async def configure_front_door(
     *,
     home: Path | None = None,
 ) -> int:
-    """Run the primary interactive configure flow."""
-    exit_code = await configure_section(ui, config_files, "ai", home=home)
-    if exit_code:
-        return exit_code
-
-    while True:
-        try:
-            choice = await ui.choose(
-                "What would you like to configure next?",
-                [
-                    Choice("ai", "AI services", "add or update [ai.*] sections"),
-                    Choice(
-                        "marketplace",
-                        "Marketplace",
-                        "where and how to search Facebook Marketplace",
-                    ),
-                    Choice("quit", "Quit"),
-                ],
-                default="quit",
-            )
-        except SetupClosedError:
-            return 0
-        if choice == "quit":
-            return 0
-        exit_code = await configure_section(ui, config_files, choice, home=home)
-        if exit_code:
-            return exit_code
+    """``aimm-configure``: the AI helps with any section it has tools for."""
+    try:
+        ai = await ai_for_configure(ui, config_files, home=home)
+    except SetupClosedError:
+        return 0
+    if ai is None:
+        return 1
+    return await run_session(ui, config_files, ai, toolkits(), home=home)

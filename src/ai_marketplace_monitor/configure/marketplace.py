@@ -1,11 +1,11 @@
-"""The marketplace section builder: `aimm-configure marketplace` / `marketplace.NAME`."""
+"""The marketplace toolkit: what aimm knows about `[marketplace.*]` sections."""
 
 from __future__ import annotations
 
 import copy
 import re
 import warnings
-from typing import Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
 from ..facebook import (
@@ -19,14 +19,11 @@ from ..facebook import (
 )
 from ..normalize import NormalizeError, expand
 from ..normalize.pushdown import bound_marketplace
-from .sections import (
-    BuilderContext,
-    FieldGroup,
-    FieldGuide,
-    SectionBuilder,
-    SectionDraft,
-)
+from .toolkits import FieldGuide, SectionDraft, Toolkit
 from .ui import Choice, SetupUI
+
+if TYPE_CHECKING:
+    from .workspace import Workspace
 
 _MARKUP = re.compile(r"\[/?[a-z ]+\]")
 _NAME = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -218,7 +215,7 @@ def _plain(e: BaseException) -> str:
     return _MARKUP.sub("", str(e))
 
 
-class MarketplaceBuilder(SectionBuilder):
+class MarketplaceToolkit(Toolkit):
     section_type = "marketplace"
     playbook = "marketplace"
     config_class = FacebookMarketplaceConfig
@@ -226,7 +223,7 @@ class MarketplaceBuilder(SectionBuilder):
 
     # --- reading the user's config ---------------------------------------------------------
     def items(
-        self: "MarketplaceBuilder", cfg: Dict[str, Any], name: str
+        self: "MarketplaceToolkit", cfg: Dict[str, Any], name: str
     ) -> Dict[str, Dict[str, Any]]:
         """Items that search this marketplace (their own ``marketplace``, else the first one)."""
         markets = dict(cfg.get("marketplace", {}))
@@ -237,14 +234,8 @@ class MarketplaceBuilder(SectionBuilder):
             if bound_marketplace(item, markets) == name
         }
 
-    def shared_fields(self: "MarketplaceBuilder") -> List[str]:
-        return [f for f in self.field_names() if self.group(f) is not FieldGroup.OWN]
-
-    def location_fields(self: "MarketplaceBuilder") -> List[str]:
-        return [f for f in self.field_names() if self.group(f) is FieldGroup.LOCATION]
-
-    def view(self: "MarketplaceBuilder", ctx: BuilderContext, name: str) -> SectionDraft:
-        market = ctx.user_cfg.get("marketplace", {}).get(name)
+    def view(self: "MarketplaceToolkit", ws: "Workspace", name: str) -> SectionDraft:
+        market = ws.user_cfg.get("marketplace", {}).get(name)
         values = {k: copy.deepcopy(v) for k, v in (market or {}).items() if k != "request"}
         return SectionDraft(
             section_type="marketplace",
@@ -256,25 +247,19 @@ class MarketplaceBuilder(SectionBuilder):
             original_request=(market or {}).get("request"),
         )
 
-    def context(
-        self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
-    ) -> Dict[str, Any]:
-        """Names the LLM may use as values; nothing else of the config is shown to it."""
-
+    def context(self: "MarketplaceToolkit", ws: "Workspace") -> Dict[str, List[str]]:
         def names(section: str, *cfgs: Dict[str, Any]) -> List[str]:
             return list(dict.fromkeys(n for cfg in cfgs for n in cfg.get(section, {})))
 
         return {
-            "users": names("user", ctx.user_cfg),
-            "ai_services": names("ai", ctx.user_cfg),
-            "regions": names("region", ctx.system_cfg, ctx.user_cfg),
-            "translations": names("translation", ctx.system_cfg, ctx.user_cfg),
+            "users": names("user", ws.user_cfg),
+            "ai_services": names("ai", ws.user_cfg),
+            "regions": names("region", ws.system_cfg, ws.user_cfg),
+            "translations": names("translation", ws.system_cfg, ws.user_cfg),
         }
 
     # --- checks ----------------------------------------------------------------------------
-    def validate(
-        self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
-    ) -> List[str]:
+    def validate(self: "MarketplaceToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
         errors: List[str] = []
         try:
             with warnings.catch_warnings():
@@ -285,12 +270,13 @@ class MarketplaceBuilder(SectionBuilder):
         if draft.values.get("city_name") != draft.original.get("city_name") and draft.values.get(
             "search_city"
         ) == draft.original.get("search_city"):
-            errors.append(
-                "`city_name` may only change together with `search_city`; leave an existing "
-                "city as it is."
-            )
-            return errors
-        context = self.context(ctx, draft)
+            return [
+                (
+                    "`city_name` may only change together with `search_city`; leave an existing "
+                    "city as it is."
+                )
+            ]
+        context = self.context(ws)
         refs = {
             "notify": "users",
             "ai": "ai_services",
@@ -302,62 +288,49 @@ class MarketplaceBuilder(SectionBuilder):
             wanted = value if isinstance(value, list) else [value] if value else []
             unknown = [v for v in wanted if v not in context[kind]]
             if unknown:
-                errors.append(f"`{key}` names {unknown}, which are not in context.{kind}.")
+                errors.append(f"`{key}` names {unknown}, which are not in can_reference.{kind}.")
         if errors:
             return errors
         try:
             # the whole config must still load (e.g. an item's cities against a new radius)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                expand(self.apply(ctx, draft), ctx.system_cfg, partial=True)
+                expand(self.apply(ws.user_cfg, draft), ws.system_cfg, partial=True)
         except NormalizeError as e:
             errors.append(str(e))
         return errors
 
-    def missing(self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft) -> List[str]:
+    def missing(self: "MarketplaceToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
         location = ("search_city", "search_region")
         if any(draft.values.get(k) for k in location):
             return []
-        items = self.items(ctx.user_cfg, draft.name)
+        items = self.items(ws.user_cfg, draft.name)
         if items and all(any(item.get(k) for k in location) for item in items.values()):
             return []
         return ["location: set search_city (with radius) or search_region"]
 
-    # --- showing and applying ----------------------------------------------------------------
-    def describe(self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft) -> str:
+    # --- showing ---------------------------------------------------------------------------
+    def describe(self: "MarketplaceToolkit", draft: SectionDraft) -> str:
         section = {"request": draft.request} if draft.request else {}
         section.update(self.masked(draft.values))
         return f"```toml\n{dump_config_toml({'marketplace': {draft.name: section}})}```"
 
-    def apply(
-        self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
-    ) -> Dict[str, Any]:
-        """The user config with only ``[marketplace.NAME]`` replaced (the input is not changed).
-
-        Items are never changed: they use a marketplace value unless they set their own.
-        """
-        cfg = copy.deepcopy(ctx.user_cfg)
-        section = {"request": draft.request} if draft.request else {}
-        section.update(copy.deepcopy(draft.values))
-        cfg.setdefault("marketplace", {})[draft.name] = section
-        return cfg
-
-    # --- choosing what to edit -----------------------------------------------------------------
+    # --- choosing what to edit (aimm-configure marketplace) ----------------------------------
     async def choose_target(
-        self: "MarketplaceBuilder", ui: SetupUI, ctx: BuilderContext, name: str | None
-    ) -> SectionDraft | None:
-        markets = ctx.user_cfg.get("marketplace", {})
+        self: "MarketplaceToolkit", ui: SetupUI, ws: "Workspace", name: str | None
+    ) -> str | None:
+        markets = ws.user_cfg.get("marketplace", {})
         if name is not None:
             if name in markets:
-                await ui.say(self._summary(ctx, name), markdown=True)
+                await ui.say(self._summary(ws, name), markdown=True)
             else:
                 await ui.say(f"[marketplace.{name}] is new.")
-            return self.view(ctx, name)
+            return name
         if not markets:
             await ui.say("No marketplace is configured yet; let's set one up.")
-            return self.view(ctx, await self._new_name(ui, ctx))
+            return await self._new_name(ui, ws)
         await ui.say(
-            "Existing marketplaces:\n\n" + "\n\n".join(self._summary(ctx, n) for n in markets),
+            "Existing marketplaces:\n\n" + "\n\n".join(self._summary(ws, n) for n in markets),
             markdown=True,
         )
         options = [Choice(n, f"Update [marketplace.{n}]") for n in markets]
@@ -370,12 +343,12 @@ class MarketplaceBuilder(SectionBuilder):
         if choice == "__quit__":
             return None
         if choice == "__new__":
-            return self.view(ctx, await self._new_name(ui, ctx))
-        return self.view(ctx, choice)
+            return await self._new_name(ui, ws)
+        return choice
 
-    def _summary(self: "MarketplaceBuilder", ctx: BuilderContext, name: str) -> str:
-        draft = self.view(ctx, name)
-        count = len(self.items(ctx.user_cfg, name))
+    def _summary(self: "MarketplaceToolkit", ws: "Workspace", name: str) -> str:
+        draft = self.view(ws, name)
+        count = len(self.items(ws.user_cfg, name))
         head = f"**[marketplace.{name}]** ({count} item{'s' if count != 1 else ''})"
         if draft.request:
             head += f"\n\nRequest: {draft.request}"
@@ -386,8 +359,8 @@ class MarketplaceBuilder(SectionBuilder):
         )
         return "\n\n".join([head, f"```toml\n{body}```" if body else "(no settings)"])
 
-    async def _new_name(self: "MarketplaceBuilder", ui: SetupUI, ctx: BuilderContext) -> str:
-        taken = set(ctx.user_cfg.get("marketplace", {}))
+    async def _new_name(self: "MarketplaceToolkit", ui: SetupUI, ws: "Workspace") -> str:
+        taken = set(ws.user_cfg.get("marketplace", {}))
         if "facebook" not in taken:
             return "facebook"
         suggestion = next(f"facebook_{i}" for i in range(2, 100) if f"facebook_{i}" not in taken)
