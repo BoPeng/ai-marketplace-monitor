@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import os
 import re
 import threading
@@ -74,6 +75,7 @@ class ProbeResult:
     model: str
     message: str
     available: List[str] = field(default_factory=list)
+    suggested_base_url: str | None = None  # a base URL that works when the configured one 404s
 
 
 @dataclass(frozen=True)
@@ -289,8 +291,30 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
         return ProbeResult(False, "request", model, f"Can't reach {_base_url(backend)}", available)
     except Exception as e:
         message = f"{section.name} request failed: {scrub(str(e), secret)[:200]}"
-        return ProbeResult(False, "request", model, message, available)
+        alternative = _v1_alternative(section.config, backend_class, model, timeout, e)
+        if alternative:
+            message = (
+                f"{section.name}: requests to {_base_url(backend)} are not found (404), "
+                f"but {alternative} works; use it as base_url"
+            )
+        return ProbeResult(False, "request", model, message, available, alternative)
     return ProbeResult(True, "request", model, f"{section.name} - {model}", available)
+
+
+def _v1_alternative(
+    config: AIConfig, backend_class: Any, model: str, timeout: float, error: Exception
+) -> str | None:
+    """``<base_url>/v1`` when the configured base URL returns 404 and that one works."""
+    url = str(getattr(config, "base_url", None) or "").rstrip("/")
+    if getattr(error, "status_code", None) != 404 or not url or url.endswith("/v1"):
+        return None
+    alternative = f"{url}/v1"
+    try:
+        backend = backend_class(config=dataclasses.replace(config, base_url=alternative))
+        _ping(backend, _probe_client(backend, timeout), model)
+    except Exception:
+        return None
+    return alternative
 
 
 async def configure_ai(
@@ -408,8 +432,10 @@ async def propose_ai_section(
     default_url = {"unitysvc": UNITYSVC_URL, "ollama": OLLAMA_URL}.get(provider)
     if default_url is not None:
         label = PROVIDER_LABELS[provider]
+        checked = ctx.probes.get(target.name) if target else None
+        suggested = checked.suggested_base_url if checked else None
         values["base_url"] = await _ask_url(
-            ui, f"{label} base URL", old.get("base_url") or default_url
+            ui, f"{label} base URL", suggested or old.get("base_url") or default_url
         )
     backend = supported_ai_backends[provider]
     # the models the check found for this section, else ask the provider now
@@ -544,6 +570,13 @@ async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupCo
         if result.ok:
             await ui.say(f"{section.name} works ({result.model}).", kind="success")
             return False
+        if result.suggested_base_url:
+            # the same settings work under <base_url>/v1: offer to save that and check again
+            await ui.say(result.message, kind="warning")
+            proposal.values["base_url"] = result.suggested_base_url
+            if await commit_ai_section(ui, proposal, ctx) is CommitOutcome.WRITTEN:
+                return await _after_commit(ui, proposal, ctx)
+            return False
         await ui.say(result.message, kind="error")
         return True
 
@@ -584,6 +617,15 @@ def pick_model(current: str | None, default: str, available: List[str]) -> str:
 
 async def fetch_models(provider: str, values: Dict[str, Any], timeout: float = 10.0) -> List[str]:
     """The models the provider lists for these settings; empty when they cannot be listed."""
+    models = await _list_models(provider, values, timeout)
+    url = str(values.get("base_url") or "").rstrip("/")
+    if not models and url.endswith("/v1"):
+        # some services list their models without the /v1 their requests need
+        models = await _list_models(provider, {**values, "base_url": url[: -len("/v1")]}, timeout)
+    return models
+
+
+async def _list_models(provider: str, values: Dict[str, Any], timeout: float) -> List[str]:
     config, _problem = _build_ai_config(provider, values)
     backend_class = supported_ai_backends.get(provider)
     if config is None or backend_class is None:
@@ -615,11 +657,16 @@ async def _ask_model(ui: SetupUI, current: str | None, default: str, available: 
         await ui.say(f'Model "{current}" is no longer available.', kind="warning")
     proposed = pick_model(current, default, available)
     shown = [proposed, *(m for m in available if m != proposed)][:30]
-    options = [Choice(m, m) for m in shown] + [Choice("__other__", "Other...")]
-    choice = await ui.choose("Which model?", options, proposed)
-    if choice != "__other__":
-        return choice
-    return await _ask_safe_text(ui, "Model", proposed)
+    options = [Choice(m, m) for m in shown]
+    while True:
+        choice = await ui.choose("Which model?", options, proposed, allow_text=True)
+        if not _TYPED_KEY.match(choice):
+            return choice
+        await ui.say(
+            "That looks like an API key. Keys never go into aimm; set the key as an "
+            "environment variable instead.",
+            kind="warning",
+        )
 
 
 async def _ask_safe_text(ui: SetupUI, prompt: str, default: str) -> str:

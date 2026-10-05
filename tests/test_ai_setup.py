@@ -168,6 +168,7 @@ async def test_json_setup_ui_uses_serializable_prompt_messages() -> None:
             "prompt": "Provider?",
             "options": [{"value": "openai", "label": "OpenAI", "hint": ""}],
             "default": None,
+            "allow_text": False,
         },
         {
             "type": "prompt",
@@ -683,7 +684,7 @@ async def test_model_menu_other_accepts_a_typed_name(
 ) -> None:
     stale_probe(monkeypatch)
     config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
-    ui = ScriptedSetupUI(["edit:anthropic", "__other__", "claude-sonnet-4-6", "yes"])
+    ui = ScriptedSetupUI(["edit:anthropic", "claude-sonnet-4-6", "yes"])
 
     assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
     assert 'model = "claude-sonnet-4-6"' in config.read_text()
@@ -768,10 +769,10 @@ async def test_menu_lists_each_other_section_and_create_new(
 
     class Recording(ScriptedSetupUI):
         async def choose(
-            self, prompt: str, options: List[Choice], default: str | None = None
+            self, prompt: str, options: List[Choice], default: str | None = None, **kw: Any
         ) -> str:
             seen.append([o.label for o in options])
-            return await super().choose(prompt, options, default)
+            return await super().choose(prompt, options, default, **kw)
 
     await configure_ai(Recording(["quit"]), [config], home=tmp_path / "home")
     assert seen[0] == [
@@ -879,10 +880,10 @@ async def test_unitysvc_model_is_chosen_from_the_listed_models(
 
     class Recording(ScriptedSetupUI):
         async def choose(
-            self, prompt: str, options: List[Choice], default: str | None = None
+            self, prompt: str, options: List[Choice], default: str | None = None, **kw: Any
         ) -> str:
             seen.append([prompt, default or "", *(o.value for o in options)])
-            return await super().choose(prompt, options, default)
+            return await super().choose(prompt, options, default, **kw)
 
     ui = Recording(["unitysvc", "", "kimi-k3"])
     proposal = await propose_ai_section(ui, context(tmp_path))
@@ -890,7 +891,7 @@ async def test_unitysvc_model_is_chosen_from_the_listed_models(
     assert proposal is not None
     assert proposal.values == {"api_key": "${UNITYSVC_API_KEY}", "model": "kimi-k3"}  # default URL
     assert seen[1][:3] == ["Which model?", "balanced", "balanced"]
-    assert set(UNITYSVC_MODELS) <= set(seen[1][2:]) and seen[1][-1] == "__other__"
+    assert set(seen[1][2:]) == set(UNITYSVC_MODELS)
     assert calls[0]["base_url"] == "https://api.svcpass.com/p/llm"
 
 
@@ -943,3 +944,106 @@ async def test_fetch_models_lists_or_returns_nothing(monkeypatch: pytest.MonkeyP
     assert await REAL_FETCH_MODELS("unitysvc", values) == []
     monkeypatch.delenv("UNITYSVC_API_KEY")
     assert await REAL_FETCH_MODELS("unitysvc", values) == []  # key not set: nothing to ask
+
+
+async def test_json_choice_accepts_typed_text_only_when_allowed() -> None:
+    replies = [{"type": "answer", "value": "kimi-k3"}, {"type": "answer", "value": "kimi-k3"}]
+    sent: List[Dict[str, Any]] = []
+
+    async def send(message: Dict[str, Any]) -> None:
+        sent.append(message)
+
+    async def receive() -> Dict[str, Any]:
+        return replies.pop(0)
+
+    ui = JsonSetupUI(send, receive)
+    options = [Choice("balanced", "balanced")]
+    assert await ui.choose("Which model?", options, "balanced", allow_text=True) == "kimi-k3"
+    assert sent[-1]["allow_text"] is True
+    with pytest.raises(IndexError):  # not allowed: the reply is rejected and asked again
+        await ui.choose("Which model?", options, "balanced")
+
+
+def test_console_choice_accepts_typed_text_only_when_allowed() -> None:
+    import asyncio
+
+    from rich.console import Console
+
+    from ai_marketplace_monitor.configure.ui import ConsoleSetupUI
+
+    answers = iter(["qwen3.7-flash", "abc", "1"])
+    ui = ConsoleSetupUI(
+        console=Console(file=open("/dev/null", "w")),
+        read=lambda _: next(answers),
+        interactive=True,
+    )
+    options = [Choice("balanced", "balanced")]
+    assert asyncio.run(ui.choose("Which model?", options, allow_text=True)) == "qwen3.7-flash"
+    assert asyncio.run(ui.choose("Which model?", options)) == "balanced"  # "abc" re-asked
+
+
+async def test_fetch_models_tries_without_v1_when_v1_lists_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
+    urls: List[str] = []
+
+    def client(backend: Any, timeout: float) -> Any:
+        url = backend.config.base_url
+        urls.append(url)
+        found = [] if url.endswith("/v1") else [SimpleNamespace(id="qwen3.7-flash")]
+        return SimpleNamespace(models=SimpleNamespace(list=lambda: found))
+
+    monkeypatch.setattr(ai_setup, "_probe_client", client)
+    values = {"api_key": "${UNITYSVC_API_KEY}", "base_url": "https://api.svcpass.com/qwen/v1"}
+    assert await REAL_FETCH_MODELS("unitysvc", values) == ["qwen3.7-flash"]
+    assert urls == ["https://api.svcpass.com/qwen/v1", "https://api.svcpass.com/qwen"]
+
+
+def test_probe_suggests_v1_when_requests_are_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    def client(backend: Any, timeout: float) -> Any:
+        v1 = backend.config.base_url.endswith("/v1")
+
+        def create(**kwargs: Any) -> Any:
+            if not v1:
+                raise status_error(404, "not found")
+            return SimpleNamespace()
+
+        return SimpleNamespace(
+            models=SimpleNamespace(list=lambda: [SimpleNamespace(id="qwen3.7-flash")]),
+            chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+        )
+
+    monkeypatch.setattr(ai_setup, "_probe_client", client)
+    raw = {
+        "api_key": "svcpass_x",
+        "base_url": "https://api.svcpass.com/qwen",
+        "model": "qwen3.7-flash",
+    }
+    config = UnitySVCConfig(
+        name="unitysvc", api_key=raw["api_key"], base_url=raw["base_url"], model=raw["model"]
+    )
+    result = probe_ai_section(AISection("unitysvc", raw, [], config=config))
+
+    assert not result.ok
+    assert result.suggested_base_url == "https://api.svcpass.com/qwen/v1"
+    assert "https://api.svcpass.com/qwen/v1 works; use it as base_url" in result.message
+
+
+async def test_after_commit_offers_the_v1_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
+    config = write(tmp_path / "config.toml", "")
+    results = [
+        ProbeResult(False, "request", "m", "use /v1", [], "https://api.svcpass.com/qwen/v1"),
+        ProbeResult(True, "request", "m", "ok", []),
+    ]
+    monkeypatch.setattr(ai_setup, "probe_ai_section", lambda section: results.pop(0))
+    ui = ScriptedSetupUI(
+        ["unitysvc", "https://api.svcpass.com/qwen", "qwen3.7-flash", "yes", "yes"]
+    )
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert 'base_url = "https://api.svcpass.com/qwen/v1"' in config.read_text()
+    assert "unitysvc works (m)." in ui.said("success")
