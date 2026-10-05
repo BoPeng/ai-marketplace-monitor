@@ -348,7 +348,14 @@ class SectionBuilder:
                 return cancelled()
             history.append(Exchange("user", reply))
         await ui.say(f"Stopping after {self.max_turns} turns with the AI.", kind="warning")
-        if not self.missing(ctx, draft) and not self.validate(ctx, draft):
+        if (
+            draft.unsaved_changes()
+            and not self.missing(ctx, draft)
+            and not self.validate(ctx, draft)
+        ):
+            await ui.say(
+                "The section is complete with the changes made so far; you can save them now."
+            )
             done = await self._save(ui, ctx, draft, label, "")
             if done is not None:
                 return done

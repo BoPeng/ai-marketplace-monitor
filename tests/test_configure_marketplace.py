@@ -634,3 +634,20 @@ async def test_no_change_reply_must_not_carry_edits(tmp_path: Path) -> None:
     result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
     assert result.action == "no_change" and result.draft.values == {"search_city": "houston"}
     assert "must not include `values`" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
+
+
+async def test_turn_limit_offers_save_only_with_unsaved_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(MarketplaceBuilder, "max_turns", 2)
+    # nothing changed: the limit ends the conversation without a save offer
+    ctx = make_ctx(tmp_path, ONE_ITEM, [reply("Anything else?")] * 2)
+    ui = ScriptedSetupUI(["more", "more"])
+    assert (await B.converse(ui, ctx, "facebook")).outcome is Outcome.CANCELLED
+    assert "Write these changes?" not in ui.questions
+
+    # a complete change: the save is offered, with the reason
+    ctx = make_ctx(tmp_path, ONE_ITEM, [reply("Max $1000. And?", {"max_price": "1000"})] * 2)
+    ui = ScriptedSetupUI(["more", "more", "yes"])
+    assert (await B.converse(ui, ctx, "facebook")).outcome is Outcome.SAVED
+    assert any("you can save them now" in m for m in ui.said())
