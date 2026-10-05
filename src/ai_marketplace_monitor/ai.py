@@ -98,6 +98,8 @@ class AIConfig(BaseConfig):
     base_url: str | None = None
     max_retries: int = 10
     timeout: int | None = None
+    use_images: bool = False
+    image_detail: str = "low"
 
     def handle_provider(self: "AIConfig") -> None:
         if self.provider is None:
@@ -124,10 +126,20 @@ class AIConfig(BaseConfig):
         if not isinstance(self.timeout, int) or self.timeout < 0:
             raise ValueError("AIConfig requires a positive integer timeout.")
 
+    def handle_use_images(self: "AIConfig") -> None:
+        if not isinstance(self.use_images, bool):
+            raise ValueError("AIConfig requires a boolean use_images.")
+
+    def handle_image_detail(self: "AIConfig") -> None:
+        if self.image_detail not in {"low", "high", "original", "auto"}:
+            raise ValueError("AIConfig image_detail must be low, high, original, or auto.")
+
 
 @dataclass
 class OpenAIConfig(AIConfig):
     def handle_api_key(self: "OpenAIConfig") -> None:
+        if self.enabled is False and self.api_key is None:
+            return
         if self.api_key is None:
             raise ValueError("OpenAI requires a string api_key.")
 
@@ -309,9 +321,13 @@ class OpenAIBackend(AIBackend):
         self.connect()
 
         retries = 0
+        response: Any | None = None
+        last_error: Exception | None = None
+        include_image = True
         while retries < self.config.max_retries:
             self.connect()
             assert self.client is not None
+            user_message = self._user_message(prompt, listing, include_image=include_image)
             try:
                 response = self.client.chat.completions.create(
                     model=self.config.model or self.default_model,
@@ -320,7 +336,7 @@ class OpenAIBackend(AIBackend):
                             "role": "system",
                             "content": "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
                         },
-                        {"role": "user", "content": prompt},
+                        user_message,
                     ],
                     stream=False,
                 )
@@ -328,6 +344,16 @@ class OpenAIBackend(AIBackend):
             except KeyboardInterrupt:
                 raise
             except Exception as e:
+                last_error = e
+                if isinstance(user_message["content"], list):
+                    # the model may not support images, or the (expiring) image URL
+                    # may no longer be accessible, so fall back to text-only
+                    if self.logger:
+                        self.logger.warning(
+                            f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)} with image, retrying without image: {e}"""
+                        )
+                    include_image = False
+                    continue
                 if self.logger:
                     self.logger.error(
                         f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
@@ -336,6 +362,11 @@ class OpenAIBackend(AIBackend):
                 # try to initiate a connection
                 self.client = None
                 time.sleep(5)
+
+        if response is None:
+            raise RuntimeError(
+                f"{self.config.name} failed to evaluate {listing.title} after {retries} retries"
+            ) from last_error
 
         # check if the response is yes
         if self.logger:
@@ -375,6 +406,25 @@ class OpenAIBackend(AIBackend):
         res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
         return res
+
+    def _user_message(
+        self: "OpenAIBackend", prompt: str, listing: Listing, include_image: bool = True
+    ) -> dict[str, Any]:
+        if not include_image or not self.config.use_images or not listing.image:
+            return {"role": "user", "content": prompt}
+        return {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": listing.image,
+                        "detail": self.config.image_detail,
+                    },
+                },
+            ],
+        }
 
 
 class DeepSeekBackend(OpenAIBackend):

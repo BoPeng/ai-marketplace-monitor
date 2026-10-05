@@ -107,6 +107,24 @@ SORT_BY_PARAM = {
 }
 
 
+_FACEBOOK_INLINE_STYLE_RE = re.compile(r"\.[A-Za-z0-9_-]+\{[^{}]*inline-size:[^{}]*\}")
+_FACEBOOK_AD_BLOCK_RE = re.compile(
+    r"(?:^|\s)Ads\s*" + _FACEBOOK_INLINE_STYLE_RE.pattern + r".*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _clean_facebook_description(text: str) -> str:
+    """Remove Facebook-injected ad/video text from listing descriptions."""
+    text = text.replace("\xa0", " ").strip()
+    text = _FACEBOOK_AD_BLOCK_RE.sub("", text)
+    text = _FACEBOOK_INLINE_STYLE_RE.sub(" ", text)
+    text = text.replace("Sorry, we're having trouble playing this video.", " ")
+    text = text.replace("Learn more", " ")
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
 @dataclass
 class FacebookMarketItemCommonConfig(BaseConfig):
     """Item options that can be defined in marketplace
@@ -876,12 +894,12 @@ class FacebookItemPage(WebPage):
         # title
         title = self.get_title()
         price = self.get_price()
-        description = self.get_description()
+        description = _clean_facebook_description(self.get_description())
         # strip disclosure button text left over after expanding "See more"
         for label in (self.translator("See more"), self.translator("See less")):
             description = description.replace(label, "").strip()
 
-        if not title or not price or not description:
+        if not title or not price:
             raise ValueError(f"Failed to parse {post_url}")
 
         if self.logger:
@@ -1362,16 +1380,25 @@ def parse_listing(
         FacebookRentalItemPage,
         FacebookAutoItemWithAboutAndDescriptionPage,
         FacebookAutoItemWithDescriptionPage,
+        # the specific (ul/li) layout before the generic one: Flex also matches the older
+        # pages, where it may pick up a wrong description; if Regular finds none, Flex is next
         FacebookRegularItemPage,
         FacebookFlexItemPage,
     ]
 
+    # a layout that matches but fails to extract a description is kept only as a
+    # fallback, so that a later layout that does extract the description is preferred
+    fallback: Listing | None = None
     for page_model in supported_facebook_item_layouts:
         try:
-            return page_model(page, translator, logger).parse(post_url)
+            listing = page_model(page, translator, logger).parse(post_url)
         except KeyboardInterrupt:
             raise
         except Exception:
             # try next page ayout
             continue
-    return None
+        if listing.description:
+            return listing
+        if fallback is None:
+            fallback = listing
+    return fallback

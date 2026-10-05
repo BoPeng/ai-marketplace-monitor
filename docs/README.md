@@ -48,6 +48,8 @@ One of more sections to list the AI agent that can be used to judge if listings 
 | `model`       | Optional    | String   | Language model to be used.                                 |
 | `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10.     |
 | `timeout`     | Optional    | Integer  | Timeout (in seconds) waiting for response from AI service. |
+| `use_images`  | Optional    | Boolean  | Send the listing photo to the AI service. Default to `false`. |
+| `image_detail` | Optional   | String   | Image detail level: `low`, `high`, `original`, or `auto`. Default to `low`. |
 
 Note that:
 
@@ -61,6 +63,7 @@ Note that:
 7. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 8. You can use option `ai` to list the AI services for particular marketplaces or items.
 9. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm-configure ai` to make another section the default.
+10. `use_images` sends the main listing photo along with the text for OpenAI-compatible providers (it is ignored by Anthropic). It requires a vision-capable model and adds image tokens to every new evaluation: roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. If a request with an image fails, the evaluation is retried without the image.
 
 A typical section for OpenAI looks like
 
