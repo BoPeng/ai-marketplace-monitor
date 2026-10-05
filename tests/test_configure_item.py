@@ -3,7 +3,7 @@
 import sys
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -211,3 +211,27 @@ async def test_an_item_city_must_come_from_a_pasted_url(tmp_path: Path) -> None:
     assert T.validate(ws, draft) == []
     draft.values["search_city"] = "dallas"
     assert "Never guess" in T.validate(ws, draft)[0]
+
+
+async def test_an_item_may_name_a_section_drafted_in_the_session(tmp_path: Path) -> None:
+    ws = await ws_for(tmp_path, ONE_ITEM)
+    draft = T.view(ws, "gopro")
+    draft.values = {"search_phrases": ["gopro"], "notify": ["alice"]}
+    assert "can_reference.users" in T.validate(ws, draft)[0]
+    ws.toolkits["user"] = _UserStub()
+    ws.draft("user", "alice").values = {"email": "alice@example.com"}
+    assert "alice" in T.context(ws)["users"]
+
+
+class _UserStub(MarketplaceToolkit):
+    """A stand-in user toolkit: any drafted user is complete."""
+
+    section_type = "user"
+
+    def missing(self: "_UserStub", ws: Any, draft: Any) -> List[str]:
+        return []
+
+    def view(self: "_UserStub", ws: Any, name: str) -> Any:
+        from ai_marketplace_monitor.configure.toolkits import SectionDraft
+
+        return SectionDraft("user", name, True, None, {})
