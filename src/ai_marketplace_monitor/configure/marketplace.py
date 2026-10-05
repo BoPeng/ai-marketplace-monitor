@@ -251,11 +251,12 @@ class MarketplaceToolkit(Toolkit):
         def names(section: str, *cfgs: Dict[str, Any]) -> List[str]:
             return list(dict.fromkeys(n for cfg in cfgs for n in cfg.get(section, {})))
 
+        cfg = ws.config_with_drafts()  # sections drafted in this session count too
         return {
-            "users": names("user", ws.user_cfg),
-            "ai_services": names("ai", ws.user_cfg),
-            "regions": names("region", ws.system_cfg, ws.user_cfg),
-            "translations": names("translation", ws.system_cfg, ws.user_cfg),
+            "users": names("user", cfg),
+            "ai_services": names("ai", cfg),
+            "regions": names("region", ws.system_cfg, cfg),
+            "translations": names("translation", ws.system_cfg, cfg),
         }
 
     # --- checks ----------------------------------------------------------------------------
