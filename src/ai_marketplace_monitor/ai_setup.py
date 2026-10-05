@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, List, Protocol, Tuple
+from typing import Any, Awaitable, Callable, ClassVar, Dict, List, Protocol, Tuple
 
 import anthropic
 import openai
@@ -67,6 +67,9 @@ class Choice:
     label: str
     hint: str = ""
 
+    def to_json(self: "Choice") -> Dict[str, str]:
+        return {"value": self.value, "label": self.label, "hint": self.hint}
+
 
 class SetupUI(Protocol):
     async def say(
@@ -80,6 +83,90 @@ class SetupUI(Protocol):
     async def ask_text(self: "SetupUI", prompt: str, default: str | None = None) -> str: ...
 
     async def confirm(self: "SetupUI", prompt: str, default: bool = True) -> bool: ...
+
+
+class JsonSetupUI:
+    """JSON message adapter for WebSocket or other remote front ends."""
+
+    def __init__(
+        self: "JsonSetupUI",
+        send: Callable[[Dict[str, Any]], Awaitable[None]],
+        receive: Callable[[], Awaitable[Dict[str, Any]]],
+    ) -> None:
+        self._send = send
+        self._receive = receive
+
+    async def say(
+        self: "JsonSetupUI", text: str, *, kind: str = "info", markdown: bool = False
+    ) -> None:
+        await self._send({"type": "message", "kind": kind, "text": text, "markdown": markdown})
+
+    async def choose(
+        self: "JsonSetupUI", prompt: str, options: List[Choice], default: str | None = None
+    ) -> str:
+        await self._send(
+            {
+                "type": "prompt",
+                "prompt_type": "choice",
+                "prompt": prompt,
+                "options": [option.to_json() for option in options],
+                "default": default,
+            }
+        )
+        answer = await self._answer()
+        if answer in (None, "") and default is not None:
+            return default
+        if not isinstance(answer, str):
+            raise ValueError("Choice answers must be strings.")
+        allowed = {option.value for option in options}
+        if answer not in allowed:
+            raise ValueError(f"{answer!r} is not one of {sorted(allowed)}")
+        return answer
+
+    async def ask_text(self: "JsonSetupUI", prompt: str, default: str | None = None) -> str:
+        await self._send(
+            {
+                "type": "prompt",
+                "prompt_type": "text",
+                "prompt": prompt,
+                "default": default,
+            }
+        )
+        answer = await self._answer()
+        if answer in (None, "") and default is not None:
+            return default
+        if not isinstance(answer, str):
+            raise ValueError("Text answers must be strings.")
+        return answer
+
+    async def confirm(self: "JsonSetupUI", prompt: str, default: bool = True) -> bool:
+        await self._send(
+            {
+                "type": "prompt",
+                "prompt_type": "confirm",
+                "prompt": prompt,
+                "default": default,
+            }
+        )
+        answer = await self._answer()
+        if answer in (None, ""):
+            return default
+        if isinstance(answer, bool):
+            return answer
+        if isinstance(answer, str) and answer.lower() in ("y", "yes", "true"):
+            return True
+        if isinstance(answer, str) and answer.lower() in ("n", "no", "false"):
+            return False
+        raise ValueError("Confirm answers must be booleans or yes/no strings.")
+
+    async def _answer(self: "JsonSetupUI") -> Any:
+        message = await self._receive()
+        message_type = message.get("type")
+        if message_type in ("cancel", "close"):
+            raise SetupClosedError
+        if message_type != "answer":
+            raise ValueError(f"Expected answer message, got {message_type!r}.")
+        return message.get("value")
 
 
 class ConsoleSetupUI:

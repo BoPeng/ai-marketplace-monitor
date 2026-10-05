@@ -99,6 +99,10 @@ Use ``--config`` or ``--config-file`` to read and update a specific config file.
 Future configuration helpers can follow the same section-address pattern, such as
 ``item`` for a new item or ``item.gopro`` for an existing named item.
 
+The command is a terminal front end over a reusable async setup flow. Web UI code can
+drive the same flow through JSON prompt/answer messages over a websocket instead of
+shelling out to the command.
+
 Cost Considerations
 ------------------
 

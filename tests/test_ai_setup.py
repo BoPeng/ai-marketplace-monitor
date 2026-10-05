@@ -1,6 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Iterator, List
+from typing import Any, Dict, Iterator, List
 
 import httpx
 import openai
@@ -14,6 +14,7 @@ from ai_marketplace_monitor.ai_setup import (
     AISetupContext,
     CommitOutcome,
     ConfigReadError,
+    JsonSetupUI,
     ProbeResult,
     ScriptedSetupUI,
     commit_ai_section,
@@ -108,6 +109,61 @@ def test_env_var_name() -> None:
     assert env_var_name("${UNITYSVC_API_KEY}") == "UNITYSVC_API_KEY"
     assert env_var_name("svcpass_x") is None
     assert env_var_name(None) is None
+
+
+async def test_json_setup_ui_uses_serializable_prompt_messages() -> None:
+    sent: List[Dict[str, Any]] = []
+    answers = iter(
+        [
+            {"type": "answer", "value": "openai"},
+            {"type": "answer", "value": ""},
+            {"type": "answer", "value": True},
+        ]
+    )
+
+    async def send(message: Dict[str, Any]) -> None:
+        sent.append(message)
+
+    async def receive() -> Dict[str, Any]:
+        return next(answers)
+
+    ui = JsonSetupUI(send, receive)
+
+    await ui.say("Checking AI", kind="warning", markdown=True)
+    choice = await ui.choose("Provider?", [ai_setup.Choice("openai", "OpenAI")])
+    model = await ui.ask_text("Model", "gpt-5")
+    confirmed = await ui.confirm("Write?")
+
+    assert choice == "openai"
+    assert model == "gpt-5"
+    assert confirmed
+    assert sent == [
+        {
+            "type": "message",
+            "kind": "warning",
+            "text": "Checking AI",
+            "markdown": True,
+        },
+        {
+            "type": "prompt",
+            "prompt_type": "choice",
+            "prompt": "Provider?",
+            "options": [{"value": "openai", "label": "OpenAI", "hint": ""}],
+            "default": None,
+        },
+        {
+            "type": "prompt",
+            "prompt_type": "text",
+            "prompt": "Model",
+            "default": "gpt-5",
+        },
+        {
+            "type": "prompt",
+            "prompt_type": "confirm",
+            "prompt": "Write?",
+            "default": True,
+        },
+    ]
 
 
 def test_load_ai_sections_merges_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
