@@ -2,20 +2,42 @@
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, Coroutine, List, Optional
 
 import rich
 import typer
 
-from .ai_setup import ConsoleSetupUI, resolve_setup_config_files
+from .config import resolve_config_files
 from .configure import (
     ConfigureAddressError,
     configure_front_door,
     configure_section,
     validate_section_address,
 )
+from .setup_ui import ConsoleSetupUI
 
 app = typer.Typer()
+
+
+def _run(coro: Coroutine[Any, Any, int]) -> int:
+    """Run the setup coroutine; Ctrl-C anywhere (prompt or network check) exits cleanly.
+
+    ``asyncio.run`` installs its own SIGINT handler, which cancels the task but does not
+    interrupt a blocking ``input()``; a plain event loop keeps Python's default handler.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    except KeyboardInterrupt:
+        rich.print("Cancelled.")
+        return 0
+    finally:
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            task.cancel()
+        if pending:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        loop.close()
 
 
 @app.command()
@@ -44,11 +66,11 @@ def main(
         if section is not None:
             validate_section_address(section)
         ui = ConsoleSetupUI()
-        files = resolve_setup_config_files(config_files)
-        exit_code = (
-            asyncio.run(configure_front_door(ui, files))
+        files = resolve_config_files(config_files)
+        exit_code = _run(
+            configure_front_door(ui, files)
             if section is None
-            else asyncio.run(configure_section(ui, files, section))
+            else configure_section(ui, files, section)
         )
     except (RuntimeError, FileNotFoundError, ConfigureAddressError) as e:
         rich.print(f"[red]{e}[/red]")

@@ -4,7 +4,7 @@ from typing import Any, List
 import pytest
 from typer.testing import CliRunner
 
-from ai_marketplace_monitor import ai_setup, configure, configure_cli
+from ai_marketplace_monitor import configure, configure_cli, setup_ui
 
 runner = CliRunner()
 
@@ -27,7 +27,7 @@ async def test_configure_front_door_runs_ai_then_menu(
 
     monkeypatch.setattr(configure, "configure_ai", fake_configure_ai)
 
-    assert await configure.configure_front_door(ai_setup.ScriptedSetupUI(["quit"]), files) == 0
+    assert await configure.configure_front_door(setup_ui.ScriptedSetupUI(["quit"]), files) == 0
     assert calls == [(files, None)]
 
 
@@ -48,12 +48,12 @@ async def test_configure_front_door_can_call_ai_again(
 
     monkeypatch.setattr(configure, "configure_ai", fake_configure_ai)
 
-    assert await configure.configure_front_door(ai_setup.ScriptedSetupUI(["ai", "quit"]), []) == 0
+    assert await configure.configure_front_door(setup_ui.ScriptedSetupUI(["ai", "quit"]), []) == 0
     assert calls == [([], None), ([], None)]
 
 
 async def test_configure_section_item_requires_usable_ai() -> None:
-    ui = ai_setup.ScriptedSetupUI([])
+    ui = setup_ui.ScriptedSetupUI([])
 
     assert await configure.configure_section(ui, [], "item.gopro") == 1
     assert "Configure a working AI service first" in ui.said("error")[0]
@@ -66,7 +66,7 @@ async def test_configure_section_item_is_reserved_after_ai_ready(
         return True
 
     monkeypatch.setattr(configure, "require_usable_ai", fake_require_usable_ai)
-    ui = ai_setup.ScriptedSetupUI([])
+    ui = setup_ui.ScriptedSetupUI([])
 
     assert await configure.configure_section(ui, [], "item.gopro") == 1
     assert "not implemented yet" in ui.said("error")[0]
@@ -81,8 +81,8 @@ def test_configure_cli_dispatches_to_front_door(monkeypatch: pytest.MonkeyPatch)
         return 0
 
     monkeypatch.setattr(configure_cli, "configure_front_door", fake_configure_front_door)
-    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: ai_setup.ScriptedSetupUI([]))
-    monkeypatch.setattr(configure_cli, "resolve_setup_config_files", lambda files: files)
+    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: setup_ui.ScriptedSetupUI([]))
+    monkeypatch.setattr(configure_cli, "resolve_config_files", lambda files: files)
 
     result = runner.invoke(configure_cli.app, ["--config-file", str(config)])
 
@@ -99,8 +99,8 @@ def test_configure_cli_dispatches_explicit_section(monkeypatch: pytest.MonkeyPat
         return 0
 
     monkeypatch.setattr(configure_cli, "configure_section", fake_configure_section)
-    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: ai_setup.ScriptedSetupUI([]))
-    monkeypatch.setattr(configure_cli, "resolve_setup_config_files", lambda files: files)
+    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: setup_ui.ScriptedSetupUI([]))
+    monkeypatch.setattr(configure_cli, "resolve_config_files", lambda files: files)
 
     result = runner.invoke(configure_cli.app, ["--config-file", str(config), "ai.unitysvc"])
 
@@ -120,3 +120,34 @@ def test_configure_cli_needs_terminal() -> None:
 
     assert result.exit_code == 1
     assert "interactive terminal" in result.output
+
+
+def test_resolve_config_files_puts_default_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai_marketplace_monitor import config
+
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.toml").write_text("")
+    given = tmp_path / "extra.toml"
+    given.write_text("")
+    monkeypatch.setattr(config, "amm_home", home)
+
+    assert config.resolve_config_files([given]) == [home / "config.toml", given.resolve()]
+    with pytest.raises(FileNotFoundError, match="not found"):
+        config.resolve_config_files([tmp_path / "missing.toml"])
+
+
+def test_ctrl_c_during_setup_exits_cleanly(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def interrupted(ui: Any, files: List[Path]) -> int:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(configure_cli, "configure_front_door", interrupted)
+    monkeypatch.setattr(configure_cli, "ConsoleSetupUI", lambda: setup_ui.ScriptedSetupUI([]))
+    monkeypatch.setattr(configure_cli, "resolve_config_files", lambda files: [])
+
+    result = runner.invoke(configure_cli.app, [])
+
+    assert result.exit_code == 0
+    assert "Cancelled." in result.output

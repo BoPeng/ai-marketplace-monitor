@@ -6,29 +6,26 @@ import asyncio
 import copy
 import os
 import re
-import shutil
-import sys
+import threading
 import warnings
 from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
 from pathlib import Path
-from typing import Any, Awaitable, Callable, ClassVar, Dict, List, Protocol, Tuple
+from typing import Any, Callable, Dict, List, Tuple, TypeVar
 
 import anthropic
 import openai
-import tomlkit
-from rich.console import Console
-from rich.markdown import Markdown
-from tomlkit.exceptions import ParseError
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 from .ai import AIBackend, AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
 from .config import supported_ai_backends
+from .config_writer import (
+    CommitOutcome,
+    ConfigReadError,
+    SectionWrite,
+    commit_section,
+    read_toml,
+    render_section,
+)
+from .setup_ui import Choice, SetupClosedError, SetupUI
 from .utils import amm_home, merge_dicts
 
 _PLACEHOLDER = re.compile(r"^\$\{(\w+)\}$")
@@ -42,255 +39,11 @@ UNITYSVC_TIERS = ["fast", "balanced", "coding", "premium"]
 OLLAMA_URL = "http://localhost:11434/v1"
 SHARED_AI_KEYS = {"max_retries", "timeout"}
 
-
-class ConfigReadError(Exception):
-    """A config file could not be read or parsed."""
-
-    def __init__(self: "ConfigReadError", path: Path, message: str) -> None:
-        super().__init__(f"Cannot read {path}: {message}")
-        self.path = path
+T = TypeVar("T")
 
 
-class SetupClosedError(Exception):
-    """The user left the setup flow."""
-
-
-class CommitOutcome(Enum):
-    WRITTEN = "written"
-    DECLINED = "declined"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class Choice:
-    value: str
-    label: str
-    hint: str = ""
-
-    def to_json(self: "Choice") -> Dict[str, str]:
-        return {"value": self.value, "label": self.label, "hint": self.hint}
-
-
-class SetupUI(Protocol):
-    async def say(
-        self: "SetupUI", text: str, *, kind: str = "info", markdown: bool = False
-    ) -> None: ...
-
-    async def choose(
-        self: "SetupUI", prompt: str, options: List[Choice], default: str | None = None
-    ) -> str: ...
-
-    async def ask_text(self: "SetupUI", prompt: str, default: str | None = None) -> str: ...
-
-    async def confirm(self: "SetupUI", prompt: str, default: bool = True) -> bool: ...
-
-
-class JsonSetupUI:
-    """JSON message adapter for WebSocket or other remote front ends."""
-
-    def __init__(
-        self: "JsonSetupUI",
-        send: Callable[[Dict[str, Any]], Awaitable[None]],
-        receive: Callable[[], Awaitable[Dict[str, Any]]],
-    ) -> None:
-        self._send = send
-        self._receive = receive
-
-    async def say(
-        self: "JsonSetupUI", text: str, *, kind: str = "info", markdown: bool = False
-    ) -> None:
-        await self._send({"type": "message", "kind": kind, "text": text, "markdown": markdown})
-
-    async def choose(
-        self: "JsonSetupUI", prompt: str, options: List[Choice], default: str | None = None
-    ) -> str:
-        await self._send(
-            {
-                "type": "prompt",
-                "prompt_type": "choice",
-                "prompt": prompt,
-                "options": [option.to_json() for option in options],
-                "default": default,
-            }
-        )
-        answer = await self._answer()
-        if answer in (None, "") and default is not None:
-            return default
-        if not isinstance(answer, str):
-            raise ValueError("Choice answers must be strings.")
-        allowed = {option.value for option in options}
-        if answer not in allowed:
-            raise ValueError(f"{answer!r} is not one of {sorted(allowed)}")
-        return answer
-
-    async def ask_text(self: "JsonSetupUI", prompt: str, default: str | None = None) -> str:
-        await self._send(
-            {
-                "type": "prompt",
-                "prompt_type": "text",
-                "prompt": prompt,
-                "default": default,
-            }
-        )
-        answer = await self._answer()
-        if answer in (None, "") and default is not None:
-            return default
-        if not isinstance(answer, str):
-            raise ValueError("Text answers must be strings.")
-        return answer
-
-    async def confirm(self: "JsonSetupUI", prompt: str, default: bool = True) -> bool:
-        await self._send(
-            {
-                "type": "prompt",
-                "prompt_type": "confirm",
-                "prompt": prompt,
-                "default": default,
-            }
-        )
-        answer = await self._answer()
-        if answer in (None, ""):
-            return default
-        if isinstance(answer, bool):
-            return answer
-        if isinstance(answer, str) and answer.lower() in ("y", "yes", "true"):
-            return True
-        if isinstance(answer, str) and answer.lower() in ("n", "no", "false"):
-            return False
-        raise ValueError("Confirm answers must be booleans or yes/no strings.")
-
-    async def _answer(self: "JsonSetupUI") -> Any:
-        message = await self._receive()
-        message_type = message.get("type")
-        if message_type in ("cancel", "close"):
-            raise SetupClosedError
-        if message_type != "answer":
-            raise ValueError(f"Expected answer message, got {message_type!r}.")
-        return message.get("value")
-
-
-class ConsoleSetupUI:
-    """Terminal front end for AI setup."""
-
-    _styles: ClassVar[Dict[str, str]] = {
-        "info": "",
-        "success": "green",
-        "warning": "yellow",
-        "error": "bold red",
-    }
-
-    def __init__(
-        self: "ConsoleSetupUI",
-        console: Console | None = None,
-        read: Callable[[str], str] = input,
-        interactive: bool | None = None,
-    ) -> None:
-        if interactive is None:
-            interactive = sys.stdin.isatty()
-        if not interactive:
-            raise RuntimeError("aimm-configure needs an interactive terminal")
-        self.console = console or Console()
-        self._read = read
-
-    async def say(
-        self: "ConsoleSetupUI", text: str, *, kind: str = "info", markdown: bool = False
-    ) -> None:
-        if markdown:
-            self.console.print(Markdown(text))
-            return
-        self.console.print(text, style=self._styles.get(kind, ""), markup=False, highlight=False)
-
-    async def choose(
-        self: "ConsoleSetupUI", prompt: str, options: List[Choice], default: str | None = None
-    ) -> str:
-        self.console.print(prompt, markup=False, highlight=False)
-        for index, option in enumerate(options, 1):
-            hint = f" - {option.hint}" if option.hint else ""
-            suffix = " (default)" if option.value == default else ""
-            self.console.print(
-                f"  {index}) {option.label}{hint}{suffix}", markup=False, highlight=False
-            )
-        while True:
-            raw = self._input("> ").strip()
-            if not raw and default is not None:
-                return default
-            if raw.isdecimal() and 1 <= int(raw) <= len(options):
-                return options[int(raw) - 1].value
-            self.console.print(f"Please enter a number from 1 to {len(options)}.", style="yellow")
-
-    async def ask_text(self: "ConsoleSetupUI", prompt: str, default: str | None = None) -> str:
-        suffix = f" [{default}]" if default else ""
-        raw = self._input(f"{prompt}{suffix}: ")
-        if not raw.strip() and default is not None:
-            return default
-        return raw
-
-    async def confirm(self: "ConsoleSetupUI", prompt: str, default: bool = True) -> bool:
-        suffix = " [Y/n] " if default else " [y/N] "
-        while True:
-            raw = self._input(prompt + suffix).strip().lower()
-            if not raw:
-                return default
-            if raw in ("y", "yes"):
-                return True
-            if raw in ("n", "no"):
-                return False
-            self.console.print("Please answer y or n.", style="yellow")
-
-    def _input(self: "ConsoleSetupUI", prompt: str) -> str:
-        try:
-            return self._read(prompt)
-        except (KeyboardInterrupt, EOFError) as e:
-            raise SetupClosedError from e
-
-
-class ScriptedSetupUI:
-    """Test front end with canned answers."""
-
-    def __init__(self: "ScriptedSetupUI", answers: List[str]) -> None:
-        self.answers = list(answers)
-        self.messages: List[Tuple[str, str]] = []
-        self.questions: List[str] = []
-
-    async def say(
-        self: "ScriptedSetupUI", text: str, *, kind: str = "info", markdown: bool = False
-    ) -> None:
-        self.messages.append((kind, text))
-
-    async def choose(
-        self: "ScriptedSetupUI", prompt: str, options: List[Choice], default: str | None = None
-    ) -> str:
-        answer = self._answer(prompt)
-        if not answer and default is not None:
-            return default
-        allowed = {option.value for option in options}
-        if answer not in allowed:
-            raise AssertionError(f"{answer!r} is not one of {sorted(allowed)}")
-        return answer
-
-    async def ask_text(self: "ScriptedSetupUI", prompt: str, default: str | None = None) -> str:
-        answer = self._answer(prompt)
-        return default if not answer and default is not None else answer
-
-    async def confirm(self: "ScriptedSetupUI", prompt: str, default: bool = True) -> bool:
-        answer = self._answer(prompt)
-        if not answer:
-            return default
-        if answer not in ("yes", "no"):
-            raise AssertionError(f"Confirm answers must be yes or no, got {answer!r}")
-        return answer == "yes"
-
-    def said(self: "ScriptedSetupUI", kind: str | None = None) -> List[str]:
-        return [text for message_kind, text in self.messages if kind in (None, message_kind)]
-
-    def _answer(self: "ScriptedSetupUI", prompt: str) -> str:
-        self.questions.append(prompt)
-        if not self.answers:
-            raise AssertionError(f"unexpected question: {prompt}")
-        answer = self.answers.pop(0)
-        if answer == "<close>":
-            raise SetupClosedError
-        return answer
+class UnsupportedAISectionError(Exception):
+    """The section's provider is not one aimm-configure can set up."""
 
 
 @dataclass
@@ -342,6 +95,9 @@ class AISectionProposal:
     request: str | None
     target_file: Path
 
+    def to_write(self: "AISectionProposal") -> SectionWrite:
+        return SectionWrite("ai", self.name, self.values, self.request, self.target_file)
+
 
 PROVIDERS = [
     ProviderSpec(
@@ -367,26 +123,6 @@ PROVIDER_LABELS = {
     "deepseek": "DeepSeek",
     "gemini": "Gemini",
 }
-
-
-def resolve_setup_config_files(config_files: List[Path] | None) -> List[Path]:
-    """Config files in read order: default config if present, then each explicit file."""
-    explicit = []
-    for file_path in config_files or []:
-        expanded = file_path.expanduser().resolve()
-        if not expanded.exists():
-            raise FileNotFoundError(f"Config file {expanded} not found.")
-        explicit.append(expanded)
-    default_config = amm_home / "config.toml"
-    return ([default_config] if default_config.exists() else []) + explicit
-
-
-def read_toml(path: Path) -> Dict[str, Any]:
-    try:
-        with open(path, "rb") as file:
-            return tomllib.load(file)
-    except (tomllib.TOMLDecodeError, OSError) as e:
-        raise ConfigReadError(path, str(e)) from e
 
 
 def env_var_name(value: Any) -> str | None:
@@ -436,6 +172,56 @@ def load_ai_sections(files: List[Path]) -> List[AISection]:
     return sections
 
 
+async def run_in_daemon_thread(fn: Callable[..., T], *args: Any) -> T:
+    """Run blocking ``fn`` in a daemon thread and await its result.
+
+    Unlike ``asyncio.to_thread``, a daemon thread does not keep the interpreter alive, so
+    Ctrl-C during a slow network probe exits at once instead of waiting for the timeout.
+    """
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[T] = loop.create_future()
+
+    def deliver(setter: Callable[[Any], None], value: Any) -> None:
+        if not future.done():
+            setter(value)
+
+    def post(setter: Callable[[Any], None], value: Any) -> None:
+        try:
+            loop.call_soon_threadsafe(deliver, setter, value)
+        except RuntimeError:  # the loop is closed: the user already left
+            pass
+
+    def run() -> None:
+        try:
+            result = fn(*args)
+        except Exception as e:
+            post(future.set_exception, e)
+        else:
+            post(future.set_result, result)
+
+    threading.Thread(target=run, daemon=True).start()
+    return await future
+
+
+async def probe_sections(sections: List[AISection]) -> List[ProbeResult]:
+    """Probe sections concurrently, in daemon threads; results are in input order."""
+    return list(
+        await asyncio.gather(
+            *(run_in_daemon_thread(probe_ai_section, section) for section in sections)
+        )
+    )
+
+
+def render_ai_section(proposal: AISectionProposal) -> str:
+    return render_section(proposal.to_write())
+
+
+async def commit_ai_section(
+    ui: SetupUI, proposal: AISectionProposal, ctx: AISetupContext
+) -> CommitOutcome:
+    return await commit_section(ui, proposal.to_write(), ctx.files, ctx.backup_dir)
+
+
 def model_matches(model: str, available: List[str]) -> bool:
     target = _normalize_model(model)
     return any(_normalize_model(candidate) == target for candidate in available)
@@ -452,7 +238,9 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
         )
 
     backend = backend_class(config=section.config)
-    secret = section.config.api_key
+    # only a key the user configured is a secret; Ollama's placeholder default ("ollama")
+    # would otherwise be scrubbed out of every error message that mentions Ollama
+    secret = section.config.api_key if section.raw.get("api_key") else None
     client = _probe_client(backend, timeout)
 
     available: List[str] = []
@@ -488,76 +276,6 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
     return ProbeResult(True, "request", model, f"{section.name} - {model}", available)
 
 
-def render_ai_section(proposal: AISectionProposal) -> str:
-    values = (
-        {"request": proposal.request, **proposal.values} if proposal.request else proposal.values
-    )
-    return tomlkit.dumps({"ai": {proposal.name: values}})
-
-
-def backup_file(path: Path, backup_dir: Path) -> Path:
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{path.name}.{datetime.now():%Y%m%d-%H%M%S}"
-    dest = backup_dir / stem
-    counter = 1
-    while dest.exists():
-        counter += 1
-        dest = backup_dir / f"{stem}-{counter}"
-    shutil.copy2(path, dest)
-    os.chmod(dest, 0o600)
-    return dest
-
-
-def write_ai_section(path: Path, proposal: AISectionProposal) -> None:
-    """Add or replace one [ai.*] section, preserving the rest of the file."""
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
-    doc = tomlkit.parse(text) if text else tomlkit.document()
-    if "ai" not in doc:
-        doc["ai"] = tomlkit.table(is_super_table=True)
-    parent: Any = doc["ai"]
-    old = parent.get(proposal.name)
-    table = tomlkit.table()
-    if proposal.request:
-        table["request"] = proposal.request
-    elif old is not None and "request" in old:
-        table["request"] = old["request"]
-    for key, value in proposal.values.items():
-        table[key] = value
-    parent[proposal.name] = table
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(tomlkit.dumps(doc), encoding="utf-8")
-
-
-async def commit_ai_section(
-    ui: SetupUI, proposal: AISectionProposal, ctx: AISetupContext
-) -> CommitOutcome:
-    await ui.say(f"```toml\n{render_ai_section(proposal)}```", markdown=True)
-    if not await ui.confirm(f"Write this to {proposal.target_file}?"):
-        return CommitOutcome.DECLINED
-    try:
-        if proposal.target_file.exists():
-            backup_file(proposal.target_file, ctx.backup_dir)
-        write_ai_section(proposal.target_file, proposal)
-        if proposal.target_file not in ctx.files:
-            ctx.files.insert(0, proposal.target_file)
-        conflicts = _conflicts(ctx.files, proposal)
-    except (ParseError, OSError, ConfigReadError) as e:
-        await ui.say(f"Could not update {proposal.target_file}: {e}", kind="error")
-        return CommitOutcome.FAILED
-
-    if not conflicts:
-        await ui.say(f"Saved [ai.{proposal.name}] to {proposal.target_file}.", kind="success")
-        return CommitOutcome.WRITTEN
-    detail = "; ".join(f"{other} ({', '.join(keys)})" for other, keys in conflicts)
-    await ui.say(
-        f"Saved to {proposal.target_file}, but [ai.{proposal.name}] is also set in "
-        f"{detail}, which overrides or adds to it. Remove those keys there for this "
-        "change to take effect.",
-        kind="error",
-    )
-    return CommitOutcome.FAILED
-
-
 async def configure_ai(
     ui: SetupUI,
     config_files: List[Path],
@@ -587,46 +305,80 @@ async def configure_ai(
             retry = await _after_commit(ui, proposal, ctx)
             if not retry:
                 return 0
-    except (ConfigReadError, SetupClosedError) as e:
-        if isinstance(e, ConfigReadError):
-            await ui.say(str(e), kind="error")
-            return 1
+    except SetupClosedError:
         return 0
+    except (ConfigReadError, UnsupportedAISectionError) as e:
+        await ui.say(str(e), kind="error")
+        return 1
 
 
 async def propose_ai_section(
     ui: SetupUI, ctx: AISetupContext, *, section_name: str | None = None
 ) -> AISectionProposal | None:
+    """Ask for the details of one [ai.*] section and return the section to write.
+
+    Which provider the section uses is decided before anything is asked:
+
+    - an existing ``[ai.NAME]`` keeps its own provider;
+    - a new section named after a provider (``ai.openai``) uses that provider;
+    - only a new section with another name (``ai.work``), or plain ``ai``, asks which AI.
+
+    Plain ``ai`` creates or updates the section named after the chosen provider. aimm-configure
+    never writes a provider that contradicts a provider-named section; a mismatch made by hand
+    (``[ai.openai]`` with ``provider = "anthropic"``) is kept and flagged, not converted.
+    """
     sections = load_ai_sections(ctx.files)
-    named = next((section for section in sections if section.name == section_name), None)
-    default = "unitysvc"
-    if section_name in PROVIDER_BY_KEY:
-        default = section_name
-    if named and named.provider in PROVIDER_BY_KEY:
-        default = named.provider
-    options = [Choice(provider.key, provider.label, provider.hint) for provider in PROVIDERS]
-    options.append(Choice("quit", "Quit"))
-    choice = await ui.choose("Which AI do you want to configure?", options, default)
-    if choice == "quit":
-        return None
+    by_name = {section.name: section for section in sections}
+    named = by_name.get(section_name) if section_name else None
 
-    spec = PROVIDER_BY_KEY[choice]
-    if section_name:
-        target = named
+    if named is not None:
+        provider = named.provider
+    elif section_name is not None and section_name.lower() in supported_ai_backends:
+        provider = section_name.lower()
     else:
-        target = next((section for section in sections if section.provider == choice), None)
-    old = target.raw if target else {}
+        options = [Choice(spec.key, spec.label, spec.hint) for spec in PROVIDERS]
+        options.append(Choice("quit", "Quit"))
+        provider = await ui.choose("Which AI do you want to configure?", options, "unitysvc")
+        if provider == "quit":
+            return None
 
-    values: Dict[str, Any] = {"provider": choice}
+    spec = PROVIDER_BY_KEY.get(provider)
+    if spec is None:
+        label = PROVIDER_LABELS.get(provider, provider)
+        raise UnsupportedAISectionError(
+            f"aimm-configure can set up UnitySVC, OpenAI, Anthropic and Ollama; "
+            f"{label} sections have to be edited by hand."
+        )
+
+    name = section_name or provider
+    target = by_name.get(name)
+    if target is not None and target.provider != provider:
+        if named is None:
+            # plain `ai`: [ai.<provider>] exists but was set up by hand for another provider
+            await ui.say(
+                f"[ai.{name}] uses provider {target.provider!r}; leaving it unchanged.",
+                kind="warning",
+            )
+            name = _new_name(provider, sections)
+            target = None
+    if named is not None and name.lower() in supported_ai_backends and provider != name.lower():
+        await ui.say(
+            f"[ai.{name}] is set to provider {provider!r}, which does not match its name. "
+            f"It is updated as {provider!r}; consider renaming it.",
+            kind="warning",
+        )
+
+    old = target.raw if target else {}
+    values: Dict[str, Any] = {"provider": provider}
     if spec.env_var:
         var = env_var_name(old.get("api_key")) or spec.env_var
         values["api_key"] = f"${{{var}}}"
-    if choice == "unitysvc":
+    if provider == "unitysvc":
         current = old.get("model")
         default_tier = current if current in UNITYSVC_TIERS else "balanced"
         tiers = [Choice(tier, tier) for tier in UNITYSVC_TIERS]
         values["model"] = await ui.choose("Which UnitySVC tier?", tiers, default_tier)
-    elif choice == "ollama":
+    elif provider == "ollama":
         values["base_url"] = await _ask_safe_text(
             ui, "Ollama URL", old.get("base_url") or OLLAMA_URL
         )
@@ -634,17 +386,17 @@ async def propose_ai_section(
             ui, "Model", old.get("model") or OllamaBackend.default_model
         )
     else:
-        backend = OpenAIBackend if choice == "openai" else AnthropicBackend
+        backend = OpenAIBackend if provider == "openai" else AnthropicBackend
         values["model"] = await _ask_safe_text(
             ui, "Model", old.get("model") or backend.default_model
         )
 
+    # shared settings: the section's own when updating, else from an existing AI section
     template = target or (sections[0] if sections else None)
     if template is not None:
         values.update({key: template.raw[key] for key in SHARED_AI_KEYS if key in template.raw})
 
-    name = section_name or (target.name if target else _new_name(choice, sections))
-    if name == choice:
+    if name.lower() == provider:
         values.pop("provider")
     request = f"Use {spec.label} ({values['model']}) to rate marketplace listings."
     return AISectionProposal(
@@ -661,9 +413,7 @@ async def _check_existing_ai(ui: SetupUI, ctx: AISetupContext) -> None:
     if not enabled:
         return
     await ui.say(f"Checking {len(enabled)} AI service(s)...")
-    results = await asyncio.gather(
-        *(asyncio.to_thread(probe_ai_section, section) for section in enabled)
-    )
+    results = await probe_sections(enabled)
     by_name = dict(zip([section.name for section in enabled], results))
     for section in sections:
         result = by_name.get(section.name)
@@ -678,10 +428,15 @@ async def _check_existing_ai(ui: SetupUI, ctx: AISetupContext) -> None:
 async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupContext) -> bool:
     var = env_var_name(proposal.values.get("api_key"))
     if var is None or var in os.environ:
-        section = next(
-            section for section in load_ai_sections(ctx.files) if section.name == proposal.name
-        )
-        result = await asyncio.to_thread(probe_ai_section, section)
+        section = next((s for s in load_ai_sections(ctx.files) if s.name == proposal.name), None)
+        if section is None:
+            await ui.say(
+                f"[ai.{proposal.name}] was written but could not be found when the config "
+                "was read back; check the file and run aimm-configure again.",
+                kind="error",
+            )
+            return False
+        [result] = await probe_sections([section])
         if result.ok:
             await ui.say(f"{section.name} works ({result.model}).", kind="success")
             return False
@@ -721,30 +476,6 @@ def _new_name(provider: str, sections: List[AISection]) -> str:
         suffix += 1
         name = f"{provider}_{suffix}"
     return name
-
-
-def _effective_ai_section(files: List[Path], name: str) -> Dict[str, Any]:
-    merged: Dict[str, Any] = {}
-    for path in files:
-        merged.update(read_toml(path).get("ai", {}).get(name, {}))
-    return merged
-
-
-def _conflicts(files: List[Path], proposal: AISectionProposal) -> List[Tuple[Path, List[str]]]:
-    effective = _effective_ai_section(files, proposal.name)
-    wanted = proposal.values
-    bad = {
-        key
-        for key, value in effective.items()
-        if key != "request" and (key not in wanted or wanted[key] != value)
-    }
-    by_file: Dict[Path, List[str]] = {}
-    for key in sorted(bad):
-        owner = [
-            path for path in files if key in read_toml(path).get("ai", {}).get(proposal.name, {})
-        ][-1]
-        by_file.setdefault(owner, []).append(key)
-    return [(path, by_file[path]) for path in files if path in by_file]
 
 
 def _label(section: AISection, result: ProbeResult) -> str:

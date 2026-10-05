@@ -7,16 +7,14 @@ import openai
 import pytest
 
 from ai_marketplace_monitor import ai_setup
-from ai_marketplace_monitor.ai import UnitySVCConfig
+from ai_marketplace_monitor.ai import OllamaConfig, UnitySVCConfig
 from ai_marketplace_monitor.ai_setup import (
     AISection,
     AISectionProposal,
     AISetupContext,
     CommitOutcome,
     ConfigReadError,
-    JsonSetupUI,
     ProbeResult,
-    ScriptedSetupUI,
     commit_ai_section,
     configure_ai,
     env_var_name,
@@ -27,6 +25,7 @@ from ai_marketplace_monitor.ai_setup import (
     render_ai_section,
     scrub,
 )
+from ai_marketplace_monitor.setup_ui import Choice, JsonSetupUI, ScriptedSetupUI
 
 REQUEST = httpx.Request("GET", "https://api.svcpass.com/p/llm/models")
 VALUES = {"api_key": "${UNITYSVC_API_KEY}", "model": "balanced"}
@@ -133,7 +132,7 @@ async def test_json_setup_ui_uses_serializable_prompt_messages() -> None:
     ui = JsonSetupUI(send, receive)
 
     await ui.say("Checking AI", kind="warning", markdown=True)
-    choice = await ui.choose("Provider?", [ai_setup.Choice("openai", "OpenAI")])
+    choice = await ui.choose("Provider?", [Choice("openai", "OpenAI")])
     model = await ui.ask_text("Model", "gpt-5")
     confirmed = await ui.confirm("Write?")
 
@@ -235,9 +234,8 @@ async def test_propose_existing_section_keeps_env_var_and_shared_fields(tmp_path
         '[ai.mine]\nprovider = "unitysvc"\napi_key = "${MY_KEY}"\n'
         'model = "fast"\ntimeout = 5\n',
     )
-    proposal = await propose_ai_section(
-        ScriptedSetupUI(["unitysvc", "premium"]), context(tmp_path, [path])
-    )
+    ui = ScriptedSetupUI(["premium"])
+    proposal = await propose_ai_section(ui, context(tmp_path, [path]), section_name="mine")
 
     assert proposal is not None
     assert proposal.name == "mine"
@@ -248,17 +246,18 @@ async def test_propose_existing_section_keeps_env_var_and_shared_fields(tmp_path
         "timeout": 5,
     }
     assert proposal.target_file == path
+    assert ui.questions == ["Which UnitySVC tier?"]  # the section's provider is not asked
 
 
 async def test_propose_named_provider_defaults_to_matching_provider(tmp_path: Path) -> None:
-    proposal = await propose_ai_section(
-        ScriptedSetupUI(["", ""]), context(tmp_path), section_name="openai"
-    )
+    ui = ScriptedSetupUI([""])
+    proposal = await propose_ai_section(ui, context(tmp_path), section_name="openai")
 
     assert proposal is not None
     assert proposal.name == "openai"
     assert proposal.values["api_key"] == "${OPENAI_API_KEY}"
     assert "provider" not in proposal.values
+    assert ui.questions == ["Model"]  # ai.openai implies the provider
 
 
 async def test_propose_refuses_key_like_input(tmp_path: Path) -> None:
@@ -441,3 +440,164 @@ async def test_configure_ai_probes_after_commit(
     assert await configure_ai(ui, [], home=tmp_path / "home") == 0
 
     assert any("unitysvc works (balanced)." in text for text in ui.said("success"))
+
+
+async def test_propose_existing_named_section_keeps_its_provider(tmp_path: Path) -> None:
+    path = write(
+        tmp_path / "config.toml",
+        '[ai.main]\nprovider = "openai"\napi_key = "${OPENAI_API_KEY}"\nmodel = "gpt-4o"\n',
+    )
+    ui = ScriptedSetupUI([""])
+
+    proposal = await propose_ai_section(ui, context(tmp_path, [path]), section_name="main")
+
+    assert proposal is not None
+    assert ui.questions == ["Model"]  # no provider question: [ai.main] is an OpenAI section
+    assert proposal.values == {
+        "provider": "openai",
+        "api_key": "${OPENAI_API_KEY}",
+        "model": "gpt-4o",
+    }
+
+
+async def test_propose_new_custom_name_asks_provider(tmp_path: Path) -> None:
+    ui = ScriptedSetupUI(["anthropic", ""])
+
+    proposal = await propose_ai_section(ui, context(tmp_path), section_name="work")
+
+    assert proposal is not None
+    assert proposal.name == "work"
+    assert proposal.values["provider"] == "anthropic"
+    assert proposal.values["api_key"] == "${ANTHROPIC_API_KEY}"
+
+
+async def test_propose_plain_ai_targets_section_named_after_provider(tmp_path: Path) -> None:
+    path = write(
+        tmp_path / "config.toml",
+        '[ai.mine]\nprovider = "unitysvc"\napi_key = "${MY_KEY}"\ntimeout = 5\n',
+    )
+    ctx = context(tmp_path, [path])
+
+    proposal = await propose_ai_section(ScriptedSetupUI(["unitysvc", "fast"]), ctx)
+
+    assert proposal is not None
+    assert proposal.name == "unitysvc"
+    assert proposal.target_file == ctx.default_file
+    # a new section: the provider's standard variable, shared settings from [ai.mine]
+    assert proposal.values == {"api_key": "${UNITYSVC_API_KEY}", "model": "fast", "timeout": 5}
+
+
+async def test_propose_plain_ai_never_converts_a_mismatched_section(tmp_path: Path) -> None:
+    path = write(
+        tmp_path / "config.toml",
+        '[ai.unitysvc]\nprovider = "openai"\napi_key = "${OPENAI_API_KEY}"\n',
+    )
+    ui = ScriptedSetupUI(["unitysvc", "balanced"])
+
+    proposal = await propose_ai_section(ui, context(tmp_path, [path]))
+
+    assert proposal is not None
+    assert proposal.name == "unitysvc_2"
+    assert proposal.values["provider"] == "unitysvc"
+    assert proposal.values["api_key"] == "${UNITYSVC_API_KEY}"
+    assert any("leaving it unchanged" in text for text in ui.said("warning"))
+
+
+async def test_propose_hand_made_mismatch_is_kept_and_flagged(tmp_path: Path) -> None:
+    path = write(
+        tmp_path / "config.toml",
+        '[ai.openai]\nprovider = "anthropic"\napi_key = "${ANTHROPIC_API_KEY}"\n',
+    )
+    ui = ScriptedSetupUI([""])
+
+    proposal = await propose_ai_section(ui, context(tmp_path, [path]), section_name="openai")
+
+    assert proposal is not None
+    assert proposal.values["provider"] == "anthropic"
+    assert proposal.values["api_key"] == "${ANTHROPIC_API_KEY}"
+    assert any("does not match its name" in text for text in ui.said("warning"))
+
+
+async def test_configure_ai_rejects_providers_it_cannot_set_up(tmp_path: Path) -> None:
+    ui = ScriptedSetupUI([])
+
+    assert await configure_ai(ui, [], section_name="gemini", home=tmp_path / "home") == 1
+    assert "edited by hand" in ui.said("error")[0]
+
+
+def test_probe_does_not_scrub_ollama_placeholder_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient(
+        models=["llama3"], create_errors=[RuntimeError("model not found; run `ollama pull`")]
+    )
+    use_client(monkeypatch, client)
+    raw = {"base_url": "http://localhost:11434/v1", "model": "llama3"}
+    config = OllamaConfig(name="ollama", **raw)
+    result = probe_ai_section(AISection("ollama", raw, [], config=config))
+
+    assert not result.ok
+    assert "ollama pull" in result.message
+
+
+async def test_after_commit_reports_a_missing_section(tmp_path: Path) -> None:
+    ui = ScriptedSetupUI([])
+    proposal = AISectionProposal("gone", {"model": "m"}, None, tmp_path / "x.toml")
+
+    assert await ai_setup._after_commit(ui, proposal, context(tmp_path)) is False
+    assert "could not be found" in ui.said("error")[0]
+
+
+async def test_run_in_daemon_thread_returns_and_raises() -> None:
+    assert await ai_setup.run_in_daemon_thread(lambda x: x * 2, 21) == 42
+
+    def boom() -> None:
+        raise ValueError("bad")
+
+    with pytest.raises(ValueError, match="bad"):
+        await ai_setup.run_in_daemon_thread(boom)
+
+
+async def test_json_setup_ui_reasks_after_invalid_answers() -> None:
+    sent: List[Dict[str, Any]] = []
+    replies: Iterator[Dict[str, Any]] = iter(
+        [
+            {"type": "hello"},
+            {"type": "answer", "value": "gemini"},
+            {"type": "answer", "value": "openai"},
+            {"type": "answer", "value": "maybe"},
+            {"type": "answer", "value": "no"},
+        ]
+    )
+
+    async def send(message: Dict[str, Any]) -> None:
+        sent.append(message)
+
+    async def receive() -> Dict[str, Any]:
+        return next(replies)
+
+    ui = JsonSetupUI(send, receive)
+
+    assert await ui.choose("Provider?", [Choice("openai", "OpenAI")]) == "openai"
+    assert await ui.confirm("Write?") is False
+    errors = [m["text"] for m in sent if m["type"] == "message" and m["kind"] == "error"]
+    assert errors == [
+        "Expected an answer message, got 'hello'.",
+        "Choose one of: openai.",
+        "Answer yes or no.",
+    ]
+    assert [m["prompt"] for m in sent if m["type"] == "prompt"] == [
+        "Provider?",
+        "Provider?",
+        "Provider?",
+        "Write?",
+        "Write?",
+    ]
+
+
+async def test_commit_earlier_file_with_other_value_is_not_a_conflict(tmp_path: Path) -> None:
+    first = write(tmp_path / "config.toml", '[ai.unitysvc]\nmodel = "fast"\n')
+    later = write(tmp_path / "later.toml", '[ai.unitysvc]\nmodel = "premium"\n')
+    ctx = context(tmp_path, [first, later])
+
+    outcome = await commit_ai_section(ScriptedSetupUI(["yes"]), proposal(later), ctx)
+
+    assert outcome is CommitOutcome.WRITTEN  # later.toml is read last, so it wins

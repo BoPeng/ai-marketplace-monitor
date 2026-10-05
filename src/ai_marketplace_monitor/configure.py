@@ -2,19 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import List
 
-from .ai_setup import (
-    Choice,
-    ConfigReadError,
-    SetupClosedError,
-    SetupUI,
-    configure_ai,
-    load_ai_sections,
-    probe_ai_section,
-)
+from .ai_setup import configure_ai, load_ai_sections, probe_sections
+from .config_writer import ConfigReadError
+from .setup_ui import Choice, SetupClosedError, SetupUI
 
 
 class ConfigureAddressError(ValueError):
@@ -65,9 +58,7 @@ async def require_usable_ai(ui: SetupUI, config_files: List[Path]) -> bool:
         return False
 
     await ui.say(f"Checking {len(sections)} AI service(s)...")
-    results = await asyncio.gather(
-        *(asyncio.to_thread(probe_ai_section, section) for section in sections)
-    )
+    results = await probe_sections(sections)
     for section, result in zip(sections, results):
         if result.ok:
             await ui.say(f"Using [ai.{section.name}] ({result.model}).", kind="success")
