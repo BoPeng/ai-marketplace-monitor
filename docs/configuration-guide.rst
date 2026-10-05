@@ -206,6 +206,33 @@ Telegram Troubleshooting
   2. For group chats, make sure the bot is added to the group
   3. Use the getUpdates method to verify your chat ID
 
+Setting Up UnitySVC Notifications
+=================================
+
+`UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider. By default, messages go to UnitySVC's ``notify`` service, which shows them in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences (for example a Discord or Slack channel). No enrollment is needed.
+
+.. code-block:: toml
+
+    [notification.unitysvc]
+    unitysvc_api_key = '${UNITYSVC_API_KEY}'
+
+    [user.me]
+    notify_with = 'unitysvc'
+
+To send to one specific UnitySVC service instead, set ``unitysvc_service`` to its path. Such a message skips the inbox.
+
+.. code-block:: toml
+
+    [notification.discord]
+    unitysvc_api_key = '${UNITYSVC_API_KEY}'
+    unitysvc_service = 'labs/msg-to-discord'
+    message_format = 'markdown'
+
+.. note::
+   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
+   - Set ``unitysvc_base_url`` (or the ``UNITYSVC_API_BASE_URL`` environment variable) to use another gateway, such as ``https://api.staging.svcpass.com``.
+   - UnitySVC also accepts email at ``smtp.svcpass.com`` (port 587, username ``notify``, your API key as the password), so an email notification section works too, but the HTTP setup above is simpler.
+
 AI Prompt Customization
 =======================
 

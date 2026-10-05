@@ -67,7 +67,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 📱 **Notifications**
 
-- PushBullet, PushOver, Telegram, or Ntfy notifications
+- PushBullet, PushOver, Telegram, Ntfy, or UnitySVC notifications
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
@@ -196,7 +196,7 @@ For detailed information on setup and advanced features, see the comprehensive d
 
 **Notification Setup:**
 
-- Email (SMTP), PushBullet, PushOver, Telegram, Ntfy
+- Email (SMTP), PushBullet, PushOver, Telegram, Ntfy, UnitySVC
 - Multi-user configurations
 - HTML email templates
 

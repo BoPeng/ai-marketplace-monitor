@@ -235,7 +235,7 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | `pushover_user_key`  | Optional    | String   | Pushover user key.  |
 | `pushover_api_token` | Optional    | String   | Pushover API Token. |
 
-#### Pushover notification
+#### Ntfy notification
 
 | Option           | Requirement | DataType | Description                                       |
 | ---------------- | ----------- | -------- | ------------------------------------------------- |
@@ -244,6 +244,17 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` |
 
 - According to [ntfy documentation](https://docs.ntfy.sh/publish/#markdown-formatting), markdown format is supported only by web app. Therefore, `message_format` is by default set to `plain_text`.
+
+#### UnitySVC notification
+
+| Option              | Requirement | DataType | Description                                                                          |
+| ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
+| `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
+| `unitysvc_service`  | Optional    | String   | Service path, default `notify`. Use e.g. `labs/msg-to-discord` for a specific service. |
+| `unitysvc_base_url` | Optional    | String   | Gateway URL, default `$UNITYSVC_API_BASE_URL` or `https://api.svcpass.com`.           |
+| `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
+
+- The default `notify` service shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
 
 ### Email notification
 

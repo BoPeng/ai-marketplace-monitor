@@ -24,6 +24,7 @@ from ai_marketplace_monitor.ntfy import NtfyNotificationConfig
 from ai_marketplace_monitor.pushbullet import PushbulletNotificationConfig
 from ai_marketplace_monitor.pushover import PushoverNotificationConfig
 from ai_marketplace_monitor.telegram import TelegramNotificationConfig
+from ai_marketplace_monitor.unitysvc_notify import UnitySVCNotificationConfig
 from ai_marketplace_monitor.user import UserConfig
 
 # the rule table that lived in marketplace.py before the facts moved onto the fields
@@ -58,6 +59,7 @@ TYPE_CLASSES = (
     PushoverNotificationConfig,
     NtfyNotificationConfig,
     TelegramNotificationConfig,
+    UnitySVCNotificationConfig,
 )
 _BASE = {"name", "enabled", "request"}
 

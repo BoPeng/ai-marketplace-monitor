@@ -22,7 +22,7 @@ Features
 📱 **Comprehensive Notifications**
 ----------------------------------
 
-- **Multiple Channels**: PushBullet, PushOver, Telegram, Ntfy, and HTML email notifications
+- **Multiple Channels**: PushBullet, PushOver, Telegram, Ntfy, UnitySVC, and HTML email notifications
 - **Rich Content**: Notifications include images, descriptions, and AI-generated comments
 - **Customizable Levels**: Set notification thresholds based on AI rating scores
 - **Repeated Notifications**: Optional reminders for listings that remain available

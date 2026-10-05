@@ -18,6 +18,7 @@ from ..ntfy import NtfyNotificationConfig
 from ..pushbullet import PushbulletNotificationConfig
 from ..pushover import PushoverNotificationConfig
 from ..telegram import TelegramNotificationConfig
+from ..unitysvc_notify import UnitySVCNotificationConfig
 from ..user import UserConfig
 
 TYPE_CLASSES: Dict[str, Type[NotificationConfig]] = {
@@ -26,6 +27,7 @@ TYPE_CLASSES: Dict[str, Type[NotificationConfig]] = {
     "pushover": PushoverNotificationConfig,
     "ntfy": NtfyNotificationConfig,
     "telegram": TelegramNotificationConfig,
+    "unitysvc": UnitySVCNotificationConfig,
 }
 # field roles, read from the dataclass metadata of the notification classes
 COMMON_FIELDS: Tuple[str, ...] = fields_with_role(PushNotificationConfig, COMMON)
