@@ -120,7 +120,7 @@ def _error_detail(response: requests.Response, unitysvc_api_key: str | None = No
     except ValueError:
         return _redact_secret(response.text, unitysvc_api_key)[:200]
     if isinstance(data, dict):
-        return _redact_secret(str(data.get("error") or data.get("detail") or data), unitysvc_api_key)[
-            :200
-        ]
+        return _redact_secret(
+            str(data.get("error") or data.get("detail") or data), unitysvc_api_key
+        )[:200]
     return _redact_secret(str(data), unitysvc_api_key)[:200]
