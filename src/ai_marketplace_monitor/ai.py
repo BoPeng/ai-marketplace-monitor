@@ -3,7 +3,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
 from diskcache import Cache  # type: ignore
 from rich.pretty import pretty_repr
@@ -263,22 +263,6 @@ class AIBackend(Generic[TAIConfig]):
     ) -> AIResponse:
         raise NotImplementedError("Confirm method must be implemented by subclasses.")
 
-    def chat(
-        self: "AIBackend",
-        messages: List[Dict[str, str]],
-        *,
-        json_mode: bool = False,
-        max_tokens: int = 2048,
-        timeout: float | None = None,
-    ) -> str:
-        """Send a conversation (``{"role", "content"}`` messages) and return the reply text.
-
-        ``json_mode`` asks for a JSON object where the provider supports it; callers must
-        still parse and validate the reply. ``timeout`` (seconds) bounds the request and
-        is not retried, whatever the section's own settings are.
-        """
-        raise NotImplementedError("chat method must be implemented by subclasses.")
-
 
 class OpenAIBackend(AIBackend):
     default_model = "gpt-4o"
@@ -392,41 +376,6 @@ class OpenAIBackend(AIBackend):
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
         return res
 
-    def chat(
-        self: "OpenAIBackend",
-        messages: List[Dict[str, str]],
-        *,
-        json_mode: bool = False,
-        max_tokens: int = 2048,
-        timeout: float | None = None,
-    ) -> str:
-        self.connect()
-        assert self.client is not None
-        client = (
-            self.client.with_options(timeout=timeout, max_retries=0) if timeout else self.client
-        )
-        kwargs: Dict[str, Any] = {
-            "model": self.config.model or self.default_model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-        }
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-        # not every OpenAI-compatible server accepts response_format or max_tokens;
-        # apply each fallback at most once
-        while True:
-            try:
-                response = client.chat.completions.create(**kwargs)
-                break
-            except Exception as e:
-                if "response_format" in str(e) and "response_format" in kwargs:
-                    kwargs.pop("response_format")
-                elif "max_completion_tokens" in str(e) and "max_tokens" in kwargs:
-                    kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
-                else:
-                    raise
-        return response.choices[0].message.content or ""
-
 
 class DeepSeekBackend(OpenAIBackend):
     default_model = "deepseek-chat"
@@ -472,31 +421,6 @@ class UnitySVCBackend(OpenAIBackend):
 
 class AnthropicBackend(AIBackend):
     default_model = "claude-sonnet-5-5"
-
-    def chat(
-        self: "AnthropicBackend",
-        messages: List[Dict[str, str]],
-        *,
-        json_mode: bool = False,
-        max_tokens: int = 2048,
-        timeout: float | None = None,
-    ) -> str:
-        # Anthropic takes system text separately; json_mode is left to the prompt
-        self.connect()
-        assert self.client is not None
-        client = (
-            self.client.with_options(timeout=timeout, max_retries=0) if timeout else self.client
-        )
-        system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
-        response = client.messages.create(
-            model=self.config.model or self.default_model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[m for m in messages if m["role"] != "system"],
-        )
-        return "".join(
-            getattr(block, "text", "") for block in response.content or [] if block is not None
-        )
 
     @classmethod
     def get_config(cls: Type["AnthropicBackend"], **kwargs: Any) -> AnthropicConfig:
