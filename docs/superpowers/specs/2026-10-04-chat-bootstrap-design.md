@@ -13,8 +13,10 @@ The central concept is **"chat to create or revise a section."** Every config se
 has a **section builder** that knows its fields (how to derive each one and what to ask),
 its **playbook** (a Markdown instruction file, like `AGENT.md` / `CLAUDE.md`, that becomes
 part of the LLM chat instance), how to **interpret** a user's request into field values,
-and the conversation around it. New sections start from an existing one, so shared
-settings carry over. One shared **commit** step previews, confirms, backs up, writes, and
+and the conversation around it. A new section gets sensible defaults: an item confirms its
+references (marketplace, AI, users to notify) and inherits its marketplace's settings,
+which the user may override; a section without a parent (AI, user, notification) starts
+from an existing sibling. One shared **commit** step previews, confirms, backs up, writes, and
 verifies every proposal. Users can add their own playbooks to extend the bundled ones.
 
 This spec delivers the framework and its first two consumers:
@@ -160,7 +162,7 @@ class FieldGuide:
     name: str                 # a key the section accepts
     derive: str               # how to work out the value (for the LLM, and for people)
     ask: str | None = None    # what to ask the user when it cannot be derived; None = never ask
-    inherit: bool = True      # a new section copies it from its template section
+    inherit: bool = True      # a new section takes its default from the parent or template
 
 @dataclass
 class InterpretResult:
@@ -208,13 +210,39 @@ structured so code can use it too, and a test requires it to cover every field o
 section's config dataclass (except `name`). The playbook carries the narrative: what the
 section is for, rules, and worked examples. `instructions()` combines both.
 
-**New sections start from an existing one.** When a builder creates a new section and
-sections of that type exist, it starts from one of them (the **template**) and copies its
-`inherit=True` fields, so shared settings such as location, notify, and AI carry over;
-fields specific to the new section (e.g. an item's `search_phrases`) are `inherit=False`.
-The template is the section the user names, else the first existing one; LLM-driven
-builders will ask which to use when there are several. The preview in `commit` shows the
-copied values, so nothing is inherited silently.
+**Where a new section's defaults come from.** It depends on whether the section type has a
+**parent**:
+
+- **Sections with a parent** — items, whose parent is the marketplace they are bound to.
+  Copying a sibling item would be wrong: a sibling's own override (e.g. one item's
+  `search_city = "dallas"`) would leak into the new item. Instead a new item is built in
+  three steps:
+  1. **References, confirmed.** `marketplace`, `ai`, and the users in `notify` — and
+     through those users their notification channels — almost always have an obvious
+     default: the only (or first) marketplace, the AI sections the marketplace uses (or the
+     chat's own AI), the users the marketplace notifies (or all users). The builder proposes
+     them for confirmation, e.g. "Notify alice (Telegram) and bob (email)? [Y/n]", and asks
+     a real question only when there is a choice to make. A chosen user with no working
+     channel is offered the user / notification builders. Items do not hold notification
+     settings themselves.
+  2. **Shared settings, inherited.** The common options an item shares with its
+     marketplace (location, intervals, condition, ...) default to the marketplace's values.
+     The builder shows them and lets the user override any; only overrides are written to
+     the item, everything else keeps falling back to the marketplace at runtime. In the
+     expanded form (#363), where the marketplace carries no common options, "the
+     marketplace's values" are the values shared by all of that marketplace's items —
+     exactly what `compact()` would move back up; values only some items have are never
+     defaults.
+  3. **Item-specific fields, interpreted.** `search_phrases`, `keywords`, `antikeywords`,
+     `description`, prices: from the user's request via `interpret`.
+- **Sections without a parent** — `ai`, `user`, `notification`. A new one starts from an
+  existing sibling (the **template**: the section the user names, else the first one) and
+  copies its `inherit=True` fields; for AI sections that is `max_retries` / `timeout`.
+
+`inherit=True` therefore means "takes its default from the parent (if the type has one),
+else from the template sibling". The builder for items will add a `parent` attribute
+(`"marketplace"`) and mark its reference fields; both arrive with that builder. The preview
+in `commit` shows every inherited or defaulted value, so nothing is set silently.
 
 **Interpret** (request + current values → fields) is the reusable core: the chat calls it,
 and later the CLI and startup (for sections that have only a `request`) can call it
