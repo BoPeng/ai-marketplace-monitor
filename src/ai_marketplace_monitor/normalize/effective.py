@@ -20,10 +20,21 @@ _ITEM_ONLY_FIELDS = tuple(
 _MISSING = "<missing>"
 
 
+def _runtime_enabled(value: bool | None) -> bool:
+    """Runtime checks only distinguish enabled=False from any other value."""
+    return value is not False
+
+
+def _with_runtime_enabled(data: Dict[str, Any]) -> Dict[str, Any]:
+    if "enabled" in data:
+        data["enabled"] = _runtime_enabled(data["enabled"])
+    return data
+
+
 def _user_view(user: UserConfig) -> Dict[str, Any]:
-    return {
-        k: v for k, v in asdict(user).items() if k not in _USER_EXCLUDE and not k.startswith("_")
-    }
+    return _with_runtime_enabled(
+        {k: v for k, v in asdict(user).items() if k not in _USER_EXCLUDE and not k.startswith("_")}
+    )
 
 
 def _item_view(config: Config, name: str) -> Dict[str, Any]:
@@ -31,7 +42,10 @@ def _item_view(config: Config, name: str) -> Dict[str, Any]:
     # Config.get_item_config always binds an item to one marketplace
     assert item.marketplace is not None
     market = config.marketplace[item.marketplace]
-    entry: Dict[str, Any] = {"marketplace": item.marketplace, "enabled": item.enabled}
+    entry: Dict[str, Any] = {
+        "marketplace": item.marketplace,
+        "enabled": _runtime_enabled(item.enabled),
+    }
     entry.update({k: getattr(item, k) for k in _ITEM_ONLY_FIELDS})
     for key in COMMON_OPTIONS:
         if key not in ("search_region", "notify", "ai"):
@@ -49,13 +63,18 @@ def effective_view(config: Config) -> Dict[str, Any]:
     """JSON-able description of everything the config makes the monitor do."""
     view = {
         "marketplace": {
-            n: {k: v for k, v in asdict(m).items() if k not in _MARKETPLACE_EXCLUDE}
+            n: _with_runtime_enabled(
+                {k: v for k, v in asdict(m).items() if k not in _MARKETPLACE_EXCLUDE}
+            )
             for n, m in config.marketplace.items()
         },
         "ai": {
-            n: {k: v for k, v in asdict(a).items() if k != "request"} for n, a in config.ai.items()
+            n: _with_runtime_enabled({k: v for k, v in asdict(a).items() if k != "request"})
+            for n, a in config.ai.items()
         },
-        "monitor": {k: v for k, v in asdict(config.monitor).items() if k != "request"},
+        "monitor": _with_runtime_enabled(
+            {k: v for k, v in asdict(config.monitor).items() if k != "request"}
+        ),
         "translation": {
             n: {"locale": t.locale, "dictionary": t.dictionary}
             for n, t in config.translator.items()
