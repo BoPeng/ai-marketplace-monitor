@@ -152,7 +152,7 @@ class SectionBuilder:
     uses_ai: bool = True
 
     def group(self, field: str) -> FieldGroup          # from dataclass metadata, never hand-written
-    def context(self, ctx, draft) -> Dict[str, Any]       # names of users, ais, items, ...
+    def context(self, ctx, draft) -> Dict[str, Any]       # names it may reference (users, ais, ...)
     def view(self, ctx, name: str) -> SectionDraft        # the section as written
     def validate(self, values: Dict[str, Any], context: Dict[str, List[str]]) -> List[str]
     def missing(self, draft: SectionDraft) -> List[str]   # required gaps, decided in code
@@ -273,7 +273,7 @@ config>
   - *Updating an existing section*: start from its `request` and values; find out what to change;
     keep everything else.
   - *Items*: this section never changes items; a marketplace value is a default that items
-    without their own value use. The LLM sees only item names, not their values.
+    without their own value use. The LLM sees nothing about items.
 - **Completion:** the section loads as a valid marketplace config and has a location (a shared
   city or region, or a location on every item). Optional settings the user mentioned are set;
   anything not discussed stays unset so aimm's defaults apply.
@@ -318,8 +318,8 @@ enums).
 | `prompt`, `extra_prompt`, `rating_prompt` | SHARED | only when the user asks to change how the AI judges listings | free text; default: unset |
 
 The LLM also receives a **context** block: the names of `[user.*]`, `[ai.*]`, `[region.*]` and
-`[translation.*]` sections, the marketplace's items, and for each SHARED field either its one
-value or "varies" with the per-item values.
+`[translation.*]` sections, i.e. the values its fields may reference. It receives nothing about
+items (not even their names) or any other section's contents.
 
 ## 3. Conversation loop
 

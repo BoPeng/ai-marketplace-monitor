@@ -76,6 +76,8 @@ class TurnResult:
     action: str  # one of ACTIONS, decided by the LLM
 
 
+# turns aimm may send back to the LLM before showing its message to the user
+MAX_SILENT_TURNS = 2
 # what the LLM asks aimm to do after a turn
 ACTIONS = ("ask", "save", "no_change", "cancel")
 
@@ -281,6 +283,7 @@ class SectionBuilder:
 
         history: List[Exchange] = [Exchange("user", request)] if request else []
         feedback: List[str] = []
+        silent = 0  # consecutive turns sent back to the LLM without asking the user
         for _ in range(self.max_turns):
             await ui.say("Thinking...", kind="progress")
             try:
@@ -302,29 +305,37 @@ class SectionBuilder:
             draft = result.draft
             history.append(Exchange("assistant", result.message))
             feedback = []
-            if result.action == "save":
-                missing = self.missing(ctx, draft)
+            missing = self.missing(ctx, draft) if result.action == "save" else []
+            pending = result.action == "no_change" and draft.unsaved_changes()
+            if (missing or pending) and silent < MAX_SILENT_TURNS:
+                # aimm decides: send the LLM back (not the user) a couple of times
+                silent += 1
                 if missing:
-                    # aimm decides completeness: send the LLM back, not the user
                     feedback = [f"Cannot save yet. Still required: {m}" for m in missing]
-                    continue
+                else:
+                    changes = ", ".join(
+                        f"{k}: {v!r}" for k, v in self.masked(draft.unsaved_changes()).items()
+                    )
+                    feedback = [
+                        (
+                            f"There are unsaved changes ({changes}). Use `save` to keep them, "
+                            "or `cancel` only if the user wants to discard them."
+                        )
+                    ]
+                continue
+            silent = 0
+            if missing or pending:
+                # the LLM keeps insisting: let the user see its message and answer
+                await ui.say(result.message)
+                if missing:
+                    await ui.say("Still required: " + "; ".join(missing), kind="warning")
+                reply = await self._reply(ui, ctx, draft, "You")
+            elif result.action == "save":
                 await ui.say(result.message)
                 done = await self._save(ui, ctx, draft, label, result.message)
                 if done is not None:
                     return done
                 reply = await self._reply(ui, ctx, draft, "What would you like to change?")
-            elif result.action == "no_change" and draft.unsaved_changes():
-                # never drop the user's changes silently: make the LLM save or cancel
-                pending = ", ".join(
-                    f"{k}: {v!r}" for k, v in self.masked(draft.unsaved_changes()).items()
-                )
-                feedback = [
-                    (
-                        f"There are unsaved changes ({pending}). Use `save` to keep them, "
-                        "or `cancel` only if the user wants to discard them."
-                    )
-                ]
-                continue
             elif result.action in ("no_change", "cancel"):
                 await ui.say(result.message)
                 await ui.say("Nothing was written.", kind="success")

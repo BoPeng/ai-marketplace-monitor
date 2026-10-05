@@ -151,6 +151,9 @@ async def run_turn(
         except ValueError as e:
             errors = [str(e)]
             continue
+        if reply.get("action") == "no_change" and (reply.get("values") or reply.get("unset")):
+            errors = ["A `no_change` reply must not include `values` or `unset`."]
+            continue
         candidate, errors = merge_reply(builder, draft, reply)
         errors += builder.validate(ctx, candidate) if not errors else []
         if errors:

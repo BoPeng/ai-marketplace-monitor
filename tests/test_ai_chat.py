@@ -93,3 +93,20 @@ def test_chat_timeout_disables_client_retries() -> None:
     assert unitysvc(client).chat(MESSAGES, timeout=30) == "{}"
     client.with_options.assert_called_once_with(timeout=30, max_retries=0)
     client.chat.completions.create.assert_not_called()
+
+
+def test_openai_chat_applies_both_fallbacks() -> None:
+    calls: List[Dict[str, Any]] = []
+    errors = ["response_format is not supported", "use max_completion_tokens instead"]
+
+    def create(**kwargs: Any) -> Any:
+        calls.append(dict(kwargs))
+        if errors:
+            raise RuntimeError(errors.pop(0))
+        return openai_reply("{}")
+
+    client = MagicMock()
+    client.chat.completions.create.side_effect = create
+    assert unitysvc(client).chat(MESSAGES, json_mode=True) == "{}"
+    assert len(calls) == 3
+    assert "response_format" not in calls[2] and calls[2]["max_completion_tokens"] == 2048

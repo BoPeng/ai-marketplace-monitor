@@ -412,17 +412,19 @@ class OpenAIBackend(AIBackend):
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        try:
-            response = client.chat.completions.create(**kwargs)
-        except Exception as e:
-            # not every OpenAI-compatible server accepts response_format or max_tokens
-            if "response_format" in str(e) and "response_format" in kwargs:
-                kwargs.pop("response_format")
-            elif "max_completion_tokens" in str(e):
-                kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
-            else:
-                raise
-            response = client.chat.completions.create(**kwargs)
+        # not every OpenAI-compatible server accepts response_format or max_tokens;
+        # apply each fallback at most once
+        while True:
+            try:
+                response = client.chat.completions.create(**kwargs)
+                break
+            except Exception as e:
+                if "response_format" in str(e) and "response_format" in kwargs:
+                    kwargs.pop("response_format")
+                elif "max_completion_tokens" in str(e) and "max_tokens" in kwargs:
+                    kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+                else:
+                    raise
         return response.choices[0].message.content or ""
 
 

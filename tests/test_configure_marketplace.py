@@ -606,3 +606,31 @@ async def test_run_reports_an_unreadable_config(tmp_path: Path) -> None:
     result = await B.run(ui, Session(files=[config], ai=FakeAI([]), home=tmp_path), "facebook")  # type: ignore[arg-type]
     assert result.outcome is Outcome.FAILED
     assert "Cannot read the configuration" in ui.said("error")[0]
+
+
+async def test_repeated_save_claims_reach_the_user(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path,
+        BASE,
+        [reply("All set! Which city, by the way?", {"condition": ["new"]}, action="save")] * 3,
+    )
+    ui = ScriptedSetupUI(["/quit"])
+    result = await B.converse(ui, ctx, "facebook")
+    assert result.outcome is Outcome.CANCELLED
+    assert len(ctx.ai.calls) == 3  # type: ignore[attr-defined]  # two silent retries, then the user
+    assert "All set! Which city, by the way?" in ui.said()
+    assert any("Still required: location" in m for m in ui.said("warning"))
+
+
+async def test_no_change_reply_must_not_carry_edits(tmp_path: Path) -> None:
+    ctx = make_ctx(
+        tmp_path,
+        ONE_ITEM,
+        [
+            reply("Keeping it.", {"max_price": "5"}, action="no_change"),
+            reply("Keeping it.", action="no_change"),
+        ],
+    )
+    result = await llm.run_turn(B, ctx, B.view(ctx, "facebook"), [], [])
+    assert result.action == "no_change" and result.draft.values == {"search_city": "houston"}
+    assert "must not include `values`" in ctx.ai.calls[1][1]["content"]  # type: ignore[attr-defined]
