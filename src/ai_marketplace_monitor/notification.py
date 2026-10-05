@@ -6,8 +6,6 @@ from enum import Enum
 from logging import Logger
 from typing import Any, ClassVar, DefaultDict, Deque, List, Optional, Tuple, Type
 
-import inflect
-
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .utils import BaseConfig, hilight
@@ -343,6 +341,8 @@ class PushNotificationConfig(NotificationConfig):
         #
         # we send listings with different status with different messages
         msgs: DefaultDict[NotificationStatus, List[Tuple[Listing, str]]] = defaultdict(list)
+        import inflect
+
         p = inflect.engine()
         for listing, rating, ns in zip(listings, ratings, notification_status):
             if ns == NotificationStatus.NOTIFIED and not force:

@@ -10,7 +10,6 @@ from logging import Logger
 from pathlib import Path
 from typing import ClassVar, List, Tuple
 
-import inflect
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
@@ -122,6 +121,8 @@ class EmailNotificationConfig(NotificationConfig):
         notification_status: List[NotificationStatus],
         force: bool = False,
     ) -> str:
+        import inflect
+
         p = inflect.engine()
         n_new = len([x for x in notification_status if x == NotificationStatus.NOT_NOTIFIED])
         n_notified = len([x for x in notification_status if x == NotificationStatus.NOTIFIED])

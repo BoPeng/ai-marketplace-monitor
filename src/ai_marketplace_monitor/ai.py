@@ -6,7 +6,6 @@ from logging import Logger
 from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
 from diskcache import Cache  # type: ignore
-from openai import OpenAI  # type: ignore
 from rich.pretty import pretty_repr
 
 from .listing import Listing
@@ -276,6 +275,8 @@ class OpenAIBackend(AIBackend):
 
     def connect(self: "OpenAIBackend") -> None:
         if self.client is None:
+            from openai import OpenAI  # type: ignore
+
             self.client = OpenAI(
                 api_key=self.config.api_key,
                 base_url=self.config.base_url or self.base_url,

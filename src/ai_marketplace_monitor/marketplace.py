@@ -5,6 +5,7 @@ from functools import lru_cache
 from logging import Logger
 from types import MappingProxyType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Generator,
@@ -16,8 +17,6 @@ from typing import (
     TypeVar,
 )
 
-from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
-
 from .listing import Listing
 from .utils import (
     BaseConfig,
@@ -28,6 +27,9 @@ from .utils import (
     convert_to_seconds,
     hilight,
 )
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
 
 
 class MarketPlace(Enum):
@@ -534,7 +536,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def __init__(
         self: "Marketplace",
         name: str,
-        browser: Browser | None,
+        browser: "Browser | None",
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -560,7 +562,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         if translator is not None:
             self.translator = translator
 
-    def set_browser(self: "Marketplace", browser: Browser | None = None) -> None:
+    def set_browser(self: "Marketplace", browser: "Browser | None" = None) -> None:
         if browser is not None:
             self.browser = browser
             self.page = None
@@ -576,7 +578,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             self.browser = None
             self.page = None
 
-    def create_page(self: "Marketplace", swap_proxy: bool = False) -> Page:
+    def create_page(self: "Marketplace", swap_proxy: bool = False) -> "Page":
         assert self.browser is not None
 
         # if there is an existing page, asked to swap_proxy, and there is an proxy_server
@@ -624,7 +626,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
 class WebPage:
     def __init__(
         self: "WebPage",
-        page: Page,
+        page: "Page",
         translator: Translator | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -634,7 +636,7 @@ class WebPage:
 
     def _parent_with_cond(
         self: "WebPage",
-        element: Locator | ElementHandle | None,
+        element: "Locator | ElementHandle | None",
         cond: Callable,
         ret: Callable | int,
     ) -> str:
@@ -647,6 +649,8 @@ class WebPage:
             return ""
         # get up at the DOM level, testing the children elements with cond,
         # apply the res callable to return a string
+        from playwright.sync_api import Locator  # type: ignore
+
         parent: ElementHandle | None = (
             element.element_handle() if isinstance(element, Locator) else element
         )
@@ -663,13 +667,15 @@ class WebPage:
 
     def _children_with_cond(
         self: "WebPage",
-        element: Locator | ElementHandle | None,
+        element: "Locator | ElementHandle | None",
         cond: Callable,
         ret: Callable | int,
     ) -> str:
         if element is None:
             return ""
         # Getting the children of an element, test condition, return the `index` or apply res
+        from playwright.sync_api import Locator  # type: ignore
+
         # on the children element if the condition is met. Otherwise locate the first child and repeat the process.
         child: ElementHandle | None = (
             element.element_handle() if isinstance(element, Locator) else element
