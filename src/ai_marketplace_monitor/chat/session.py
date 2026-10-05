@@ -8,8 +8,7 @@ import tomlkit
 
 from ..ai import AIConfig
 from ..config import supported_ai_backends
-from ..utils import amm_home
-from ..webui.secrets_redact import _is_sensitive
+from ..utils import amm_home, is_sensitive_key
 from .ai_sections import (
     AISection,
     ConfigReadError,
@@ -37,7 +36,7 @@ _MASK = "<REDACTED>"
 
 def _key_sensitive(key: str) -> bool:
     lowered = key.lower()
-    return _is_sensitive(key) or lowered.endswith(("key", "chat_id"))
+    return is_sensitive_key(key) or lowered.endswith(("key", "chat_id"))
 
 
 def _mask(value: Any, sensitive: bool = False) -> Any:

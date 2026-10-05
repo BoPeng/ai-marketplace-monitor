@@ -2,8 +2,6 @@ import stat
 from pathlib import Path
 from typing import List
 
-import pytest
-
 from ai_marketplace_monitor.chat.commit import CommitOutcome, commit, render_section
 from ai_marketplace_monitor.chat.playbooks import load_playbooks
 from ai_marketplace_monitor.chat.sections import ChatContext, SectionProposal, SectionRef
@@ -41,7 +39,10 @@ def proposal(target: Path, name: str = "unitysvc") -> SectionProposal:
 
 def test_render_section() -> None:
     text = render_section(proposal(Path("x.toml")))
-    assert text == '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\nmodel = "balanced"\n'
+    assert text == (
+        '[ai.unitysvc]\nrequest = "Use UnitySVC."\napi_key = "${UNITYSVC_API_KEY}"\n'
+        'model = "balanced"\n'
+    )
 
 
 async def test_decline_writes_nothing(tmp_path: Path) -> None:
@@ -50,6 +51,7 @@ async def test_decline_writes_nothing(tmp_path: Path) -> None:
     assert await commit(ui, proposal(ctx.default_file), ctx) is CommitOutcome.DECLINED
     assert not ctx.default_file.exists()
     assert "```toml" in ui.said()[0]
+    assert 'request = "Use UnitySVC."' in ui.said()[0]  # the preview shows what gets written
 
 
 async def test_new_default_file_created(tmp_path: Path) -> None:
@@ -61,14 +63,15 @@ async def test_new_default_file_created(tmp_path: Path) -> None:
     assert not (tmp_path / "backups").exists()
 
 
-async def test_update_preserves_file_and_request(tmp_path: Path) -> None:
+async def test_update_preserves_file_and_replaces_request(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text(EXISTING)
     ctx = context(tmp_path, [path])
     assert await commit(ScriptedChatUI(["yes"]), proposal(path), ctx) is CommitOutcome.WRITTEN
     text = path.read_text()
     assert text.startswith('# my config\n[marketplace.facebook]\nsearch_city = "houston"  # home')
-    assert 'request = "keep me"\napi_key = "${UNITYSVC_API_KEY}"\nmodel = "balanced"' in text
+    assert 'request = "Use UnitySVC."\napi_key = "${UNITYSVC_API_KEY}"\nmodel = "balanced"' in text
+    assert "keep me" not in text
     assert "[item.bike]" in text and "OLD_KEY" not in text
     [backup] = list((tmp_path / "backups").iterdir())
     assert backup.name.startswith("config.toml.")
@@ -143,13 +146,10 @@ async def test_unparsable_target_fails_cleanly(tmp_path: Path) -> None:
     assert path.read_text() == "[ai.unitysvc\nbroken"
 
 
-async def test_request_replaced_when_supported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("ai_marketplace_monitor.chat.commit.REQUEST_SUPPORTED", True)
+async def test_proposal_without_request_keeps_existing_one(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text(EXISTING)
     ctx = context(tmp_path, [path])
-    assert await commit(ScriptedChatUI(["yes"]), proposal(path), ctx) is CommitOutcome.WRITTEN
-    text = path.read_text()
-    assert 'request = "Use UnitySVC."' in text and "keep me" not in text
+    no_request = SectionProposal(SectionRef("ai", "unitysvc"), dict(VALUES), None, path)
+    assert await commit(ScriptedChatUI(["yes"]), no_request, ctx) is CommitOutcome.WRITTEN
+    assert 'request = "keep me"\napi_key = "${UNITYSVC_API_KEY}"' in path.read_text()

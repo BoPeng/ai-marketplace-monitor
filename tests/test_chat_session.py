@@ -65,7 +65,11 @@ async def test_nothing_works_sets_up_unitysvc(
     home = tmp_path / "home"
     ui = ScriptedChatUI(["unitysvc", "balanced", "yes"])
     assert await run_chat(ui, [], home=home) == 0
-    assert '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"' in (home / "config.toml").read_text()
+    written = (home / "config.toml").read_text()
+    assert written.startswith(
+        '[ai.unitysvc]\nrequest = "Use UnitySVC (balanced) to rate listings and to chat."\n'
+        'api_key = "${UNITYSVC_API_KEY}"'
+    )
     assert any("export UNITYSVC_API_KEY=<your key>" in t for t in ui.said())
 
 

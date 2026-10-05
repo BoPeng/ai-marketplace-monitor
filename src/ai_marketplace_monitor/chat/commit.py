@@ -2,7 +2,6 @@
 
 import os
 import shutil
-from dataclasses import fields
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -11,14 +10,10 @@ from typing import Any, Dict, List, Tuple
 import tomlkit
 from tomlkit.exceptions import ParseError
 
-from ..utils import BaseConfig
 from .ai_sections import ConfigReadError, read_toml
 from .messages import Confirm, Say
 from .sections import ChatContext, SectionProposal
 from .ui import ChatUI
-
-# `request` is written only once the loader accepts it (added by #362)
-REQUEST_SUPPORTED = "request" in {f.name for f in fields(BaseConfig)}
 
 
 class CommitOutcome(Enum):
@@ -28,8 +23,12 @@ class CommitOutcome(Enum):
 
 
 def render_section(proposal: SectionProposal) -> str:
+    """The section as TOML, exactly as `write_section` will write its keys."""
     assert proposal.ref.name is not None
-    return tomlkit.dumps({proposal.ref.type: {proposal.ref.name: proposal.values}})
+    values = (
+        {"request": proposal.request, **proposal.values} if proposal.request else proposal.values
+    )
+    return tomlkit.dumps({proposal.ref.type: {proposal.ref.name: values}})
 
 
 def backup_file(path: Path, backup_dir: Path) -> Path:
@@ -56,7 +55,7 @@ def write_section(
     parent: Any = doc[section_type]
     old = parent.get(name)
     table = tomlkit.table()
-    if REQUEST_SUPPORTED and request:
+    if request:
         table["request"] = request
     elif old is not None and "request" in old:
         table["request"] = old["request"]

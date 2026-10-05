@@ -235,14 +235,15 @@ them and new AI sections inherit `max_retries` / `timeout`.
 The only code that writes config files. `CommitOutcome` is `WRITTEN`, `DECLINED` (the user
 said no; nothing written), or `FAILED` (written, but a later file overrides it).
 
-1. **Preview.** `Say` the section as TOML (fenced, `markdown=True`).
+1. **Preview.** `Say` the section as TOML (fenced, `markdown=True`), including `request`,
+   exactly as it will be written.
 2. **Confirm.** `Confirm("Write this to <file>?")`. "no" → `DECLINED`.
 3. **Backup.** If the target file exists, copy it to
    `~/.ai-marketplace-monitor/backups/<file name>.<YYYYmmdd-HHMMSS>` with mode `0600`.
 4. **Write** with `tomlkit`, preserving all other content, comments, and order; create the
    file and its parent directory if missing. A new section is appended; an existing section
-   has all its keys replaced except `request`. `request` from the proposal is written only
-   once `BaseConfig` accepts it (#362); until then the existing one is kept.
+   has all its keys replaced. The proposal's `request` is written first in the section; a
+   proposal without one keeps the section's existing `request`.
 5. **Verify.** Re-read the files and compare the section's effective merged values (minus
    `request`) with `proposal.values`. A mismatch means a later file overrides keys:
    `Say(error)` naming that file and those keys → `FAILED`. Otherwise `WRITTEN`.
