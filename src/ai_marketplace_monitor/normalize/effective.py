@@ -119,15 +119,19 @@ def _format(path: KeyPath, old: Any, new: Any) -> str:
 
 
 def check_equivalent(
-    system_cfg: Dict[str, Any], before: Dict[str, Any], after: Dict[str, Any]
+    system_cfg: Dict[str, Any],
+    before: Dict[str, Any],
+    after: Dict[str, Any],
+    *,
+    partial: bool = False,
 ) -> List[str]:
     """Raise NormalizeError unless `after` behaves like `before`; return allowed diffs."""
     try:
-        before_view = effective_view(Config.from_dicts(system_cfg, before))
+        before_view = effective_view(Config.from_dicts(system_cfg, before, partial=partial))
     except Exception as e:
         raise NormalizeError(f"Config is not valid: {plain(e)}") from e
     try:
-        after_view = effective_view(Config.from_dicts(system_cfg, after))
+        after_view = effective_view(Config.from_dicts(system_cfg, after, partial=partial))
     except Exception as e:
         raise NormalizeError(f"Normalized config does not load: {plain(e)}") from e
     allowed: List[str] = []

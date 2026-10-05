@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import os
 import shutil
 import sys
@@ -19,6 +20,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
+from ..config import load_config_dicts
 from .ui import SetupUI
 
 
@@ -180,3 +182,149 @@ async def commit_section(
         kind="error",
     )
     return CommitOutcome.FAILED
+
+
+SectionKey = Tuple[str, str]
+
+
+def _sections(cfg: Dict[str, Any]) -> Dict[SectionKey, Dict[str, Any]]:
+    return {
+        (section_type, name): section
+        for section_type, body in cfg.items()
+        if section_type != "monitor" and isinstance(body, dict)
+        for name, section in body.items()
+    }
+
+
+def _owner(files: List[Path], key: SectionKey) -> Path | None:
+    """The last file that defines a section (later files win when merged)."""
+    owner = None
+    for path in files:
+        if key[1] in read_toml(path).get(key[0], {}):
+            owner = path
+    return owner
+
+
+def _edit_documents(
+    files: List[Path], changes: Dict[SectionKey, Dict[str, Any]], default: Path
+) -> Dict[Path, str]:
+    """New text of each file that holds a changed section, edited key by key in place.
+
+    Comments, key order and every other section of the file are kept.
+    """
+    docs: Dict[Path, Any] = {}
+    for key, values in changes.items():
+        path = _owner(files, key) or default
+        if path not in docs:
+            text = path.read_text(encoding="utf-8") if path.exists() else ""
+            docs[path] = tomlkit.parse(text) if text else tomlkit.document()
+        doc = docs[path]
+        section_type, name = key
+        if section_type not in doc:
+            doc[section_type] = tomlkit.table(is_super_table=True)
+        parent: Any = doc[section_type]
+        if name not in parent:
+            parent[name] = tomlkit.table()
+        table = parent[name]
+        for k in [k for k in table if k not in values]:
+            del table[k]
+        for k, v in values.items():
+            if k not in table or table[k] != v:
+                table[k] = v
+    return {path: tomlkit.dumps(doc) for path, doc in docs.items()}
+
+
+async def commit_sections(
+    ui: SetupUI,
+    new_user_cfg: Dict[str, Any],
+    old_user_cfg: Dict[str, Any],
+    files: List[Path],
+    backup_dir: Path,
+    default_file: Path | None = None,
+    only: List[SectionKey] | None = None,
+) -> CommitOutcome:
+    """Write the sections that differ between two user configs; leave everything else alone.
+
+    ``only`` limits the write to those sections: any other difference is refused, so a
+    section builder can never change another part of the config.
+
+    Each changed section is edited in place in the file that defines it (a new section goes
+    to ``default_file``, else the last config file). Preview, confirm, back up, write, verify.
+    """
+    old, new = _sections(old_user_cfg), _sections(new_user_cfg)
+    changes = {key: values for key, values in new.items() if old.get(key) != values}
+    removed = [key for key in old if key not in new]
+    outside = [k for k in [*changes, *removed] if only is not None and k not in only]
+    if outside:
+        await ui.say(
+            "Refusing to write: the change would also modify "
+            + ", ".join(f"[{t}.{n}]" for t, n in outside)
+            + ".",
+            kind="error",
+        )
+        return CommitOutcome.FAILED
+    target = default_file or (files[-1] if files else None)
+    if not changes:
+        await ui.say("Nothing changed; your config is left as it is.", kind="success")
+        return CommitOutcome.WRITTEN
+    if target is None:
+        await ui.say("No config file to write to.", kind="error")
+        return CommitOutcome.FAILED
+    try:
+        plans = _edit_documents(files, changes, target)
+    except (ParseError, OSError, ConfigReadError) as e:
+        await ui.say(f"Could not prepare the change: {e}", kind="error")
+        return CommitOutcome.FAILED
+
+    originals = {
+        path: path.read_text(encoding="utf-8") if path.exists() else None for path in plans
+    }
+    for path, text in plans.items():
+        before = originals[path] or ""
+        diff = "".join(
+            difflib.unified_diff(
+                before.splitlines(keepends=True),
+                text.splitlines(keepends=True),
+                fromfile=f"{path} (current)",
+                tofile=f"{path} (new)",
+            )
+        )
+        await ui.say(f"```diff\n{diff}```", markdown=True)
+    if not await ui.confirm("Write these changes?"):
+        return CommitOutcome.DECLINED
+    # the files may have changed while the user was reading the preview
+    changed = [
+        str(path)
+        for path, text in originals.items()
+        if (path.read_text(encoding="utf-8") if path.exists() else None) != text
+    ]
+    if changed:
+        await ui.say(
+            f"Not written: {', '.join(changed)} changed while you were reviewing; "
+            "please try again.",
+            kind="error",
+        )
+        return CommitOutcome.FAILED
+
+    try:
+        for path, text in plans.items():
+            if path.exists():
+                backup_file(path, backup_dir)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        read_order = files if target in files else [*files, target]
+        _, reloaded_cfg = load_config_dicts(read_order)
+    except (OSError, ValueError) as e:
+        await ui.say(f"Could not update the config: {e}", kind="error")
+        return CommitOutcome.FAILED
+    reloaded = _sections(reloaded_cfg)
+    wrong = [f"[{t}.{n}]" for (t, n), values in changes.items() if reloaded.get((t, n)) != values]
+    if wrong:
+        await ui.say(
+            f"Saved, but {', '.join(wrong)} does not read back as written; another config "
+            "file may set some of its keys.",
+            kind="error",
+        )
+        return CommitOutcome.FAILED
+    await ui.say(f"Saved {', '.join(str(p) for p in plans)}.", kind="success")
+    return CommitOutcome.WRITTEN

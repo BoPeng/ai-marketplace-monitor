@@ -1,6 +1,6 @@
 import pytest
 
-from ai_marketplace_monitor.normalize import NormalizeError, expand
+from ai_marketplace_monitor.normalize import NormalizeError, expand, normalize
 from tests.normalize_util import parse, system_cfg
 
 USERS = """
@@ -252,3 +252,56 @@ def test_marketplace_region_overrides_its_own_city() -> None:
     assert "search_city" not in bike and "radius" not in bike
     details = {c.key: c.detail for c in result.changes if c.section == "marketplace.facebook"}
     assert "overridden by search_region" in details["search_city"]
+
+
+def test_marketplace_without_items_keeps_shared_options() -> None:
+    text = (
+        USERS
+        + """
+    [marketplace.facebook]
+    search_city = "houston"
+    radius = 40
+    condition = ["used_good"]
+    username = "me"
+    """
+    )
+    expanded = expand(parse(text), system_cfg(), partial=True).config
+    assert expanded["marketplace"]["facebook"] == {
+        "username": "me",
+        "search_city": "houston",
+        "radius": 40,
+        "condition": ["used_good"],
+    }
+    normalized = normalize(parse(text), system_cfg(), partial=True).config
+    assert normalized["marketplace"]["facebook"]["search_city"] == "houston"
+    assert normalized["marketplace"]["facebook"]["condition"] == ["used_good"]
+
+
+def test_only_marketplaces_with_items_lose_shared_options() -> None:
+    cfg = _expand(
+        USERS
+        + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [marketplace.other]
+    search_city = "dallas"
+
+    [item.bike]
+    search_phrases = "bike"
+    marketplace = "facebook"
+    """
+    )
+    assert "search_city" not in cfg["marketplace"]["facebook"]
+    assert cfg["marketplace"]["other"]["search_city"] == "dallas"
+    assert cfg["item"]["bike"]["search_city"] == "houston"
+
+
+def test_partial_config_is_accepted_only_when_asked() -> None:
+    text = """
+    [ai.openai]
+    api_key = "sk-test"
+    """
+    with pytest.raises(NormalizeError, match="does not contain a marketplace section"):
+        expand(parse(text), system_cfg())
+    assert expand(parse(text), system_cfg(), partial=True).config == parse(text)

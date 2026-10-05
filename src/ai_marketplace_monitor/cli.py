@@ -1,8 +1,6 @@
 """Console script for ai-marketplace-monitor."""
 
-import json
 import logging
-import re
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -16,11 +14,11 @@ from rich.text import Text
 
 from . import __version__
 from .config import load_config_dicts
+from .config_toml import dump_config_toml
 from .normalize import expand, normalize
 from .utils import CacheType, amm_home, cache, counter, hilight
 
 app = typer.Typer()
-_BARE_TOML_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 _DEFAULT_CONFIG_TEMPLATE = """\
@@ -73,43 +71,10 @@ def _config_files_with_default(config_files: List[Path] | None) -> List[Path]:
     ]
 
 
-def _toml_key(value: str) -> str:
-    if _BARE_TOML_KEY.match(value):
-        return value
-    return json.dumps(value, ensure_ascii=False)
-
-
-def _toml_value(value: Any) -> str:
-    if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int | float):
-        return str(value)
-    if isinstance(value, list):
-        return "[" + ", ".join(_toml_value(v) for v in value) + "]"
-    raise TypeError(f"Cannot write {type(value).__name__} value {value!r} as TOML")
-
-
-def _dump_config_toml(cfg: dict[str, Any]) -> str:
-    lines: list[str] = []
-    for section_type, body in cfg.items():
-        if section_type == "monitor":
-            lines.append("[monitor]")
-            lines.extend(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in body.items())
-            lines.append("")
-            continue
-        for name, section in body.items():
-            lines.append(f"[{_toml_key(section_type)}.{_toml_key(name)}]")
-            lines.extend(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in section.items())
-            lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
-
-
 def _print_normalized_config(config_files: List[Path] | None, *, expanded: bool) -> None:
     system_cfg, user_cfg = load_config_dicts(_config_files_with_default(config_files))
     result = expand(user_cfg, system_cfg) if expanded else normalize(user_cfg, system_cfg)
-    typer.echo(_dump_config_toml(result.config), nl=False)
+    typer.echo(dump_config_toml(result.config), nl=False)
 
 
 def _print_webui_banner(info: Any) -> None:

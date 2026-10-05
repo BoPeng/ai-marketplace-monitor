@@ -147,6 +147,7 @@ class ConsoleSetupUI:
 
     _styles: ClassVar[Dict[str, str]] = {
         "info": "",
+        "progress": "dim",
         "success": "green",
         "warning": "yellow",
         "error": "bold red",
