@@ -12,7 +12,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Type, TypeVar
 
-from ..ai import AIBackend, AIConfig, AnthropicBackend, OllamaBackend, OpenAIBackend
+from ..ai import (
+    AIBackend,
+    AIConfig,
+    AnthropicBackend,
+    UnitySVCBackend,
+)
 from ..config import supported_ai_backends
 from ..utils import amm_home, merge_dicts
 from .ui import Choice, SetupClosedError, SetupUI
@@ -34,7 +39,7 @@ _TYPED_KEY = re.compile(r"^(svcpass_|sk-ant-|sk-)\S{8,}")
 _MARKUP = re.compile(r"\[/?[a-z ]+\]")
 _PING = [{"role": "user", "content": "ping"}]
 
-UNITYSVC_TIERS = ["fast", "balanced", "coding", "premium"]
+UNITYSVC_URL = UnitySVCBackend.base_url
 OLLAMA_URL = "http://localhost:11434/v1"
 SHARED_AI_KEYS = {"max_retries", "timeout"}
 
@@ -400,23 +405,24 @@ async def propose_ai_section(
     if spec.env_var:
         var = env_var_name(old.get("api_key")) or spec.env_var
         values["api_key"] = f"${{{var}}}"
-    if provider == "unitysvc":
-        current = old.get("model")
-        default_tier = current if current in UNITYSVC_TIERS else "balanced"
-        tiers = [Choice(tier, tier) for tier in UNITYSVC_TIERS]
-        values["model"] = await ui.choose("Which UnitySVC tier?", tiers, default_tier)
-    else:
-        if provider == "ollama":
-            values["base_url"] = await _ask_safe_text(
-                ui, "Ollama URL", old.get("base_url") or OLLAMA_URL
-            )
-        backend = {"ollama": OllamaBackend, "openai": OpenAIBackend}.get(
-            provider, AnthropicBackend
+    default_url = {"unitysvc": UNITYSVC_URL, "ollama": OLLAMA_URL}.get(provider)
+    if default_url is not None:
+        label = PROVIDER_LABELS[provider]
+        values["base_url"] = await _ask_url(
+            ui, f"{label} base URL", old.get("base_url") or default_url
         )
-        probe = ctx.probes.get(target.name) if target else None
-        values["model"] = await _ask_model(
-            ui, old.get("model"), backend.default_model, probe.available if probe else []
-        )
+    backend = supported_ai_backends[provider]
+    # the models the check found for this section, else ask the provider now
+    probe = ctx.probes.get(target.name) if target else None
+    same_url = values.get("base_url", default_url) == (old.get("base_url") or default_url)
+    available = probe.available if probe and same_url else []
+    if not available:
+        available = await fetch_models(provider, values)
+    values["model"] = await _ask_model(
+        ui, old.get("model"), backend.default_model, available  # type: ignore[attr-defined]
+    )
+    if provider == "unitysvc" and values["base_url"] == UNITYSVC_URL:
+        values.pop("base_url")  # the default
 
     # shared settings: the section's own when updating, else from an existing AI section
     template = target or (sections[0] if sections else None)
@@ -576,6 +582,31 @@ def pick_model(current: str | None, default: str, available: List[str]) -> str:
     return available[0]
 
 
+async def fetch_models(provider: str, values: Dict[str, Any], timeout: float = 10.0) -> List[str]:
+    """The models the provider lists for these settings; empty when they cannot be listed."""
+    config, _problem = _build_ai_config(provider, values)
+    backend_class = supported_ai_backends.get(provider)
+    if config is None or backend_class is None:
+        return []
+    backend = backend_class(config=config)
+
+    def listing() -> List[str]:
+        return [model.id for model in _probe_client(backend, timeout).models.list()]
+
+    try:
+        return await run_in_daemon_thread(listing)
+    except Exception:
+        return []
+
+
+async def _ask_url(ui: SetupUI, prompt: str, default: str) -> str:
+    while True:
+        url = (await _ask_safe_text(ui, prompt, default)).rstrip("/")
+        if url.startswith(("https://", "http://")):
+            return url
+        await ui.say("The URL must start with https:// or http://.", kind="warning")
+
+
 async def _ask_model(ui: SetupUI, current: str | None, default: str, available: List[str]) -> str:
     """Ask for a model, choosing from the provider's list when the check found one."""
     if not available:
@@ -583,7 +614,7 @@ async def _ask_model(ui: SetupUI, current: str | None, default: str, available: 
     if current and not model_matches(current, available):
         await ui.say(f'Model "{current}" is no longer available.', kind="warning")
     proposed = pick_model(current, default, available)
-    shown = [proposed, *(m for m in available if m != proposed)][:10]
+    shown = [proposed, *(m for m in available if m != proposed)][:30]
     options = [Choice(m, m) for m in shown] + [Choice("__other__", "Other...")]
     choice = await ui.choose("Which model?", options, proposed)
     if choice != "__other__":

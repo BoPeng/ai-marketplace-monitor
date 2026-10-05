@@ -27,6 +27,22 @@ from ai_marketplace_monitor.configure.ai_setup import (
 )
 from ai_marketplace_monitor.configure.ui import Choice, JsonSetupUI, ScriptedSetupUI
 
+REAL_FETCH_MODELS = ai_setup.fetch_models
+
+
+@pytest.fixture(autouse=True)
+def no_model_listing(monkeypatch: pytest.MonkeyPatch) -> List[Dict[str, Any]]:
+    """Setup never lists models over the network in tests; records what it would list."""
+    calls: List[Dict[str, Any]] = []
+
+    async def fetch(provider: str, values: Dict[str, Any], timeout: float = 10.0) -> List[str]:
+        calls.append({"provider": provider, **values})
+        return []
+
+    monkeypatch.setattr(ai_setup, "fetch_models", fetch)
+    return calls
+
+
 REQUEST = httpx.Request("GET", "https://api.svcpass.com/p/llm/models")
 VALUES = {"api_key": "${UNITYSVC_API_KEY}", "model": "balanced"}
 
@@ -219,7 +235,7 @@ def test_unparsable_file(tmp_path: Path) -> None:
 
 async def test_propose_unitysvc_new_section(tmp_path: Path) -> None:
     ctx = context(tmp_path)
-    proposal = await propose_ai_section(ScriptedSetupUI(["unitysvc", "balanced"]), ctx)
+    proposal = await propose_ai_section(ScriptedSetupUI(["unitysvc", "", "balanced"]), ctx)
 
     assert proposal is not None
     assert proposal.name == "unitysvc"
@@ -234,7 +250,7 @@ async def test_propose_existing_section_keeps_env_var_and_shared_fields(tmp_path
         '[ai.mine]\nprovider = "unitysvc"\napi_key = "${MY_KEY}"\n'
         'model = "fast"\ntimeout = 5\n',
     )
-    ui = ScriptedSetupUI(["premium"])
+    ui = ScriptedSetupUI(["", "premium"])
     proposal = await propose_ai_section(ui, context(tmp_path, [path]), section_name="mine")
 
     assert proposal is not None
@@ -246,7 +262,7 @@ async def test_propose_existing_section_keeps_env_var_and_shared_fields(tmp_path
         "timeout": 5,
     }
     assert proposal.target_file == path
-    assert ui.questions == ["Which UnitySVC tier?"]  # the section's provider is not asked
+    assert ui.questions == ["UnitySVC base URL", "Model"]  # the provider is not asked
 
 
 async def test_propose_named_provider_defaults_to_matching_provider(tmp_path: Path) -> None:
@@ -400,7 +416,7 @@ async def test_configure_ai_writes_section_and_prints_env_instructions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
-    ui = ScriptedSetupUI(["unitysvc", "balanced", "yes"])
+    ui = ScriptedSetupUI(["unitysvc", "", "balanced", "yes"])
 
     assert await configure_ai(ui, [], home=tmp_path / "home") == 0
 
@@ -418,7 +434,7 @@ async def test_configure_ai_writes_new_section_to_supplied_config(
 ) -> None:
     monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
     config = write(tmp_path / "custom.toml", "")
-    ui = ScriptedSetupUI(["unitysvc", "balanced", "yes"])
+    ui = ScriptedSetupUI(["unitysvc", "", "balanced", "yes"])
 
     assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
 
@@ -435,7 +451,7 @@ async def test_configure_ai_probes_after_commit(
         "probe_ai_section",
         lambda section: ProbeResult(True, "request", "balanced", "ok"),
     )
-    ui = ScriptedSetupUI(["unitysvc", "balanced", "yes"])
+    ui = ScriptedSetupUI(["unitysvc", "", "balanced", "yes"])
 
     assert await configure_ai(ui, [], home=tmp_path / "home") == 0
 
@@ -478,7 +494,7 @@ async def test_propose_plain_ai_targets_section_named_after_provider(tmp_path: P
     )
     ctx = context(tmp_path, [path])
 
-    proposal = await propose_ai_section(ScriptedSetupUI(["unitysvc", "fast"]), ctx)
+    proposal = await propose_ai_section(ScriptedSetupUI(["unitysvc", "", "fast"]), ctx)
 
     assert proposal is not None
     assert proposal.name == "unitysvc"
@@ -493,7 +509,7 @@ async def test_propose_plain_ai_never_converts_a_mismatched_section(tmp_path: Pa
         tmp_path / "config.toml",
         '[ai.unitysvc]\nprovider = "openai"\napi_key = "${OPENAI_API_KEY}"\n',
     )
-    ui = ScriptedSetupUI(["unitysvc", "balanced"])
+    ui = ScriptedSetupUI(["unitysvc", "", "balanced"])
 
     proposal = await propose_ai_section(ui, context(tmp_path, [path]))
 
@@ -679,7 +695,7 @@ async def test_broken_section_menu_can_set_up_another_ai(
     stale_probe(monkeypatch)
     monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
     config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
-    ui = ScriptedSetupUI(["new", "unitysvc", "balanced", "yes"])
+    ui = ScriptedSetupUI(["new", "unitysvc", "", "balanced", "yes"])
 
     assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
     assert ui.questions[:2] == ["What would you like to do?", "Which AI do you want to configure?"]
@@ -839,3 +855,91 @@ async def test_named_section_checks_only_that_section(
         home=tmp_path / "h",
     )
     assert checked == ["unitysvc"]
+
+
+UNITYSVC_MODELS = ["deepseek-v4-pro", "kimi-k3", "balanced", "coding", "fast", "premium"]
+
+
+def list_models(monkeypatch: pytest.MonkeyPatch, models: List[str]) -> List[Dict[str, Any]]:
+    calls: List[Dict[str, Any]] = []
+
+    async def fetch(provider: str, values: Dict[str, Any], timeout: float = 10.0) -> List[str]:
+        calls.append({"provider": provider, **values})
+        return list(models)
+
+    monkeypatch.setattr(ai_setup, "fetch_models", fetch)
+    return calls
+
+
+async def test_unitysvc_model_is_chosen_from_the_listed_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = list_models(monkeypatch, UNITYSVC_MODELS)
+    seen: List[List[str]] = []
+
+    class Recording(ScriptedSetupUI):
+        async def choose(
+            self, prompt: str, options: List[Choice], default: str | None = None
+        ) -> str:
+            seen.append([prompt, default or "", *(o.value for o in options)])
+            return await super().choose(prompt, options, default)
+
+    ui = Recording(["unitysvc", "", "kimi-k3"])
+    proposal = await propose_ai_section(ui, context(tmp_path))
+
+    assert proposal is not None
+    assert proposal.values == {"api_key": "${UNITYSVC_API_KEY}", "model": "kimi-k3"}  # default URL
+    assert seen[1][:3] == ["Which model?", "balanced", "balanced"]
+    assert set(UNITYSVC_MODELS) <= set(seen[1][2:]) and seen[1][-1] == "__other__"
+    assert calls[0]["base_url"] == "https://api.svcpass.com/p/llm"
+
+
+async def test_unitysvc_custom_base_url_is_written_and_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = list_models(monkeypatch, ["balanced"])
+    ui = ScriptedSetupUI(
+        ["unitysvc", "api.svcpass.com/a/myllm", "https://api.svcpass.com/a/myllm/", ""]
+    )
+    proposal = await propose_ai_section(ui, context(tmp_path))
+
+    assert proposal is not None
+    assert proposal.values["base_url"] == "https://api.svcpass.com/a/myllm"
+    assert proposal.values["model"] == "balanced"
+    assert calls[0]["base_url"] == "https://api.svcpass.com/a/myllm"
+    assert "The URL must start with https:// or http://." in ui.said("warning")
+
+
+async def test_model_list_from_the_check_is_reused_for_the_same_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_model_listing: List[Dict[str, Any]]
+) -> None:
+    path = write(
+        tmp_path / "config.toml",
+        '[ai.unitysvc]\napi_key = "${UNITYSVC_API_KEY}"\nmodel = "fast"\n',
+    )
+    ctx = context(tmp_path, [path])
+    ctx.probes["unitysvc"] = ProbeResult(True, "request", "fast", "ok", UNITYSVC_MODELS)
+    proposal = await propose_ai_section(ScriptedSetupUI(["", ""]), ctx, section_name="unitysvc")
+
+    assert proposal is not None and proposal.values["model"] == "fast"  # current kept
+    assert no_model_listing == []  # no second listing
+
+
+async def test_fetch_models_lists_or_returns_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
+    models = SimpleNamespace(
+        list=lambda: [SimpleNamespace(id="balanced"), SimpleNamespace(id="kimi-k3")]
+    )
+    monkeypatch.setattr(
+        ai_setup, "_probe_client", lambda backend, timeout: SimpleNamespace(models=models)
+    )
+    values = {"api_key": "${UNITYSVC_API_KEY}", "base_url": "https://api.svcpass.com/p/llm"}
+    assert await REAL_FETCH_MODELS("unitysvc", values) == ["balanced", "kimi-k3"]
+
+    def boom(backend: Any, timeout: float) -> Any:
+        raise RuntimeError("401")
+
+    monkeypatch.setattr(ai_setup, "_probe_client", boom)
+    assert await REAL_FETCH_MODELS("unitysvc", values) == []
+    monkeypatch.delenv("UNITYSVC_API_KEY")
+    assert await REAL_FETCH_MODELS("unitysvc", values) == []  # key not set: nothing to ask

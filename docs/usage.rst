@@ -95,7 +95,10 @@ update it (or fix it if the check failed), to make one of the other sections the
 (which moves it to the top of the file), or to create a new AI section, which becomes the
 default. With no AI section yet, it goes straight to choosing a provider: UnitySVC
 (recommended: one key covers AI and email notifications), OpenAI, Anthropic, or Ollama.
-When the check lists the provider's models, you choose the model from that list.
+For UnitySVC and Ollama it also asks for the base URL (UnitySVC's default is
+``https://api.svcpass.com/p/llm``; an alias such as ``https://api.svcpass.com/a/myllm`` works
+too). Whenever the provider can list its models (the key is set), you choose the model from
+that list.
 
 Use ``aimm-configure ai.NAME`` to work on one section. A section named after a provider
 uses that provider, so ``aimm-configure ai.openai`` sets up ``[ai.openai]`` without asking
