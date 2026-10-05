@@ -108,10 +108,11 @@ class Workspace:
         A `search_city` code cannot be derived from a place name, so any other code is a guess.
         """
         codes: Set[str] = set()
-        for section_type in ("marketplace", "item"):
-            for section in self.user_cfg.get(section_type, {}).values():
-                if isinstance(section, dict):
-                    codes |= _codes(section.get("search_city"))
+        for cfg in (self.user_cfg, self.system_cfg):  # system: the built-in regions
+            for section_type in ("marketplace", "item", "region"):
+                for section in cfg.get(section_type, {}).values():
+                    if isinstance(section, dict):
+                        codes |= _codes(section.get("search_city"))
         for text in self.user_said:
             codes |= {
                 m.group(1) for m in _URL_CODE.finditer(text) if m.group(1) not in _NOT_A_LOCATION

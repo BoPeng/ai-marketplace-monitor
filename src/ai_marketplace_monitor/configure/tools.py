@@ -16,13 +16,22 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Set, Tuple
 
-from .toolkits import Toolkit
+from .toolkits import SINGLETONS, Toolkit, section_label
 from .ui import SetupClosedError
 from .workspace import ConfigLoadError, SectionKey, Workspace
 from .writer import CommitOutcome, commit_sections
 
 # section types listed by list_sections, in config order
-SECTION_TYPES = ("ai", "marketplace", "user", "notification", "region", "item", "translation")
+SECTION_TYPES = (
+    "ai",
+    "marketplace",
+    "user",
+    "notification",
+    "region",
+    "item",
+    "translation",
+    "monitor",
+)
 
 
 class Outcome(Enum):
@@ -105,11 +114,14 @@ class ToolExecutor:
         for section_type in SECTION_TYPES:
             configurable = section_type in self.ws.toolkits
             body = cfg.get(section_type, {})
-            sections = [
-                {"name": name, "request": section.get("request")}
-                for name, section in body.items()
-                if isinstance(section, dict)
-            ]
+            if section_type in SINGLETONS:  # [monitor]: one section named after its type
+                sections = [{"name": section_type, "request": body.get("request")}] if body else []
+            else:
+                sections = [
+                    {"name": name, "request": section.get("request")}
+                    for name, section in body.items()
+                    if isinstance(section, dict)
+                ]
             if sections or configurable:
                 types.append(
                     {"type": section_type, "configurable_here": configurable, "sections": sections}
@@ -127,7 +139,7 @@ class ToolExecutor:
             and (section_type, name) not in self.only
             and (section_type, "*") not in self.only
         ):
-            allowed = ", ".join(f"[{t}.{n}]" for t, n in sorted(self.only))
+            allowed = ", ".join(section_label(t, n) for t, n in sorted(self.only))
             return None, f"Only {allowed} can be changed in this session."
         if not name or not isinstance(name, str):
             return None, "A section name is required."

@@ -21,6 +21,17 @@ if TYPE_CHECKING:
     from .ui import SetupUI
     from .workspace import Workspace
 
+# section types with a single unnamed section ([monitor]); their key is (type, type)
+SINGLETONS = {"monitor"}
+
+
+def section_label(section_type: str, name: str) -> str:
+    """``[type.name]``, or ``[type]`` for a singleton section."""
+    if section_type in SINGLETONS:
+        return f"[{section_type}]"
+    return f"[{section_type}.{name}]"
+
+
 # dataclass fields that are never configured through a toolkit
 _NOT_CONFIGURED = {"name", "request", "monitor_config", "searched_count"}
 _UNSET = object()
@@ -59,7 +70,7 @@ class SectionDraft:
 
     @property
     def label(self: "SectionDraft") -> str:
-        return f"[{self.section_type}.{self.name}]"
+        return section_label(self.section_type, self.name)
 
     def copy(self: "SectionDraft") -> "SectionDraft":
         return copy.deepcopy(self)
@@ -221,7 +232,21 @@ class Toolkit:
 
     # --- section-specific behavior --------------------------------------------------------
     def view(self: "Toolkit", ws: "Workspace", name: str) -> SectionDraft:
-        raise NotImplementedError
+        """The section as saved (empty for a new one)."""
+        if self.section_type in SINGLETONS:
+            section = ws.user_cfg.get(self.section_type)
+        else:
+            section = ws.user_cfg.get(self.section_type, {}).get(name)
+        values = {k: copy.deepcopy(v) for k, v in (section or {}).items() if k != "request"}
+        return SectionDraft(
+            section_type=self.section_type,
+            name=name,
+            is_new=section is None,
+            request=(section or {}).get("request"),
+            values=values,
+            original=copy.deepcopy(values),
+            original_request=(section or {}).get("request"),
+        )
 
     def context(self: "Toolkit", ws: "Workspace") -> Dict[str, List[str]]:
         """Names the section's fields may reference; nothing else of the config."""
@@ -278,7 +303,10 @@ class Toolkit:
         cfg = copy.deepcopy(user_cfg)
         section = {"request": draft.request} if draft.request else {}
         section.update(copy.deepcopy(draft.values))
-        cfg.setdefault(self.section_type, {})[draft.name] = section
+        if self.section_type in SINGLETONS:
+            cfg[self.section_type] = section
+        else:
+            cfg.setdefault(self.section_type, {})[draft.name] = section
         return cfg
 
     async def choose_target(
