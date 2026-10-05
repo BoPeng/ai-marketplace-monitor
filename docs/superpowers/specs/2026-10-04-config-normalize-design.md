@@ -1,7 +1,7 @@
 # Design: Config expansion, normalization, and the `request` field
 
 **Date:** 2026-10-04
-**Status:** Approved (brainstorm), pending implementation plan
+**Status:** Approved; implemented in #366
 
 ## Summary
 
