@@ -103,7 +103,7 @@ def test_view_with_items_shows_shared_and_varying_values(tmp_path: Path) -> None
     draft = B.view(ctx, "facebook")
     assert not draft.is_new
     assert draft.values["condition"] == ["used_good"]
-    assert draft.values["notify"] == ["me"]
+    assert "notify" not in draft.values and "ai" not in draft.values  # the defaults
     assert draft.varies["search_city"] == {"bike": "houston", "sofa": "houston", "desk": "dallas"}
     assert "search_city" not in draft.values
     assert B.missing(ctx, draft) == []  # every item has a location

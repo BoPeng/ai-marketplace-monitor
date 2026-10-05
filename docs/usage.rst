@@ -112,9 +112,44 @@ file. Every write shows the proposed TOML first, asks for confirmation, and keep
 backup in ``~/.ai-marketplace-monitor/backups/``.
 
 Use ``--config`` or ``--config-file`` to read and update a specific config file.
-Future configuration helpers can follow the same section-address pattern, such as
-``item`` for a new item or ``item.gopro`` for an existing named item. AI-assisted
-section helpers such as ``item`` require a configured and usable AI service.
+
+Marketplaces
+~~~~~~~~~~~~
+
+``aimm-configure marketplace`` sets up where and how to search Facebook Marketplace with
+the help of your AI service, so it needs a working ``[ai.*]`` section first. It lists your
+existing marketplaces, each with its ``request`` (a short summary of what you asked for)
+and its settings, and asks whether to update one or create a new one;
+``aimm-configure marketplace.NAME`` goes straight to one section.
+
+The AI then leads a short conversation. You answer in your own words, for example:
+
+.. code-block:: text
+
+    I'm in Austin, Texas and will drive about 30 miles. Only local pickup, used things in
+    good condition or better. Checking every hour is fine.
+
+It works out what is still needed (a location is required), asks about what is likely
+to matter to you, and fills in the section. aimm checks every value; when the section is
+complete it shows it to you and asks whether it is right. Say no and describe what to
+change, or say yes to see the changes to your config file and confirm them. Type
+``/show`` to see the section so far, or ``/quit`` to stop without writing.
+
+Marketplace values are defaults for all items of that marketplace. When you change one,
+items that use the marketplace's value get the new value and items with their own value
+keep it, unless you ask for every item to change.
+
+With one config file, the file is rewritten in its normalized form, which drops comments
+(the backup keeps them) and may move settings to their canonical place, for example a
+user's notification settings into a ``[notification.*]`` section. With several config
+files, only the changed sections are written, each into the file that defines it.
+
+The AI follows a playbook for each section, which describes the goal, how to work out
+each part, and when the section is complete. You can add your own rules for a section in
+``~/.ai-marketplace-monitor/playbooks/marketplace.md``; they are appended to the bundled
+playbook.
+
+Configuring items (``aimm-configure item``) will follow the same pattern.
 
 The command is a terminal front end over a reusable async setup flow. Web UI code can
 drive the same flow through JSON prompt/answer messages over a websocket instead of

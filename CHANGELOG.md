@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `aimm-configure marketplace` / `marketplace.NAME`: set up a marketplace through a conversation with your AI service, which works out what is missing, asks about what matters, and fills the section; you confirm the section and the file changes before anything is written
+- Playbooks for AI-assisted configuration (goal, subtasks, completion rules), with optional house rules in `~/.ai-marketplace-monitor/playbooks/`
 - `aimm-configure`: primary interactive configuration command, starting with `[ai.*]` setup and writing API keys as environment-variable references
 - UnitySVC notifications (`[notification.unitysvc]` with `unitysvc_api_key`): messages go to UnitySVC's `notify` service (inbox plus your saved notification destination) or to a specific service set with `unitysvc_service`
 - Email preset for UnitySVC's SMTP gateway: `smtp_server = "smtp.svcpass.com"` with `smtp_password = "${UNITYSVC_API_KEY}"` sends the HTML email to your UnitySVC-registered address, an alternative to a Gmail app password

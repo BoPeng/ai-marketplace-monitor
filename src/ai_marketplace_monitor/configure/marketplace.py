@@ -260,6 +260,14 @@ class MarketplaceBuilder(SectionBuilder):
                         values[key] = copy.deepcopy(value)
                 elif any(v is not _ABSENT for v in found.values()):
                     varies[key] = {n: (None if v is _ABSENT else v) for n, v in found.items()}
+        # the expanded form spells out "all users" / "all AI services"; show those as unset
+        defaults = {
+            "notify": list(ctx.expanded.get("user", {})),
+            "ai": list(ctx.expanded.get("ai", {})),
+        }
+        for key, everything in defaults.items():
+            if values.get(key) == everything:
+                values.pop(key)
         return SectionDraft(
             section_type="marketplace",
             name=name,

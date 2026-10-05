@@ -339,6 +339,12 @@ items will inherit. `compact()` already leaves them alone (it hoists only for tw
 `check_equivalent` is unaffected: with no items the values have no runtime effect. The normalize
 spec's push-down rule gets the same one-line change, with tests.
 
+The monitor requires `[marketplace]`, `[user]` and `[item]` sections, but a config being built with
+aimm-configure usually lacks some of them (the first marketplace is written before any item).
+`Config.from_dicts`, `expand()` and `normalize()` therefore take `partial=True`, which skips only
+that required-sections check; aimm-configure always uses it. Empty section groups are dropped
+from the result.
+
 ### 4B. `MarketplaceBuilder.apply(expanded, draft)`
 
 Returns a new expanded config (the input is not mutated):
