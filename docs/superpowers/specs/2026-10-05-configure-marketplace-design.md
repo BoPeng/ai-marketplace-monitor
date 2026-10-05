@@ -38,8 +38,8 @@ nothing else:
   builder cannot change another part of the config even by mistake.
 - **LLM input:** only that section (empty for a new one) and the names it may use as values
   (e.g. users for `notify`); never other sections' contents. This keeps the conversation focused.
-- aimm itself (not the LLM) may read other sections to validate the result and to inform the
-  user (e.g. which items keep their own values).
+- aimm itself (not the LLM) reads other sections only to validate the result (e.g. that a
+  referenced user exists, that every item still has a location); it does not show them.
 
 ## Goals and non-goals
 
@@ -355,9 +355,8 @@ from the result.
 ### 4B. `MarketplaceBuilder.view` and `apply` (revised)
 
 The draft is the marketplace section **as the user wrote it** (merged across files), not a view of
-the expanded config. Items' own values for shared fields are kept separately
-(`SectionDraft.item_overrides`); aimm (not the LLM) uses them to tell the user which items keep
-their own values. They are not sent to the LLM.
+the expanded config. Nothing about items is shown, to the LLM or in the review; the start menu
+shows only each marketplace's item count.
 
 `apply()` returns the user config with `[marketplace.NAME]` replaced by `request` + the draft
 values. Items are never changed: they use marketplace values unless they set their own; changing

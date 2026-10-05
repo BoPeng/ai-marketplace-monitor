@@ -49,8 +49,6 @@ class SectionDraft:
     is_new: bool
     request: str | None
     values: Dict[str, Any]  # the section as the user wrote it (merged across files)
-    # items' own values for this section's shared fields: {item: {field: value}}
-    item_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     original: Dict[str, Any] = field(default_factory=dict)  # values when the draft was made
     original_request: str | None = None
 

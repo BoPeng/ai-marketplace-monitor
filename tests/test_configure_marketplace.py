@@ -103,7 +103,6 @@ def test_view_is_the_section_as_written(tmp_path: Path) -> None:
     draft = B.view(ctx, "facebook")
     assert not draft.is_new
     assert draft.values == {"search_city": "houston", "radius": 40, "condition": ["used_good"]}
-    assert draft.item_overrides == {"desk": {"search_city": "dallas", "radius": 20}}
     assert B.missing(ctx, draft) == []
 
 
@@ -140,7 +139,7 @@ def test_describe_says_which_items_keep_their_own_values(tmp_path: Path) -> None
     ctx = make_ctx(tmp_path, ITEMS)
     text = B.describe(ctx, B.view(ctx, "facebook"))
     assert "[marketplace.facebook]" in text
-    assert "[item.desk] keeps its own `search_city` ('dallas'), `radius` (20)." in text
+    assert "[item." not in text  # only the marketplace section is shown
 
 
 async def test_marketplace_default_never_changes_items(tmp_path: Path) -> None:
@@ -409,7 +408,7 @@ def test_start_menu_separates_marketplace_and_item_values(tmp_path: Path) -> Non
     text = B._summary(ctx, "facebook")
     assert 'search_city = "houston"' in text
     assert "max_price" not in text.split("```")[1]  # not shown as a marketplace value
-    assert "[item.example] keeps its own `min_price` (50), `max_price` (300)." in text
+    assert "[item." not in text and "(1 item)" in text
 
 
 class GatewayTimeoutError(Exception):

@@ -246,18 +246,12 @@ class MarketplaceBuilder(SectionBuilder):
     def view(self: "MarketplaceBuilder", ctx: BuilderContext, name: str) -> SectionDraft:
         market = ctx.user_cfg.get("marketplace", {}).get(name)
         values = {k: copy.deepcopy(v) for k, v in (market or {}).items() if k != "request"}
-        shared = self.shared_fields()
-        overrides = {
-            item_name: {k: copy.deepcopy(v) for k, v in item.items() if k in shared}
-            for item_name, item in self.items(ctx.user_cfg, name).items()
-        }
         return SectionDraft(
             section_type="marketplace",
             name=name,
             is_new=market is None,
             request=(market or {}).get("request"),
             values=values,
-            item_overrides={n: o for n, o in overrides.items() if o},
             original=copy.deepcopy(values),
             original_request=(market or {}).get("request"),
         )
@@ -333,18 +327,7 @@ class MarketplaceBuilder(SectionBuilder):
     def describe(self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft) -> str:
         section = {"request": draft.request} if draft.request else {}
         section.update(self.masked(draft.values))
-        lines = [f"```toml\n{dump_config_toml({'marketplace': {draft.name: section}})}```"]
-        lines += self._item_notes(draft)
-        return "\n\n".join(lines)
-
-    def _item_notes(self: "MarketplaceBuilder", draft: SectionDraft) -> List[str]:
-        """Items' own values, which marketplace values never replace."""
-        return [
-            f"[item.{item}] keeps its own "
-            + ", ".join(f"`{k}` ({v!r})" for k, v in own.items())
-            + "."
-            for item, own in draft.item_overrides.items()
-        ]
+        return f"```toml\n{dump_config_toml({'marketplace': {draft.name: section}})}```"
 
     def apply(
         self: "MarketplaceBuilder", ctx: BuilderContext, draft: SectionDraft
@@ -401,9 +384,7 @@ class MarketplaceBuilder(SectionBuilder):
             if draft.values
             else ""
         )
-        return "\n\n".join(
-            [head, f"```toml\n{body}```" if body else "(no settings)", *self._item_notes(draft)]
-        )
+        return "\n\n".join([head, f"```toml\n{body}```" if body else "(no settings)"])
 
     async def _new_name(self: "MarketplaceBuilder", ui: SetupUI, ctx: BuilderContext) -> str:
         taken = set(ctx.user_cfg.get("marketplace", {}))
