@@ -54,6 +54,14 @@ async def test_monitor_checks(tmp_path: Path) -> None:
     assert M.missing(ws, draft) == ["proxy_server: a user name or password needs the proxy itself"]
     _, problems = M.change(draft, {"proxy_username": "me"}, [], None)
     assert problems == ["`proxy_username` is secret: only a ${VAR} reference may be set."]
+    new, problems = M.change(draft, {"proxy_server": "${PROXY_SERVER}"}, [], None)
+    assert problems == [] and new.values["proxy_server"] == "${PROXY_SERVER}"
+    _, problems = M.change(draft, {"proxy_server": "http://${HOST}:8080"}, [], None)
+    assert problems == ["`proxy_server` may not contain a ${VAR} reference."]
+    draft.values = {"proxy_server": "http://p:1", "proxy_username": "${PROXY_USERNAME}"}
+    assert M.missing(ws, draft) == [
+        "proxy_username and proxy_password: the proxy needs both, or neither"
+    ]
 
 
 async def test_monitor_is_written_as_one_section(tmp_path: Path) -> None:
@@ -69,7 +77,7 @@ async def test_monitor_is_written_as_one_section(tmp_path: Path) -> None:
     assert out["ok"], out
     saved = await ex.call("save", {"message": ""})
     assert saved["sections"] == ["[monitor]"]
-    text = (tmp_path / "config.toml").read_text()
+    text = (tmp_path / "config.toml").read_text(encoding="utf-8")
     assert tomllib.loads(text)["monitor"] == {"proxy_server": "http://proxy.example.com:8080"}
     listed = await ToolExecutor(ex.ws).call("list_sections", {})
     assert {
@@ -116,7 +124,11 @@ async def test_a_built_in_region_can_be_changed_in_part(tmp_path: Path) -> None:
 # --- [translation.*] --------------------------------------------------------------------------
 def test_labels_are_the_ones_aimm_looks_for() -> None:
     source = Path(ai_marketplace_monitor.__file__).parent / "facebook.py"
-    used = set(re.findall(r"""translator\(\s*(?:"([^"]+)"|'([^']+)')""", source.read_text()))
+    used = set(
+        re.findall(
+            r"""translator\(\s*(?:"([^"]+)"|'([^']+)')""", source.read_text(encoding="utf-8")
+        )
+    )
     used_labels = {a or b for a, b in used} - {"**unspecified**"}
     assert used_labels <= set(LABELS)
 
@@ -147,7 +159,7 @@ async def test_translation_is_saved_with_its_labels(tmp_path: Path) -> None:
     )
     assert out["ok"], out
     assert (await ex.call("save", {"message": ""}))["saved"]
-    written = tomllib.loads((tmp_path / "config.toml").read_text())
+    written = tomllib.loads((tmp_path / "config.toml").read_text(encoding="utf-8"))
     assert written["translation"]["de"] == {
         "locale": "German",
         "Condition": "Zustand",

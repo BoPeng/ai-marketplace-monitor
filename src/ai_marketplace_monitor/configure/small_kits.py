@@ -110,6 +110,7 @@ MONITOR_GUIDES: Tuple[FieldGuide, ...] = (
         "the proxy aimm's browser uses, from the user's proxy or VPN service",
         '`"http://proxy.example.com:8080"`, or a reference such as `"${PROXY_SERVER}"`',
         "no proxy",
+        reference=True,
     ),
     FieldGuide(
         "proxy_bypass",
@@ -156,6 +157,9 @@ class MonitorToolkit(_SmallToolkit):
         account = draft.values.get("proxy_username") or draft.values.get("proxy_password")
         if account and not draft.values.get("proxy_server"):
             return ["proxy_server: a user name or password needs the proxy itself"]
+        if bool(draft.values.get("proxy_username")) != bool(draft.values.get("proxy_password")):
+            # aimm sends the account only when both are set
+            return ["proxy_username and proxy_password: the proxy needs both, or neither"]
         return []
 
     def after_save(self: "MonitorToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:

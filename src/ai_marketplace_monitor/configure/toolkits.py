@@ -50,6 +50,7 @@ class FieldGuide:
     format: str  # accepted values and examples
     default: str | None = None  # what happens at runtime when the field is unset
     secret: bool = False  # only ever a ${VAR} reference; never sent to the LLM
+    reference: bool = False  # may also be a whole ${VAR} reference (e.g. proxy_server)
 
 
 @dataclass
@@ -119,6 +120,12 @@ def unset_variable_notes(draft: SectionDraft) -> List[str]:
             f"profile:\n\n```bash\n{exports}\n```"
         )
     ]
+
+
+def _only_references(value: Any) -> bool:
+    """Every ``${`` in the value is a whole ``${VAR}`` value (a list may mix in plain text)."""
+    values = value if isinstance(value, list) else [value]
+    return all(is_reference(v) or not _mentions_reference(v) for v in values)
 
 
 def _mentions_reference(value: Any) -> bool:
@@ -216,7 +223,9 @@ class Toolkit:
                     problems.append(f"`{key}` is secret: only a ${{VAR}} reference may be set.")
                 else:
                     new.values[key] = value
-            elif _mentions_reference(value):
+            elif _mentions_reference(value) and not (
+                self.guide(key).reference and _only_references(value)
+            ):
                 problems.append(f"`{key}` may not contain a ${{VAR}} reference.")
             elif key in draft.values and self.same_value(key, draft.values[key], value):
                 continue
