@@ -1,6 +1,8 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
+import sys
 from dataclasses import asdict
+from pathlib import Path
 from typing import Callable, List, Tuple, Type, Union
 
 import pytest
@@ -10,6 +12,11 @@ from typer.testing import CliRunner
 import ai_marketplace_monitor
 from ai_marketplace_monitor import cli
 from ai_marketplace_monitor.config import Config
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 runner = CliRunner()
 
@@ -30,6 +37,94 @@ def test_command_line_interface(options: List[str], expected: str) -> None:
     result = runner.invoke(cli.app, options)
     assert result.exit_code == 0
     assert expected in result.stdout
+
+
+def test_normalize_config_prints_compact_toml_without_writing(
+    config_file: Callable,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(cli, "amm_home", tmp_path)
+    content = """
+[ai.openai]
+api_key = "sk-test"
+enabled = true
+max_retries = 10
+
+[marketplace.facebook]
+market_type = "facebook"
+search_city = "dallas"
+notify = ["user1"]
+ai = ["openai"]
+
+[user.user1]
+enabled = true
+pushbullet_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[item.name]
+enabled = true
+marketplace = "facebook"
+search_phrases = "search word one"
+notify = ["user1"]
+ai = ["openai"]
+"""
+    cfg = config_file(content)
+
+    result = runner.invoke(cli.app, ["--config", cfg, "--normalize-config"])
+
+    assert result.exit_code == 0
+    assert Path(cfg).read_text() == content
+    parsed = tomllib.loads(result.stdout)
+    assert parsed == {
+        "ai": {"openai": {"api_key": "sk-test"}},
+        "marketplace": {"facebook": {}},
+        "user": {"user1": {}},
+        "notification": {
+            "pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+        },
+        "item": {"name": {"search_city": "dallas", "search_phrases": "search word one"}},
+    }
+
+
+def test_expand_config_prints_expanded_toml_from_config_file_alias(
+    config_file: Callable,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(cli, "amm_home", tmp_path)
+    content = base_marketplace_cfg + base_item_cfg + base_user_cfg
+    cfg = config_file(content)
+
+    result = runner.invoke(cli.app, ["--config-file", cfg, "--expand-config"])
+
+    assert result.exit_code == 0
+    assert Path(cfg).read_text() == content
+    parsed = tomllib.loads(result.stdout)
+    assert parsed["marketplace"]["facebook"] == {}
+    assert parsed["user"]["user1"]["notify_with"] == ["pushbullet"]
+    assert parsed["notification"] == {
+        "pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+    }
+    assert parsed["item"]["name"] == {
+        "marketplace": "facebook",
+        "notify": ["user1"],
+        "search_city": "dallas",
+        "search_phrases": "search word one",
+    }
+
+
+def test_config_print_modes_are_mutually_exclusive(
+    config_file: Callable,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(cli, "amm_home", tmp_path)
+    cfg = config_file(base_marketplace_cfg + base_item_cfg + base_user_cfg)
+
+    result = runner.invoke(cli.app, ["--config", cfg, "--normalize-config", "--expand-config"])
+
+    assert result.exit_code == 1
+    assert "Choose only one" in result.output
 
 
 @pytest.fixture(scope="session")

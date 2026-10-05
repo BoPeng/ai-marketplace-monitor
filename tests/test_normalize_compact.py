@@ -28,7 +28,6 @@ def test_hoists_values_shared_by_all_items() -> None:
     """
     )
     assert cfg["marketplace"]["facebook"] == {
-        "notify": ["alice"],
         "search_city": "houston",
         "search_interval": "1h",
     }
@@ -174,7 +173,7 @@ def test_identical_leftover_notification_sections_are_merged() -> None:
         system_cfg(),
     ).config
     assert list(cfg["notification"]) == ["gmail1"]
-    assert cfg["user"]["bob"]["notify_with"] == ["gmail1"]
+    assert "notify_with" not in cfg["user"]["bob"]
 
 
 def test_sections_with_different_request_are_not_merged() -> None:
@@ -239,7 +238,7 @@ def test_falsy_value_of_not_none_option_is_hoisted() -> None:
     assert "seller_locations" not in cfg["item"]["a"]
 
 
-def test_ai_is_hoisted_as_an_explicit_list() -> None:
+def test_default_ai_list_is_hoisted_then_removed() -> None:
     cfg = normalize(
         parse(
             """
@@ -253,8 +252,217 @@ def test_ai_is_hoisted_as_an_explicit_list() -> None:
         ),
         system_cfg(),
     ).config
-    assert cfg["marketplace"]["facebook"]["ai"] == ["openai", "deepseek"]
+    assert "ai" not in cfg["marketplace"]["facebook"]
     assert "ai" not in cfg["item"]["a"] and "ai" not in cfg["item"]["b"]
+
+
+def test_default_notify_and_ai_lists_are_removed() -> None:
+    cfg = normalize(
+        parse(
+            """
+    [ai.openai]
+    api_key = "k1"
+
+    [marketplace.facebook]
+    search_city = "houston"
+    notify = ["alice", "bob"]
+    ai = ["openai"]
+
+    [user.alice]
+    pushbullet_token = "a"
+
+    [user.bob]
+    pushbullet_token = "b"
+
+    [item.a]
+    search_phrases = "a"
+    notify = ["alice", "bob"]
+    ai = ["openai"]
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert "notify" not in cfg["marketplace"]["facebook"]
+    assert "ai" not in cfg["marketplace"]["facebook"]
+    assert "notify" not in cfg["item"]["a"]
+    assert "ai" not in cfg["item"]["a"]
+
+
+def test_notify_and_ai_overrides_are_kept_when_not_defaults() -> None:
+    cfg = normalize(
+        parse(
+            """
+    [ai.openai]
+    api_key = "k1"
+    [ai.deepseek]
+    api_key = "k2"
+
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [user.alice]
+    pushbullet_token = "a"
+
+    [user.bob]
+    pushbullet_token = "b"
+
+    [item.a]
+    search_phrases = "a"
+    notify = ["alice"]
+    ai = ["openai"]
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["item"]["a"]["notify"] == ["alice"]
+    assert cfg["item"]["a"]["ai"] == ["openai"]
+
+
+def test_default_notify_with_is_removed() -> None:
+    cfg = normalize(
+        parse(
+            """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [user.alice]
+    notify_with = ["gmail", "pushbullet"]
+    email = "alice@example.com"
+
+    [notification.gmail]
+    smtp_password = "pw"
+
+    [notification.pushbullet]
+    pushbullet_token = "a"
+
+    [item.a]
+    search_phrases = "a"
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert "notify_with" not in cfg["user"]["alice"]
+
+
+def test_notify_with_override_is_kept_when_not_all_notifications() -> None:
+    cfg = normalize(
+        parse(
+            """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [user.alice]
+    notify_with = "pushbullet"
+
+    [notification.gmail]
+    smtp_password = "pw"
+
+    [notification.pushbullet]
+    pushbullet_token = "a"
+
+    [item.a]
+    search_phrases = "a"
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["user"]["alice"]["notify_with"] == ["pushbullet"]
+
+
+def test_default_marketplace_binding_is_compacted() -> None:
+    implicit = normalize(
+        parse(
+            USERS
+            + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [marketplace.second]
+    search_city = "dallas"
+
+    [item.a]
+    search_phrases = "a"
+    """
+        ),
+        system_cfg(),
+    ).config
+    explicit = normalize(
+        parse(
+            USERS
+            + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [marketplace.second]
+    search_city = "dallas"
+
+    [item.a]
+    marketplace = "facebook"
+    search_phrases = "a"
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert explicit == implicit
+    assert "marketplace" not in explicit["item"]["a"]
+
+
+def test_non_default_marketplace_binding_is_kept() -> None:
+    cfg = normalize(
+        parse(
+            USERS
+            + """
+    [marketplace.facebook]
+    search_city = "houston"
+
+    [marketplace.second]
+    search_city = "dallas"
+
+    [item.a]
+    marketplace = "second"
+    search_phrases = "a"
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["item"]["a"]["marketplace"] == "second"
+
+
+def test_explicit_section_defaults_are_removed() -> None:
+    cfg = normalize(
+        parse(
+            """
+    [ai.openai]
+    api_key = "sk-test"
+    enabled = true
+    max_retries = 10
+
+    [marketplace.facebook]
+    enabled = true
+    market_type = "facebook"
+    search_city = "houston"
+
+    [user.alice]
+    enabled = true
+    pushbullet_token = "a"
+
+    [notification.unused]
+    enabled = true
+    pushbullet_token = "b"
+
+    [item.a]
+    enabled = true
+    search_phrases = "a"
+    """
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["ai"]["openai"] == {"api_key": "sk-test"}
+    assert "enabled" not in cfg["marketplace"]["facebook"]
+    assert "market_type" not in cfg["marketplace"]["facebook"]
+    assert "enabled" not in cfg["user"]["alice"]
+    assert "enabled" not in cfg["notification"]["unused"]
+    assert "enabled" not in cfg["item"]["a"]
 
 
 def test_normalize_error_has_no_rich_markup() -> None:

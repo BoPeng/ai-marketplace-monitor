@@ -14,7 +14,12 @@
 - [Monitor Configuration](#monitor-configuration)
 - [Additional options](#additional-options)
 
-The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` option.
+The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` or `--config-file` option.
+
+To inspect the canonical configuration without writing anything back to disk, use
+`aimm --normalize-config`; to inspect the expanded AI-editing form, use
+`aimm --expand-config`. Both options also accept explicit files, for example
+`aimm --config-file my-config.toml --normalize-config`.
 
 To avoid including sensitive information directly in the configuration file, all options that accept a string or a list of string can be specified using the `${ENV_VAR}` format. For example
 

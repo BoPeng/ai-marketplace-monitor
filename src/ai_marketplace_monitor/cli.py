@@ -1,6 +1,8 @@
 """Console script for ai-marketplace-monitor."""
 
+import json
 import logging
+import re
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -13,9 +15,12 @@ from rich.panel import Panel
 from rich.text import Text
 
 from . import __version__
+from .config import load_config_dicts
+from .normalize import expand, normalize
 from .utils import CacheType, amm_home, cache, counter, hilight
 
 app = typer.Typer()
+_BARE_TOML_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 _DEFAULT_CONFIG_TEMPLATE = """\
@@ -59,6 +64,52 @@ def _seed_default_config(path: Path, logger: logging.Logger) -> None:
         logger.warning(
             f"""{hilight("[Config]", "fail")} Could not create default config at {path}: {e}"""
         )
+
+
+def _config_files_with_default(config_files: List[Path] | None) -> List[Path]:
+    default_config = amm_home / "config.toml"
+    return ([default_config] if default_config.exists() else []) + [
+        path.expanduser().resolve() for path in config_files or []
+    ]
+
+
+def _toml_key(value: str) -> str:
+    if _BARE_TOML_KEY.match(value):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_value(v) for v in value) + "]"
+    raise TypeError(f"Cannot write {type(value).__name__} value {value!r} as TOML")
+
+
+def _dump_config_toml(cfg: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for section_type, body in cfg.items():
+        if section_type == "monitor":
+            lines.append("[monitor]")
+            lines.extend(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in body.items())
+            lines.append("")
+            continue
+        for name, section in body.items():
+            lines.append(f"[{_toml_key(section_type)}.{_toml_key(name)}]")
+            lines.extend(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in section.items())
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _print_normalized_config(config_files: List[Path] | None, *, expanded: bool) -> None:
+    system_cfg, user_cfg = load_config_dicts(_config_files_with_default(config_files))
+    result = expand(user_cfg, system_cfg) if expanded else normalize(user_cfg, system_cfg)
+    typer.echo(_dump_config_toml(result.config), nl=False)
 
 
 def _print_webui_banner(info: Any) -> None:
@@ -107,6 +158,7 @@ def main(
         typer.Option(
             "-r",
             "--config",
+            "--config-file",
             help="Path to one or more configuration files in TOML format. `~/.ai-marketplace-monitor/config.toml will always be read.",
         ),
     ] = None,
@@ -165,11 +217,36 @@ def main(
             help="Number of log messages to retain in the web UI ring buffer.",
         ),
     ] = 2000,
+    normalize_config: Annotated[
+        bool,
+        typer.Option(
+            "--normalize-config",
+            help="Print compact normalized config to stdout and exit without writing files.",
+        ),
+    ] = False,
+    expand_config: Annotated[
+        bool,
+        typer.Option(
+            "--expand-config",
+            help="Print expanded config to stdout and exit without writing files.",
+        ),
+    ] = False,
     version: Annotated[
         Optional[bool], typer.Option("--version", callback=version_callback, is_eager=True)
     ] = None,
 ) -> None:
     """Console script for AI Marketplace Monitor."""
+    if normalize_config and expand_config:
+        typer.echo("Choose only one of --normalize-config and --expand-config.", err=True)
+        raise typer.Exit(1)
+    if normalize_config or expand_config:
+        try:
+            _print_normalized_config(config_files, expanded=expand_config)
+        except Exception as e:
+            typer.echo(f"Config normalization failed: {e}", err=True)
+            raise typer.Exit(1) from e
+        raise typer.Exit()
+
     log_broadcast_handler = None
     log_handlers: list[logging.Handler] = [
         RichHandler(

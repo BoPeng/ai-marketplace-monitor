@@ -15,8 +15,9 @@ chat panel — all out of scope here) with two pieces:
    one predictable shape. It exists only in memory and is **never written to disk**.
 3. **`normalize()` = compact(expand(x))**: removes the repetition again (Part 3). This is
    the **only form ever written to disk**. Because it is computed from the expanded form,
-   every valid config that behaves the same normalizes to the same text, whatever layout
-   the user started from.
+   defaults and key placement normalize to one concise spelling. Section order within a
+   type is preserved where the runtime treats order as meaningful (for example first
+   marketplace binding, item processing order, AI order, and notification merge order).
 
 A behavior-equivalence check runs on every `expand` and `normalize` call.
 
@@ -299,7 +300,8 @@ monitor only pair an item with that marketplace).
   on the item or give it its own `search_region`).
 - **Explicit defaults:** after push-down, an item with no `notify` gets the list of all
   users; an item with no `ai` gets the list of all `[ai.*]` sections. If no AI sections
-  exist, `ai` is omitted. `ai = []` is kept (it means "no AI").
+  exist, `ai` is omitted. An item with no `marketplace` key gets the marketplace it is
+  bound to (the first marketplace). `ai = []` is kept (it means "no AI").
 - **Marketplace-only keys stay:** `username`, `password`, `login_wait_time`, `language`,
   `market_type`, `enabled`, `request`. A marketplace's `request` remains the place for
   shared intent; a later `interpret` propagates it into items.
@@ -389,13 +391,22 @@ entry point is `normalize()`.
      `city_name`, `radius`, `currency` are hoisted only if every one of them present on
      any item of the group is hoistable; otherwise none is (a marketplace with `radius`
      but no `search_city` would not load).
-2. **Lists stay explicit.** `notify` and `ai` may be hoisted like any other option, but
-   compaction never deletes them in favor of the implicit "all users" / "all AI" default.
-3. **Merge identical notification sections.** Two `[notification.*]` sections of the same
+2. **Drop values that only restate defaults.** After hoisting, compaction removes:
+   `enabled = true`; `[ai.*].max_retries = 10`; `[marketplace.*].market_type =
+   "facebook"`; an item `marketplace` equal to the first marketplace; marketplace
+   `notify` equal to all users; marketplace `ai` equal to all AI backends; and item
+   `notify` / `ai` equal to the value the item would inherit. This keeps the disk form
+   concise and canonical while preserving explicit non-default selections, including
+   `ai = []` under the not-None fallback rule.
+3. **Drop default `notify_with` only when order is also default.** A user's `notify_with`
+   is removed when it exactly equals all enabled notification sections in notification
+   section order. Other lists stay explicit because notification merge order can affect
+   runtime behavior.
+4. **Merge identical notification sections.** Two `[notification.*]` sections of the same
    type with identical raw content (and no `request`, or identical `request`) are merged
    into the one that comes first in output order; every user's `notify_with` is updated
    and de-duplicated preserving order.
-4. Everything else (user recipient fields, `ai`, `region`, `monitor`, `translation`,
+5. Everything else (user recipient fields, `ai`, `region`, `monitor`, `translation`,
    marketplace-only keys, `request` placement) is unchanged.
 
 ## Testing
@@ -435,9 +446,10 @@ New `tests/test_normalize_*.py` files, plus additions to existing test files.
   order-sensitively via `json.dumps`.
 - **Compaction, one case each:** hoist when all items agree; no hoist when one differs;
   no hoist with a single item; disabled item blocks a hoist when it differs;
-  `min_price` / `max_price` never hoisted; `notify` / `ai` hoisted as explicit lists;
-  identical notification sections merged and `notify_with` updated; sections with
-  different `request` not merged; location keys hoisted only as a unit.
+  `min_price` / `max_price` never hoisted; default `notify` / `ai` / `notify_with`
+  lists removed; non-default lists kept; identical notification sections merged and
+  `notify_with` updated; sections with different `request` not merged; location keys
+  hoisted only as a unit.
 - **`normalize` properties on every case and the bundled examples:** equivalence holds;
   idempotent; canonical as stated above.
 - **Negative:** tampering with expanded output makes `check_equivalent` raise with the

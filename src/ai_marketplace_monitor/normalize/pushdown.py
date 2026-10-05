@@ -64,6 +64,9 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
         label = f"item.{item_name}"
         market_name = bound_marketplace(item, markets)
         market = markets[market_name]
+        if "marketplace" not in item:
+            item["marketplace"] = market_name
+            notes[(label, "marketplace")] = f"marketplace made explicit: {market_name}"
         location = _location_keys(item_name, item, market_name, market)
         for key in COMMON_OPTIONS:
             if key in LOCATION_KEYS:
