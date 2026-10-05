@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass
 from logging import Logger
 from typing import ClassVar, List
@@ -13,6 +14,8 @@ DEFAULT_UNITYSVC_SERVICE = "notify"
 # UnitySVC stores notification titles in a 255-character column
 MAX_TITLE_LENGTH = 255
 MESSAGE_FORMATS = {"plain_text": "text", "markdown": "markdown", "html": "html"}
+UNITYSVC_TOKEN_RE = re.compile(r"svcpass_[A-Za-z0-9_-]+")
+REDACTED = "<redacted>"
 
 
 @dataclass
@@ -94,7 +97,7 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
         if not response.ok:
             raise RuntimeError(
                 f"UnitySVC {self.unitysvc_url} returned {response.status_code}: "
-                f"{_error_detail(response)}"
+                f"{_error_detail(response, self.unitysvc_api_key)}"
             )
 
         if logger:
@@ -104,12 +107,20 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
         return True
 
 
-def _error_detail(response: requests.Response) -> str:
+def _redact_secret(text: str, secret: str | None = None) -> str:
+    if secret:
+        text = text.replace(secret, REDACTED)
+    return UNITYSVC_TOKEN_RE.sub(REDACTED, text)
+
+
+def _error_detail(response: requests.Response, unitysvc_api_key: str | None = None) -> str:
     """The gateway's ``error`` or the backend's ``detail``, else the start of the body."""
     try:
         data = response.json()
     except ValueError:
-        return response.text[:200]
+        return _redact_secret(response.text, unitysvc_api_key)[:200]
     if isinstance(data, dict):
-        return str(data.get("error") or data.get("detail") or data)[:200]
-    return str(data)[:200]
+        return _redact_secret(str(data.get("error") or data.get("detail") or data), unitysvc_api_key)[
+            :200
+        ]
+    return _redact_secret(str(data), unitysvc_api_key)[:200]

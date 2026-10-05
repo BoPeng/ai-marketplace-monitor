@@ -107,6 +107,33 @@ def test_error_response_raises_without_the_key(
     assert KEY not in str(e.value)
 
 
+def test_error_response_redacts_echoed_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = FakeResponse(401, {"error": f"token {KEY} rejected"})
+    monkeypatch.setattr(unitysvc_notify.requests, "post", lambda url, **kwargs: response)
+    config = UnitySVCNotificationConfig(name="u", unitysvc_api_key=KEY)
+
+    with pytest.raises(RuntimeError) as e:
+        config.send_message("t", "m")
+
+    assert KEY not in str(e.value)
+    assert "svcpass_" not in str(e.value)
+    assert "<redacted>" in str(e.value)
+
+
+def test_text_error_response_redacts_echoed_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = FakeResponse(502)
+    response.text = f"proxy echoed {KEY}"
+    monkeypatch.setattr(unitysvc_notify.requests, "post", lambda url, **kwargs: response)
+    config = UnitySVCNotificationConfig(name="u", unitysvc_api_key=KEY)
+
+    with pytest.raises(RuntimeError) as e:
+        config.send_message("t", "m")
+
+    assert KEY not in str(e.value)
+    assert "svcpass_" not in str(e.value)
+    assert "<redacted>" in str(e.value)
+
+
 def test_failed_send_is_retried_and_reported(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
