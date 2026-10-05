@@ -482,7 +482,8 @@ async def test_propose_plain_ai_targets_section_named_after_provider(tmp_path: P
 
     assert proposal is not None
     assert proposal.name == "unitysvc"
-    assert proposal.target_file == ctx.default_file
+    # a new section becomes the default: first, in the file of the current first AI section
+    assert proposal.target_file == path and proposal.first
     # a new section: the provider's standard variable, shared settings from [ai.mine]
     assert proposal.values == {"api_key": "${UNITYSVC_API_KEY}", "model": "fast", "timeout": 5}
 
@@ -666,7 +667,7 @@ async def test_model_menu_other_accepts_a_typed_name(
 ) -> None:
     stale_probe(monkeypatch)
     config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
-    ui = ScriptedSetupUI(["anthropic", "__other__", "claude-sonnet-4-6", "yes"])
+    ui = ScriptedSetupUI(["edit:anthropic", "__other__", "claude-sonnet-4-6", "yes"])
 
     assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
     assert 'model = "claude-sonnet-4-6"' in config.read_text()
@@ -678,7 +679,7 @@ async def test_broken_section_menu_can_set_up_another_ai(
     stale_probe(monkeypatch)
     monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
     config = write(tmp_path / "config.toml", STALE_ANTHROPIC)
-    ui = ScriptedSetupUI(["__other__", "unitysvc", "balanced", "yes"])
+    ui = ScriptedSetupUI(["new", "unitysvc", "balanced", "yes"])
 
     assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
     assert ui.questions[:2] == ["What would you like to do?", "Which AI do you want to configure?"]
@@ -699,3 +700,142 @@ async def test_model_is_free_text_without_a_model_list(
     ui = ScriptedSetupUI(["anthropic", "", "no", "quit"])
     await configure_ai(ui, [], home=tmp_path / "home")
     assert ui.questions[1] == "Model"
+
+
+TWO_AIS = """\
+[ai.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"  # Claude
+model = "claude-sonnet-5-5"
+
+[ai.unitysvc]
+api_key = "${UNITYSVC_API_KEY}"
+model = "balanced"
+"""
+
+
+def probe_by_name(monkeypatch: pytest.MonkeyPatch, ok: Dict[str, bool]) -> List[str]:
+    """Probe results by section name; records which sections were checked."""
+    checked: List[str] = []
+
+    def probe(section: AISection) -> ProbeResult:
+        checked.append(section.name)
+        model = str(section.raw.get("model"))
+        if ok.get(section.name, True):
+            return ProbeResult(True, "request", model, "ok", [])
+        return ProbeResult(False, "request", model, f"{section.name} failed", [])
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_test")
+    monkeypatch.setattr(ai_setup, "probe_ai_section", probe)
+    return checked
+
+
+async def test_only_the_default_ai_is_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checked = probe_by_name(monkeypatch, {})
+    config = write(tmp_path / "config.toml", TWO_AIS)
+    ui = ScriptedSetupUI([""])  # keep
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert checked == ["anthropic"]
+    assert "Also configured: unitysvc (used only if anthropic fails)." in ui.said()
+    assert config.read_text() == TWO_AIS
+
+
+async def test_menu_lists_each_other_section_and_create_new(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe_by_name(monkeypatch, {})
+    config = write(tmp_path / "config.toml", TWO_AIS)
+    seen: List[List[str]] = []
+
+    class Recording(ScriptedSetupUI):
+        async def choose(
+            self, prompt: str, options: List[Choice], default: str | None = None
+        ) -> str:
+            seen.append([o.label for o in options])
+            return await super().choose(prompt, options, default)
+
+    await configure_ai(Recording(["quit"]), [config], home=tmp_path / "home")
+    assert seen[0] == [
+        "Keep [ai.anthropic] as is",
+        "Update [ai.anthropic]",
+        "Make [ai.unitysvc] the default",
+        "Create a new AI section",
+        "Quit",
+    ]
+
+
+async def test_make_another_section_the_default_then_check_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checked = probe_by_name(monkeypatch, {"anthropic": False})
+    config = write(tmp_path / "config.toml", TWO_AIS)
+    ui = ScriptedSetupUI(["default:unitysvc", "yes", "keep"])
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert checked == ["anthropic", "unitysvc"]
+    assert [s.name for s in load_ai_sections([config])] == ["unitysvc", "anthropic"]
+    assert "# Claude" in config.read_text()
+    assert "[ai.unitysvc] is now the default AI." in ui.said("success")
+    assert list((tmp_path / "home" / "backups").iterdir())
+
+
+async def test_make_default_moves_a_section_between_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe_by_name(monkeypatch, {})
+    first = write(tmp_path / "a.toml", TWO_AIS.split("[ai.unitysvc]")[0])
+    second = write(tmp_path / "b.toml", "[ai.unitysvc]\n" + TWO_AIS.split("[ai.unitysvc]\n")[1])
+    ui = ScriptedSetupUI(["default:unitysvc", "yes", "quit"])
+
+    assert await configure_ai(ui, [first, second], home=tmp_path / "home") == 0
+    assert [s.name for s in load_ai_sections([first, second])] == ["unitysvc", "anthropic"]
+    assert "[ai.unitysvc]" in first.read_text() and "[ai.unitysvc]" not in second.read_text()
+    assert any("moves from" in m for m in ui.said())
+
+
+async def test_declining_make_default_changes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe_by_name(monkeypatch, {})
+    config = write(tmp_path / "config.toml", TWO_AIS)
+    ui = ScriptedSetupUI(["default:unitysvc", "no", "quit"])
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert config.read_text() == TWO_AIS
+
+
+async def test_create_new_section_becomes_the_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe_by_name(monkeypatch, {})
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    config = write(tmp_path / "config.toml", TWO_AIS)
+    ui = ScriptedSetupUI(["new", "openai", "gpt-5", "yes"])
+
+    assert await configure_ai(ui, [config], home=tmp_path / "home") == 0
+    assert [s.name for s in load_ai_sections([config])] == ["openai", "anthropic", "unitysvc"]
+
+
+async def test_no_sections_goes_straight_to_provider_menu(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
+    ui = ScriptedSetupUI(["quit"])
+    assert await configure_ai(ui, [], home=tmp_path / "home") == 0
+    assert ui.questions == ["Which AI do you want to configure?"]
+
+
+async def test_named_section_checks_only_that_section(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checked = probe_by_name(monkeypatch, {})
+    config = write(tmp_path / "config.toml", TWO_AIS)
+    await configure_ai(
+        ScriptedSetupUI(["", "no", "<close>"]),
+        [config],
+        section_name="unitysvc",
+        home=tmp_path / "h",
+    )
+    assert checked == ["unitysvc"]

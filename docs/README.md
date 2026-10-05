@@ -60,6 +60,7 @@ Note that:
 6. [UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, where `model` selects a capability tier (default `balanced`) rather than a specific model, and UnitySVC picks the provider and fails over between them. Set `base_url` to use any other LLM service from the [UnitySVC catalog](https://unitysvc.com/market) instead, including OpenAI, Anthropic and other providers with your own provider keys (see below). An `api_key` is required. The same key (`UNITYSVC_API_KEY`) is used for both UnitySVC AI and [UnitySVC notifications](#unitysvc-notification), so one key covers rating listings and delivering the results.
 7. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 8. You can use option `ai` to list the AI services for particular marketplaces or items.
+9. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm-configure ai` to make another section the default.
 
 A typical section for OpenAI looks like
 

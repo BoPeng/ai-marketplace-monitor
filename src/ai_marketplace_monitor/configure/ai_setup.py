@@ -20,9 +20,12 @@ from .writer import (
     CommitOutcome,
     ConfigReadError,
     SectionWrite,
+    backup_file,
     commit_section,
     read_toml,
+    remove_section,
     render_section,
+    write_section,
 )
 
 _PLACEHOLDER = re.compile(r"^\$\{(\w+)\}$")
@@ -92,9 +95,12 @@ class AISectionProposal:
     values: Dict[str, Any]
     request: str | None
     target_file: Path
+    first: bool = False  # write as the first [ai.*] section, i.e. the default AI
 
     def to_write(self: "AISectionProposal") -> SectionWrite:
-        return SectionWrite("ai", self.name, self.values, self.request, self.target_file)
+        return SectionWrite(
+            "ai", self.name, self.values, self.request, self.target_file, first=self.first
+        )
 
 
 PROVIDERS = [
@@ -298,17 +304,26 @@ async def configure_ai(
         backup_dir=home / "backups",
     )
     try:
-        await _check_existing_ai(ui, ctx)
+        make_first = False
         if section_name is None:
-            # a section that stopped working comes first: offer to fix it
-            choice = await _choose_broken_section(ui, ctx)
-            if choice == "quit":
-                return 0
-            section_name = choice
+            # work on the default (first) AI; the others only when asked
+            while True:
+                action, name = await _default_ai_menu(ui, ctx)
+                if action == "quit":
+                    return 0
+                if action == "default":
+                    if await make_default(ui, ctx, name) is CommitOutcome.FAILED:
+                        return 1
+                    continue  # check and offer the new default
+                section_name, make_first = name, action == "new"
+                break
+        else:
+            await _check_sections(ui, ctx, [section_name])
         while True:
             proposal = await propose_ai_section(ui, ctx, section_name=section_name)
             if proposal is None:
                 return 0
+            proposal.first = proposal.first or make_first
             outcome = await commit_ai_section(ui, proposal, ctx)
             if outcome is CommitOutcome.DECLINED:
                 continue
@@ -411,42 +426,101 @@ async def propose_ai_section(
     if name.lower() == provider:
         values.pop("provider")
     request = f"Use {spec.label} ({values['model']}) to rate marketplace listings."
+    # a new section becomes the default AI: first, in the file holding the current first one
     return AISectionProposal(
         name=name,
         values=values,
         request=request,
-        target_file=target.files[-1] if target else ctx.default_file,
+        target_file=(
+            target.files[-1] if target else sections[0].files[0] if sections else ctx.default_file
+        ),
+        first=target is None,
     )
 
 
-async def _check_existing_ai(ui: SetupUI, ctx: AISetupContext) -> None:
-    sections = load_ai_sections(ctx.files)
-    enabled = [section for section in sections if section.enabled]
-    if not enabled:
+async def _check_sections(ui: SetupUI, ctx: AISetupContext, names: List[str]) -> None:
+    """Check the named sections (when they exist and are enabled) and report the results."""
+    sections = [s for s in load_ai_sections(ctx.files) if s.name in names and s.enabled]
+    if not sections:
         return
-    await ui.say(f"Checking {len(enabled)} AI service(s)...")
-    results = await probe_sections(enabled)
-    by_name = dict(zip([section.name for section in enabled], results))
-    ctx.probes.update(by_name)
-    for section in sections:
-        result = by_name.get(section.name)
-        if result is None:
-            await ui.say(f"- {section.name} - disabled")
-        elif result.ok:
+    results = await probe_sections(sections)
+    for section, result in zip(sections, results):
+        ctx.probes[section.name] = result
+        if result.ok:
             await ui.say(f"OK {_label(section, result)}", kind="success")
         else:
             await ui.say(f"{section.name} - {result.message}", kind="warning")
 
 
-async def _choose_broken_section(ui: SetupUI, ctx: AISetupContext) -> str | None:
-    """Offer to fix sections that failed the check; None means set up an AI as usual."""
-    broken = [name for name, result in ctx.probes.items() if not result.ok]
-    if not broken:
-        return None
-    options = [Choice(name, f"Fix [ai.{name}]", ctx.probes[name].message) for name in broken]
-    options += [Choice("__other__", "Set up another AI service"), Choice("quit", "Quit")]
-    choice = await ui.choose("What would you like to do?", options, broken[0])
-    return None if choice == "__other__" else choice
+async def _default_ai_menu(ui: SetupUI, ctx: AISetupContext) -> Tuple[str, str | None]:
+    """Check the default (first enabled) AI and ask what to do.
+
+    Returns ``(action, name)``: ``quit`` (also for keeping it as is), ``edit`` a section,
+    make another section the ``default``, or set up a ``new`` one.
+    """
+    enabled = [s for s in load_ai_sections(ctx.files) if s.enabled]
+    if not enabled:
+        return "new", None
+    first, others = enabled[0], enabled[1:]
+    await ui.say(f"Checking [ai.{first.name}] (your default AI)...")
+    await _check_sections(ui, ctx, [first.name])
+    ok = ctx.probes[first.name].ok
+    if others:
+        names = ", ".join(s.name for s in others)
+        await ui.say(f"Also configured: {names} (used only if {first.name} fails).")
+    if ok:
+        options = [
+            Choice("keep", f"Keep [ai.{first.name}] as is"),
+            Choice(f"edit:{first.name}", f"Update [ai.{first.name}]"),
+        ]
+    else:
+        options = [
+            Choice(f"edit:{first.name}", f"Fix [ai.{first.name}]", ctx.probes[first.name].message)
+        ]
+    options += [Choice(f"default:{s.name}", f"Make [ai.{s.name}] the default") for s in others]
+    options += [Choice("new", "Create a new AI section"), Choice("quit", "Quit")]
+    choice = await ui.choose("What would you like to do?", options, options[0].value)
+    if choice in ("keep", "quit"):
+        return "quit", None
+    if choice == "new":
+        return "new", None
+    action, _, name = choice.partition(":")
+    return action, name
+
+
+async def make_default(ui: SetupUI, ctx: AISetupContext, name: str | None) -> CommitOutcome:
+    """Move ``[ai.NAME]`` before the other AI sections so that aimm uses it first."""
+    sections = load_ai_sections(ctx.files)
+    section = next(s for s in sections if s.name == name)
+    # the merged order follows first appearance, so the section moves into the file that
+    # holds the current first AI section, and out of any other file
+    target = sections[0].files[0]
+    values = {k: v for k, v in section.raw.items() if k != "request"}
+    write = SectionWrite("ai", section.name, values, section.raw.get("request"), target, True)
+    removals = [path for path in section.files if path != target]
+    order = [section.name, *(s.name for s in sections if s.name != section.name)]
+    await ui.say(f"New order of AI sections: {', '.join(order)}.")
+    if removals:
+        moved = ", ".join(str(p) for p in removals)
+        await ui.say(f"[ai.{section.name}] moves from {moved} into {target}.")
+    if not await ui.confirm(f"Make [ai.{section.name}] the default?"):
+        return CommitOutcome.DECLINED
+    try:
+        for path in dict.fromkeys([target, *removals]):
+            if path.exists():
+                backup_file(path, ctx.backup_dir)
+        write_section(write)
+        for path in removals:
+            remove_section(path, "ai", section.name)
+        first = load_ai_sections(ctx.files)[0].name
+    except (ConfigReadError, OSError, ValueError) as e:
+        await ui.say(f"Could not reorder the AI sections: {e}", kind="error")
+        return CommitOutcome.FAILED
+    if first != section.name:
+        await ui.say(f"[ai.{first}] still comes first; reorder the files by hand.", kind="error")
+        return CommitOutcome.FAILED
+    await ui.say(f"[ai.{section.name}] is now the default AI.", kind="success")
+    return CommitOutcome.WRITTEN
 
 
 async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupContext) -> bool:

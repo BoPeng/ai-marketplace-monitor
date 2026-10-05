@@ -86,11 +86,16 @@ Interactive configuration
 -------------------------
 
 Run ``aimm-configure`` as the primary interactive configuration command. With no
-section argument, it starts by checking existing ``[ai.*]`` sections and helping you
-add or update an AI service, then asks what to configure next. ``aimm-configure ai``
-is the explicit AI form: it asks which AI to use and creates or updates the section named
-after it, such as ``[ai.unitysvc]``. The AI setup offers UnitySVC (recommended: one key
-covers AI and email notifications), OpenAI, Anthropic, or Ollama.
+section argument, it starts with your AI service, then asks what to configure next.
+``aimm-configure ai`` is the explicit AI form.
+
+aimm uses the **first** ``[ai.*]`` section as your default AI, and the others only if it
+fails. So the AI setup checks only the default and lists the others, then offers to keep or
+update it (or fix it if the check failed), to make one of the other sections the default
+(which moves it to the top of the file), or to create a new AI section, which becomes the
+default. With no AI section yet, it goes straight to choosing a provider: UnitySVC
+(recommended: one key covers AI and email notifications), OpenAI, Anthropic, or Ollama.
+When the check lists the provider's models, you choose the model from that list.
 
 Use ``aimm-configure ai.NAME`` to work on one section. A section named after a provider
 uses that provider, so ``aimm-configure ai.openai`` sets up ``[ai.openai]`` without asking
