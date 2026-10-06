@@ -93,7 +93,7 @@ async def test_single_section_restriction(tmp_path: Path) -> None:
     assert "list_sections" not in names and "section_update" in names
 
 
-async def test_list_sections_shows_names_and_requests_only(tmp_path: Path) -> None:
+async def test_list_sections_shows_names_requests_and_summaries(tmp_path: Path) -> None:
     ws = await make_ws(
         tmp_path,
         ONE_ITEM.replace("[marketplace.facebook]", '[marketplace.facebook]\nrequest = "Houston"'),
@@ -103,11 +103,11 @@ async def test_list_sections_shows_names_and_requests_only(tmp_path: Path) -> No
     assert by_type["marketplace"] == {
         "type": "marketplace",
         "configurable_here": True,
-        "sections": [{"name": "facebook", "request": "Houston"}],
+        "sections": [{"name": "facebook", "request": "Houston", "summary": "searches houston"}],
     }
     assert by_type["item"]["configurable_here"] is False
     assert by_type["ai"]["sections"] == [{"name": "unitysvc", "request": None}]
-    assert "houston" not in str(out)  # contents are not listed
+    assert "svcpass_testkey" not in str(out) and "abc" not in str(out)  # no secrets
 
 
 async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None:

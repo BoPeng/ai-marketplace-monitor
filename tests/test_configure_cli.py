@@ -252,12 +252,12 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     assert {
         "type": "marketplace",
         "configurable_here": True,
-        "sections": [{"name": "facebook", "request": None}],
+        "sections": [{"name": "facebook", "request": None, "summary": "searches houston"}],
     } in listed
     assert {
         "type": "ai",
         "configurable_here": True,
-        "sections": [{"name": "unitysvc", "request": None}],
+        "sections": [{"name": "unitysvc", "request": None, "summary": "default model"}],
     } in listed
 
 
@@ -342,3 +342,58 @@ async def test_default_ai_works_tries_the_first_section(
     assert await flow.default_ai_works(ui, []) is False
     assert tried == ["first"]
     assert "Key rejected by first. Using the AI setup menus instead." in ui.said("warning")
+
+
+async def test_front_door_opening_summarizes_the_config(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.flow import _opening, monitoring_needs
+    from ai_marketplace_monitor.configure.tools import section_index
+    from tests.configure_util import make_ws
+
+    ws = await make_ws(
+        tmp_path,
+        """
+        [ai.openai]
+        api_key = "sk-test"
+        model = "gpt-4o"
+
+        [marketplace.facebook]
+        search_city = "houston"
+
+        [item.gopro]
+        search_phrases = ["gopro", "action camera"]
+        max_price = 200
+
+        [notification.gmail]
+        smtp_server = "smtp.gmail.com"
+        smtp_username = "me@example.com"
+        smtp_password = "secret"
+
+        [user.me]
+        email = "me@example.com"
+        notify_with = ["gmail"]
+        """,
+        toolkits=flow.toolkits(),
+    )
+    summaries = {e["type"]: [s.get("summary") for s in e["sections"]] for e in section_index(ws)}
+    assert summaries["ai"] == ["model gpt-4o"]
+    assert summaries["marketplace"] == ["searches houston"]
+    assert summaries["item"] == ["gopro, action camera; max $200"]
+    assert summaries["user"] == ["notified via email"]
+    assert monitoring_needs(ws) == []
+    opening = _opening(ws, None)
+    assert "- [marketplace.*]: facebook (searches houston)" in opening
+    assert "Still needed" not in opening
+    assert "Greet the user" in opening
+
+
+async def test_front_door_opening_lists_what_is_missing(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.flow import _opening, monitoring_needs
+    from tests.configure_util import make_ws
+
+    ws = await make_ws(tmp_path, '[ai.openai]\napi_key = "sk-test"\n', toolkits=flow.toolkits())
+    assert monitoring_needs(ws) == [
+        "a search location (marketplace)",
+        "a way to notify the user (notification)",
+        "an item to search for (item)",
+    ]
+    assert "Still needed before aimm can monitor anything" in _opening(ws, None)

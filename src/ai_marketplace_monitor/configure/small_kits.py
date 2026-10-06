@@ -16,7 +16,14 @@ from ..normalize import NormalizeError, expand
 from ..region import RegionConfig
 from ..utils import MonitorConfig, TranslationConfig
 from .marketplace import _plain
-from .toolkits import FieldGroup, FieldGuide, SectionDraft, Toolkit, unset_variable_notes
+from .toolkits import (
+    FieldGroup,
+    FieldGuide,
+    SectionDraft,
+    Toolkit,
+    location,
+    unset_variable_notes,
+)
 from .ui import SetupUI
 
 if TYPE_CHECKING:
@@ -216,6 +223,9 @@ class RegionToolkit(_SmallToolkit):
     playbook = "region"
     config_class = RegionConfig
     guides = REGION_GUIDES
+
+    def summary(self: "RegionToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        return location(values)
 
     def context(self: "RegionToolkit", ws: "Workspace") -> Dict[str, List[str]]:
         names = list(dict.fromkeys([*self._built_in(ws), *self._names(ws)]))

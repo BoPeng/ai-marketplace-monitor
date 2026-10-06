@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from ..ai import AIBackend
 from ..config import supported_ai_backends
@@ -13,10 +13,10 @@ from .ai_kit import AIToolkit
 from .ai_setup import configure_ai, load_ai_sections, probe_sections
 from .item import ItemToolkit
 from .marketplace import MarketplaceToolkit
-from .notify import NotificationToolkit, UserToolkit
+from .notify import NotificationToolkit, UserToolkit, notified_via
 from .small_kits import MonitorToolkit, RegionToolkit, TranslationToolkit
-from .toolkits import SINGLETONS, Toolkit, section_label
-from .tools import Outcome, ToolExecutor
+from .toolkits import SINGLETONS, Toolkit, location, section_label
+from .tools import Outcome, ToolExecutor, section_index
 from .ui import SetupClosedError, SetupUI
 from .workspace import ConfigLoadError, Workspace
 from .writer import ConfigReadError
@@ -271,12 +271,49 @@ async def run_session(
     return 1 if outcome is Outcome.FAILED else 0
 
 
+def _front_door_opening(ws: Workspace) -> str:
+    """The configuration as list_sections shows it, and what aimm needs before it can monitor."""
+    lines = []
+    for entry in section_index(ws):
+        shown = [
+            f"{s['name']} ({s['summary']})" if s.get("summary") else s["name"]
+            for s in entry["sections"]
+            if not s.get("disabled")
+        ]
+        if shown:
+            lines.append(f"- [{entry['type']}.*]: {', '.join(shown)}")
+    if ws.ai_in_use:
+        lines.append(f"- this session runs on [ai.{ws.ai_in_use}]")
+    text = (
+        "Command: aimm-configure. The user has not said anything yet.\n\n"
+        "Their configuration:\n" + ("\n".join(lines) or "- nothing yet") + "\n"
+    )
+    missing = monitoring_needs(ws)
+    if missing:
+        text += f"Still needed before aimm can monitor anything: {'; '.join(missing)}.\n"
+    return text + "\nGreet the user as the playbook describes (ask_user)."
+
+
+def monitoring_needs(ws: Workspace) -> List[str]:
+    """What aimm still needs to search and notify, in the order to set it up."""
+
+    def enabled(section_type: str) -> List[Dict[str, Any]]:
+        body = ws.user_cfg.get(section_type, {})
+        return [v for v in body.values() if isinstance(v, dict) and v.get("enabled") is not False]
+
+    missing: List[str] = []
+    if not any(location(v) for v in enabled("marketplace") + enabled("item")):
+        missing.append("a search location (marketplace)")
+    if not any(notified_via(ws, v) for v in enabled("user")):
+        missing.append("a way to notify the user (notification)")
+    if not enabled("item"):
+        missing.append("an item to search for (item)")
+    return missing
+
+
 def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
     if not only:
-        return (
-            "Command: aimm-configure. The user has not said anything yet. Briefly say what you "
-            "can help configure, then ask what they want (ask_user)."
-        )
+        return _front_door_opening(ws)
     # the first named section is where to start; "*" allows any section of a type
     command = only[0][0]
     named = [(t, n) for t, n in only if n != "*"]

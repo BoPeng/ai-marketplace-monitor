@@ -34,6 +34,32 @@ SECTION_TYPES = (
 )
 
 
+def section_index(ws: Workspace) -> List[Dict[str, Any]]:
+    """The saved sections by type: name, `request`, a short summary, and whether disabled."""
+    types = []
+    for section_type in SECTION_TYPES:
+        toolkit = ws.toolkits.get(section_type)
+        body = ws.user_cfg.get(section_type, {})
+        if section_type in SINGLETONS:  # [monitor]: one section named after its type
+            found = {section_type: body} if body else {}
+        else:
+            found = {n: v for n, v in body.items() if isinstance(v, dict)}
+        sections = []
+        for name, values in found.items():
+            entry: Dict[str, Any] = {"name": name, "request": values.get("request")}
+            summary = toolkit.summary(ws, values) if toolkit else None
+            if summary:
+                entry["summary"] = summary
+            if values.get("enabled") is False:
+                entry["disabled"] = True
+            sections.append(entry)
+        if sections or toolkit:
+            types.append(
+                {"type": section_type, "configurable_here": bool(toolkit), "sections": sections}
+            )
+    return types
+
+
 class Outcome(Enum):
     SAVED = "saved"  # something was written
     UNCHANGED = "unchanged"  # the session ended without writing (nothing to write)
@@ -109,24 +135,7 @@ class ToolExecutor:
 
     # --- the config index -------------------------------------------------------------------
     async def list_sections(self: "ToolExecutor") -> Dict[str, Any]:
-        cfg = self.ws.user_cfg
-        types = []
-        for section_type in SECTION_TYPES:
-            configurable = section_type in self.ws.toolkits
-            body = cfg.get(section_type, {})
-            if section_type in SINGLETONS:  # [monitor]: one section named after its type
-                sections = [{"name": section_type, "request": body.get("request")}] if body else []
-            else:
-                sections = [
-                    {"name": name, "request": section.get("request")}
-                    for name, section in body.items()
-                    if isinstance(section, dict)
-                ]
-            if sections or configurable:
-                types.append(
-                    {"type": section_type, "configurable_here": configurable, "sections": sections}
-                )
-        return {"ok": True, "section_types": types}
+        return {"ok": True, "section_types": section_index(self.ws)}
 
     # --- section tools ----------------------------------------------------------------------
     def _toolkit(

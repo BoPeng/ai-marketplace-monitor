@@ -19,7 +19,7 @@ from ..facebook import (
 )
 from ..normalize import NormalizeError, expand
 from ..normalize.pushdown import bound_marketplace
-from .toolkits import FieldGuide, SectionDraft, Toolkit
+from .toolkits import FieldGuide, SectionDraft, Toolkit, location
 from .ui import Choice, SetupUI
 
 if TYPE_CHECKING:
@@ -220,6 +220,10 @@ class MarketplaceToolkit(Toolkit):
     playbook = "marketplace"
     config_class = FacebookMarketplaceConfig
     guides = MARKETPLACE_GUIDES
+
+    def summary(self: "MarketplaceToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        loc = location(values)
+        return f"searches {loc}" if loc else "no search location"
 
     # --- reading the user's config ---------------------------------------------------------
     def items(

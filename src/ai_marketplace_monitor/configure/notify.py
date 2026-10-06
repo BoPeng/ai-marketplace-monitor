@@ -235,6 +235,14 @@ def received(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
     return [n for n in _names(ws, "notification") if _active(ws, "notification", n) is not None]
 
 
+def notified_via(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
+    """How a user with these values is notified: channels on the user and of its notifications."""
+    kinds = channel_types(values)
+    for name in received(ws, values):
+        kinds += channel_types(ws.section("notification", name) or {}) or [name]
+    return list(dict.fromkeys(kinds))
+
+
 def missing_recipients(notification: Dict[str, Any], user: Dict[str, Any]) -> List[str]:
     """Recipient fields (email, chat ID, ...) a user needs to receive a notification."""
     out = []
@@ -357,6 +365,11 @@ class NotificationToolkit(_NotifyToolkit):
     section_type = "notification"
     guides = NOTIFICATION_GUIDES
 
+    def summary(
+        self: "NotificationToolkit", ws: "Workspace", values: Dict[str, Any]
+    ) -> str | None:
+        return ", ".join(channel_types(values)) or None
+
     def show_extra(
         self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft
     ) -> Dict[str, Any]:
@@ -430,6 +443,10 @@ class NotificationToolkit(_NotifyToolkit):
 class UserToolkit(_NotifyToolkit):
     section_type = "user"
     guides = USER_GUIDES
+
+    def summary(self: "UserToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        via = notified_via(ws, values)
+        return f"notified via {', '.join(via)}" if via else "not notified"
 
     def show_extra(self: "UserToolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
         return {"receives": received(ws, draft.values), **super().show_extra(ws, draft)}
