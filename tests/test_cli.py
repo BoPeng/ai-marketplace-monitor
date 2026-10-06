@@ -1,5 +1,6 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
+import re
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -20,6 +21,19 @@ else:
     import tomli as tomllib
 
 runner = CliRunner()
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _help(args: List[str]) -> str:
+    """``--help`` output as plain text.
+
+    Rich styles the help when the environment forces color (as CI may), which can split an
+    option such as ``--headless`` into separately styled pieces; turn color off, use a wide
+    terminal so nothing wraps, and strip any escape codes that remain.
+    """
+    result = runner.invoke(cli.app, args, env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
+    assert result.exit_code == 0
+    return _ANSI.sub("", result.stdout)
 
 
 @pytest.mark.parametrize(
@@ -41,13 +55,12 @@ def test_command_line_interface(options: List[str], expected: str) -> None:
 
 
 def test_root_command_lists_subcommands() -> None:
-    result = runner.invoke(cli.app, ["--help"])
+    text = _help(["--help"])
 
-    assert result.exit_code == 0
-    assert "run" in result.stdout
-    assert "configure" in result.stdout
-    assert "check" in result.stdout
-    assert "admin" in result.stdout
+    assert "run" in text
+    assert "configure" in text
+    assert "check" in text
+    assert "admin" in text
 
 
 def test_root_command_without_args_defaults_to_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,15 +109,14 @@ def test_root_command_without_subcommand_accepts_run_options(
 
 
 def test_run_command_does_not_expose_one_shot_options() -> None:
-    result = runner.invoke(cli.app, ["run", "--help"])
+    text = _help(["run", "--help"])
 
-    assert result.exit_code == 0
-    assert "--headless" in result.stdout
-    assert "--webui" in result.stdout
-    assert "--check" not in result.stdout
-    assert "--clear-cache" not in result.stdout
-    assert "--normalize-config" not in result.stdout
-    assert "--expand-config" not in result.stdout
+    assert "--headless" in text
+    assert "--webui" in text
+    assert "--check" not in text
+    assert "--clear-cache" not in text
+    assert "--normalize-config" not in text
+    assert "--expand-config" not in text
 
 
 def test_normalize_config_prints_compact_toml_without_writing(
