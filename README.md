@@ -205,10 +205,15 @@ docker run -d --name aimm \
   -p 8467:8467 \
   -v "$HOME/.ai-marketplace-monitor:/root/.ai-marketplace-monitor" \
   -e FACEBOOK_USERNAME -e FACEBOOK_PASSWORD \
-  -e ANTHROPIC_API_KEY \
+  -e UNITYSVC_API_KEY \
   --restart unless-stopped \
   ghcr.io/bopeng/ai-marketplace-monitor:latest
 ```
+
+`FACEBOOK_USERNAME`, `FACEBOOK_PASSWORD`, and `UNITYSVC_API_KEY` (if
+applicable) are environment variables defined locally, referenced from
+`$HOME/.ai-marketplace-monitor/config.toml`, and passed to the container by
+the `-e` flags above.
 
 Then open [http://localhost:8467](http://localhost:8467). When Facebook needs an interactive login or CAPTCHA, click the **Browser** button in the header to view and control the in-container Chromium.
 
