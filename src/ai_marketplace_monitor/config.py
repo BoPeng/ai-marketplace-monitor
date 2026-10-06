@@ -62,7 +62,7 @@ def _load_toml(path: Path, logger: Logger | None = None) -> Dict[str, Any]:
 def resolve_config_files(config_files: List[Path] | None) -> List[Path]:
     """Config files in read order: the default file (if it exists), then each given file.
 
-    Shared by the monitor and ``aimm-configure`` so both read the same set of files.
+    Shared by the monitor and ``aimm configure`` so both read the same set of files.
     """
     explicit = []
     for file_path in config_files or []:
@@ -121,7 +121,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         """Build a Config from already-parsed dicts without mutating them.
 
         ``partial`` accepts a config that does not yet have every section the monitor needs
-        (marketplace, user, item), as while it is being written with ``aimm-configure``.
+        (marketplace, user, item), as while it is being written with ``aimm configure``.
         """
         obj = cls.__new__(cls)
         obj._load(system, user, logger, partial=partial)

@@ -129,10 +129,10 @@ def test_validate_accepts_incomplete_template(config_file: Path) -> None:
     credentials. It's intentionally invalid until the user fills it in.
     Validation should return the error clearly rather than raising.
     """
-    from ai_marketplace_monitor.cli import _DEFAULT_CONFIG_TEMPLATE
+    from ai_marketplace_monitor.commands.common import DEFAULT_CONFIG_TEMPLATE
 
     svc = ConfigFileService([config_file])
-    ok, error = svc.validate(_DEFAULT_CONFIG_TEMPLATE)
+    ok, error = svc.validate(DEFAULT_CONFIG_TEMPLATE)
     # Template is intentionally minimal — we don't assert valid/invalid
     # (that depends on schema), but the call must not raise.
     assert isinstance(ok, bool)

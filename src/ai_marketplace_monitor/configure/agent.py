@@ -58,7 +58,8 @@ async def run_agent(
         except ServiceError as e:
             await ui.say(str(e), kind="error")
             await ui.say(
-                "If the AI service keeps failing, fix it with `aimm-configure ai`.", kind="warning"
+                "If the AI service keeps failing, fix it with `aimm configure ai`.",
+                kind="warning",
             )
             while True:
                 answer = await executor.read_user("Press Enter to try again, or /quit to stop")

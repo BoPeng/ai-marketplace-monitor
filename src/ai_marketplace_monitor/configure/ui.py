@@ -162,7 +162,7 @@ class ConsoleSetupUI:
         if interactive is None:
             interactive = sys.stdin.isatty()
         if not interactive:
-            raise RuntimeError("aimm-configure needs an interactive terminal")
+            raise RuntimeError("aimm configure needs an interactive terminal")
         self.console = console or Console()
         self._read = read
 

@@ -83,7 +83,7 @@ Start monitoring:
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor
+    $ aimm
 
 What happens next:
 
@@ -100,7 +100,7 @@ To verify everything works, check a specific listing:
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --check https://facebook.com/marketplace/item/123456789
+    $ aimm check https://facebook.com/marketplace/item/123456789
 
 Example Output
 -------------

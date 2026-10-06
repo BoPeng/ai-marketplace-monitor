@@ -48,7 +48,7 @@ T = TypeVar("T")
 
 
 class UnsupportedAISectionError(Exception):
-    """The section's provider is not one aimm-configure can set up."""
+    """The section's provider is not one ``aimm configure`` can set up."""
 
 
 @dataclass
@@ -234,7 +234,7 @@ async def commit_ai_section(
 
 
 def _connection_errors() -> Tuple[Type[BaseException], ...]:
-    # imported on first use: the SDKs add seconds to every aimm-configure start
+    # imported on first use: the SDKs add seconds to every aimm configure start
     import anthropic
     import openai
 
@@ -379,7 +379,7 @@ async def propose_ai_section(
     - a new section named after a provider (``ai.openai``) uses that provider;
     - only a new section with another name (``ai.work``), or plain ``ai``, asks which AI.
 
-    Plain ``ai`` creates or updates the section named after the chosen provider. aimm-configure
+    Plain ``ai`` creates or updates the section named after the chosen provider. aimm configure
     never writes a provider that contradicts a provider-named section; a mismatch made by hand
     (``[ai.openai]`` with ``provider = "anthropic"``) is kept and flagged, not converted.
     """
@@ -402,7 +402,7 @@ async def propose_ai_section(
     if spec is None:
         label = PROVIDER_LABELS.get(provider, provider)
         raise UnsupportedAISectionError(
-            f"aimm-configure can set up UnitySVC, OpenAI, Anthropic and Ollama; "
+            f"aimm configure can set up UnitySVC, OpenAI, Anthropic and Ollama; "
             f"{label} sections have to be edited by hand."
         )
 
@@ -562,7 +562,7 @@ async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupCo
         if section is None:
             await ui.say(
                 f"[ai.{proposal.name}] was written but could not be found when the config "
-                "was read back; check the file and run aimm-configure again.",
+                "was read back; check the file and run aimm configure again.",
                 kind="error",
             )
             return False
@@ -587,7 +587,7 @@ async def _after_commit(ui: SetupUI, proposal: AISectionProposal, ctx: AISetupCo
     await ui.say(
         f"Set it in your shell and add the line to your shell profile to keep it:\n\n"
         f"```bash\nexport {var}=<your key>\n```\n\n"
-        "Then run `aimm-configure` again.",
+        "Then run `aimm configure` again.",
         markdown=True,
     )
     return False

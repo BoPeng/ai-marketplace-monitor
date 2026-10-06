@@ -1,6 +1,6 @@
 """The AI toolkit: `[ai.*]` sections, configured with the help of the current AI.
 
-It does what the `aimm-configure ai` wizard does (update or fix a section, add one, make one the
+It does what the `aimm configure ai` wizard does (update or fix a section, add one, make one the
 default, choose a model from the provider's list) through the same probe and model listing.
 The session keeps using the AI it started with; changes take effect the next time aimm runs.
 """
@@ -192,7 +192,7 @@ class AIToolkit(Toolkit):
             label = PROVIDER_LABELS.get(provider, provider)
             return [
                 (
-                    f"aimm-configure can set up UnitySVC, OpenAI, Anthropic and Ollama; {label} "
+                    f"aimm configure can set up UnitySVC, OpenAI, Anthropic and Ollama; {label} "
                     "sections have to be edited by hand."
                 )
             ]
@@ -218,7 +218,7 @@ class AIToolkit(Toolkit):
                 (
                     f"`api_key` refers to {key}, which is not set, and aimm cannot start with it. "
                     f"Ask the user to run `export {key[2:-1]}=<their key>` (and add it to their "
-                    "shell profile), then start aimm-configure again."
+                    "shell profile), then start aimm configure again."
                 )
             ]
         try:
@@ -298,7 +298,7 @@ class AIToolkit(Toolkit):
         return [
             *unset_variable_notes(draft),
             (
-                f"{draft.label} takes effect the next time aimm or aimm-configure starts; this "
+                f"{draft.label} takes effect the next time aimm starts; this "
                 "session keeps using its current AI."
             ),
         ]

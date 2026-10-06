@@ -113,7 +113,7 @@ async def ai_for_configure(
 ) -> AIBackend | None:
     """The AI that assists configuration: the default ``[ai.*]`` section.
 
-    Only if it cannot be used does the user go through ``aimm-configure ai`` (which no AI can
+    Only if it cannot be used does the user go through ``aimm configure ai`` (which no AI can
     assist).
     """
     backend, problem = default_ai(config_files)
@@ -177,7 +177,7 @@ async def configure_section(
 
 
 def toolkits() -> Dict[str, Toolkit]:
-    """The section types aimm-configure can edit with the AI, by type."""
+    """The section types ``aimm configure`` can edit with the AI, by type."""
     return {
         "ai": AIToolkit(),
         "marketplace": MarketplaceToolkit(),
@@ -194,7 +194,7 @@ def system_prompt(ws: Workspace, only_types: List[str] | None) -> str:
     """The instructions: AGENT.md plus the command's guides, or the router and the type list.
 
     A single-section command gets its section types' playbooks and fields directly (an item
-    command also gets the marketplace's, for the item's marketplace); aimm-configure gets the
+    command also gets the marketplace's, for the item's marketplace); aimm configure gets the
     router playbook and reads guides with section_guide.
     """
     parts = [ws.playbooks["AGENT"].text()]
@@ -210,7 +210,7 @@ def system_prompt(ws: Workspace, only_types: List[str] | None) -> str:
                 )
             parts.append(toolkit.guide_table())
     else:
-        parts.append(f"# The aimm-configure command\n\n{ws.playbooks['router'].text()}")
+        parts.append(f"# The aimm configure command\n\n{ws.playbooks['router'].text()}")
         listing = "\n".join(
             f"- `{t}`: {ws.playbooks[k.playbook].summary}" for t, k in ws.toolkits.items()
         )
@@ -274,16 +274,16 @@ async def run_session(
 def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
     if not only:
         return (
-            "Command: aimm-configure. The user has not said anything yet. Briefly say what you "
+            "Command: aimm configure. The user has not said anything yet. Briefly say what you "
             "can help configure, then ask what they want (ask_user)."
         )
     # the first named section is where to start; "*" allows any section of a type
     command = only[0][0]
     named = [(t, n) for t, n in only if n != "*"]
     anything = [f"any [{t}.*]" for t, n in only if n == "*"]
-    if not named:  # e.g. aimm-configure region: no section to start at
+    if not named:  # e.g. aimm configure region: no section to start at
         return (
-            f"Command: aimm-configure {command}. You may change "
+            f"Command: aimm configure {command}. You may change "
             f"{', '.join(dict.fromkeys(anything))}. Ask the user what they want (ask_user)."
         )
     section_type, name = named[0]
@@ -293,7 +293,7 @@ def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
         else name in ws.user_cfg.get(section_type, {})
     )
     text = (
-        f"Command: aimm-configure {command}. The active section is "
+        f"Command: aimm configure {command}. The active section is "
         f"{section_label(section_type, name)} ({'existing' if exists else 'new'})."
     )
     others = [section_label(t, n) for t, n in named[1:]] + anything
@@ -311,7 +311,7 @@ async def configure_front_door(
     *,
     home: Path | None = None,
 ) -> int:
-    """``aimm-configure``: the AI helps with any section it has tools for."""
+    """``aimm configure``: the AI helps with any section it has tools for."""
     try:
         ai = await ai_for_configure(ui, config_files, home=home)
     except SetupClosedError:

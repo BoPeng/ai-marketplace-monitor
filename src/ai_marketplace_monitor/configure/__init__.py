@@ -1,1 +1,1 @@
-"""aimm-configure: interactive, AI-assisted configuration."""
+"""aimm configure: interactive, AI-assisted configuration."""

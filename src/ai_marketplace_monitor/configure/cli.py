@@ -40,28 +40,11 @@ def _run(coro: Coroutine[Any, Any, int]) -> int:
         loop.close()
 
 
-@app.command()
-def main(
-    section: Annotated[
-        Optional[str],
-        typer.Argument(
-            help=(
-                "Optional section to configure: 'ai', 'ai.<name>', 'marketplace', "
-                "or 'marketplace.<name>' ('item' is reserved)."
-            )
-        ),
-    ] = None,
-    config_files: Annotated[
-        List[Path] | None,
-        typer.Option(
-            "-r",
-            "--config",
-            "--config-file",
-            help="Path to one or more configuration files in TOML format.",
-        ),
-    ] = None,
+def run_configure_cli(
+    section: str | None,
+    config_files: List[Path] | None,
 ) -> None:
-    """Interactively add or update supported config sections."""
+    """Run the interactive configuration command."""
     try:
         if section is not None:
             validate_section_address(section)
@@ -76,6 +59,32 @@ def main(
         rich.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
     raise typer.Exit(exit_code)
+
+
+@app.command()
+def main(
+    section: Annotated[
+        Optional[str],
+        typer.Argument(
+            help=(
+                "Optional section to configure, e.g. 'ai', 'ai.<name>', 'marketplace', "
+                "'item.<name>', 'notification', 'user.<name>', 'region', 'translation', "
+                "or 'monitor'."
+            )
+        ),
+    ] = None,
+    config_files: Annotated[
+        List[Path] | None,
+        typer.Option(
+            "-r",
+            "--config",
+            "--config-file",
+            help="Path to one or more configuration files in TOML format.",
+        ),
+    ] = None,
+) -> None:
+    """Interactively add or update supported config sections."""
+    run_configure_cli(section, config_files)
 
 
 if __name__ == "__main__":

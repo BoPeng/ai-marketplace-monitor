@@ -30,7 +30,7 @@ A section with a built-in region's name changes it: its values replace the built
 ### Using it
 
 A region is used by setting `search_region` on a marketplace or item, which this command does not
-change; tell the user to run `aimm-configure marketplace` (or ask for it in `aimm-configure`).
+change; tell the user to run `aimm configure marketplace` (or ask for it in `aimm configure`).
 
 ## Completion
 

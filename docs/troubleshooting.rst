@@ -70,7 +70,7 @@ Browser and Playwright Issues
 
 *Solution:*
 - Restart the monitor
-- Try headless mode: ``ai-marketplace-monitor --headless``
+- Try headless mode: ``aimm run --headless``
 - Check system resources (RAM, CPU)
 
 Notification Problems
@@ -151,7 +151,7 @@ Performance Issues
 
 *Solutions:*
 - Reduce search frequency in configuration
-- Clear cache: ``ai-marketplace-monitor --clear-cache all``
+- Clear cache: ``aimm admin --clear-cache all``
 - Check system resources
 - Consider using fewer simultaneous searches
 
@@ -172,7 +172,7 @@ Cache-Related Issues
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --clear-cache all
+    $ aimm admin --clear-cache all
 
 **Cache corruption**
 
@@ -185,9 +185,9 @@ Cache-Related Issues
 
 .. code-block:: console
 
-    $ ai-marketplace-monitor --clear-cache listing-details
-    $ ai-marketplace-monitor --clear-cache ai-inquiries
-    $ ai-marketplace-monitor --clear-cache user-notification
+    $ aimm admin --clear-cache listing-details
+    $ aimm admin --clear-cache ai-inquiries
+    $ aimm admin --clear-cache user-notification
 
 Language and Localization Issues
 --------------------------------
@@ -223,7 +223,7 @@ Logs are typically saved to:
 
 **Interactive debugging**
 
-- Use option ``--check URL`` when starting ai-marketplace-monitor to test individual listings
+- Use ``aimm check URL`` to test individual listings
 - Enter interactive mode by pressing any key while monitor is running. This feature requires the installation of `pynput` package.
 
 Getting Help

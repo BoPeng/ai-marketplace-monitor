@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 import pytest
 from typer.testing import CliRunner
 
+from ai_marketplace_monitor import cli as root_cli
 from ai_marketplace_monitor.configure import cli, flow
 from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
 
@@ -77,6 +78,24 @@ def test_configure_cli_dispatches_explicit_section(monkeypatch: pytest.MonkeyPat
 
     assert result.exit_code == 0
     assert calls == [([config], "ai.unitysvc")]
+
+
+@pytest.mark.parametrize("flag", ["--config", "--config-file", "-r"])
+def test_root_configure_command_uses_same_dispatcher(
+    monkeypatch: pytest.MonkeyPatch, flag: str
+) -> None:
+    calls: List[tuple[str | None, List[Path] | None]] = []
+    config = Path("custom.toml")
+
+    def fake_run_configure_cli(section: str | None, config_files: List[Path] | None) -> None:
+        calls.append((section, config_files))
+
+    monkeypatch.setattr(cli, "run_configure_cli", fake_run_configure_cli)
+
+    result = runner.invoke(root_cli.app, ["configure", flag, str(config), "ai.unitysvc"])
+
+    assert result.exit_code == 0
+    assert calls == [("ai.unitysvc", [config])]
 
 
 def test_configure_cli_rejects_unimplemented_sections() -> None:
@@ -247,7 +266,7 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     model = made[0]
     assert {"list_sections", "section_guide", "section_update"} <= set(model.tools)
     assert "setup_ai" not in model.tools  # AI services have a toolkit too
-    assert "# The aimm-configure command" in model.system
+    assert "# The aimm configure command" in model.system
     listed = model.results("list_sections")[0]["section_types"]
     assert {
         "type": "marketplace",
