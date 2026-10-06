@@ -15,7 +15,7 @@
 #     -p 8467:8467 \
 #     -v "$HOME/.ai-marketplace-monitor:/root/.ai-marketplace-monitor" \
 #     -e FACEBOOK_USERNAME -e FACEBOOK_PASSWORD \
-#     -e ANTHROPIC_API_KEY \
+#     -e UNITYSVC_API_KEY \
 #     aimm
 #
 #   Web UI: http://localhost:8467
