@@ -721,10 +721,20 @@
 
   wireClick("#chat-start", startConfigureChat);
   wireClick("#chat-cancel", () => {
-    if (state.chatWs && state.chatWs.readyState === WebSocket.OPEN) {
-      state.chatWs.send(JSON.stringify({ type: "cancel" }));
+    const ws = state.chatWs;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "cancel" }));
+      setChatControls(true, true);
+      setTimeout(() => {
+        if (state.chatWs === ws && ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+      }, 3000);
+      return;
     }
-    if (state.chatWs) state.chatWs.close();
+    if (ws) {
+      ws.close();
+    }
   });
   $("#chat-form").addEventListener("submit", (e) => {
     e.preventDefault();

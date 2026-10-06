@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 import uvicorn
 from fastapi import (
@@ -64,6 +65,35 @@ from .log_handler import LogBroadcastHandler
 mimetypes.add_type("application/wasm", ".wasm")
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+def _host_port(host: str, default_port: int) -> tuple[str, int]:
+    """Return a normalized host and port from a Host-style header."""
+    parsed = urlparse(f"//{host}")
+    if parsed.hostname is None:
+        return "", default_port
+    try:
+        port = parsed.port
+    except ValueError:
+        return "", default_port
+    return parsed.hostname.rstrip(".").lower(), port or default_port
+
+
+def _origin_matches_host(origin: str | None, host: str | None) -> bool:
+    """True when a browser WebSocket Origin matches the request Host."""
+    if not origin or not host:
+        return False
+    parsed = urlparse(origin)
+    if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+        return False
+    try:
+        origin_port = parsed.port
+    except ValueError:
+        return False
+    default_port = 443 if parsed.scheme == "https" else 80
+    origin_host = parsed.hostname.rstrip(".").lower()
+    request_host, request_port = _host_port(host, default_port)
+    return origin_host == request_host and (origin_port or default_port) == request_port
 
 
 @dataclass
@@ -220,11 +250,17 @@ def create_app(
         if not header or not csrf_cookie or not secrets.compare_digest(header, csrf_cookie):
             raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
-    def websocket_is_authenticated(websocket: WebSocket) -> bool:
+    def websocket_rejection_code(websocket: WebSocket) -> int | None:
+        if not _origin_matches_host(
+            websocket.headers.get("origin"), websocket.headers.get("host")
+        ):
+            return 4403
         if is_open():
-            return True
+            return None
         session = websocket.cookies.get(SESSION_COOKIE)
-        return bool(session and sessions.validate(session) is not None)
+        if session and sessions.validate(session) is not None:
+            return None
+        return 4401
 
     # ------------------------------------------------------------------
     # Routes
@@ -397,10 +433,11 @@ def create_app(
 
     @app.websocket("/ws/stream")
     async def ws_stream(websocket: WebSocket) -> None:
-        # In open mode (loopback) skip cookie check; otherwise require
-        # a valid session cookie on the WebSocket handshake.
-        if not websocket_is_authenticated(websocket):
-            await websocket.close(code=4401)
+        # Require a same-origin browser handshake; when exposed, also require
+        # a valid session cookie.
+        rejection_code = websocket_rejection_code(websocket)
+        if rejection_code is not None:
+            await websocket.close(code=rejection_code)
             return
 
         await websocket.accept()
@@ -422,17 +459,30 @@ def create_app(
     @app.websocket("/ws/configure")
     async def ws_configure(websocket: WebSocket, section: str | None = None) -> None:
         """Run the AI-assisted configuration UI over a JSON WebSocket."""
-        if not websocket_is_authenticated(websocket):
-            await websocket.close(code=4401)
+        rejection_code = websocket_rejection_code(websocket)
+        if rejection_code is not None:
+            await websocket.close(code=rejection_code)
             return
 
         await websocket.accept()
 
         async def send(payload: Dict[str, Any]) -> None:
-            await websocket.send_json(payload)
+            try:
+                await websocket.send_json(payload)
+            except (RuntimeError, WebSocketDisconnect) as e:
+                raise SetupClosedError from e
+
+        async def send_if_open(payload: Dict[str, Any]) -> None:
+            try:
+                await send(payload)
+            except SetupClosedError:
+                pass
 
         async def receive() -> Dict[str, Any]:
-            payload = await websocket.receive_json()
+            try:
+                payload = await websocket.receive_json()
+            except (RuntimeError, WebSocketDisconnect) as e:
+                raise SetupClosedError from e
             if not isinstance(payload, dict):
                 return {"type": "invalid", "value": payload}
             return payload
@@ -446,17 +496,24 @@ def create_app(
                 exit_code = await configure_section(ui, config_paths, section)
             else:
                 exit_code = await configure_front_door(ui, config_paths)
-            await websocket.send_json({"type": "done", "exit_code": exit_code})
-        except WebSocketDisconnect:
-            pass
+            await send_if_open({"type": "done", "exit_code": exit_code})
         except SetupClosedError:
-            await websocket.send_json({"type": "done", "exit_code": 0, "cancelled": True})
+            await send_if_open({"type": "done", "exit_code": 0, "cancelled": True})
         except ConfigureAddressError as e:
-            await ui.say(str(e), kind="error")
-            await websocket.send_json({"type": "done", "exit_code": 1})
+            await send_if_open(
+                {"type": "message", "kind": "error", "text": str(e), "markdown": False}
+            )
+            await send_if_open({"type": "done", "exit_code": 1})
         except Exception as e:
-            await ui.say(f"Configuration failed: {e}", kind="error")
-            await websocket.send_json({"type": "done", "exit_code": 1})
+            await send_if_open(
+                {
+                    "type": "message",
+                    "kind": "error",
+                    "text": f"Configuration failed: {e}",
+                    "markdown": False,
+                }
+            )
+            await send_if_open({"type": "done", "exit_code": 1})
 
     # ------------------------------------------------------------------
     # Optional noVNC bridge (Docker deployments)
@@ -469,8 +526,9 @@ def create_app(
 
         @app.websocket("/ws/vnc")
         async def ws_vnc(websocket: WebSocket) -> None:
-            if not websocket_is_authenticated(websocket):
-                await websocket.close(code=4401)
+            rejection_code = websocket_rejection_code(websocket)
+            if rejection_code is not None:
+                await websocket.close(code=rejection_code)
                 return
             await websocket.accept(subprotocol="binary")
             try:

@@ -1,5 +1,6 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
+import inspect
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -96,15 +97,21 @@ def test_root_command_without_subcommand_accepts_run_options(
 
 
 def test_run_command_does_not_expose_one_shot_options() -> None:
-    result = runner.invoke(cli.app, ["run", "--help"])
+    result = runner.invoke(cli.app, ["run", "--help"], env={"COLUMNS": "100"})
 
     assert result.exit_code == 0
-    assert "--headless" in result.stdout
-    assert "--webui" in result.stdout
     assert "--check" not in result.stdout
     assert "--clear-cache" not in result.stdout
     assert "--normalize-config" not in result.stdout
     assert "--expand-config" not in result.stdout
+    run_command = next(command for command in cli.app.registered_commands if command.name == "run")
+    assert run_command.callback is not None
+    run_params = set(inspect.signature(run_command.callback).parameters)
+    assert "headless" in run_params
+    assert "webui" in run_params
+    assert "clear_cache" not in run_params
+    assert "normalize_config" not in run_params
+    assert "expand_config" not in run_params
 
 
 def test_normalize_config_prints_compact_toml_without_writing(
