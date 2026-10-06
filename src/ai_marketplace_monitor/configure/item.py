@@ -111,6 +111,15 @@ def field_is_on_item(name: str) -> bool:
 ITEM_GUIDES = _item_guides()
 
 
+def _number(value: Any) -> bool:
+    """Whether a price has no currency of its own."""
+    try:
+        float(str(value).replace(",", ""))
+    except ValueError:
+        return False
+    return True
+
+
 class ItemToolkit(Toolkit):
     section_type = "item"
     playbook = "item"
@@ -120,8 +129,10 @@ class ItemToolkit(Toolkit):
 
     def summary(self: "ItemToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
         phrases = ", ".join(listed(values.get("search_phrases"))) or "no search phrases"
-        prices = [
-            f"{k.split('_')[0]} ${values[k]}" for k in ("min_price", "max_price") if values.get(k)
+        prices = [  # "$200", but "200 EUR" as written
+            f"{k.split('_')[0]} {'$' if _number(values[k]) else ''}{values[k]}"
+            for k in ("min_price", "max_price")
+            if values.get(k)
         ]
         loc = location(values)
         return "; ".join([phrases, *prices, *([f"searches {loc}"] if loc else [])])

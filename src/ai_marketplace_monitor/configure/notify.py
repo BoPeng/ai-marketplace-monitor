@@ -236,10 +236,15 @@ def received(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
 
 
 def notified_via(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
-    """How a user with these values is notified: channels on the user and of its notifications."""
-    kinds = channel_types(values)
+    """Channels that reach a user with these values, with the recipient fields they need.
+
+    A channel counts if it is set on the user itself or on a notification the user receives.
+    """
+    kinds = channel_types(values) if not missing_recipients(values, values) else []
     for name in received(ws, values):
-        kinds += channel_types(ws.section("notification", name) or {}) or [name]
+        notification = ws.section("notification", name) or {}
+        if not missing_recipients(notification, values):
+            kinds += channel_types(notification)
     return list(dict.fromkeys(kinds))
 
 

@@ -14,9 +14,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
-from .toolkits import SINGLETONS, Toolkit, section_label
+from .toolkits import SINGLETONS, Toolkit, location, section_label
 from .ui import SetupClosedError
 from .workspace import ConfigLoadError, SectionKey, Workspace
 from .writer import CommitOutcome, commit_sections
@@ -60,8 +60,33 @@ def section_index(ws: Workspace) -> List[Dict[str, Any]]:
     return types
 
 
-def how_to_run(monitor_running: bool) -> str:
+def monitoring_needs(ws: Workspace) -> List[str]:
+    """What aimm still needs to search and notify, in the order to set it up."""
+    from .notify import notified_via  # notify's toolkits import the tools' helpers
+
+    def enabled(section_type: str) -> List[Dict[str, Any]]:
+        body = ws.user_cfg.get(section_type, {})
+        return [v for v in body.values() if isinstance(v, dict) and v.get("enabled") is not False]
+
+    items = [v for v in enabled("item") if v.get("search_phrases")]
+    missing: List[str] = []
+    if not any(location(v) for v in enabled("marketplace") + items):
+        missing.append("a search location (marketplace)")
+    if not any(notified_via(ws, v) for v in enabled("user")):
+        missing.append("a way to notify the user (notification)")
+    if not items:
+        missing.append("an item to search for (item)")
+    return missing
+
+
+def how_to_run(monitor_running: bool, missing: Sequence[str] = ()) -> str:
     """What the user must do for a saved change to take effect: saving starts nothing."""
+    if missing:
+        return (
+            "Your configuration is saved, but aimm still needs "
+            f"{'; '.join(m.split(' (')[0] for m in missing)} before it can monitor anything. "
+            "Run `aimm configure` again to add " + ("it." if len(missing) == 1 else "them.")
+        )
     if monitor_running:
         return "Your configuration is saved; the running monitor picks up the change on its own."
     return (
@@ -359,7 +384,7 @@ class ToolExecutor:
         result["note"] = (
             "Saved to the config file only; aimm configure starts no search. When the session "
             "ends, aimm itself tells the user how the change takes effect ("
-            + how_to_run(self.ws.ui.monitor_running)
+            + how_to_run(self.ws.ui.monitor_running, monitoring_needs(self.ws))
             + "); do not repeat that."
         )
         if notes:

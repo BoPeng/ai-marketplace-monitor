@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Protocol, Tuple
 
-from .tools import Outcome, ToolExecutor, how_to_run
+from .tools import Outcome, ToolExecutor, how_to_run, monitoring_needs
 from .ui import SetupClosedError
 
 # model calls in a row without the user saying anything before aimm makes the LLM ask
@@ -100,7 +100,8 @@ async def run_agent(
             )
         calls += 1
     if executor.saved:  # saving does not start a search; say so however the session ends
-        await ui.say(how_to_run(ui.monitor_running), kind="success")
+        missing = monitoring_needs(executor.ws)
+        await ui.say(how_to_run(ui.monitor_running, missing), kind="success")
     if executor.closed:
         raise SetupClosedError
     if not executor.done:
