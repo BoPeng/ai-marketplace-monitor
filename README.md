@@ -132,6 +132,62 @@ aimm configure marketplace
 aimm configure item.gopro
 ```
 
+Here is a real session that adds an item. `aimm configure` starts with a summary of what is
+already configured and what is still missing, drafts the item from one plain-language request,
+and shows the change before writing it:
+
+```text
+$ aimm configure
+Using [ai.anthropic].
+Thinking...
+AIMM: Hi! You have two AI services (Anthropic, and UnitySVC with qwen3.7-flash), a Facebook
+Marketplace search around Houston, and notifications to you (user "me") via UnitySVC. The one thing
+still missing is an item to search for, so aimm can't monitor anything yet. Want to start by adding
+one?
+
+You can say things like "I want to add an item" (e.g. "watch for a GoPro under $200"), "update my
+marketplace settings", or "what can I configure?".
+You: I want to watch for an action camera: a GoPro Hero 9 or newer, a DJI Osmo Action 3 or newer,
+or an Insta360 X3, X4 or Ace Pro. Used is fine if it works, with no water damage and no scratched
+lens. Preferably under $250. Same Houston area, check every 30 minutes.
+Thinking...
+Thinking...
+Thinking...
+Thinking...
+New item "action_camera": GoPro Hero 9+, DJI Osmo Action 3+, Insta360 X3/X4/Ace Pro; used OK if
+working, no water damage or scratched lens; max $250; checked every 30 minutes; Houston area (20
+miles) from your existing marketplace.
+
+ [item.action_camera]
+ request = "Watch for an action camera (GoPro Hero 9+, DJI Osmo Action 3+, Insta360 X3/X4/Ace Pro),
+ used OK if working, no water damage or scratched lens, preferably under $250, in the Houston area,
+ checked every 30 minutes."
+ search_phrases = ["gopro hero", "dji osmo action", "insta360 x3", "insta360 x4", "insta360 ace pro",
+ "action camera"]
+ description = "Action camera: GoPro Hero 9 or newer, DJI Osmo Action 3 or newer, or Insta360 X3,
+ X4 or Ace Pro. Used is fine if it works. No water damage and no scratched lens."
+ keywords = ["gopro", "go pro", "dji", "osmo", "insta360"]
+ max_price = "250"
+ search_interval = "30m"
+
+ (a diff of ~/.ai-marketplace-monitor/config.toml follows)
+
+Write these changes? [Y/n] y
+Saved ~/.ai-marketplace-monitor/config.toml.
+Thinking...
+AIMM: I've saved the action camera item. It covers GoPro Hero 9+, DJI Osmo Action 3+ and Insta360
+X3/X4/Ace Pro. It accepts used cameras that work, with no water damage or scratched lens. The price
+limit is $250, and it's checked every 30 minutes in your Houston area (20 miles). I set the price as
+a hard limit. I can't make it a soft preference.
+
+Is there anything else you'd like to change?
+You: No, that's all. Thanks.
+Thinking...
+AIMM: All done. Enjoy the hunt!
+Your configuration is saved, but nothing is searching yet: run `aimm run` to start monitoring (a
+monitor that is already running picks up the change on its own).
+```
+
 ### Run the Monitor
 
 ```bash

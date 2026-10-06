@@ -204,7 +204,7 @@ async def test_secrets_are_masked(tmp_path: Path) -> None:
     assert "me@example.com" not in T.describe(draft)
 
 
-# --- the start menu (aimm-configure marketplace) ---------------------------------------------
+# --- the start menu (aimm configure marketplace) ----------------------------------------------
 async def test_start_menu_lists_marketplaces_without_item_details(tmp_path: Path) -> None:
     ws = await make_ws(tmp_path, ONE_ITEM, ["facebook"])
     assert await T.choose_target(ws.ui, ws, None) == "facebook"

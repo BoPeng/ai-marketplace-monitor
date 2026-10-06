@@ -122,6 +122,9 @@ class AIToolkit(Toolkit):
     config_class = object  # sections load into their provider's config class
     guides = AI_GUIDES
 
+    def summary(self: "AIToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        return f"model {values['model']}" if values.get("model") else "default model"
+
     def field_names(self: "AIToolkit") -> List[str]:
         return [g.name for g in self.guides]
 

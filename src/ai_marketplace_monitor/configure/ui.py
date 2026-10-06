@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable, ClassVar, Dict, List, Protocol, Tup
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.text import Text
 
 
 class SetupClosedError(Exception):
@@ -25,6 +26,10 @@ class Choice:
 
 
 class SetupUI(Protocol):
+    # True when the front end runs inside a running monitor (the web UI): a saved change
+    # takes effect without starting anything
+    monitor_running: bool
+
     async def say(
         self: "SetupUI", text: str, *, kind: str = "info", markdown: bool = False
     ) -> None: ...
@@ -56,9 +61,12 @@ class JsonSetupUI:
         self: "JsonSetupUI",
         send: Callable[[Dict[str, Any]], Awaitable[None]],
         receive: Callable[[], Awaitable[Dict[str, Any]]],
+        *,
+        monitor_running: bool = False,
     ) -> None:
         self._send = send
         self._receive = receive
+        self.monitor_running = monitor_running
 
     async def say(
         self: "JsonSetupUI", text: str, *, kind: str = "info", markdown: bool = False
@@ -152,6 +160,11 @@ class ConsoleSetupUI:
         "warning": "yellow",
         "error": "bold red",
     }
+    # the AI's messages are labelled "AIMM:", and prompts for the user stand out
+    _assistant_label = "bold magenta"
+    _prompt_style = "bold cyan"
+
+    monitor_running = False  # the terminal command runs on its own
 
     def __init__(
         self: "ConsoleSetupUI",
@@ -171,6 +184,9 @@ class ConsoleSetupUI:
     ) -> None:
         if markdown:
             self.console.print(Markdown(text))
+            return
+        if kind == "assistant":
+            self.console.print(Text.assemble(("AIMM: ", self._assistant_label), text))
             return
         self.console.print(text, style=self._styles.get(kind, ""), markup=False, highlight=False)
 
@@ -203,7 +219,9 @@ class ConsoleSetupUI:
 
     async def ask_text(self: "ConsoleSetupUI", prompt: str, default: str | None = None) -> str:
         suffix = f" [{default}]" if default else ""
-        raw = self._input(f"{prompt}{suffix}: ")
+        # printed before reading so the prompt can be coloured; input() gets no prompt
+        self.console.print(Text(f"{prompt}{suffix}: ", self._prompt_style), end="")
+        raw = self._input("")
         if not raw.strip() and default is not None:
             return default
         return raw
@@ -230,7 +248,10 @@ class ConsoleSetupUI:
 class ScriptedSetupUI:
     """Test front end with canned answers."""
 
-    def __init__(self: "ScriptedSetupUI", answers: List[str]) -> None:
+    def __init__(
+        self: "ScriptedSetupUI", answers: List[str], *, monitor_running: bool = False
+    ) -> None:
+        self.monitor_running = monitor_running
         self.answers = list(answers)
         self.messages: List[Tuple[str, str]] = []
         self.questions: List[str] = []

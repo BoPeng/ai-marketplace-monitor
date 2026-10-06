@@ -136,6 +136,19 @@ def _mentions_reference(value: Any) -> bool:
     return False
 
 
+def listed(value: Any) -> List[str]:
+    """A string-or-list field as a list of strings."""
+    return [str(v) for v in value] if isinstance(value, list) else [str(value)] if value else []
+
+
+def location(values: Dict[str, Any]) -> str | None:
+    """Where a marketplace, item or region searches, in the user's terms where possible."""
+    for key in ("city_name", "search_city", "search_region"):
+        if values.get(key):
+            return ", ".join(listed(values[key]))
+    return None
+
+
 class Toolkit:
     """Base class: subclasses declare their config class, guides and playbook."""
 
@@ -273,6 +286,10 @@ class Toolkit:
     def show_extra(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
         """Read-only context added to ``section_show`` (none by default)."""
         return {}
+
+    def summary(self: "Toolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        """A few words on what a saved section does, for ``list_sections`` (none by default)."""
+        return None
 
     def companions(self: "Toolkit", ws: "Workspace", name: str) -> List[Tuple[str, str]]:
         """Other sections a single-section command may also change (none by default).

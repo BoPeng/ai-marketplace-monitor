@@ -489,7 +489,7 @@ def create_app(
                 return {"type": "invalid", "value": payload}
             return payload
 
-        ui = JsonSetupUI(send, receive)
+        ui = JsonSetupUI(send, receive, monitor_running=True)  # the web UI runs in the monitor
         config_paths = list(config.config_files)
 
         try:

@@ -3,7 +3,7 @@
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -93,7 +93,7 @@ async def test_single_section_restriction(tmp_path: Path) -> None:
     assert "list_sections" not in names and "section_update" in names
 
 
-async def test_list_sections_shows_names_and_requests_only(tmp_path: Path) -> None:
+async def test_list_sections_shows_names_requests_and_summaries(tmp_path: Path) -> None:
     ws = await make_ws(
         tmp_path,
         ONE_ITEM.replace("[marketplace.facebook]", '[marketplace.facebook]\nrequest = "Houston"'),
@@ -103,11 +103,11 @@ async def test_list_sections_shows_names_and_requests_only(tmp_path: Path) -> No
     assert by_type["marketplace"] == {
         "type": "marketplace",
         "configurable_here": True,
-        "sections": [{"name": "facebook", "request": "Houston"}],
+        "sections": [{"name": "facebook", "request": "Houston", "summary": "searches houston"}],
     }
     assert by_type["item"]["configurable_here"] is False
     assert by_type["ai"]["sections"] == [{"name": "unitysvc", "request": None}]
-    assert "houston" not in str(out)  # contents are not listed
+    assert "svcpass_testkey" not in str(out) and "abc" not in str(out)  # no secrets
 
 
 async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None:
@@ -132,7 +132,9 @@ async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None
         "ok": True,
         "saved": True,
         "sections": ["[marketplace.facebook]", "[marketplace.home]"],
+        "note": out["note"],
     }
+    assert "`aimm run`" in out["note"]  # the model knows nothing is searching yet
     written = tomllib.loads((tmp_path / "config.toml").read_text())
     assert written["marketplace"]["facebook"]["max_price"] == "1000"
     assert written["marketplace"]["home"] == {"search_city": "austin"}
@@ -308,3 +310,30 @@ async def test_session_state_tracks_drafts(tmp_path: Path) -> None:
         ],
         "last_section": "marketplace.home",
     }
+
+
+async def test_console_labels_the_ai_and_colours_the_prompt() -> None:
+    import io
+
+    from rich.console import Console
+
+    from ai_marketplace_monitor.configure.ui import ConsoleSetupUI
+
+    out = io.StringIO()
+    prompts: List[str] = []
+
+    def read(prompt: str) -> str:
+        prompts.append(prompt)
+        return "hi"
+
+    ui = ConsoleSetupUI(
+        console=Console(file=out, force_terminal=True, width=80),
+        read=read,
+        interactive=True,
+    )
+    await ui.say("What would you like to change?", kind="assistant")
+    assert await ui.ask_text("You", default="") == "hi"
+    text = out.getvalue()
+    assert "AIMM: " in text and "What would you like to change?" in text
+    assert "You: " in text and "\x1b[" in text  # styled
+    assert prompts == [""]  # the prompt is printed, not passed to input()

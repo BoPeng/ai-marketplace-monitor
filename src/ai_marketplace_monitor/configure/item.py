@@ -10,7 +10,7 @@ from ..config_toml import dump_config_toml
 from ..facebook import FacebookItemConfig
 from ..normalize import NormalizeError, expand
 from .marketplace import _NAME, MARKETPLACE_GUIDES, MarketplaceToolkit, _plain
-from .toolkits import FieldGroup, FieldGuide, SectionDraft, Toolkit
+from .toolkits import FieldGroup, FieldGuide, SectionDraft, Toolkit, listed, location
 from .ui import Choice, SetupUI
 
 if TYPE_CHECKING:
@@ -35,15 +35,18 @@ _OWN_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "keywords",
-        "hard pre-filter: a listing is kept only if its title or description contains one of "
-        "these; use sparingly (the AI judges better)",
-        'list, e.g. `["gopro", "go pro"]`; `AND` / `OR` / `NOT` and parentheses are allowed '
-        'inside one entry, e.g. `"gopro AND (hero 11 OR hero 12)"`',
+        "hard pre-filter: a listing is kept only if its title or description contains ANY of "
+        "these (OR); only product names sellers always mention (brand, line, model), never "
+        "features or specs; use sparingly (the AI judges better)",
+        'list, e.g. `["gopro", "go pro"]`; case-insensitive substrings. Only inside one entry: '
+        "uppercase `AND` / `OR` / `NOT` and parentheses, with multi-word terms quoted, e.g. "
+        "`\"gopro AND ('hero 11' OR 'hero 12')\"`; an entry that does not parse is matched "
+        "as literal text",
         "no filter",
     ),
     FieldGuide(
         "antikeywords",
-        "hard pre-filter: listings whose title or description contains any of these are "
+        "hard pre-filter: listings whose title or description contains ANY of these (OR) are "
         "dropped, e.g. accessories or parts the user does not want",
         'list, e.g. `["case only", "for parts"]`; same logic syntax as keywords',
         "no filter",
@@ -108,12 +111,31 @@ def field_is_on_item(name: str) -> bool:
 ITEM_GUIDES = _item_guides()
 
 
+def _number(value: Any) -> bool:
+    """Whether a price has no currency of its own."""
+    try:
+        float(str(value).replace(",", ""))
+    except ValueError:
+        return False
+    return True
+
+
 class ItemToolkit(Toolkit):
     section_type = "item"
     playbook = "item"
     config_class = FacebookItemConfig
     guides = ITEM_GUIDES
     _market = MarketplaceToolkit()
+
+    def summary(self: "ItemToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        phrases = ", ".join(listed(values.get("search_phrases"))) or "no search phrases"
+        prices = [  # "$200", but "200 EUR" as written
+            f"{k.split('_')[0]} {'$' if _number(values[k]) else ''}{values[k]}"
+            for k in ("min_price", "max_price")
+            if values.get(k)
+        ]
+        loc = location(values)
+        return "; ".join([phrases, *prices, *([f"searches {loc}"] if loc else [])])
 
     # --- the item's marketplace -------------------------------------------------------------
     def bound_marketplace(self: "ItemToolkit", ws: "Workspace", values: Dict[str, Any]) -> str:

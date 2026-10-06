@@ -25,6 +25,23 @@ to get good matches. Use `keywords` / `antikeywords` only as hard pre-filters fo
 (for example `antikeywords = ["case only", "for parts"]`), since a listing they drop never
 reaches the AI.
 
+Both are lists whose entries are OR-ed: `keywords` keeps a listing that contains any entry,
+`antikeywords` drops a listing that contains any entry (case-insensitive substrings of the title
+and description).
+
+`keywords` hold only product names that every matching listing would mention: brand, product
+line or model, as sellers write them (`"ipad"`, `"galaxy"`, `"gopro"`). Never use features or
+specs (`"usb-c"`, `"128gb"`, `"no cracks"`): sellers rarely list them, so the filter would drop
+good listings. Leave features, generations and condition to `description`, which the AI reads.
+For "an Android phone or iPad with USB-C", derive `keywords = ["ipad", "galaxy"]` and describe
+the acceptable models in `description`. Leave `keywords` unset when no short list of names
+covers the item.
+
+Never split one requirement over several entries expecting AND; combine it in one entry, e.g.
+`"gopro AND ('hero 11' OR 'hero 12')"`. Inside an entry, operators are uppercase `AND` / `OR` /
+`NOT` with parentheses, and multi-word terms must be quoted (`'hero 11'`); an entry that does
+not parse is matched as literal text and will rarely match.
+
 ### Price
 
 `min_price` / `max_price` for this item. Use the user's currency only if they mention one.

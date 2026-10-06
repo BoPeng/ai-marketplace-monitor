@@ -17,7 +17,7 @@ from .marketplace import MarketplaceToolkit
 from .notify import NotificationToolkit, UserToolkit
 from .small_kits import MonitorToolkit, RegionToolkit, TranslationToolkit
 from .toolkits import SINGLETONS, Toolkit, section_label
-from .tools import Outcome, ToolExecutor
+from .tools import Outcome, ToolExecutor, monitoring_needs, section_index
 from .ui import SetupClosedError, SetupUI
 from .workspace import ConfigLoadError, Workspace
 from .writer import ConfigReadError
@@ -272,12 +272,32 @@ async def run_session(
     return 1 if outcome is Outcome.FAILED else 0
 
 
+def _front_door_opening(ws: Workspace) -> str:
+    """The configuration as list_sections shows it, and what aimm needs before it can monitor."""
+    lines = []
+    for entry in section_index(ws):
+        shown = [
+            f"{s['name']} ({s['summary']})" if s.get("summary") else s["name"]
+            for s in entry["sections"]
+            if not s.get("disabled")
+        ]
+        if shown:
+            lines.append(f"- [{entry['type']}.*]: {', '.join(shown)}")
+    if ws.ai_in_use:
+        lines.append(f"- this session runs on [ai.{ws.ai_in_use}]")
+    text = (
+        "Command: aimm configure. The user has not said anything yet.\n\n"
+        "Their configuration:\n" + ("\n".join(lines) or "- nothing yet") + "\n"
+    )
+    missing = monitoring_needs(ws)
+    if missing:
+        text += f"Still needed before aimm can monitor anything: {'; '.join(missing)}.\n"
+    return text + "\nGreet the user as the playbook describes (ask_user)."
+
+
 def _opening(ws: Workspace, only: List[Tuple[str, str]] | None) -> str:
     if not only:
-        return (
-            "Command: aimm configure. The user has not said anything yet. Briefly say what you "
-            "can help configure, then ask what they want (ask_user)."
-        )
+        return _front_door_opening(ws)
     # the first named section is where to start; "*" allows any section of a type
     command = only[0][0]
     named = [(t, n) for t, n in only if n != "*"]

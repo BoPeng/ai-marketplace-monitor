@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Protocol, Tuple
 
-from .tools import Outcome, ToolExecutor
+from .tools import Outcome, ToolExecutor, how_to_run, monitoring_needs
 from .ui import SetupClosedError
 
 # model calls in a row without the user saying anything before aimm makes the LLM ask
@@ -32,6 +32,9 @@ class ModelReply:
 
 
 class ModelSession(Protocol):
+    # awaited right before each request to the model (the agent shows "Thinking...")
+    on_call: Callable[[], Awaitable[None]] | None
+
     async def start(self: "ModelSession", system: str, user: str) -> ModelReply: ...
 
     async def run_tools(self: "ModelSession", reply: ModelReply) -> ModelReply:
@@ -51,8 +54,12 @@ async def run_agent(
     """Run one configure session; returns what happened. Ctrl-C raises ``SetupClosedError``."""
     ui = executor.ws.ui
 
-    async def request(make: Callable[[], Awaitable[ModelReply]]) -> ModelReply | None:
+    async def thinking() -> None:
         await ui.say("Thinking...", kind="progress")
+
+    model.on_call = thinking  # shown right before each model request, never while tools run
+
+    async def request(make: Callable[[], Awaitable[ModelReply]]) -> ModelReply | None:
         try:
             return await make()
         except ServiceError as e:
@@ -65,7 +72,6 @@ async def run_agent(
                 answer = await executor.read_user("Press Enter to try again, or /quit to stop")
                 if answer is None:
                     return None
-                await ui.say("Thinking...", kind="progress")
                 try:
                     return await model.retry()
                 except ServiceError as again:
@@ -84,7 +90,7 @@ async def run_agent(
             reply = await request(lambda c=current: model.run_tools(c))  # type: ignore[misc]
         else:
             if reply.text.strip():
-                await ui.say(reply.text.strip())
+                await ui.say(reply.text.strip(), kind="assistant")
             text = await executor.read_user()
             if text is None:
                 break
@@ -93,6 +99,9 @@ async def run_agent(
                 lambda c=current, t=text: model.reply_text(c, t)  # type: ignore[misc]
             )
         calls += 1
+    if executor.saved:  # saving does not start a search; say so however the session ends
+        missing = monitoring_needs(executor.ws)
+        await ui.say(how_to_run(ui.monitor_running, missing), kind="success")
     if executor.closed:
         raise SetupClosedError
     if not executor.done:

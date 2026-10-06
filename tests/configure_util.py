@@ -85,6 +85,7 @@ class FakeModel:
         self.user_texts: List[str] = []
         self.system = ""
         self.opening = ""
+        self.on_call: Callable[[], Awaitable[None]] | None = None
 
     def bind(
         self, tools: List[Callable[..., Awaitable[Dict[str, Any]]]], stop: Callable[[], bool]
@@ -93,7 +94,9 @@ class FakeModel:
         self.stop = stop
         return self
 
-    def _next(self) -> ModelReply:
+    async def _next(self) -> ModelReply:
+        if self.on_call is not None:
+            await self.on_call()
         if not self.steps:
             raise AssertionError("unexpected model call")
         step = self.steps.pop(0)
@@ -105,7 +108,7 @@ class FakeModel:
 
     async def start(self, system: str, user: str) -> ModelReply:
         self.system, self.opening = system, user
-        return self._next()
+        return await self._next()
 
     async def run_tools(self, reply: ModelReply) -> ModelReply:
         for name, args in reply.tool_calls:
@@ -114,14 +117,14 @@ class FakeModel:
             self.outputs.append((name, await self.tools[name](**args)))
             if self.stop():
                 return ModelReply()
-        return self._next()
+        return await self._next()
 
     async def reply_text(self, reply: ModelReply, text: str) -> ModelReply:
         self.user_texts.append(text)
-        return self._next()
+        return await self._next()
 
     async def retry(self) -> ModelReply:
-        return self._next()
+        return await self._next()
 
     def results(self, tool: str) -> List[Dict[str, Any]]:
         return [out for name, out in self.outputs if name == tool]

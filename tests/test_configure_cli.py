@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from ai_marketplace_monitor import COMMUNITY_MESSAGE
 from ai_marketplace_monitor import cli as root_cli
 from ai_marketplace_monitor.configure import cli, flow
+from ai_marketplace_monitor.configure.tools import how_to_run
 from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
 
 runner = CliRunner()
@@ -260,6 +261,9 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     assert await flow.configure_front_door(ui, [config], home=tmp_path) == 0
     assert COMMUNITY_MESSAGE in ui.said("info")  # aimm itself points to the community
     assert read(config)["marketplace"]["facebook"]["radius"] == [20]
+    # saving starts nothing: aimm says how to start monitoring when the session ends
+    assert ui.messages[-1] == ("success", how_to_run(False))
+    assert "`aimm run`" in how_to_run(False) and "`aimm run`" not in how_to_run(True)
     assert read(config)["item"]["example"] == {
         "search_phrases": "road bike",
         "min_price": 50,
@@ -273,12 +277,12 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     assert {
         "type": "marketplace",
         "configurable_here": True,
-        "sections": [{"name": "facebook", "request": None}],
+        "sections": [{"name": "facebook", "request": None, "summary": "searches houston"}],
     } in listed
     assert {
         "type": "ai",
         "configurable_here": True,
-        "sections": [{"name": "unitysvc", "request": None}],
+        "sections": [{"name": "unitysvc", "request": None, "summary": "default model"}],
     } in listed
 
 
@@ -363,3 +367,119 @@ async def test_default_ai_works_tries_the_first_section(
     assert await flow.default_ai_works(ui, []) is False
     assert tried == ["first"]
     assert "Key rejected by first. Using the AI setup menus instead." in ui.said("warning")
+
+
+async def test_front_door_opening_summarizes_the_config(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.flow import _opening, monitoring_needs
+    from ai_marketplace_monitor.configure.tools import section_index
+    from tests.configure_util import make_ws
+
+    ws = await make_ws(
+        tmp_path,
+        """
+        [ai.openai]
+        api_key = "sk-test"
+        model = "gpt-4o"
+
+        [marketplace.facebook]
+        search_city = "houston"
+
+        [item.gopro]
+        search_phrases = ["gopro", "action camera"]
+        max_price = 200
+
+        [notification.gmail]
+        smtp_server = "smtp.gmail.com"
+        smtp_username = "me@example.com"
+        smtp_password = "secret"
+
+        [user.me]
+        email = "me@example.com"
+        notify_with = ["gmail"]
+        """,
+        toolkits=flow.toolkits(),
+    )
+    summaries = {e["type"]: [s.get("summary") for s in e["sections"]] for e in section_index(ws)}
+    assert summaries["ai"] == ["model gpt-4o"]
+    assert summaries["marketplace"] == ["searches houston"]
+    assert summaries["item"] == ["gopro, action camera; max $200"]
+    assert summaries["user"] == ["notified via email"]
+    assert monitoring_needs(ws) == []
+    opening = _opening(ws, None)
+    assert "- [marketplace.*]: facebook (searches houston)" in opening
+    assert "Still needed" not in opening
+    assert "Greet the user" in opening
+
+
+async def test_front_door_opening_lists_what_is_missing(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.configure.flow import _opening, monitoring_needs
+    from tests.configure_util import make_ws
+
+    ws = await make_ws(tmp_path, '[ai.openai]\napi_key = "sk-test"\n', toolkits=flow.toolkits())
+    assert monitoring_needs(ws) == [
+        "a search location (marketplace)",
+        "a way to notify the user (notification)",
+        "an item to search for (item)",
+    ]
+    assert "Still needed before aimm can monitor anything" in _opening(ws, None)
+
+
+async def test_thinking_is_shown_only_before_model_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.configure_util import BASE
+
+    config = tmp_path / "config.toml"
+    config.write_text(BASE, encoding="utf-8")
+    use_fake_model(
+        monkeypatch,
+        [[("ask_user", {"message": "Hi! How can I help?"})], [("finish", {"message": "Bye."})]],
+    )
+    ui = ScriptedSetupUI(["nothing, thanks"])
+    assert await flow.configure_front_door(ui, [config], home=tmp_path) == 0
+    shown = [m for m in ui.messages if m[0] == "assistant" or m[1] == "Thinking..."]
+    assert shown == [
+        ("progress", "Thinking..."),  # the first call; none while waiting for the user
+        ("assistant", "Hi! How can I help?"),
+        ("progress", "Thinking..."),  # the reply goes to the AI
+        ("assistant", "Bye."),
+    ]
+
+
+async def test_monitoring_needs_a_notification_that_reaches_the_user(
+    tmp_path: Path,
+) -> None:
+    from ai_marketplace_monitor.configure.tools import monitoring_needs, section_index
+    from tests.configure_util import make_ws
+
+    ws = await make_ws(
+        tmp_path,
+        """
+        [ai.openai]
+        api_key = "sk-test"
+
+        [marketplace.facebook]
+        search_city = "houston"
+
+        [item.camera]
+        search_phrases = "gopro"
+        max_price = "200 EUR"
+
+        [notification.gmail]
+        smtp_server = "smtp.gmail.com"
+        smtp_username = "me@example.com"
+        smtp_password = "secret"
+
+        [user.me]
+        notify_with = ["gmail"]
+        """,
+        toolkits=flow.toolkits(),
+    )
+    # the email notification needs the user's address, which is not set: nothing reaches them
+    assert monitoring_needs(ws) == ["a way to notify the user (notification)"]
+    summaries = {e["type"]: [s.get("summary") for s in e["sections"]] for e in section_index(ws)}
+    assert summaries["user"] == ["not notified"]
+    assert summaries["item"] == ["gopro; max 200 EUR"]  # no "$" before a currency
+    closing = how_to_run(False, monitoring_needs(ws))
+    assert "still needs a way to notify the user before" in closing
+    assert "`aimm configure`" in closing and "`aimm run`" not in closing

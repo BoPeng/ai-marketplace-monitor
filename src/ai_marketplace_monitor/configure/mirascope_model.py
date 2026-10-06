@@ -71,11 +71,14 @@ class MirascopeModelSession:
         self.timeout = timeout
         self.secret = backend.config.api_key
         self._last: Callable[[], Awaitable[Any]] | None = None
+        self.on_call: Callable[[], Awaitable[None]] | None = None
 
     async def _request(
         self: "MirascopeModelSession", make: Callable[[], Awaitable[Any]]
     ) -> ModelReply:
         self._last = make
+        if self.on_call is not None:
+            await self.on_call()
         for attempt in range(2):
             try:
                 response = await asyncio.wait_for(make(), self.timeout)
