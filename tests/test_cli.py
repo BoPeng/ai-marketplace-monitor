@@ -1,6 +1,6 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
-import re
+import inspect
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -21,19 +21,6 @@ else:
     import tomli as tomllib
 
 runner = CliRunner()
-_ANSI = re.compile(r"\x1b\[[0-9;]*m")
-
-
-def _help(args: List[str]) -> str:
-    """``--help`` output as plain text.
-
-    Rich styles the help when the environment forces color (as CI may), which can split an
-    option such as ``--headless`` into separately styled pieces; turn color off, use a wide
-    terminal so nothing wraps, and strip any escape codes that remain.
-    """
-    result = runner.invoke(cli.app, args, env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
-    assert result.exit_code == 0
-    return _ANSI.sub("", result.stdout)
 
 
 @pytest.mark.parametrize(
@@ -55,12 +42,13 @@ def test_command_line_interface(options: List[str], expected: str) -> None:
 
 
 def test_root_command_lists_subcommands() -> None:
-    text = _help(["--help"])
+    result = runner.invoke(cli.app, ["--help"])
 
-    assert "run" in text
-    assert "configure" in text
-    assert "check" in text
-    assert "admin" in text
+    assert result.exit_code == 0
+    assert "run" in result.stdout
+    assert "configure" in result.stdout
+    assert "check" in result.stdout
+    assert "admin" in result.stdout
 
 
 def test_root_command_without_args_defaults_to_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,14 +97,21 @@ def test_root_command_without_subcommand_accepts_run_options(
 
 
 def test_run_command_does_not_expose_one_shot_options() -> None:
-    text = _help(["run", "--help"])
+    result = runner.invoke(cli.app, ["run", "--help"], env={"COLUMNS": "100"})
 
-    assert "--headless" in text
-    assert "--webui" in text
-    assert "--check" not in text
-    assert "--clear-cache" not in text
-    assert "--normalize-config" not in text
-    assert "--expand-config" not in text
+    assert result.exit_code == 0
+    assert "--check" not in result.stdout
+    assert "--clear-cache" not in result.stdout
+    assert "--normalize-config" not in result.stdout
+    assert "--expand-config" not in result.stdout
+    run_command = next(command for command in cli.app.registered_commands if command.name == "run")
+    assert run_command.callback is not None
+    run_params = set(inspect.signature(run_command.callback).parameters)
+    assert "headless" in run_params
+    assert "webui" in run_params
+    assert "clear_cache" not in run_params
+    assert "normalize_config" not in run_params
+    assert "expand_config" not in run_params
 
 
 def test_normalize_config_prints_compact_toml_without_writing(
