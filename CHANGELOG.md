@@ -7,23 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-10-05
+
 ### Added
-- Update reminder: once a day the monitor checks PyPI and, when a newer release is out, logs the upgrade command for this installation (pip, pipx, `uv tool` or Docker) and shows a badge in the web UI header. Turn it off with `check_updates = false` in `[monitor]` or `AIMM_NO_UPDATE_CHECK=1`
-- `aimm-configure` (and `aimm-configure marketplace` / `marketplace.NAME`): describe what you want and your default AI service drafts the change through aimm's tools (read a section, update its draft, ask you, save); aimm validates every value and writes only the drafted sections after you confirm. Built on Mirascope for tool calling across providers
-- `aimm-configure item` / `item.NAME` (and items in `aimm-configure`): describe what to search for, the price, and any extra requests (kept in `extra_prompt`, in your words); the AI sees what the item inherits from its marketplace, sets only what should differ, and creates the marketplace (or adds its location) in the same conversation when needed
-- `aimm-configure notification` / `user` (and in `aimm-configure`): set up users and notification channels together, with `[user.me]` created when there is no user; the AI suggests UnitySVC email or Gmail for "notify me by email", writes credentials only as `${VAR}` references, and aimm lists the variables still to set after saving
-- `aimm-configure ai` with a working default AI (and AI services in `aimm-configure`): the AI updates, adds and reorders `[ai.*]` sections with the wizard's checks and model lists; a section becomes the default only if it works, and changes take effect on the next start. Without a working AI, the wizard runs as before
-- Moving a section first (the default AI) also works when the sections of a type are spread through the file
-- `aimm-configure monitor`, `region[.NAME]` and `translation[.NAME]` (and in `aimm-configure`): the proxy, custom or adjusted regions (cities from pasted Marketplace URLs), and Facebook page labels in another language, drafted by the AI and checked by the user against Facebook
-- Playbooks for AI-assisted configuration (goal, subtasks, completion rules), with optional house rules in `~/.ai-marketplace-monitor/playbooks/`
-- `aimm-configure`: primary interactive configuration command, starting with `[ai.*]` setup and writing API keys as environment-variable references
-- UnitySVC notifications (`[notification.unitysvc]` with `unitysvc_api_key`): messages go to UnitySVC's `notify` service (inbox plus your saved notification destination) or to a specific service set with `unitysvc_service`
-- Email preset for UnitySVC's SMTP gateway: `smtp_server = "smtp.svcpass.com"` with `smtp_password = "${UNITYSVC_API_KEY}"` sends the HTML email to your UnitySVC-registered address, an alternative to a Gmail app password
+- `aimm configure` as the primary AI-assisted configuration command. It can configure AI services, marketplace searches, items, notifications, users, monitor settings, regions, and translations, then validates and writes only confirmed changes.
+- Section-scoped configuration commands such as `aimm configure ai`, `aimm configure marketplace.NAME`, `aimm configure item.NAME`, and `aimm configure notification` for focused edits.
+- Web UI Configure chat that uses the same AI-assisted configuration flow from the browser.
+- Mirascope-backed tool calling and playbooks for provider-independent AI-assisted configuration, with optional house rules in `~/.ai-marketplace-monitor/playbooks/`.
+- UnitySVC AI support with model discovery, service aliases, and one `UNITYSVC_API_KEY` that can access almost arbitrary AI models through UnitySVC.
+- UnitySVC notifications (`[notification.unitysvc]`) with 100+ notification channels through UnitySVC's `notify` service or a specific `unitysvc_service`.
+- Email preset for UnitySVC's SMTP gateway: `smtp_server = "smtp.svcpass.com"` with `smtp_password = "${UNITYSVC_API_KEY}"` sends HTML email to your UnitySVC-registered address, as an alternative to a Gmail app password.
+- Dedicated CLI subcommands: `aimm run`, `aimm check`, `aimm admin`, and `aimm configure`; bare `aimm` and `ai-marketplace-monitor` run the monitor loop.
+- Update reminder: once a day the monitor checks PyPI and, when a newer release is out, logs the upgrade command for this installation (pip, pipx, `uv tool` or Docker) and shows a badge in the web UI header. Turn it off with `check_updates = false` in `[monitor]` or `AIMM_NO_UPDATE_CHECK=1`.
+- `use_images = true` on an `[ai.*]` section sends the listing's main photo to the AI along with the text (OpenAI-compatible providers; `image_detail` defaults to `"low"` to keep the cost small). If a request with an image fails, the listing is evaluated from its text.
 
 ### Fixed
-- `aimm` and `aimm-configure` start much faster: the OpenAI, Anthropic, inflect and Playwright packages are loaded only when needed (a cold `aimm-configure` start drops from about 13 s to under 2 s)
-- `aimm-configure ai` no longer proposes a model the provider does not offer: it lists the models the check found (keeping the current one when it still works, else the newest of the same family), warns about a model that is no longer available, and offers to fix a failing `[ai.*]` section before setting up a new one
-- `aimm-configure ai` checks only the default (first) AI section, lists the others, and offers to keep, update or fix it, make another section the default (moving it to the top), or create a new section, which becomes the default; other flows fall back to the next section with a warning when the default fails
+- Facebook listing descriptions no longer include injected ad and video text, and a page layout that finds no description no longer wins over one that does.
+- `aimm` and `aimm configure` start much faster: the OpenAI, Anthropic, inflect and Playwright packages are loaded only when needed.
+- `aimm configure ai` no longer proposes a model the provider does not offer: it lists the models the check found, warns about unavailable models, and offers to fix a failing `[ai.*]` section before setting up a new one.
+- `aimm configure ai` checks only the default AI section, lists the others, and offers to keep, update or fix it, make another section the default, or create a new section.
 - UnitySVC setup asks for the base URL (default `https://api.svcpass.com/p/llm`) and offers the models that URL lists, tiers and specific models alike, instead of a fixed list of four tiers; every provider's model list is fetched during setup when its key is set
 - The model menu also accepts a typed model name; when requests to a base URL are not found (404) but the same request works under `<base_url>/v1`, setup says so and offers to save the `/v1` URL
 - The default Anthropic model is now `claude-sonnet-5-5` (`claude-sonnet-4-20250514` is no longer offered)
@@ -265,6 +267,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.3...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.4...HEAD
+[0.10.4]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.2...v0.10.3
 [0.1.0]: https://github.com/BoPeng/ai-marketplace-monitor/compare/releases/tag/v0.1.0
