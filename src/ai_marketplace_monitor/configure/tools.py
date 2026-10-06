@@ -60,10 +60,14 @@ def section_index(ws: Workspace) -> List[Dict[str, Any]]:
     return types
 
 
-HOW_TO_RUN = (
-    "Your configuration is saved, but nothing is searching yet: run `aimm` to start "
-    "monitoring (an aimm that is already running picks up the change on its own)."
-)
+def how_to_run(monitor_running: bool) -> str:
+    """What the user must do for a saved change to take effect: saving starts nothing."""
+    if monitor_running:
+        return "Your configuration is saved; the running monitor picks up the change on its own."
+    return (
+        "Your configuration is saved, but nothing is searching yet: run `aimm run` to start "
+        "monitoring (a monitor that is already running picks up the change on its own)."
+    )
 
 
 class Outcome(Enum):
@@ -353,8 +357,10 @@ class ToolExecutor:
             "sections": [d.label for d in pending],
         }
         result["note"] = (
-            "Saved to the config file only: nothing is searching until the user runs `aimm`, "
-            "which aimm tells them when the session ends."
+            "Saved to the config file only; aimm configure starts no search. When the session "
+            "ends, aimm itself tells the user how the change takes effect ("
+            + how_to_run(self.ws.ui.monitor_running)
+            + "); do not repeat that."
         )
         if notes:
             result["shown_to_user"] = notes

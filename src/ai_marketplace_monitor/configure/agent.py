@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Protocol, Tuple
 
-from .tools import HOW_TO_RUN, Outcome, ToolExecutor
+from .tools import Outcome, ToolExecutor, how_to_run
 from .ui import SetupClosedError
 
 # model calls in a row without the user saying anything before aimm makes the LLM ask
@@ -65,7 +65,8 @@ async def run_agent(
         except ServiceError as e:
             await ui.say(str(e), kind="error")
             await ui.say(
-                "If the AI service keeps failing, fix it with `aimm-configure ai`.", kind="warning"
+                "If the AI service keeps failing, fix it with `aimm configure ai`.",
+                kind="warning",
             )
             while True:
                 answer = await executor.read_user("Press Enter to try again, or /quit to stop")
@@ -99,7 +100,7 @@ async def run_agent(
             )
         calls += 1
     if executor.saved:  # saving does not start a search; say so however the session ends
-        await ui.say(HOW_TO_RUN, kind="success")
+        await ui.say(how_to_run(ui.monitor_running), kind="success")
     if executor.closed:
         raise SetupClosedError
     if not executor.done:

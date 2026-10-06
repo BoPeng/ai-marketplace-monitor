@@ -1,6 +1,6 @@
 ---
 section: router
-summary: The aimm-configure command, which can work on any section it has tools for.
+summary: The aimm configure command, which can work on any section it has tools for.
 ---
 ## Goal
 
@@ -50,7 +50,7 @@ worked on (see `session_state`).
 ### AI services
 
 AI services are `[ai.*]` sections like any other. You are running on one of them; changes to
-them take effect the next time aimm or aimm-configure starts.
+them take effect the next time aimm starts.
 
 ### Sections without tools
 

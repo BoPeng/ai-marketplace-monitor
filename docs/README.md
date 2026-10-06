@@ -17,9 +17,9 @@
 The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` or `--config-file` option.
 
 To inspect the canonical configuration without writing anything back to disk, use
-`aimm --normalize-config`; to inspect the expanded AI-editing form, use
-`aimm --expand-config`. Both options also accept explicit files, for example
-`aimm --config-file my-config.toml --normalize-config`.
+`aimm admin --normalize-config`; to inspect the expanded AI-editing form, use
+`aimm admin --expand-config`. Both options also accept explicit files, for example
+`aimm admin --config-file my-config.toml --normalize-config`.
 
 To avoid including sensitive information directly in the configuration file, all options that accept a string or a list of string can be specified using the `${ENV_VAR}` format. For example
 
@@ -59,10 +59,10 @@ Note that:
 3. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-5-5`. An `api_key` is required.
 4. [Gemini](https://ai.google.dev/) is accessed through Google's OpenAI-compatible endpoint. The default model is `gemini-2.5-flash`. An `api_key` is required and can be obtained from [Google AI Studio](https://aistudio.google.com/apikey).
 5. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
-6. [UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm-configure ai` lists the models your key can use. Set `base_url` to use any other LLM service from the [UnitySVC catalog](https://unitysvc.com/market) instead, including OpenAI, Anthropic and other providers with your own provider keys (see below). An `api_key` is required. The same key (`UNITYSVC_API_KEY`) is used for both UnitySVC AI and [UnitySVC notifications](#unitysvc-notification), so one key covers rating listings and delivering the results.
+6. [UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. Set `base_url` to use any other LLM service from the [UnitySVC catalog](https://unitysvc.com/market) instead, including OpenAI, Anthropic and other providers with your own provider keys (see below). An `api_key` is required. The same key (`UNITYSVC_API_KEY`) is used for both UnitySVC AI and [UnitySVC notifications](#unitysvc-notification), so one key covers rating listings and delivering the results.
 7. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 8. You can use option `ai` to list the AI services for particular marketplaces or items.
-9. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm-configure ai` to make another section the default.
+9. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm configure ai` to make another section the default.
 10. `use_images` sends the main listing photo along with the text for OpenAI-compatible providers (it is ignored by Anthropic). It requires a vision-capable model and adds image tokens to every new evaluation: roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. If a request with an image fails, the evaluation is retried without the image.
 
 A typical section for OpenAI looks like
@@ -109,7 +109,7 @@ Notes on UnitySVC services:
 - **Log requests.** Prefix the path with `/l/` to record each call in your UnitySVC request logs, e.g. `base_url = 'https://api.svcpass.com/l/p/llm'`. This works with any path, such as `/l/a/myllm`, and is useful for checking what aimm sends and what the model returns.
 - **Request formats.** aimm sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
 
-The easiest way to set up an AI service is `aimm-configure`: it is the primary interactive configuration command, checks your `[ai.*]` sections first, helps you add or update one, and writes the section with the key referenced as an environment variable.
+The easiest way to set up an AI service is `aimm configure`: it is the primary interactive configuration command, checks your `[ai.*]` sections first, helps you add or update one, and writes the section with the key referenced as an environment variable.
 
 ### Marketplaces
 

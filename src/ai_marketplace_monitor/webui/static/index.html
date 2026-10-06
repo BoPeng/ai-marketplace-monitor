@@ -32,6 +32,7 @@
         <span id="config-name" class="config-name">—</span>
       </div>
       <div class="header-right">
+        <a id="update-badge" class="status-chip status-update" target="_blank" rel="noopener" hidden></a>
         <span id="monitor-status" class="status-chip status-warn" title="Last activity from the monitor">● monitor: idle</span>
         <button id="restart-btn" class="ghost small" title="Wake up and search all items now" aria-label="Wake up and search all items now">▶</button>
         <a id="browser-btn" class="ghost" href="/vnc/vnc.html?path=ws/vnc&autoconnect=1&resize=scale" target="_blank" rel="noopener" title="Open the live Chromium view (CAPTCHA / login)" hidden>Browser</a>
@@ -60,6 +61,31 @@
           <div id="editor-host"></div>
         </div>
         <div id="editor-status" class="editor-status"></div>
+      </section>
+
+      <section class="chat-pane">
+        <div class="chat-toolbar">
+          <span class="pane-title">Configure</span>
+          <input id="chat-section" list="chat-section-options" type="text" placeholder="section" autocomplete="off" />
+          <datalist id="chat-section-options">
+            <option value="ai"></option>
+            <option value="marketplace"></option>
+            <option value="item"></option>
+            <option value="notification"></option>
+            <option value="user"></option>
+            <option value="region"></option>
+            <option value="translation"></option>
+            <option value="monitor"></option>
+          </datalist>
+          <button id="chat-start" class="toolbar-btn">Start</button>
+          <button id="chat-cancel" class="toolbar-btn" disabled>Cancel</button>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div id="chat-options" class="chat-options"></div>
+        <form id="chat-form" class="chat-form">
+          <input id="chat-input" type="text" placeholder="Reply…" autocomplete="off" disabled />
+          <button id="chat-send" class="toolbar-btn" disabled>Send</button>
+        </form>
       </section>
 
       <section class="logs-pane">

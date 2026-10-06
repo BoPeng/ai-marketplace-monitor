@@ -1,5 +1,6 @@
 """Tests for `ai_marketplace_monitor`.cli module."""
 
+import inspect
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -11,6 +12,7 @@ from typer.testing import CliRunner
 
 import ai_marketplace_monitor
 from ai_marketplace_monitor import cli
+from ai_marketplace_monitor.commands import admin as admin_command
 from ai_marketplace_monitor.config import Config
 
 if sys.version_info >= (3, 11):
@@ -39,12 +41,85 @@ def test_command_line_interface(options: List[str], expected: str) -> None:
     assert expected in result.stdout
 
 
+def test_root_command_lists_subcommands() -> None:
+    result = runner.invoke(cli.app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "run" in result.stdout
+    assert "configure" in result.stdout
+    assert "check" in result.stdout
+    assert "admin" in result.stdout
+
+
+def test_root_command_without_args_defaults_to_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def fake_run_monitor(*args: object) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(cli, "_run_monitor", fake_run_monitor)
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 0
+    assert calls == [(None, False, False, True, "127.0.0.1", 8467, 2000)]
+
+
+def test_root_command_without_subcommand_accepts_run_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def fake_run_monitor(*args: object) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(cli, "_run_monitor", fake_run_monitor)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--config",
+            "custom.toml",
+            "--headless",
+            "--verbose",
+            "--no-webui",
+            "--webui-host",
+            "127.0.0.2",
+            "--webui-port",
+            "9090",
+            "--webui-log-retention",
+            "50",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls == [([Path("custom.toml")], True, True, False, "127.0.0.2", 9090, 50)]
+
+
+def test_run_command_does_not_expose_one_shot_options() -> None:
+    result = runner.invoke(cli.app, ["run", "--help"], env={"COLUMNS": "100"})
+
+    assert result.exit_code == 0
+    assert "--check" not in result.stdout
+    assert "--clear-cache" not in result.stdout
+    assert "--normalize-config" not in result.stdout
+    assert "--expand-config" not in result.stdout
+    run_command = next(command for command in cli.app.registered_commands if command.name == "run")
+    assert run_command.callback is not None
+    run_params = set(inspect.signature(run_command.callback).parameters)
+    assert "headless" in run_params
+    assert "webui" in run_params
+    assert "clear_cache" not in run_params
+    assert "normalize_config" not in run_params
+    assert "expand_config" not in run_params
+
+
 def test_normalize_config_prints_compact_toml_without_writing(
     config_file: Callable,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(cli, "amm_home", tmp_path)
+    monkeypatch.setattr(admin_command, "amm_home", tmp_path)
     content = """
 [ai.openai]
 api_key = "sk-test"
@@ -70,7 +145,7 @@ ai = ["openai"]
 """
     cfg = config_file(content)
 
-    result = runner.invoke(cli.app, ["--config", cfg, "--normalize-config"])
+    result = runner.invoke(cli.app, ["admin", "--config", cfg, "--normalize-config"])
 
     assert result.exit_code == 0
     assert Path(cfg).read_text() == content
@@ -89,11 +164,11 @@ def test_expand_config_prints_expanded_toml_from_config_file_alias(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(cli, "amm_home", tmp_path)
+    monkeypatch.setattr(admin_command, "amm_home", tmp_path)
     content = base_marketplace_cfg + base_item_cfg + base_user_cfg
     cfg = config_file(content)
 
-    result = runner.invoke(cli.app, ["--config-file", cfg, "--expand-config"])
+    result = runner.invoke(cli.app, ["admin", "--config-file", cfg, "--expand-config"])
 
     assert result.exit_code == 0
     assert Path(cfg).read_text() == content
@@ -116,13 +191,15 @@ def test_config_print_modes_are_mutually_exclusive(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(cli, "amm_home", tmp_path)
+    monkeypatch.setattr(admin_command, "amm_home", tmp_path)
     cfg = config_file(base_marketplace_cfg + base_item_cfg + base_user_cfg)
 
-    result = runner.invoke(cli.app, ["--config", cfg, "--normalize-config", "--expand-config"])
+    result = runner.invoke(
+        cli.app, ["admin", "--config", cfg, "--normalize-config", "--expand-config"]
+    )
 
     assert result.exit_code == 1
-    assert "Choose only one" in result.output
+    assert "Choose exactly one" in result.output
 
 
 @pytest.fixture(scope="session")

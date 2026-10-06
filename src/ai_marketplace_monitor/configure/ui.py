@@ -26,6 +26,10 @@ class Choice:
 
 
 class SetupUI(Protocol):
+    # True when the front end runs inside a running monitor (the web UI): a saved change
+    # takes effect without starting anything
+    monitor_running: bool
+
     async def say(
         self: "SetupUI", text: str, *, kind: str = "info", markdown: bool = False
     ) -> None: ...
@@ -57,9 +61,12 @@ class JsonSetupUI:
         self: "JsonSetupUI",
         send: Callable[[Dict[str, Any]], Awaitable[None]],
         receive: Callable[[], Awaitable[Dict[str, Any]]],
+        *,
+        monitor_running: bool = False,
     ) -> None:
         self._send = send
         self._receive = receive
+        self.monitor_running = monitor_running
 
     async def say(
         self: "JsonSetupUI", text: str, *, kind: str = "info", markdown: bool = False
@@ -157,6 +164,8 @@ class ConsoleSetupUI:
     _assistant_label = "bold magenta"
     _prompt_style = "bold cyan"
 
+    monitor_running = False  # the terminal command runs on its own
+
     def __init__(
         self: "ConsoleSetupUI",
         console: Console | None = None,
@@ -166,7 +175,7 @@ class ConsoleSetupUI:
         if interactive is None:
             interactive = sys.stdin.isatty()
         if not interactive:
-            raise RuntimeError("aimm-configure needs an interactive terminal")
+            raise RuntimeError("aimm configure needs an interactive terminal")
         self.console = console or Console()
         self._read = read
 
@@ -239,7 +248,10 @@ class ConsoleSetupUI:
 class ScriptedSetupUI:
     """Test front end with canned answers."""
 
-    def __init__(self: "ScriptedSetupUI", answers: List[str]) -> None:
+    def __init__(
+        self: "ScriptedSetupUI", answers: List[str], *, monitor_running: bool = False
+    ) -> None:
+        self.monitor_running = monitor_running
         self.answers = list(answers)
         self.messages: List[Tuple[str, str]] = []
         self.questions: List[str] = []

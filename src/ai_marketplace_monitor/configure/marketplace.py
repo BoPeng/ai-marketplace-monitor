@@ -327,7 +327,7 @@ class MarketplaceToolkit(Toolkit):
         section.update(self.masked(draft.values))
         return f"```toml\n{dump_config_toml({'marketplace': {draft.name: section}})}```"
 
-    # --- choosing what to edit (aimm-configure marketplace) ----------------------------------
+    # --- choosing what to edit (aimm configure marketplace) ----------------------------------
     async def choose_target(
         self: "MarketplaceToolkit", ui: SetupUI, ws: "Workspace", name: str | None
     ) -> str | None:

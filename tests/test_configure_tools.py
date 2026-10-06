@@ -134,7 +134,7 @@ async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None
         "sections": ["[marketplace.facebook]", "[marketplace.home]"],
         "note": out["note"],
     }
-    assert "`aimm`" in out["note"]  # the model knows nothing is searching yet
+    assert "`aimm run`" in out["note"]  # the model knows nothing is searching yet
     written = tomllib.loads((tmp_path / "config.toml").read_text())
     assert written["marketplace"]["facebook"]["max_price"] == "1000"
     assert written["marketplace"]["home"] == {"search_city": "austin"}

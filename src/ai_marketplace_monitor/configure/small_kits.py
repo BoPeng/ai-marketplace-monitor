@@ -139,6 +139,13 @@ MONITOR_GUIDES: Tuple[FieldGuide, ...] = (
         "none",
         secret=True,
     ),
+    FieldGuide(
+        "check_updates",
+        "only to stop aimm from checking PyPI once a day for a newer release (shown in the "
+        "log and the web UI)",
+        "`false`",
+        "on",
+    ),
 )
 
 
