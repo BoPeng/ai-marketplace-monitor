@@ -1859,6 +1859,18 @@
     } catch (_) {}
   };
 
+  const buildVncUrl = () => {
+    const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+    const params = new URLSearchParams({
+      host: window.location.hostname,
+      port,
+      path: "ws/vnc",
+      autoconnect: "1",
+      resize: "scale",
+    });
+    return `/vnc/vnc.html?${params.toString()}`;
+  };
+
   const bootstrap = async () => {
     refreshUpdateBadge();
     if (!state.updateTimer) state.updateTimer = setInterval(refreshUpdateBadge, 10 * 60 * 1000);
@@ -1883,7 +1895,10 @@
         try {
           const status = await res.clone().json();
           const browserBtn = document.getElementById("browser-btn");
-          if (browserBtn && status && status.vnc_enabled) browserBtn.hidden = false;
+          if (browserBtn && status && status.vnc_enabled) {
+            browserBtn.href = buildVncUrl();
+            browserBtn.hidden = false;
+          }
         } catch (_) {}
         hideLogin();
         await bootstrap();
