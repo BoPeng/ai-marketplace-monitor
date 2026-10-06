@@ -6,6 +6,9 @@ labels: discussion
 assignees: ""
 ---
 
+For quick questions, informal help, search ideas, and release updates, you can
+also join our Discord community: https://discord.gg/2GJhstD7av
+
 **Topic or Idea**
 Briefly describe the topic or idea you'd like to discuss. Be clear and concise to help others understand the focus of the conversation.
 

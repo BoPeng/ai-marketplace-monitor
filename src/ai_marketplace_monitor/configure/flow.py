@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
+from .. import COMMUNITY_MESSAGE
 from ..ai import AIBackend
 from ..config import supported_ai_backends
 from ..utils import amm_home
@@ -318,4 +319,5 @@ async def configure_front_door(
         return 0
     if ai is None:
         return 1
+    await ui.say(COMMUNITY_MESSAGE)
     return await run_session(ui, config_files, ai, toolkits(), home=home)

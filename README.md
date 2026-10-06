@@ -261,13 +261,14 @@ This project is licensed under the **Affero General Public License (AGPL)**. For
 
 We provide multiple ways to access support and contribute to AI Marketplace Monitor:
 
+- 💬 [Discord](https://discord.gg/2GJhstD7av) - Ask questions, share your searches, and hear about new releases (no GitHub account needed)
 - 📖 [Documentation](https://ai-marketplace-monitor.readthedocs.io/) - Comprehensive guides and instructions
 - 🤝 [Discussions](https://github.com/BoPeng/ai-marketplace-monitor/discussions) - Community support and ideas
 - 🐛 [Issues](https://github.com/BoPeng/ai-marketplace-monitor/issues) - Bug reports and feature requests
 - 💖 [Become a sponsor](https://github.com/sponsors/BoPeng) - Support development
 - 💰 [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=3WT5JPQ2793BN) - Alternative donation method
 
-**Important Note:** Due to time constraints, priority support is provided to sponsors and donors. For general questions, please use the GitHub Discussions or Issues.
+**Important Note:** Due to time constraints, priority support is provided to sponsors and donors. For general questions, please join us on [Discord](https://discord.gg/2GJhstD7av) or use GitHub Discussions; report bugs as GitHub Issues.
 
 ## 🙏 Credits
 
