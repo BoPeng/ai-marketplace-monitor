@@ -33,6 +33,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
+- **Configure with AI**: Run `aimm-configure` and describe what you want in plain words; it drafts the configuration and shows you every change before saving. See [Configure with AI](#configure-with-ai).
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
 - **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-5-5`) to evaluate listings alongside OpenAI, DeepSeek, Gemini, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
 - **Configurable Rate Limiting**: Rate limiting framework for all notification types with per-instance and global limits. Telegram notifications use optimized defaults automatically.
@@ -117,6 +118,74 @@ max_price = 300
 [user.me]
 pushbullet_token = 'your_token_here'  # Get from pushbullet.com
 ```
+
+### Configure with AI
+
+Instead of editing the file by hand, you can run `aimm-configure` and describe what you want in plain words. It summarizes your current configuration and what is still missing, drafts the changes, and shows them to you before writing anything. Here is a real session that adds an item:
+
+```text
+$ aimm-configure
+Using [ai.anthropic].
+Thinking...
+AIMM: You have two AI services (Anthropic as the default, and UnitySVC with qwen3.7-flash), a
+Facebook marketplace search around Houston, and notifications to you via UnitySVC. The only thing
+still missing is an item to search for, so aimm can't monitor anything yet. Want to start by adding
+one?
+
+How can I help? For example: "I want to add an item" (like "watch for a GoPro under $200"), "update
+my marketplace settings", or "what can I configure?"
+You: I want to watch for an action camera: a GoPro Hero 9 or newer, a DJI Osmo Action 3 or newer,
+or an Insta360 X3, X4 or Ace Pro. Used is fine if it works, with no water damage and no scratched
+lens. Preferably under $250. Same Houston area, check every 30 minutes.
+Thinking...
+Thinking...
+Thinking...
+Thinking...
+New item "action_camera": searches for GoPro Hero 9+, DJI Osmo Action 3+, Insta360 X3/X4/Ace Pro;
+working used condition, no water damage or scratched lens; max $250; checked every 30 minutes;
+Houston area (20 miles) from your existing marketplace.
+
+ [item.action_camera]
+ request = "Watch for an action camera (GoPro Hero 9+, DJI Osmo Action 3+, Insta360 X3/X4/Ace Pro);
+ used is fine if working, no water damage or scratched lens; preferably under $250; Houston area,
+ check every 30 minutes."
+ search_phrases = ["gopro hero", "dji osmo action", "insta360 x3", "insta360 x4", "insta360 ace pro",
+ "action camera"]
+ description = "Action camera: GoPro Hero 9 or newer, DJI Osmo Action 3 or newer, or Insta360 X3,
+ X4 or Ace Pro. Used is fine if it works. No water damage and no scratched lens."
+ keywords = ["gopro", "go pro", "osmo", "dji", "insta360"]
+ max_price = "250"
+ search_interval = "30m"
+
+ (a diff of ~/.ai-marketplace-monitor/config.toml follows)
+
+Write these changes? [Y/n] y
+Saved ~/.ai-marketplace-monitor/config.toml.
+Thinking...
+AIMM: I've saved the action camera item. It covers these cameras:
+- GoPro Hero 9 or newer
+- DJI Osmo Action 3 or newer
+- Insta360 X3, X4 and Ace Pro
+
+Other settings:
+- Condition: used is fine if it works, with no water damage and no scratched lens.
+- Price: up to $250.
+- Check interval: every 30 minutes.
+- Location: it uses your Houston marketplace, within 20 miles.
+
+Two things to know:
+- I treated $250 as a firm maximum, since "preferably" can't be set as a soft limit.
+- I added a brand filter, so listings that don't mention GoPro, DJI, Osmo or Insta360 are skipped.
+
+Is there anything else you'd like to change?
+You: No, that's all. Thanks.
+Thinking...
+AIMM: All set. Your action camera item is saved. Run `aimm` to start searching.
+Your configuration is saved, but nothing is searching yet: run `aimm` to start monitoring (an aimm
+that is already running picks up the change on its own).
+```
+
+`aimm-configure` can also work on one part at a time, for example `aimm-configure ai`, `aimm-configure marketplace` or `aimm-configure item`. It needs an AI service; if none is configured yet, it helps you set one up first.
 
 ### Run the Monitor
 

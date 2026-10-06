@@ -46,8 +46,9 @@ def main(
         Optional[str],
         typer.Argument(
             help=(
-                "Optional section to configure: 'ai', 'ai.<name>', 'marketplace', "
-                "or 'marketplace.<name>' ('item' is reserved)."
+                "Optional section to configure: 'ai', 'marketplace', 'item', 'notification', "
+                "'user', 'region', 'translation' (each also as '<type>.<name>'), or 'monitor'. "
+                "Without one, describe what you want and the AI works on any of them."
             )
         ),
     ] = None,

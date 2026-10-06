@@ -5,6 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from ai_marketplace_monitor.configure import cli, flow
+from ai_marketplace_monitor.configure.tools import HOW_TO_RUN
 from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
 
 runner = CliRunner()
@@ -239,6 +240,8 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     ui = ScriptedSetupUI(["limit my Houston search to 20 miles", "yes"])
     assert await flow.configure_front_door(ui, [config], home=tmp_path) == 0
     assert read(config)["marketplace"]["facebook"]["radius"] == [20]
+    # saving starts nothing: aimm says how to start monitoring when the session ends
+    assert ui.messages[-1] == ("success", HOW_TO_RUN)
     assert read(config)["item"]["example"] == {
         "search_phrases": "road bike",
         "min_price": 50,
@@ -397,3 +400,25 @@ async def test_front_door_opening_lists_what_is_missing(tmp_path: Path) -> None:
         "an item to search for (item)",
     ]
     assert "Still needed before aimm can monitor anything" in _opening(ws, None)
+
+
+async def test_thinking_is_shown_only_before_model_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.configure_util import BASE
+
+    config = tmp_path / "config.toml"
+    config.write_text(BASE, encoding="utf-8")
+    use_fake_model(
+        monkeypatch,
+        [[("ask_user", {"message": "Hi! How can I help?"})], [("finish", {"message": "Bye."})]],
+    )
+    ui = ScriptedSetupUI(["nothing, thanks"])
+    assert await flow.configure_front_door(ui, [config], home=tmp_path) == 0
+    shown = [m for m in ui.messages if m[0] == "assistant" or m[1] == "Thinking..."]
+    assert shown == [
+        ("progress", "Thinking..."),  # the first call; none while waiting for the user
+        ("assistant", "Hi! How can I help?"),
+        ("progress", "Thinking..."),  # the reply goes to the AI
+        ("assistant", "Bye."),
+    ]

@@ -61,8 +61,8 @@ def section_index(ws: Workspace) -> List[Dict[str, Any]]:
 
 
 HOW_TO_RUN = (
-    "The configuration is set. Run `aimm` to start searching; an aimm that is already "
-    "running picks up the change on its own."
+    "Your configuration is saved, but nothing is searching yet: run `aimm` to start "
+    "monitoring (an aimm that is already running picks up the change on its own)."
 )
 
 
@@ -89,7 +89,6 @@ class ToolExecutor:
     calls: List[Tuple[str, Dict[str, Any]]] = field(default_factory=list)
     # section types whose guide (playbook + field table) the model has read
     guides_read: Set[str] = field(default_factory=set)
-    told_how_to_run: bool = False  # the user was told to run aimm after a save
 
     # --- state ------------------------------------------------------------------------------
     @property
@@ -353,10 +352,10 @@ class ToolExecutor:
             "saved": True,
             "sections": [d.label for d in pending],
         }
-        if not self.told_how_to_run:
-            self.told_how_to_run = True
-            notes.append(HOW_TO_RUN)
-            await self.ws.ui.say(HOW_TO_RUN, kind="success")
+        result["note"] = (
+            "Saved to the config file only: nothing is searching until the user runs `aimm`, "
+            "which aimm tells them when the session ends."
+        )
         if notes:
             result["shown_to_user"] = notes
         return result
@@ -386,7 +385,7 @@ class ToolExecutor:
                 ],
             }
         if message:
-            await self.ws.ui.say(message)
+            await self.ws.ui.say(message, kind="assistant")
         if pending:
             await self.ws.ui.say("Unsaved changes were discarded.", kind="warning")
         self.end(discarded=bool(pending))

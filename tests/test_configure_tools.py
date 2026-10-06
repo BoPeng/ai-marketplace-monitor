@@ -10,7 +10,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from ai_marketplace_monitor.configure.tools import HOW_TO_RUN, Outcome, ToolExecutor
+from ai_marketplace_monitor.configure.tools import Outcome, ToolExecutor
 from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of, url
 
 
@@ -132,9 +132,9 @@ async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None
         "ok": True,
         "saved": True,
         "sections": ["[marketplace.facebook]", "[marketplace.home]"],
-        "shown_to_user": [HOW_TO_RUN],  # once per session, after the first save
+        "note": out["note"],
     }
-    assert HOW_TO_RUN in ui_of(ex.ws).said("success")
+    assert "`aimm`" in out["note"]  # the model knows nothing is searching yet
     written = tomllib.loads((tmp_path / "config.toml").read_text())
     assert written["marketplace"]["facebook"]["max_price"] == "1000"
     assert written["marketplace"]["home"] == {"search_city": "austin"}
