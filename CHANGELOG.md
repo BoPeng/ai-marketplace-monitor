@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Update reminder: once a day the monitor checks PyPI and, when a newer release is out, logs the upgrade command for this installation (pip, pipx, `uv tool` or Docker) and shows a badge in the web UI header. Turn it off with `check_updates = false` in `[monitor]` or `AIMM_NO_UPDATE_CHECK=1`
 - `aimm-configure` (and `aimm-configure marketplace` / `marketplace.NAME`): describe what you want and your default AI service drafts the change through aimm's tools (read a section, update its draft, ask you, save); aimm validates every value and writes only the drafted sections after you confirm. Built on Mirascope for tool calling across providers
 - `aimm-configure item` / `item.NAME` (and items in `aimm-configure`): describe what to search for, the price, and any extra requests (kept in `extra_prompt`, in your words); the AI sees what the item inherits from its marketplace, sets only what should differ, and creates the marketplace (or adds its location) in the same conversation when needed
 - `aimm-configure notification` / `user` (and in `aimm-configure`): set up users and notification channels together, with `[user.me]` created when there is no user; the AI suggests UnitySVC email or Gmail for "notify me by email", writes credentials only as `${VAR}` references, and aimm lists the variables still to set after saving

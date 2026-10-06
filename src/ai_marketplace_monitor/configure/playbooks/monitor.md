@@ -4,9 +4,9 @@ summary: Global settings in the single [monitor] section, currently the proxy ai
 ---
 ## Goal
 
-A `[monitor]` section with the settings that apply to aimm as a whole. Today that is a proxy:
-aimm's browser connects to Facebook through it, which helps when Facebook blocks or limits the
-user's own connection.
+A `[monitor]` section with the settings that apply to aimm as a whole: a proxy, which aimm's
+browser uses to reach Facebook (it helps when Facebook blocks or limits the user's own
+connection), and the update reminder.
 
 ## Subtasks
 
@@ -17,6 +17,11 @@ Ask for the proxy address from the user's proxy or VPN provider (`proxy_server`,
 account, `proxy_username` and `proxy_password` are references to environment variables
 (`${PROXY_USERNAME}`, `${PROXY_PASSWORD}`); never ask for them in the chat. `proxy_bypass` only if
 the user names hosts that should not use the proxy.
+
+### Update reminder
+
+aimm checks PyPI once a day and says in its log and the web UI when a newer release is out. Set
+`check_updates = false` only if the user wants that off.
 
 ### Removing the proxy
 

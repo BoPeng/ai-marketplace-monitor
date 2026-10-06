@@ -116,6 +116,8 @@ html, body {
 }
 .status-ok { color: var(--ok); border-color: rgba(74, 222, 128, 0.35); }
 .status-warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); }
+.status-update { color: var(--accent, #60a5fa); border-color: rgba(96, 165, 250, 0.35); text-decoration: none; }
+.status-update[hidden] { display: none; }
 .status-err { color: var(--err); border-color: rgba(248, 113, 113, 0.35); }
 
 .header button,

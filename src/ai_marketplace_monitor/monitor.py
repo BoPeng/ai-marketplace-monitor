@@ -499,6 +499,10 @@ class MarketplaceMonitor:
         # Open a new browser page.
         self.load_config_file()
         assert self.config is not None
+        # in the background: a newer release is announced in the log and the web UI
+        from .update_check import check_in_background
+
+        check_in_background(self.logger, self.config.monitor.check_updates)
         # If requested (by the web UI), defer browser launch until
         # marketplace credentials are set. Without this, Playwright
         # navigates to the Facebook login page and waits for manual
