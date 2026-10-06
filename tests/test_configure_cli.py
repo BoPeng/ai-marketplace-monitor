@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 import pytest
 from typer.testing import CliRunner
 
+from ai_marketplace_monitor import COMMUNITY_MESSAGE
 from ai_marketplace_monitor import cli as root_cli
 from ai_marketplace_monitor.configure import cli, flow
 from ai_marketplace_monitor.configure.ui import ScriptedSetupUI
@@ -257,6 +258,7 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     )
     ui = ScriptedSetupUI(["limit my Houston search to 20 miles", "yes"])
     assert await flow.configure_front_door(ui, [config], home=tmp_path) == 0
+    assert COMMUNITY_MESSAGE in ui.said("info")  # aimm itself points to the community
     assert read(config)["marketplace"]["facebook"]["radius"] == [20]
     assert read(config)["item"]["example"] == {
         "search_phrases": "road bike",

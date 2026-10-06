@@ -12,6 +12,7 @@ from playwright.sync_api import Browser, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 from rich.prompt import Prompt
 
+from . import COMMUNITY_MESSAGE
 from .ai import AIBackend, AIResponse
 from .config import (
     Config,
@@ -503,6 +504,8 @@ class MarketplaceMonitor:
         from .update_check import check_in_background
 
         check_in_background(self.logger, self.config.monitor.check_updates)
+        if self.logger:
+            self.logger.info(f"""{hilight("[Community]", "info")} {COMMUNITY_MESSAGE}""")
         # If requested (by the web UI), defer browser launch until
         # marketplace credentials are set. Without this, Playwright
         # navigates to the Facebook login page and waits for manual
