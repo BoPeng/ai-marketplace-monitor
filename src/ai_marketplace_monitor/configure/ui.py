@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable, ClassVar, Dict, List, Protocol, Tup
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.text import Text
 
 
 class SetupClosedError(Exception):
@@ -152,6 +153,9 @@ class ConsoleSetupUI:
         "warning": "yellow",
         "error": "bold red",
     }
+    # the AI's messages are labelled "AIMM:", and prompts for the user stand out
+    _assistant_label = "bold magenta"
+    _prompt_style = "bold cyan"
 
     def __init__(
         self: "ConsoleSetupUI",
@@ -171,6 +175,9 @@ class ConsoleSetupUI:
     ) -> None:
         if markdown:
             self.console.print(Markdown(text))
+            return
+        if kind == "assistant":
+            self.console.print(Text.assemble(("AIMM: ", self._assistant_label), text))
             return
         self.console.print(text, style=self._styles.get(kind, ""), markup=False, highlight=False)
 
@@ -203,7 +210,9 @@ class ConsoleSetupUI:
 
     async def ask_text(self: "ConsoleSetupUI", prompt: str, default: str | None = None) -> str:
         suffix = f" [{default}]" if default else ""
-        raw = self._input(f"{prompt}{suffix}: ")
+        # printed before reading so the prompt can be coloured; input() gets no prompt
+        self.console.print(Text(f"{prompt}{suffix}: ", self._prompt_style), end="")
+        raw = self._input("")
         if not raw.strip() and default is not None:
             return default
         return raw

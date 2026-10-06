@@ -83,7 +83,7 @@ async def run_agent(
             reply = await request(lambda c=current: model.run_tools(c))  # type: ignore[misc]
         else:
             if reply.text.strip():
-                await ui.say(reply.text.strip())
+                await ui.say(reply.text.strip(), kind="assistant")
             text = await executor.read_user()
             if text is None:
                 break

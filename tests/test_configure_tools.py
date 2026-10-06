@@ -3,14 +3,14 @@
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
 
-from ai_marketplace_monitor.configure.tools import Outcome, ToolExecutor
+from ai_marketplace_monitor.configure.tools import HOW_TO_RUN, Outcome, ToolExecutor
 from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of, url
 
 
@@ -132,7 +132,9 @@ async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None
         "ok": True,
         "saved": True,
         "sections": ["[marketplace.facebook]", "[marketplace.home]"],
+        "shown_to_user": [HOW_TO_RUN],  # once per session, after the first save
     }
+    assert HOW_TO_RUN in ui_of(ex.ws).said("success")
     written = tomllib.loads((tmp_path / "config.toml").read_text())
     assert written["marketplace"]["facebook"]["max_price"] == "1000"
     assert written["marketplace"]["home"] == {"search_city": "austin"}
@@ -308,3 +310,30 @@ async def test_session_state_tracks_drafts(tmp_path: Path) -> None:
         ],
         "last_section": "marketplace.home",
     }
+
+
+async def test_console_labels_the_ai_and_colours_the_prompt() -> None:
+    import io
+
+    from rich.console import Console
+
+    from ai_marketplace_monitor.configure.ui import ConsoleSetupUI
+
+    out = io.StringIO()
+    prompts: List[str] = []
+
+    def read(prompt: str) -> str:
+        prompts.append(prompt)
+        return "hi"
+
+    ui = ConsoleSetupUI(
+        console=Console(file=out, force_terminal=True, width=80),
+        read=read,
+        interactive=True,
+    )
+    await ui.say("What would you like to change?", kind="assistant")
+    assert await ui.ask_text("You", default="") == "hi"
+    text = out.getvalue()
+    assert "AIMM: " in text and "What would you like to change?" in text
+    assert "You: " in text and "\x1b[" in text  # styled
+    assert prompts == [""]  # the prompt is printed, not passed to input()
