@@ -9,6 +9,7 @@ AI Marketplace Monitor includes a built-in web interface for editing your config
 The web UI provides:
 
 - **TOML Config Editor** with syntax highlighting, powered by CodeMirror
+- **Configure Chat** that uses the same AI-assisted configuration tools as `aimm configure`
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level, item, AI score, and text search
 - **Export CSV** button in the header downloads all found (notified) listings — link, price, rating, and details — as a CSV file
@@ -34,6 +35,14 @@ The web UI is available at [http://127.0.0.1:8467](http://127.0.0.1:8467). A sta
 ```
 
 On localhost, **no password is required**. Open the URL in your browser and start editing.
+
+## Configure Chat
+
+The **Configure** pane lets you edit the config through the same AI-assisted flow as
+`aimm configure`. Leave the section field blank to let the assistant route the request,
+or enter a section address such as `ai`, `marketplace`, `item.gopro`, or `notification`
+before starting. The chat asks for confirmation before tool-driven changes are written,
+then the editor reloads the updated config.
 
 ## Disabling the Web UI
 
