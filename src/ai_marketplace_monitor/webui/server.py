@@ -34,6 +34,13 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from ..configure.flow import (
+    ConfigureAddressError,
+    configure_front_door,
+    configure_section,
+    validate_section_address,
+)
+from ..configure.ui import JsonSetupUI, SetupClosedError
 from ..utils import cache
 from .auth import (
     CSRF_COOKIE,
@@ -213,6 +220,12 @@ def create_app(
         if not header or not csrf_cookie or not secrets.compare_digest(header, csrf_cookie):
             raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
+    def websocket_is_authenticated(websocket: WebSocket) -> bool:
+        if is_open():
+            return True
+        session = websocket.cookies.get(SESSION_COOKIE)
+        return bool(session and sessions.validate(session) is not None)
+
     # ------------------------------------------------------------------
     # Routes
     # ------------------------------------------------------------------
@@ -386,11 +399,9 @@ def create_app(
     async def ws_stream(websocket: WebSocket) -> None:
         # In open mode (loopback) skip cookie check; otherwise require
         # a valid session cookie on the WebSocket handshake.
-        if not is_open():
-            session = websocket.cookies.get(SESSION_COOKIE)
-            if not session or sessions.validate(session) is None:
-                await websocket.close(code=4401)
-                return
+        if not websocket_is_authenticated(websocket):
+            await websocket.close(code=4401)
+            return
 
         await websocket.accept()
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=1000)
@@ -408,6 +419,45 @@ def create_app(
         finally:
             log_handler.unsubscribe(queue)
 
+    @app.websocket("/ws/configure")
+    async def ws_configure(websocket: WebSocket, section: str | None = None) -> None:
+        """Run the AI-assisted configuration UI over a JSON WebSocket."""
+        if not websocket_is_authenticated(websocket):
+            await websocket.close(code=4401)
+            return
+
+        await websocket.accept()
+
+        async def send(payload: Dict[str, Any]) -> None:
+            await websocket.send_json(payload)
+
+        async def receive() -> Dict[str, Any]:
+            payload = await websocket.receive_json()
+            if not isinstance(payload, dict):
+                return {"type": "invalid", "value": payload}
+            return payload
+
+        ui = JsonSetupUI(send, receive)
+        config_paths = list(config.config_files)
+
+        try:
+            if section:
+                validate_section_address(section)
+                exit_code = await configure_section(ui, config_paths, section)
+            else:
+                exit_code = await configure_front_door(ui, config_paths)
+            await websocket.send_json({"type": "done", "exit_code": exit_code})
+        except WebSocketDisconnect:
+            pass
+        except SetupClosedError:
+            await websocket.send_json({"type": "done", "exit_code": 0, "cancelled": True})
+        except ConfigureAddressError as e:
+            await ui.say(str(e), kind="error")
+            await websocket.send_json({"type": "done", "exit_code": 1})
+        except Exception as e:
+            await ui.say(f"Configuration failed: {e}", kind="error")
+            await websocket.send_json({"type": "done", "exit_code": 1})
+
     # ------------------------------------------------------------------
     # Optional noVNC bridge (Docker deployments)
     # ------------------------------------------------------------------
@@ -419,11 +469,9 @@ def create_app(
 
         @app.websocket("/ws/vnc")
         async def ws_vnc(websocket: WebSocket) -> None:
-            if not is_open():
-                session = websocket.cookies.get(SESSION_COOKIE)
-                if not session or sessions.validate(session) is None:
-                    await websocket.close(code=4401)
-                    return
+            if not websocket_is_authenticated(websocket):
+                await websocket.close(code=4401)
+                return
             await websocket.accept(subprotocol="binary")
             try:
                 reader, writer = await asyncio.open_connection(vnc_host, vnc_port)

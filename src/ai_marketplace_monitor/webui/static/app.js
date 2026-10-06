@@ -28,6 +28,9 @@
     monitorState: "disconnected", // "connected" | "idle" | "disconnected"
     wsConnected: false,
     errorCount: 0, // unread ERROR-level messages (for tab badge)
+    chatWs: null,
+    chatActive: false,
+    chatPrompt: null,
   };
 
   // ---------------------------------------------------------------
@@ -581,6 +584,153 @@
     } finally {
       if (btn) btn.disabled = false;
     }
+  });
+
+  // ---------------------------------------------------------------
+  // Configure chat — JSON SetupUI over WebSocket
+  // ---------------------------------------------------------------
+
+  const setChatControls = (active, waiting = false) => {
+    state.chatActive = active;
+    $("#chat-start").disabled = active;
+    $("#chat-cancel").disabled = !active;
+    $("#chat-input").disabled = !active || waiting;
+    $("#chat-send").disabled = !active || waiting;
+  };
+
+  const appendChatMessage = (role, text, kind = "info") => {
+    const container = $("#chat-messages");
+    const row = document.createElement("div");
+    row.className = `chat-message chat-${role} chat-${kind}`;
+    row.textContent = text;
+    container.appendChild(row);
+    container.scrollTop = container.scrollHeight;
+  };
+
+  const clearChatPrompt = () => {
+    state.chatPrompt = null;
+    $("#chat-options").innerHTML = "";
+    $("#chat-input").value = "";
+  };
+
+  const sendChatAnswer = (value, label = null) => {
+    if (!state.chatWs || state.chatWs.readyState !== WebSocket.OPEN) return;
+    state.chatWs.send(JSON.stringify({ type: "answer", value }));
+    appendChatMessage("user", label ?? String(value || "(default)"));
+    clearChatPrompt();
+    setChatControls(true, true);
+  };
+
+  const renderChatPrompt = (msg) => {
+    state.chatPrompt = msg;
+    $("#chat-options").innerHTML = "";
+    appendChatMessage("assistant", msg.prompt, "prompt");
+
+    if (msg.prompt_type === "choice") {
+      (msg.options || []).forEach((option) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chat-option";
+        btn.textContent = option.label || option.value;
+        btn.title = option.hint || "";
+        btn.addEventListener("click", () =>
+          sendChatAnswer(option.value, option.label || option.value)
+        );
+        $("#chat-options").appendChild(btn);
+      });
+      if (!msg.allow_text) {
+        setChatControls(true, true);
+        return;
+      }
+    } else if (msg.prompt_type === "confirm") {
+      [
+        { value: true, label: "Yes" },
+        { value: false, label: "No" },
+      ].forEach((option) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chat-option";
+        btn.textContent = option.label;
+        btn.addEventListener("click", () => sendChatAnswer(option.value, option.label));
+        $("#chat-options").appendChild(btn);
+      });
+    }
+
+    setChatControls(true, false);
+    const input = $("#chat-input");
+    input.placeholder = msg.default ? `Reply… (${msg.default})` : "Reply…";
+    input.focus();
+  };
+
+  const reloadConfigAfterChat = async () => {
+    const dirty = state.currentContent !== state.originalContent;
+    if (dirty && !confirm("Reload the config file and discard unsaved editor changes?")) {
+      return;
+    }
+    await loadConfig();
+  };
+
+  const startConfigureChat = () => {
+    if (state.chatWs) state.chatWs.close();
+    clearChatPrompt();
+    $("#chat-messages").innerHTML = "";
+    appendChatMessage("system", "Connecting…", "progress");
+    setChatControls(true, true);
+
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const section = $("#chat-section").value.trim();
+    const suffix = section ? `?section=${encodeURIComponent(section)}` : "";
+    const ws = new WebSocket(`${proto}//${location.host}/ws/configure${suffix}`);
+    state.chatWs = ws;
+
+    ws.onopen = () => {
+      appendChatMessage("system", "Connected.", "success");
+    };
+    ws.onmessage = async (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "message") {
+        appendChatMessage("assistant", msg.text, msg.kind || "info");
+      } else if (msg.type === "prompt") {
+        renderChatPrompt(msg);
+      } else if (msg.type === "done") {
+        const ok = msg.exit_code === 0;
+        appendChatMessage(
+          "system",
+          msg.cancelled ? "Cancelled." : ok ? "Finished." : "Stopped with errors.",
+          ok ? "success" : "error"
+        );
+        clearChatPrompt();
+        setChatControls(false, true);
+        state.chatWs = null;
+        await reloadConfigAfterChat();
+      }
+    };
+    ws.onclose = () => {
+      if (state.chatActive) {
+        appendChatMessage("system", "Disconnected.", "warning");
+      }
+      clearChatPrompt();
+      setChatControls(false, true);
+      state.chatWs = null;
+    };
+    ws.onerror = () => {
+      appendChatMessage("system", "Connection error.", "error");
+      ws.close();
+    };
+  };
+
+  wireClick("#chat-start", startConfigureChat);
+  wireClick("#chat-cancel", () => {
+    if (state.chatWs && state.chatWs.readyState === WebSocket.OPEN) {
+      state.chatWs.send(JSON.stringify({ type: "cancel" }));
+    }
+    if (state.chatWs) state.chatWs.close();
+  });
+  $("#chat-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!state.chatPrompt) return;
+    const value = $("#chat-input").value;
+    sendChatAnswer(value, value || "(default)");
   });
 
   // ---------------------------------------------------------------
