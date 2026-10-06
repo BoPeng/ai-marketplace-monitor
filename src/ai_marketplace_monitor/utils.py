@@ -88,6 +88,7 @@ class CacheType(Enum):
     AI_INQUIRY = "ai-inquiries"
     USER_NOTIFIED = "user-notifications"
     COUNTERS = "counters"
+    UPDATE_CHECK = "update-check"
 
 
 class CounterItem(Enum):
@@ -349,6 +350,12 @@ class MonitorConfig(BaseConfig):
     proxy_bypass: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
+    # tell the user when a newer release is on PyPI (log line and web UI)
+    check_updates: bool | None = None
+
+    def handle_check_updates(self: "MonitorConfig") -> None:
+        if self.check_updates is not None and not isinstance(self.check_updates, bool):
+            raise ValueError("monitor check_updates must be true or false.")
 
     def handle_proxy_server(self: "MonitorConfig") -> None:
         if self.proxy_server is None:

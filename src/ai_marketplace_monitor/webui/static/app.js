@@ -1843,7 +1843,25 @@
   // ---------------------------------------------------------------
   // Boot
   // ---------------------------------------------------------------
+  // A newer aimm release, found by the monitor's update check (once a day).
+  const refreshUpdateBadge = async () => {
+    try {
+      const res = await fetch("/api/status", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const update = (await res.json()).update;
+      const badge = document.getElementById("update-badge");
+      if (!badge) return;
+      badge.hidden = !update;
+      if (!update) return;
+      badge.textContent = `⬆ aimm ${update.latest} available`;
+      badge.href = update.changelog;
+      badge.title = `You have ${update.current}. Upgrade with:\n${update.command}`;
+    } catch (_) {}
+  };
+
   const bootstrap = async () => {
+    refreshUpdateBadge();
+    if (!state.updateTimer) state.updateTimer = setInterval(refreshUpdateBadge, 10 * 60 * 1000);
     try {
       await loadConfig();
       // CodeMirror needs a refresh after becoming visible (the editor

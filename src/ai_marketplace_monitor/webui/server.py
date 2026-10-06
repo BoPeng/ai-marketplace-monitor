@@ -42,6 +42,7 @@ from ..configure.flow import (
     validate_section_address,
 )
 from ..configure.ui import JsonSetupUI, SetupClosedError
+from ..update_check import current_notice
 from ..utils import cache
 from .auth import (
     CSRF_COOKIE,
@@ -320,6 +321,7 @@ def create_app(
             "open": is_open(),
             "vnc_enabled": os.environ.get("AIMM_ENABLE_VNC") == "1"
             and Path(os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")).is_dir(),
+            "update": current_notice(),  # a newer release, if the update check found one
         }
 
     @app.get("/api/config/files")
