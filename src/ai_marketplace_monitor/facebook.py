@@ -1064,17 +1064,26 @@ class FacebookFlexItemPage(FacebookRegularItemPage):
         """Extract the condition value and description from the Details section.
 
         Climb from the Condition label; the first non-empty next-sibling text
-        is the condition value, the second is the description.
+        is the condition value, the second is the description. Some categories
+        list more attributes after Condition (e.g. "Has Bluetooth: Yes"), in rows
+        built like the Condition row; such siblings are skipped, so the
+        description is the text that follows the block of attribute rows.
         """
         label = self.page.query_selector(f'span:text-is("{self.translator("Condition")}")')
         if label is None:
             return []
         return label.evaluate(
             """(el) => {
+              const shape = (e) => e.tagName + '(' + [...e.children].map(shape).join(',') + ')';
               const hits = [];
               let n = el;
               for (let i = 0; i < 16 && n && hits.length < 2; i++) {
-                const sib = n.nextElementSibling;
+                let sib = n.nextElementSibling;
+                if (hits.length) {
+                  // after the condition: skip more attribute rows built like this one
+                  const row = shape(n);
+                  while (sib && shape(sib) === row) sib = sib.nextElementSibling;
+                }
                 const t = sib && sib.textContent ? sib.textContent.trim() : '';
                 if (t) hits.push(t);
                 n = n.parentElement;
