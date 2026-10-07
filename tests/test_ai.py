@@ -176,6 +176,7 @@ def test_anthropic_message_embeds_the_photo(listing: Listing, photo_get: MagicMo
         "source": {"type": "base64", "media_type": "image/jpeg", "data": image.data},
     }
     assert content[1] == {"type": "text", "text": f"Evaluate this listing\n{IMAGE_NOTE}"}
+    assert _decoded(image).size == (400, 200)  # smaller: Anthropic charges by pixels
 
 
 def test_openai_disabled_config_allows_missing_env_key() -> None:

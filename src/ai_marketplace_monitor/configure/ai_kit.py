@@ -72,7 +72,7 @@ AI_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "use_images",
         "`false` if the user wants to save tokens or the model cannot read images; on by "
-        "default, the AI sees the listing's main photo (shrunk to 800 px)",
+        "default, the AI sees the listing's main photo (800 px; 400 px for Anthropic)",
         "`true` or `false`",
         "true (photo and text)",
     ),

@@ -212,8 +212,10 @@ class ListingImage:
 IMAGE_MAX_SIDE = 800
 
 
-def fetch_listing_image(url: str, timeout: int = 15) -> ListingImage:
-    """Download a listing photo and shrink it so its longest side is at most IMAGE_MAX_SIDE.
+def fetch_listing_image(
+    url: str, max_side: int = IMAGE_MAX_SIDE, timeout: int = 15
+) -> ListingImage:
+    """Download a listing photo and shrink it so its longest side is at most ``max_side``.
 
     The photo is sent to the AI as data rather than as its URL: Facebook photo URLs expire,
     and not every AI service fetches image URLs.
@@ -221,13 +223,16 @@ def fetch_listing_image(url: str, timeout: int = 15) -> ListingImage:
     response = requests.get(url, timeout=timeout)
     response.raise_for_status()
     with Image.open(io.BytesIO(response.content)) as img:
-        img.thumbnail((IMAGE_MAX_SIDE, IMAGE_MAX_SIDE))
+        img.thumbnail((max_side, max_side))
         buffer = io.BytesIO()
         img.convert("RGB").save(buffer, format="JPEG", quality=85)
     return ListingImage("image/jpeg", base64.b64encode(buffer.getvalue()).decode("ascii"))
 
 
 class AIBackend(Generic[TAIConfig]):
+    # longest side of the listing photo this backend sends
+    image_max_side: ClassVar[int] = IMAGE_MAX_SIDE
+
     def __init__(self: "AIBackend", config: AIConfig, logger: Logger | None = None) -> None:
         self.config = config
         self.logger = logger
@@ -245,7 +250,7 @@ class AIBackend(Generic[TAIConfig]):
         if not self.config.use_images or not listing.image:
             return None
         try:
-            return fetch_listing_image(listing.image)
+            return fetch_listing_image(listing.image, self.image_max_side)
         except Exception as e:
             if self.logger:
                 self.logger.warning(
@@ -521,6 +526,9 @@ class UnitySVCBackend(OpenAIBackend):
 
 class AnthropicBackend(AIBackend):
     default_model = "claude-sonnet-5-5"
+    # Anthropic charges about width x height / 750 tokens per image and has no `detail`
+    # option, so a smaller photo keeps it near the cost of OpenAI's low detail
+    image_max_side = 400
 
     @classmethod
     def get_config(cls: Type["AnthropicBackend"], **kwargs: Any) -> AnthropicConfig:
