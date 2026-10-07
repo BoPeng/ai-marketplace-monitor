@@ -476,9 +476,22 @@ def create_app(
             return
 
         await websocket.accept()
+        config_paths = list(config.config_files)
+
+        def config_stamp() -> List[int | None]:
+            return [p.stat().st_mtime_ns if p.exists() else None for p in config_paths]
+
+        saved_stamp = config_stamp()
 
         async def send(payload: Dict[str, Any]) -> None:
+            nonlocal saved_stamp
+            # The session can write the config and keep going ("anything else?"),
+            # so tell the page as soon as a file changes, not when the session ends.
+            stamp = config_stamp()
             try:
+                if stamp != saved_stamp:
+                    saved_stamp = stamp
+                    await websocket.send_json({"type": "config_saved"})
                 await websocket.send_json(payload)
             except (RuntimeError, WebSocketDisconnect) as e:
                 raise SetupClosedError from e
@@ -499,7 +512,6 @@ def create_app(
             return payload
 
         ui = JsonSetupUI(send, receive, monitor_running=True)  # the web UI runs in the monitor
-        config_paths = list(config.config_files)
 
         try:
             if section:

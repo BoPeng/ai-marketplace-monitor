@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, List
 
@@ -61,6 +62,31 @@ def test_configure_websocket_runs_front_door(
         ws.send_json({"type": "answer", "value": "add an item"})
 
         assert ws.receive_json()["text"] == "Got add an item."
+        assert ws.receive_json() == {"type": "done", "exit_code": 0}
+
+
+def test_configure_websocket_reports_config_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_configure_front_door(ui: Any, files: List[Path]) -> int:
+        await ui.say("Nothing written yet.")
+        content = files[0].read_text(encoding="utf-8")
+        files[0].write_text(content + "\n[item.gopro]\nsearch_phrases = 'gopro'\n")
+        os.utime(files[0], ns=(1, 1))  # a new mtime even on coarse filesystem clocks
+        await ui.say("Saved.", kind="success")
+        await ui.ask_text("Anything else?")
+        return 0
+
+    monkeypatch.setattr(webui_server, "configure_front_door", fake_configure_front_door)
+
+    client = _make_client(tmp_path)
+    with _connect(client, "/ws/configure") as ws:
+        assert ws.receive_json()["text"] == "Nothing written yet."
+        # reported before the session asks the next question, not when it ends
+        assert ws.receive_json() == {"type": "config_saved"}
+        assert ws.receive_json()["text"] == "Saved."
+        assert ws.receive_json()["type"] == "prompt"
+        ws.send_json({"type": "answer", "value": "no"})
         assert ws.receive_json() == {"type": "done", "exit_code": 0}
 
 
