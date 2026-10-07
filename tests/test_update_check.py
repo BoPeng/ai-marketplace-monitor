@@ -133,7 +133,7 @@ def test_turning_it_off(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize(
     "docker, prefix, command",
     [
-        ("1", "/usr/local", "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest"),
+        ("1", "/usr/local", "the Update button next to the version in the web UI"),
         (None, "/home/me/.local/share/pipx/venvs/ai-marketplace-monitor", "pipx upgrade"),
         (None, "/home/me/.local/share/uv/tools/ai-marketplace-monitor", "uv tool upgrade"),
         (None, "/home/me/venv", "pip install --upgrade"),
@@ -169,3 +169,89 @@ def test_web_ui_status_carries_the_notice(tmp_path: Path, pypi: PyPI) -> None:
     assert client.get("/api/status").json()["version"] == update_check.__version__
     update_check.check(None, current="0.10.3")
     assert client.get("/api/status").json()["update"]["latest"] == "0.11.0"
+
+
+@pytest.fixture
+def installer(monkeypatch: pytest.MonkeyPatch, pypi: PyPI) -> List[Any]:
+    """Docker, a newer release found, and commands and restarts recorded instead of run."""
+    calls: List[Any] = []
+    monkeypatch.setenv("AIMM_DOCKER", "1")
+    monkeypatch.setattr(update_check, "_self_update", update_check.SelfUpdate())
+    monkeypatch.setattr(update_check, "_run", lambda command, logger: calls.append(command))
+    monkeypatch.setattr(update_check, "_restart", lambda: calls.append("restart"))
+    update_check.check(None, current="0.10.3")
+    return calls
+
+
+def test_self_update_installs_the_release_then_restarts(installer: List[Any]) -> None:
+    update_check.install_and_restart("0.11.0", None)
+    pip, playwright, restart = installer
+    assert pip[1:] == ["-m", "pip", "install", "ai-marketplace-monitor==0.11.0"]
+    assert playwright[1:] == ["-m", "playwright", "install", "chromium"]
+    assert restart == "restart"
+    assert update_check.self_update_status()["state"] == "restarting"
+
+
+def test_failed_self_update_keeps_aimm_running(
+    installer: List[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(command: List[str], logger: Any) -> None:
+        raise RuntimeError("no network")
+
+    monkeypatch.setattr(update_check, "_run", fail)
+    update_check.install_and_restart("0.11.0", None)
+    assert "restart" not in installer
+    status = update_check.self_update_status()
+    assert (status["state"], status["error"]) == ("failed", "no network")
+
+
+def test_self_update_needs_docker_a_release_and_no_update_running(
+    installer: List[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: List[str] = []
+    monkeypatch.setattr(update_check, "install_and_restart", lambda v, logger: started.append(v))
+    assert update_check.start_self_update(None) == "0.11.0"
+    with pytest.raises(RuntimeError, match="already in progress"):
+        update_check.start_self_update(None)
+    monkeypatch.setattr(update_check, "_self_update", update_check.SelfUpdate())
+    monkeypatch.setattr(update_check, "_notice", None)
+    with pytest.raises(RuntimeError, match="No newer release"):
+        update_check.start_self_update(None)
+    monkeypatch.delenv("AIMM_DOCKER")
+    with pytest.raises(RuntimeError, match="Docker"):
+        update_check.start_self_update(None)
+    assert update_check.self_update_status()["available"] is False
+
+
+def test_run_reports_the_end_of_a_failed_command() -> None:
+    script = "print('resolving'); print('no matching distribution'); raise SystemExit(3)"
+    with pytest.raises(RuntimeError, match="exited with 3:\nresolving\nno matching distribution"):
+        update_check._run([sys.executable, "-c", script], None)
+
+
+def test_web_ui_update_endpoint(
+    tmp_path: Path, installer: List[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai_marketplace_monitor.webui.config_api import ConfigFileService
+    from ai_marketplace_monitor.webui.log_handler import LogBroadcastHandler
+    from ai_marketplace_monitor.webui.server import AuthState, WebUIConfig, create_app
+
+    started: List[str] = []
+    monkeypatch.setattr(update_check, "install_and_restart", lambda v, logger: started.append(v))
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[marketplace.facebook]\nsearch_city = 'dallas'\n", encoding="utf-8")
+    handler = LogBroadcastHandler()
+    client = TestClient(
+        create_app(
+            WebUIConfig(config_files=[cfg], log_handler=handler),
+            AuthState(),
+            ConfigFileService([cfg]),
+            handler,
+        )
+    )
+    assert client.get("/api/status").json()["self_update"]["available"] is True
+    assert client.post("/api/update").json() == {"ok": True, "version": "0.11.0"}
+    assert client.get("/api/status").json()["self_update"]["state"] == "running"
+    response = client.post("/api/update")
+    assert response.status_code == 409
+    assert "already in progress" in response.json()["detail"]

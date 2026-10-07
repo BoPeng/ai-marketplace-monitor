@@ -5,17 +5,24 @@ working long after a fix is released. The check asks PyPI at most once a day (th
 cached), runs in the background, never fails or delays the monitor, and is skipped for
 development builds. Turn it off with ``check_updates = false`` in ``[monitor]`` or the
 ``AIMM_NO_UPDATE_CHECK`` environment variable.
+
+In the Docker image, the web UI can also install the new release in place (``start_self_update``):
+pip installs it inside the container, then aimm exits and supervisord starts the new version.
+The update lives in the container, so it survives ``docker restart`` but not recreating the
+container from an older image; the update check then offers it again.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import signal
+import subprocess
 import sys
 import threading
 from dataclasses import asdict, dataclass
 from logging import Logger
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from . import __version__
 from .utils import CacheType, cache, hilight
@@ -65,7 +72,8 @@ def upgrade_command() -> str:
     if os.environ.get("AIMM_DOCKER") == "1":
         # `docker restart` keeps the old image; the container must be recreated.
         return (
-            "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker rm -f aimm,"
+            "the Update button next to the version in the web UI, or"
+            " docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker rm -f aimm,"
             " then run your `docker run` command again"
         )
     prefix = sys.prefix.replace("\\", "/")
@@ -110,6 +118,102 @@ def check(logger: Logger | None, current: str = __version__) -> UpdateNotice | N
     if logger:
         logger.info(f"""{hilight("[UPDATE]", "info")} {_notice.message()}""")
     return _notice
+
+
+@dataclass(frozen=True)
+class SelfUpdate:
+    state: str = "idle"  # idle, running, failed, or restarting
+    version: str | None = None  # the release being installed
+    error: str | None = None
+
+
+_self_update = SelfUpdate()
+_self_update_lock = threading.Lock()
+RESTART_GRACE = 60  # seconds to clean up before aimm exits anyway
+
+
+def can_self_update() -> bool:
+    """Only the Docker image restarts aimm (with supervisord) after it exits."""
+    return os.environ.get("AIMM_DOCKER") == "1"
+
+
+def self_update_status() -> Dict[str, Any]:
+    """The in-place update, for the web UI."""
+    return {"available": can_self_update(), **asdict(_self_update)}
+
+
+def start_self_update(logger: Logger | None) -> str:
+    """Install the newer release in the background, then restart aimm.
+
+    Returns the version being installed; raises RuntimeError when an update cannot start.
+    """
+    global _self_update
+    if not can_self_update():
+        raise RuntimeError("aimm can update itself only in the Docker image.")
+    notice = _notice
+    if notice is None:
+        raise RuntimeError("No newer release is available.")
+    with _self_update_lock:
+        if _self_update.state in ("running", "restarting"):
+            raise RuntimeError("An update is already in progress.")
+        _self_update = SelfUpdate("running", notice.latest)
+    threading.Thread(
+        target=install_and_restart,
+        args=(notice.latest, logger),
+        daemon=True,
+        name="aimm-self-update",
+    ).start()
+    return notice.latest
+
+
+def install_and_restart(version: str, logger: Logger | None) -> None:
+    global _self_update
+    if logger:
+        logger.info(f"""{hilight("[UPDATE]", "info")} Installing aimm {version}...""")
+    try:
+        _run(
+            [sys.executable, "-m", "pip", "install", f"ai-marketplace-monitor=={version}"], logger
+        )
+        # a newer Playwright cannot drive the Chromium that came with the image
+        _run([sys.executable, "-m", "playwright", "install", "chromium"], logger)
+    except Exception as e:
+        _self_update = SelfUpdate("failed", version, str(e))
+        if logger:
+            logger.error(
+                f"""{hilight("[UPDATE]", "fail")} Failed to install aimm {version}: {e}"""
+            )
+        return
+    _self_update = SelfUpdate("restarting", version)
+    if logger:
+        logger.info(f"""{hilight("[UPDATE]", "succ")} Installed aimm {version}. Restarting...""")
+    _restart()
+
+
+def _run(command: List[str], logger: Logger | None) -> None:
+    """Run a command, logging its output; raise with the last lines when it fails."""
+    output: List[str] = []
+    with subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    ) as process:
+        assert process.stdout is not None
+        for line in process.stdout:
+            output.append(line.rstrip())
+            if logger:
+                logger.debug(f"""{hilight("[UPDATE]", "info")} {line.rstrip()}""")
+    if process.returncode != 0:
+        tail = "\n".join(output[-5:])
+        raise RuntimeError(f"`{' '.join(command[2:])}` exited with {process.returncode}:\n{tail}")
+
+
+def _restart() -> None:
+    """Exit so that supervisord starts the new version.
+
+    SIGINT runs the same cleanup as Ctrl-C (the browser and the web UI) in the main thread.
+    """
+    timer = threading.Timer(RESTART_GRACE, os._exit, args=(0,))  # if the cleanup hangs
+    timer.daemon = True
+    timer.start()
+    os.kill(os.getpid(), signal.SIGINT)
 
 
 def check_in_background(logger: Logger | None, check_updates: bool | None) -> None:

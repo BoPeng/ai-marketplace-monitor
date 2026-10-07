@@ -234,7 +234,11 @@ credentials when it is exposed from Docker; make sure `FACEBOOK_USERNAME` and
 `FACEBOOK_PASSWORD` contain only the intended login values before starting the
 container.
 
-Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch back and forth freely. To update, pull the new image and recreate the container — `docker restart` keeps running the old image:
+Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch back and forth freely.
+
+When a new release is out, the web UI shows an **Update** button next to the version. It installs the release inside the container and restarts aimm, and the page reloads when it is back. The update lives in the container: it survives `docker restart`, but recreating the container from an older image brings back the old version (the button then offers the update again).
+
+To update the image itself, pull it and recreate the container — `docker restart` keeps running the old image:
 
 ```bash
 docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest
