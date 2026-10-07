@@ -21,7 +21,13 @@ from .config import (
     supported_marketplaces,
 )
 from .listing import Listing
-from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig, resolve_option
+from .marketplace import (
+    DEFAULT_RATING,
+    Marketplace,
+    TItemConfig,
+    TMarketplaceConfig,
+    resolve_option,
+)
 from .notification import NotificationStatus
 from .user import User
 from .utils import (
@@ -230,7 +236,9 @@ class MarketplaceMonitor:
                     )
             rating_values = resolve_option("rating", item_config, marketplace_config)
             acceptable_rating = (
-                rating_values[0 if item_config.searched_count == 0 else -1] if rating_values else 3
+                rating_values[0 if item_config.searched_count == 0 else -1]
+                if rating_values
+                else DEFAULT_RATING
             )
 
             if res.score < acceptable_rating:

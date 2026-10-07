@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from ai_marketplace_monitor.configure.marketplace import MARKETPLACE_GUIDES, MarketplaceToolkit
+from ai_marketplace_monitor.configure.marketplace import (
+    MARKETPLACE_GUIDES,
+    MarketplaceToolkit,
+    notify_level,
+)
 from ai_marketplace_monitor.configure.playbooks import load_playbook
 from ai_marketplace_monitor.configure.toolkits import FieldGroup
 from ai_marketplace_monitor.facebook import (
@@ -238,3 +242,12 @@ async def test_search_city_must_come_from_a_pasted_url(tmp_path: Path) -> None:
     ws.user_said = ["https://www.facebook.com/marketplace/search/?query=bike"]
     draft.values = {"search_city": ["search"]}
     assert "not from a Facebook Marketplace URL" in T.validate(ws, draft)[0]
+
+
+def test_notify_level_shows_the_rating_and_how_to_get_more() -> None:
+    more = "notifies AI rating {} (rating = {} for more notifications)"
+    assert notify_level(None) == more.format("4+", 3)  # the default
+    assert notify_level(3) == more.format("3+", 2)
+    assert notify_level([5]) == more.format("5+", 4)
+    assert notify_level([1]) == "notifies AI rating 1+"
+    assert notify_level([3, 4]) == "notifies AI rating 3+ on the first search, 4+ after"

@@ -1,10 +1,26 @@
+import base64
+import io
 from types import SimpleNamespace
+from typing import Tuple
 from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+from PIL import Image
 
-from ai_marketplace_monitor.ai import OllamaBackend, OllamaConfig, OpenAIBackend, OpenAIConfig
+from ai_marketplace_monitor import ai as ai_module
+from ai_marketplace_monitor.ai import (
+    IMAGE_MAX_SIDE,
+    IMAGE_NOTE,
+    AnthropicBackend,
+    AnthropicConfig,
+    ListingImage,
+    OllamaBackend,
+    OllamaConfig,
+    OpenAIBackend,
+    OpenAIConfig,
+    fetch_listing_image,
+)
 from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 from ai_marketplace_monitor.listing import Listing
 
@@ -68,38 +84,99 @@ def test_extra_prompt(
     assert "myprompt" in prompt
 
 
-def test_openai_vision_message_includes_listing_image(listing: Listing) -> None:
-    listing.image = "https://example.com/listing.jpg"
-    ai = OpenAIBackend(
-        OpenAIConfig(
-            name="openai-test",
-            api_key="test",
-            use_images=True,
-            image_detail="high",
-        )
-    )
+def _photo(size: Tuple[int, int] = (2000, 1000)) -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", size, "red").save(buffer, format="PNG")
+    return buffer.getvalue()
 
-    message = ai._user_message("Evaluate this listing", listing)
+
+@pytest.fixture
+def photo_get(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Downloads of listing photos return a 2000x1000 PNG."""
+    get = MagicMock(return_value=SimpleNamespace(content=_photo(), raise_for_status=lambda: None))
+    monkeypatch.setattr(ai_module.requests, "get", get)
+    return get
+
+
+def _decoded(image: ListingImage) -> Image.Image:
+    return Image.open(io.BytesIO(base64.b64decode(image.data)))
+
+
+def test_images_are_on_by_default() -> None:
+    assert OpenAIConfig(name="openai-test", api_key="test").use_images is True
+
+
+def test_listing_photo_is_downloaded_and_shrunk(photo_get: MagicMock) -> None:
+    image = fetch_listing_image("https://example.com/listing.jpg")
+    photo_get.assert_called_once()
+    assert image.media_type == "image/jpeg"
+    assert image.data_url.startswith("data:image/jpeg;base64,")
+    assert _decoded(image).size == (IMAGE_MAX_SIDE, IMAGE_MAX_SIDE // 2)
+
+
+def test_small_listing_photo_keeps_its_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    get = MagicMock(
+        return_value=SimpleNamespace(content=_photo((300, 200)), raise_for_status=lambda: None)
+    )
+    monkeypatch.setattr(ai_module.requests, "get", get)
+    assert _decoded(fetch_listing_image("https://example.com/small.png")).size == (300, 200)
+
+
+def test_openai_vision_message_embeds_the_photo(listing: Listing, photo_get: MagicMock) -> None:
+    listing.image = "https://example.com/listing.jpg"
+    ai = OpenAIBackend(OpenAIConfig(name="openai-test", api_key="test", image_detail="high"))
+
+    image = ai.listing_image(listing)
+    assert image is not None
+    message = ai._user_message("Evaluate this listing", image)
 
     assert message["role"] == "user"
-    assert message["content"][0] == {"type": "text", "text": "Evaluate this listing"}
+    assert message["content"][0] == {
+        "type": "text",
+        "text": f"Evaluate this listing\n{IMAGE_NOTE}",
+    }
     assert message["content"][1] == {
         "type": "image_url",
-        "image_url": {
-            "url": "https://example.com/listing.jpg",
-            "detail": "high",
-        },
+        "image_url": {"url": image.data_url, "detail": "high"},
     }
 
 
-def test_openai_vision_message_is_text_when_images_disabled(listing: Listing) -> None:
+def test_no_photo_when_images_disabled(listing: Listing, photo_get: MagicMock) -> None:
     listing.image = "https://example.com/listing.jpg"
     ai = OpenAIBackend(OpenAIConfig(name="openai-test", api_key="test", use_images=False))
 
-    assert ai._user_message("Evaluate this listing", listing) == {
+    assert ai.listing_image(listing) is None
+    photo_get.assert_not_called()
+    assert ai._user_message("Evaluate this listing", None) == {
         "role": "user",
         "content": "Evaluate this listing",
     }
+
+
+def test_failed_photo_download_evaluates_text_only(
+    listing: Listing, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listing.image = "https://example.com/expired.jpg"
+    monkeypatch.setattr(ai_module.requests, "get", MagicMock(side_effect=OSError("403")))
+    ai = OpenAIBackend(OpenAIConfig(name="openai-test", api_key="test"))
+
+    assert ai.listing_image(listing) is None
+
+
+def test_anthropic_message_embeds_the_photo(listing: Listing, photo_get: MagicMock) -> None:
+    listing.image = "https://example.com/listing.jpg"
+    ai = AnthropicBackend(AnthropicConfig(name="anthropic-test", api_key="test"))
+
+    image = ai.listing_image(listing)
+    assert image is not None
+    content = ai._user_message("Evaluate this listing", image)["content"]
+
+    assert content[0] == {
+        "type": "image",
+        "source": {"type": "base64", "media_type": "image/jpeg", "data": image.data},
+    }
+    assert content[1] == {"type": "text", "text": f"Evaluate this listing\n{IMAGE_NOTE}"}
+    assert _decoded(image).size == (400, 200)  # smaller: Anthropic charges by pixels
 
 
 def test_openai_disabled_config_allows_missing_env_key() -> None:
@@ -113,6 +190,7 @@ def test_openai_evaluate_sends_image_payload(
     listing: Listing,
     item_config: FacebookItemConfig,
     marketplace_config: FacebookMarketplaceConfig,
+    photo_get: MagicMock,
 ) -> None:
     suffix = uuid4().hex
     listing.id = f"openai-vision-test-{suffix}"
@@ -139,7 +217,7 @@ def test_openai_evaluate_sends_image_payload(
     ai.evaluate(listing, item_config, marketplace_config)
 
     sent_message = create.call_args.kwargs["messages"][1]
-    assert sent_message["content"][1]["image_url"]["url"] == listing.image
+    assert sent_message["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
 def test_openai_evaluate_raises_provider_failure_after_retries(
@@ -173,6 +251,7 @@ def test_openai_evaluate_falls_back_to_text_when_image_rejected(
     listing: Listing,
     item_config: FacebookItemConfig,
     marketplace_config: FacebookMarketplaceConfig,
+    photo_get: MagicMock,
 ) -> None:
     suffix = uuid4().hex
     listing.id = f"openai-fallback-test-{suffix}"

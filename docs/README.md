@@ -48,7 +48,7 @@ One of more sections to list the AI agent that can be used to judge if listings 
 | `model`       | Optional    | String   | Language model to be used.                                 |
 | `max_retries` | Optional    | Integer  | Max retry attempts if connection fails. Default to 10.     |
 | `timeout`     | Optional    | Integer  | Timeout (in seconds) waiting for response from AI service. |
-| `use_images`  | Optional    | Boolean  | Send the listing photo to the AI service. Default to `false`. |
+| `use_images`  | Optional    | Boolean  | Send the listing photo to the AI service. Default to `true`. |
 | `image_detail` | Optional   | String   | Image detail level: `low`, `high`, `original`, or `auto`. Default to `low`. |
 
 Note that:
@@ -63,7 +63,7 @@ Note that:
 7. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 8. You can use option `ai` to list the AI services for particular marketplaces or items.
 9. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm configure ai` to make another section the default.
-10. `use_images` sends the main listing photo along with the text for OpenAI-compatible providers (it is ignored by Anthropic). It requires a vision-capable model and adds image tokens to every new evaluation: roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. If a request with an image fails, the evaluation is retried without the image.
+10. `use_images` (on by default) lets the AI see the main listing photo, so it can tell, for example, a tablet from a tablet case. aimm downloads the photo, shrinks it, and sends the image itself rather than its URL, because Facebook photo URLs expire and not every AI service fetches them. All providers get the photo. It requires a vision-capable model and adds image tokens to every new evaluation. For OpenAI-compatible providers the photo is at most 800 pixels on its longest side and costs roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. Anthropic has no `image_detail` and charges by image size, so aimm sends it a photo of at most 400 pixels (about 200 tokens). Set `use_images = false` to evaluate listings from their text only and save these tokens. If the photo cannot be downloaded, or a request with it fails, the listing is evaluated from its text.
 
 A typical section for OpenAI looks like
 
@@ -341,7 +341,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `prompt`              | Optional          | String              | Prompt to AI service that will replace the default prompt                                                                                                   |
 | `extra_prompt`        | Optional          | String              | Additional prompt that will be inserted between regular and rating prompt                                                                                   |
 | `ranking_prompt`      | Optional          | String              | Ranking prompt that instruct how AI rates the listings                                                                                                      |
-| `rating`              | Optional          | Integer/List        | Notify users with listings with rating at or higher than specified rating.                                                                                  |
+| `rating`              | Optional          | Integer/List        | Notify users with listings with rating at or higher than specified rating. Default to 4.                                                                    |
 | `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
 | `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`.                                                          |
 | `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |

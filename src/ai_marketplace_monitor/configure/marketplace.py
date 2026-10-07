@@ -17,6 +17,7 @@ from ..facebook import (
     FacebookMarketplaceConfig,
     SortBy,
 )
+from ..marketplace import DEFAULT_RATING
 from ..normalize import NormalizeError, expand
 from ..normalize.pushdown import bound_marketplace
 from .toolkits import FieldGuide, SectionDraft, Toolkit, location
@@ -187,8 +188,8 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "rating",
         "minimum AI rating (1-5) for a listing to be notified",
-        f"list of integers, e.g. `[4]`.{_TWO_VALUES}",
-        "aimm's default",
+        f"list of integers, e.g. `[3]` for more notifications.{_TWO_VALUES}",
+        f"{DEFAULT_RATING} (good matches)",
     ),
     FieldGuide(
         "prompt",
@@ -215,6 +216,16 @@ def _plain(e: BaseException) -> str:
     return _MARKUP.sub("", str(e))
 
 
+def notify_level(rating: Any) -> str:
+    """Which AI ratings are notified, and how to get more of them."""
+    levels = [v for v in (rating if isinstance(rating, list) else [rating]) if isinstance(v, int)]
+    first, later = (levels[0], levels[-1]) if levels else (DEFAULT_RATING, DEFAULT_RATING)
+    if first != later:
+        return f"notifies AI rating {first}+ on the first search, {later}+ after"
+    more = f" (rating = {first - 1} for more notifications)" if first > 1 else ""
+    return f"notifies AI rating {first}+{more}"
+
+
 class MarketplaceToolkit(Toolkit):
     section_type = "marketplace"
     playbook = "marketplace"
@@ -223,7 +234,8 @@ class MarketplaceToolkit(Toolkit):
 
     def summary(self: "MarketplaceToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
         loc = location(values)
-        return f"searches {loc}" if loc else "no search location"
+        where = f"searches {loc}" if loc else "no search location"
+        return f"{where}; {notify_level(values.get('rating'))}"
 
     # --- reading the user's config ---------------------------------------------------------
     def items(

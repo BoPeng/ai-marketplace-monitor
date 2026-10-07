@@ -355,13 +355,13 @@ to describe suspicious listings in a marketplace, and:
 Rating Thresholds
 ----------------
 
-When AI services are used, the program by default notifies you of all listing with a rating of 3 or higher. You can change this behavior by setting for example:
+When AI services are used, the program by default notifies you of listings with a rating of 4 (good match) or higher. You can change this behavior by setting for example:
 
 .. code-block:: toml
 
-    rating = 4
+    rating = 3
 
-to see only listings that match your criteria well. Note that all listings after non-AI-based filtering will be returned if no AI service is specified or non-functional.
+to also see poor matches, or ``rating = 5`` to see only great deals. Note that all listings after non-AI-based filtering will be returned if no AI service is specified or non-functional.
 
 Advanced Keyword-Based Filters
 ==============================

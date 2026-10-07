@@ -277,12 +277,24 @@ async def test_aimm_configure_routes_a_request_to_the_section(
     assert {
         "type": "marketplace",
         "configurable_here": True,
-        "sections": [{"name": "facebook", "request": None, "summary": "searches houston"}],
+        "sections": [
+            {
+                "name": "facebook",
+                "request": None,
+                "summary": "searches houston; notifies AI rating 4+ (rating = 3 for more notifications)",
+            }
+        ],
     } in listed
     assert {
         "type": "ai",
         "configurable_here": True,
-        "sections": [{"name": "unitysvc", "request": None, "summary": "default model"}],
+        "sections": [
+            {
+                "name": "unitysvc",
+                "request": None,
+                "summary": "default model; reads listing photos (use_images = false saves tokens)",
+            }
+        ],
     } in listed
 
 
@@ -400,13 +412,20 @@ async def test_front_door_opening_summarizes_the_config(tmp_path: Path) -> None:
         toolkits=flow.toolkits(),
     )
     summaries = {e["type"]: [s.get("summary") for s in e["sections"]] for e in section_index(ws)}
-    assert summaries["ai"] == ["model gpt-4o"]
-    assert summaries["marketplace"] == ["searches houston"]
+    assert summaries["ai"] == [
+        "model gpt-4o; reads listing photos (use_images = false saves tokens)"
+    ]
+    assert summaries["marketplace"] == [
+        "searches houston; notifies AI rating 4+ (rating = 3 for more notifications)"
+    ]
     assert summaries["item"] == ["gopro, action camera; max $200"]
     assert summaries["user"] == ["notified via email"]
     assert monitoring_needs(ws) == []
     opening = _opening(ws, None)
-    assert "- [marketplace.*]: facebook (searches houston)" in opening
+    assert (
+        "- [marketplace.*]: facebook (searches houston; notifies AI rating 4+ (rating = 3 for more notifications))"
+        in opening
+    )
     assert "Still needed" not in opening
     assert "Greet the user" in opening
 

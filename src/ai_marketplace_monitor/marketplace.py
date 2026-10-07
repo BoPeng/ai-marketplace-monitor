@@ -49,6 +49,9 @@ FALLBACK = "fallback"  # Fallback rule: how an item value falls back to the mark
 ITEM_ONLY_IN = "item_only_in"  # use sites that read only the item value
 LOCATION = "location"  # option belongs to the search_region / search_city group
 
+# notify listings the AI rates at least this, unless `rating` is set
+DEFAULT_RATING = 4
+
 
 def option(
     fallback: Fallback | None,

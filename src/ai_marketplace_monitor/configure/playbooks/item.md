@@ -62,7 +62,7 @@ items inherit it. Tell the user you are setting up the marketplace too.
 Anything else about which listings are good goes into `extra_prompt`, in the user's words:
 "skip listings that need repair", "prefer sellers with original packaging", "must include the
 charger". It is added to the AI's evaluation instructions. Use `rating` for how picky to be
-(4 or 5 to see only good matches). Change `prompt` or `rating_prompt` only if the user
+(default 4, good matches; 5 for great deals only; 3 to also see poor matches). Change `prompt` or `rating_prompt` only if the user
 explicitly wants to replace aimm's evaluation or rating instructions.
 
 ### Other overrides

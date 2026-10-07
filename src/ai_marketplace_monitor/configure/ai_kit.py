@@ -71,10 +71,10 @@ AI_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "use_images",
-        "only if the user wants the AI to look at the listing's main photo; needs a vision "
-        "model, is ignored by Anthropic, and adds image tokens to every new evaluation",
+        "`false` if the user wants to save tokens or the model cannot read images; on by "
+        "default, the AI sees the listing's main photo (800 px; 400 px for Anthropic)",
         "`true` or `false`",
-        "false (text only)",
+        "true (photo and text)",
     ),
     FieldGuide(
         "image_detail",
@@ -123,7 +123,10 @@ class AIToolkit(Toolkit):
     guides = AI_GUIDES
 
     def summary(self: "AIToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
-        return f"model {values['model']}" if values.get("model") else "default model"
+        model = f"model {values['model']}" if values.get("model") else "default model"
+        if values.get("use_images", True):
+            return f"{model}; reads listing photos (use_images = false saves tokens)"
+        return f"{model}; text only (use_images = true lets it read listing photos)"
 
     def field_names(self: "AIToolkit") -> List[str]:
         return [g.name for g in self.guides]
