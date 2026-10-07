@@ -81,6 +81,23 @@ def test_listing_page(
     assert listing.post_url, f"post_url of {filename} should not be empty"
 
 
+@pytest.mark.parametrize("filename", ["flex_listing.html", "flex_listing_with_attributes.html"])
+def test_flex_listing_description_follows_the_attribute_rows(
+    new_context: CreateContextCallback, filename: str
+) -> None:
+    """Attributes after Condition (e.g. "Has Bluetooth: Yes") are not the description."""
+    page = new_context(java_script_enabled=False).new_page()
+    page.goto(f"file://{Path(__file__).parent / filename}")
+    page.wait_for_load_state("domcontentloaded")
+    listing = parse_listing(page, "post_url", None)
+
+    assert listing is not None
+    assert listing.condition == "Used - like new"
+    assert listing.description == "Clean like new\n175 each"
+    assert listing.price == "$175"
+    assert listing.location == "Houston, TX"
+
+
 def _fake_layout(description: str | None) -> type:
     """A page layout that fails (None) or parses with the given description."""
 
