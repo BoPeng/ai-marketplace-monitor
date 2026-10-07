@@ -215,7 +215,19 @@ applicable) are environment variables defined locally, referenced from
 `$HOME/.ai-marketplace-monitor/config.toml`, and passed to the container by
 the `-e` flags above.
 
-Then open [http://localhost:8467](http://localhost:8467). When Facebook needs an interactive login or CAPTCHA, click the **Browser** button in the header to view and control the in-container Chromium.
+After the container starts:
+
+1. Open [http://localhost:8467](http://localhost:8467).
+2. Sign in to the aimm web UI with your Facebook username and password. These
+   are the same values you passed as `FACEBOOK_USERNAME` and
+   `FACEBOOK_PASSWORD`; when Docker exposes the web UI, they also protect the
+   in-container browser from outside access.
+3. If Facebook asks for a login, CAPTCHA, or other interactive check, click
+   **Browser** in the web UI header to open the live Chromium session in a new
+   tab and complete the prompt there.
+4. Once the prompt is handled, you can close the Browser/noVNC tab. The monitor
+   keeps running in Docker, so you do not need to keep a Playwright browser
+   window open on your desktop.
 
 If the page does not load, check `docker logs aimm`. The web UI requires
 credentials when it is exposed from Docker; make sure `FACEBOOK_USERNAME` and
