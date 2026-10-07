@@ -227,6 +227,8 @@ Setting Up UnitySVC Notifications
 
 `UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider and give aimm access to more than 100 notification channels and apps through one key: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 
+These notifications are short text messages without listing photos, best for phone and chat alerts. To receive aimm's full email, with all new listings and their photos in one message, use :ref:`UnitySVC email <unitysvc-smtp>` instead.
+
 By default, messages go to UnitySVC's ``notify`` service, which shows them in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your aimm config.
 
 The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notifications, so one key covers rating listings and delivering the results:

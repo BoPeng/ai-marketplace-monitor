@@ -30,7 +30,11 @@ from tests.configure_util import BASE, FakeModel, make_ws, ui_of
 N, U = NotificationToolkit(), UserToolkit()
 KITS: Dict[str, Any] = {"notification": N, "user": U}
 AI_ONLY = '[ai.unitysvc]\napi_key = "svcpass_testkey"\n'
-UNITYSVC_EMAIL = {"smtp_server": "smtp.svcpass.com", "smtp_password": "${UNITYSVC_API_KEY}"}
+UNITYSVC_EMAIL = {
+    "smtp_server": "smtp.svcpass.com",
+    "smtp_username": "smtp-to-mailbox",
+    "smtp_password": "${UNITYSVC_API_KEY}",
+}
 
 
 async def ws_for(tmp_path: Path, text: str, answers: Any = None) -> Any:
@@ -187,6 +191,7 @@ async def test_email_session_creates_the_notification_and_user_me(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
+    monkeypatch.setenv("MY_KEY", "svcpass_mine")
     ws = await ws_for(tmp_path, AI_ONLY, ["notify me by email", "UnitySVC email", "yes"])
     only = [("notification", "*"), *N.companions(ws, "*")]
     executor = ToolExecutor(ws, only=set(only))
@@ -267,3 +272,45 @@ async def test_an_inline_channel_needs_its_recipient(tmp_path: Path) -> None:
     user = U.view(ws, "me")
     user.values = {"smtp_password": "${GMAIL_APP_PASSWORD}"}
     assert U.missing(ws, user) == ["email: needed for the channel set on [user.me]"]
+
+
+async def test_summary_tells_email_from_phone_notifications(tmp_path: Path) -> None:
+    ws = await ws_for(tmp_path, AI_ONLY)
+    assert N.summary(ws, UNITYSVC_EMAIL) == "UnitySVC email with listing photos"
+    assert N.summary(ws, {"smtp_password": "${GMAIL_APP_PASSWORD}"}) == "email"
+    assert N.summary(ws, {"unitysvc_api_key": "${UNITYSVC_API_KEY}"}) == (
+        "UnitySVC phone/chat notifications (text only)"
+    )
+
+
+async def test_playbook_offers_unitysvc_email_for_email(tmp_path: Path) -> None:
+    body = (await ws_for(tmp_path, AI_ONLY)).playbooks["notification"].body
+    assert 'smtp_username = "smtp-to-mailbox"' in body
+    assert "Not for email: use UnitySVC" in body
+
+
+async def test_email_options_offer_unitysvc_first_then_gmail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("UNITYSVC_API_KEY", raising=False)
+    monkeypatch.setenv("MY_KEY", "svcpass_mine")
+    ws = await ws_for(tmp_path, '[ai.unitysvc]\napi_key = "${MY_KEY}"\n')
+    options = N.show_extra(ws, N.view(ws, "new"))["email_options"]
+    assert [o["name"] for o in options] == ["unitysvc_email", "gmail"]
+    assert options[0]["values"] == {**UNITYSVC_EMAIL, "smtp_password": "${MY_KEY}"}
+    assert "needs" not in options[0]  # the key is already there
+    assert "App passwords" in options[1]["needs"]
+    # without a UnitySVC key, UnitySVC email says what it needs
+    ws = await ws_for(tmp_path, '[user.me]\npushbullet_token = "abc"\n')
+    unitysvc = N.show_extra(ws, N.view(ws, "new"))["email_options"][0]
+    assert unitysvc["values"]["smtp_password"] == "${UNITYSVC_API_KEY}"
+    assert "UNITYSVC_API_KEY" in unitysvc["needs"]
+    # a phone/chat channel is already chosen: no email options
+    draft = N.view(ws, "unitysvc")
+    draft.values = {"unitysvc_api_key": "${UNITYSVC_API_KEY}"}
+    assert "email_options" not in N.show_extra(ws, draft)
+
+
+async def test_playbook_explains_switching_channels(tmp_path: Path) -> None:
+    body = (await ws_for(tmp_path, AI_ONLY)).playbooks["notification"].body
+    assert "### Switching channels" in body and "instead\nof the old one" in body

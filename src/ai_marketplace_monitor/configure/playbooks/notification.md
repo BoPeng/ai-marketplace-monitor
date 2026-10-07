@@ -20,24 +20,46 @@ several users (`can_reference.users`), ask which ones should receive a new notif
 
 ### Choosing a channel
 
-Ask how they want to be notified if they did not say, listing the options:
+Ask how they want to be notified if they did not say. There are two kinds of channel:
 
-- **Email through UnitySVC**: `smtp_server = "smtp.svcpass.com"`, `smtp_password =
-  "${UNITYSVC_API_KEY}"`. Sent to the email address registered with their UnitySVC account, so no
-  `email` is needed. The easiest email option when they have a UnitySVC key (`unitysvc_api_key` in
-  `section_show` says how to reference it).
+**Email** sends aimm's full email: all new listings in one message, with their photos. Best for
+reviewing listings.
+
+- **UnitySVC email**: `smtp_server = "smtp.svcpass.com"`, `smtp_username = "smtp-to-mailbox"`,
+  `smtp_password = "${UNITYSVC_API_KEY}"`. Sent to the email address registered with their
+  UnitySVC account, so no `email` is needed on the user. The easiest email option when they have
+  a UnitySVC key (`unitysvc_api_key` in `section_show` says how to reference it); offer it first
+  then. Write all three fields so the section shows how the email is sent.
 - **Gmail or another email account**: the user's `email` on the user, and `smtp_password` on the
   notification. Gmail needs an app password (Google account, Security, App passwords), which
   many people find hard to create; mention that UnitySVC email avoids it.
+
+**Phone and chat notifications** send short text messages without photos. Best for being
+alerted quickly.
+
 - **UnitySVC notifications**: `unitysvc_api_key = "${UNITYSVC_API_KEY}"`. Messages go to the
-  UnitySVC inbox and the destination the user saved in UnitySVC (email, Discord, Slack and many
-  other channels), so one section reaches any of them.
+  UnitySVC inbox and the destination the user saved in UnitySVC (Discord, Slack, SMS, phone push
+  and many other channels), so one section reaches any of them. Not for email: use UnitySVC
+  email instead.
 - **Pushbullet** (`pushbullet_token`), **Pushover** (`pushover_api_token` on the notification,
   `pushover_user_key` on the user), **ntfy** (`ntfy_server` on the notification, `ntfy_topic` on
   the user), **Telegram** (`telegram_token` on the notification, `telegram_chat_id` on the user).
 
-When the user says "email", suggest UnitySVC email or Gmail and let them choose. Name a new
-notification after its channel (`gmail`, `unitysvc_email`, `unitysvc`, `pushbullet`).
+`section_show` lists `email_options` with the values to write for each email channel; when the
+user wants email, offer them in that order. For Gmail, tell them how to get the app password
+(`needs`). When they have
+a UnitySVC key and only say "UnitySVC", ask whether they want email or phone/chat messages. Name
+a new notification after its channel (`gmail`, `unitysvc_email`, `unitysvc`, `pushbullet`).
+
+### Switching channels
+
+"Switch to UnitySVC email" (or any other channel) means the users get the new channel instead
+of the old one, not both. Set up the new notification, then for each user who received the old
+one, put the new notification in its place: replace the old name in `notify_with`, or, if the
+user has no `notify_with` (it receives everything), give it a `notify_with` listing the
+notifications it should keep receiving. Keep the old notification section unless the user wants
+it gone; set `enabled = false` on it if no one else should receive it. Tell the user which
+channel they will get from now on.
 
 ### Secrets
 

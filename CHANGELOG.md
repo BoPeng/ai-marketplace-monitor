@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The AI now sees each listing's main photo by default (`use_images = true`), so it can tell, for example, an iPad from an iPad keyboard case. aimm downloads the photo, shrinks it (at most 800 pixels; 400 for Anthropic, which charges by image size), and sends the image itself instead of its URL, which expires and which not every AI service fetches. Anthropic now gets the photo too, so all providers can read listing photos. Set `use_images = false` to evaluate listings from their text only and save tokens.
 - Listings are notified at AI rating 4 (good match) or higher by default, instead of 3. Set `rating = 3` to also be notified of poor matches.
 - `aimm configure` summaries now show whether an AI reads listing photos and which ratings a marketplace notifies, with the option to change each.
+- `aimm configure` now offers UnitySVC email (`smtp.svcpass.com` with `smtp_username = "smtp-to-mailbox"`) first when the user wants email, with Gmail as the next option and instructions for creating a Gmail app password. UnitySVC HTTP notifications are offered for phone and chat alerts (Discord, Slack, SMS, push), not email.
+- Notification summaries in `aimm configure` tell UnitySVC email (with listing photos) apart from UnitySVC phone/chat notifications (text only).
+- `aimm configure` handles requests such as "switch my notifications to UnitySVC email" by replacing the old channel for the users who received it, instead of adding a second one.
 
 ### Fixed
 - Listing descriptions are read correctly from Facebook's newer item pages when a category adds attributes after Condition, such as "Has Bluetooth" for electronics or "Bicycle Type" for bikes. aimm used to take the first such attribute (e.g. "Has BluetoothYes") as the description, so the AI never saw the seller's text.

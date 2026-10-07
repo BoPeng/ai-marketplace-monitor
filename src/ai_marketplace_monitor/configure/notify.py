@@ -13,7 +13,7 @@ import warnings
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
-from ..email_notify import UNITYSVC_SMTP_SERVER
+from ..email_notify import UNITYSVC_SMTP_SERVER, UNITYSVC_SMTP_USERNAME
 from ..normalize import NormalizeError, expand
 from ..normalize.notifications import CHANNEL_FIELDS, RECIPIENT_FIELDS, TYPE_CLASSES
 from ..notification import NotificationConfig
@@ -37,8 +37,9 @@ NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide("smtp_port", "email: only if the provider requires another port", "`587`", "587"),
     FieldGuide(
         "smtp_username",
-        "email: only if it differs from the user's address",
-        "string",
+        "email: `smtp-to-mailbox` for smtp.svcpass.com (write it); otherwise only if it differs "
+        "from the user's address",
+        '`"smtp-to-mailbox"` for UnitySVC email, or a login name',
         "the user's email (`smtp-to-mailbox` for smtp.svcpass.com)",
     ),
     FieldGuide(
@@ -57,7 +58,8 @@ NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
     # UnitySVC
     FieldGuide(
         "unitysvc_api_key",
-        "UnitySVC: the UnitySVC API key (the same key as UnitySVC AI)",
+        "UnitySVC phone/chat notifications (Discord, Slack, SMS, push; not email, which uses "
+        "smtp.svcpass.com): the UnitySVC API key (the same key as UnitySVC AI)",
         '`"${UNITYSVC_API_KEY}"`',
         "required for UnitySVC",
         secret=True,
@@ -348,6 +350,35 @@ class _NotifyToolkit(Toolkit):
         return default_user(ws) if self.section_type == "user" else "*"
 
 
+def email_options(ws: "Workspace") -> List[Dict[str, Any]]:
+    """Ways to send aimm's email, UnitySVC first, with the values to write."""
+    key = _unitysvc_key(ws)
+    reference = key.split(" ")[0] if key and key.startswith("${") else "${UNITYSVC_API_KEY}"
+    unitysvc = {
+        "option": "UnitySVC email",
+        "name": "unitysvc_email",
+        "values": {
+            "smtp_server": UNITYSVC_SMTP_SERVER,
+            "smtp_username": UNITYSVC_SMTP_USERNAME,
+            "smtp_password": reference,
+        },
+        "about": "aimm's full email with listing photos, sent to the email address registered "
+        "with the user's UnitySVC account; no `email` on the user and no app password needed",
+    }
+    if key is None:
+        unitysvc["needs"] = "a UnitySVC API key (unitysvc.com), set as UNITYSVC_API_KEY"
+    gmail = {
+        "option": "Gmail",
+        "name": "gmail",
+        "values": {"smtp_password": "${GMAIL_APP_PASSWORD}"},
+        "user_needs": "`email`: the Gmail address, on the user",
+        "about": "aimm's full email with listing photos, sent from and to the user's Gmail",
+        "needs": "a Gmail app password: in their Google account, turn on 2-Step Verification, "
+        "then Security, App passwords; create one for aimm and set it as GMAIL_APP_PASSWORD",
+    }
+    return [unitysvc, gmail]
+
+
 def _unitysvc_key(ws: "Workspace") -> str | None:
     """How a notification can reference the user's UnitySVC key (never the key itself)."""
     for name, section in ws.user_cfg.get("ai", {}).items():
@@ -373,17 +404,25 @@ class NotificationToolkit(_NotifyToolkit):
     def summary(
         self: "NotificationToolkit", ws: "Workspace", values: Dict[str, Any]
     ) -> str | None:
-        return ", ".join(channel_types(values)) or None
+        unitysvc_email = str(values.get("smtp_server", "")).lower() == UNITYSVC_SMTP_SERVER
+        labels = {
+            "email": "UnitySVC email with listing photos" if unitysvc_email else "email",
+            "unitysvc": "UnitySVC phone/chat notifications (text only)",
+        }
+        return ", ".join(labels.get(t, t) for t in channel_types(values)) or None
 
     def show_extra(
         self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft
     ) -> Dict[str, Any]:
         kinds = channel_types(draft.values)
-        return {
+        extra = {
             "channel": _LABELS[kinds[0]] if len(kinds) == 1 else None,
             "received_by": receivers(ws, draft.name),
             **super().show_extra(ws, draft),
         }
+        if kinds in ([], ["email"]):  # still choosing, or choosing how to email
+            extra["email_options"] = email_options(ws)
+        return extra
 
     def _channel_missing(self: "NotificationToolkit", values: Dict[str, Any]) -> List[str]:
         kinds = channel_types(values)
