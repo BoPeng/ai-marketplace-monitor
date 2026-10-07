@@ -36,6 +36,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .. import __version__
 from ..configure.flow import (
     ConfigureAddressError,
     configure_front_door,
@@ -43,7 +44,7 @@ from ..configure.flow import (
     validate_section_address,
 )
 from ..configure.ui import JsonSetupUI, SetupClosedError
-from ..update_check import current_notice
+from ..update_check import current_notice, self_update_status, start_self_update
 from ..utils import cache
 from .auth import (
     CSRF_COOKIE,
@@ -324,6 +325,7 @@ def create_app(
     async def status(_: str = Depends(require_session)) -> Dict[str, Any]:
         files = config_service.list_files()
         return {
+            "version": __version__,
             "config_files": [f.__dict__ for f in files],
             "urls": _enumerate_urls(config.host, config.port),
             "auth_mode": "open" if is_open() else "authenticated",
@@ -331,7 +333,20 @@ def create_app(
             "vnc_enabled": os.environ.get("AIMM_ENABLE_VNC") == "1"
             and Path(os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")).is_dir(),
             "update": current_notice(),  # a newer release, if the update check found one
+            "self_update": self_update_status(),
         }
+
+    @app.post("/api/update")
+    async def update_aimm(
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Install the newer release in the Docker container and restart aimm."""
+        try:
+            version = start_self_update(logging.getLogger("monitor"))
+        except RuntimeError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        return {"ok": True, "version": version}
 
     @app.get("/api/config/files")
     async def list_config_files(_: str = Depends(require_session)) -> Dict[str, Any]:

@@ -1850,21 +1850,99 @@
   // ---------------------------------------------------------------
   // Boot
   // ---------------------------------------------------------------
-  // A newer aimm release, found by the monitor's update check (once a day).
+  // The running aimm version, and a newer release found by the monitor's
+  // update check (once a day).
   const refreshUpdateBadge = async () => {
     try {
       const res = await fetch("/api/status", { credentials: "same-origin" });
       if (!res.ok) return;
-      const update = (await res.json()).update;
+      const status = await res.json();
+      const version = document.getElementById("aimm-version");
+      if (version && status.version) version.textContent = `v${status.version}`;
+      state.version = status.version;
+      const update = status.update;
+      // In Docker, aimm installs the release itself; elsewhere the badge shows how.
+      const inPlace = !!(update && status.self_update && status.self_update.available);
+      const updateBtn = document.getElementById("update-btn");
+      if (updateBtn && !state.updating) {
+        updateBtn.hidden = !inPlace;
+        if (inPlace) {
+          state.updateTarget = update.latest;
+          updateBtn.disabled = false;
+          updateBtn.textContent = `⬆ Update to ${update.latest}`;
+          updateBtn.title = `Install aimm ${update.latest} in this container and restart it`;
+        }
+      }
       const badge = document.getElementById("update-badge");
       if (!badge) return;
-      badge.hidden = !update;
+      badge.hidden = !update || inPlace;
       if (!update) return;
       badge.textContent = `⬆ aimm ${update.latest} available`;
       badge.href = update.changelog;
       badge.title = `You have ${update.current}. Upgrade with:\n${update.command}`;
+      if (update.note) badge.title += `\n${update.note}.`;
     } catch (_) {}
   };
+
+  const resetUpdateButton = (message) => {
+    state.updating = false;
+    setEditorStatus(`⬆ Update failed: ${message}`, "err");
+    refreshUpdateBadge();
+  };
+
+  // aimm exits after installing and supervisord starts the new version: wait
+  // until the server answers as another version, then reload the page. (Not
+  // `=== version`: older releases do not report their version.)
+  const waitForRestart = (runningVersion) => {
+    const started = Date.now();
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/status", { credentials: "same-origin" });
+        if (res.status === 401) {
+          window.location.reload(); // restarted, and the session went with it
+          return;
+        }
+        if (res.ok) {
+          const status = await res.json();
+          if (status.version !== runningVersion) {
+            window.location.reload();
+            return;
+          }
+          if (status.self_update && status.self_update.state === "failed") {
+            resetUpdateButton(status.self_update.error || "unknown error");
+            return;
+          }
+        }
+      } catch (_) {} // the server is restarting
+      if (Date.now() - started < 10 * 60 * 1000) {
+        setTimeout(poll, 3000);
+      } else {
+        resetUpdateButton("aimm did not come back with the new version; check `docker logs aimm`.");
+      }
+    };
+    setTimeout(poll, 3000);
+  };
+
+  wireClick("#update-btn", async () => {
+    const btn = $("#update-btn");
+    const version = state.updateTarget;
+    if (!btn || !version) return;
+    if (!confirm(`Install aimm ${version} and restart it? Searches pause while it installs and restarts.`)) {
+      return;
+    }
+    state.updating = true;
+    btn.disabled = true;
+    btn.textContent = `⬆ Updating to ${version}…`;
+    try {
+      const res = await api("/api/update", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      setEditorStatus(`⬆ Installing aimm ${version}. The page reloads when aimm restarts.`, "ok");
+      waitForRestart(state.version);
+    } catch (err) {
+      resetUpdateButton(err.message);
+    }
+  });
 
   const buildVncUrl = () => {
     const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
