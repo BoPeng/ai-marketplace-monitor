@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-10-07
+
 ### Changed
 - The AI now sees each listing's main photo by default (`use_images = true`), so it can tell, for example, an iPad from an iPad keyboard case. aimm downloads the photo, shrinks it (at most 800 pixels; 400 for Anthropic, which charges by image size), and sends the image itself instead of its URL, which expires and which not every AI service fetches. Anthropic now gets the photo too, so all providers can read listing photos. Set `use_images = false` to evaluate listings from their text only and save tokens.
 - Listings are notified at AI rating 4 (good match) or higher by default, instead of 3. Set `rating = 3` to also be notified of poor matches.
@@ -295,7 +297,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.5...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.6...HEAD
+[0.10.6]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.2...v0.10.3
