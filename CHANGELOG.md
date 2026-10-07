@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-10-07
+
+### Added
+- Discord community links in the README support section, the general discussion issue template, and the startup messages for `aimm run` and `aimm configure`.
+- `aimm configure` now opens with a summary of the current configuration, includes clearer section summaries, and gives better keyword guidance when building item sections.
+
+### Changed
+- Docker documentation now recommends `UNITYSVC_API_KEY`, explains how local environment variables are passed into the container, and walks through using the web UI plus the temporary Browser/noVNC tab for Facebook login or CAPTCHA prompts.
+- The Docker web UI Browser link now passes an explicit host, port and `ws/vnc` path to noVNC.
+- The release workflow no longer attempts the TestPyPI upload that failed during production releases.
+
+### Fixed
+- Docker images now send the `aimm` child process logs to `docker logs aimm`, so web UI and config startup errors are visible without entering the container.
+- The built-in noVNC bridge no longer forces the `binary` WebSocket subprotocol when the packaged noVNC client did not request it, fixing Browser tab connection failures in Docker.
+- The noVNC bridge now closes both sides of the TCP/WebSocket proxy when either side disconnects.
+
 ## [0.10.4] - 2026-10-05
 
 ### Added
@@ -267,7 +283,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.4...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.5...HEAD
+[0.10.5]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.2...v0.10.3
 [0.1.0]: https://github.com/BoPeng/ai-marketplace-monitor/compare/releases/tag/v0.1.0
