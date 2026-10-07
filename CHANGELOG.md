@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-10-07
+
 ### Added
 - The web UI header shows the running aimm version.
 - In Docker, an **Update** button next to the version installs a newer release inside the container (`pip install` plus the matching Chromium) and restarts aimm; the page reloads when aimm is back. If the install fails, aimm keeps running the current version and the web UI shows the error.
