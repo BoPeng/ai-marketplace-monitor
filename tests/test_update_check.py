@@ -166,5 +166,6 @@ def test_web_ui_status_carries_the_notice(tmp_path: Path, pypi: PyPI) -> None:
     )
     client = TestClient(app)
     assert client.get("/api/status").json()["update"] is None
+    assert client.get("/api/status").json()["version"] == update_check.__version__
     update_check.check(None, current="0.10.3")
     assert client.get("/api/status").json()["update"]["latest"] == "0.11.0"

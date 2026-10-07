@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The web UI header shows the running aimm version.
+
 ### Fixed
+- The Docker update instructions (README and the "newer release" notice) now recreate the container after `docker pull`. `docker restart` kept running the old image, so the update never took effect.
 - The web UI editor shows the config file as soon as the Configure assistant saves it. It used to reload only when the Configure session ended, so after a save followed by "Is there anything else you'd like to change?" the editor kept showing the old file.
 
 ## [0.10.6] - 2026-10-07

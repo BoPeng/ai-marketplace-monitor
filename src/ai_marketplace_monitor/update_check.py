@@ -63,7 +63,11 @@ def is_newer(latest: str, current: str) -> bool:
 def upgrade_command() -> str:
     """The upgrade command for how aimm was installed."""
     if os.environ.get("AIMM_DOCKER") == "1":
-        return "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker restart aimm"
+        # `docker restart` keeps the old image; the container must be recreated.
+        return (
+            "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker rm -f aimm,"
+            " then run your `docker run` command again"
+        )
     prefix = sys.prefix.replace("\\", "/")
     if "/pipx/" in prefix:
         return "pipx upgrade ai-marketplace-monitor"

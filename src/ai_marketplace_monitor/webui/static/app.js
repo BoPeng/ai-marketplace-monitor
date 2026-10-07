@@ -1850,12 +1850,16 @@
   // ---------------------------------------------------------------
   // Boot
   // ---------------------------------------------------------------
-  // A newer aimm release, found by the monitor's update check (once a day).
+  // The running aimm version, and a newer release found by the monitor's
+  // update check (once a day).
   const refreshUpdateBadge = async () => {
     try {
       const res = await fetch("/api/status", { credentials: "same-origin" });
       if (!res.ok) return;
-      const update = (await res.json()).update;
+      const status = await res.json();
+      const version = document.getElementById("aimm-version");
+      if (version && status.version) version.textContent = `v${status.version}`;
+      const update = status.update;
       const badge = document.getElementById("update-badge");
       if (!badge) return;
       badge.hidden = !update;

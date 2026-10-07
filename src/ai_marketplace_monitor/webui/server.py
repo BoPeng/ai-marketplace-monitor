@@ -36,6 +36,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .. import __version__
 from ..configure.flow import (
     ConfigureAddressError,
     configure_front_door,
@@ -324,6 +325,7 @@ def create_app(
     async def status(_: str = Depends(require_session)) -> Dict[str, Any]:
         files = config_service.list_files()
         return {
+            "version": __version__,
             "config_files": [f.__dict__ for f in files],
             "urls": _enumerate_urls(config.host, config.port),
             "auth_mode": "open" if is_open() else "authenticated",
