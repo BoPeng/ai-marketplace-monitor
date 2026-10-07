@@ -82,6 +82,19 @@ def test_describe_changes_reports_set_remove_add_and_masks_secrets() -> None:
     assert Change("notification.email", "add", None, "new section") in changes
 
 
+def test_describe_changes_shows_env_references() -> None:
+    before = {"user": {"u": {"smtp_password": "literal-secret"}}}
+    after = {"user": {"u": {"smtp_password": "${GMAIL_APP_PASSWORD}"}}}
+    assert describe_changes(before, after) == [
+        Change(
+            "user.u",
+            "set",
+            "smtp_password",
+            "smtp_password: '<REDACTED>' -> '${GMAIL_APP_PASSWORD}'",
+        )
+    ]
+
+
 def test_describe_changes_reports_pure_reordering() -> None:
     before = {"item": {"b": {"search_phrases": "x", "notify": ["u"]}}}
     after = {"item": {"b": {"notify": ["u"], "search_phrases": "x"}}}

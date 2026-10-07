@@ -21,7 +21,13 @@ from ..marketplace import (
 )
 from ..region import RegionConfig
 from ..user import UserConfig
-from ..utils import BaseConfig, MonitorConfig, TranslationConfig, is_sensitive_key
+from ..utils import (
+    BaseConfig,
+    MonitorConfig,
+    TranslationConfig,
+    is_env_reference,
+    is_sensitive_key,
+)
 
 SECTION_ORDER: Tuple[str, ...] = (
     "monitor",
@@ -96,8 +102,10 @@ class NormalizeResult:
 
 
 def mask(key: Optional[str], value: Any) -> Any:
-    """Mask a value if the key is sensitive."""
-    return MASK if key is not None and is_sensitive_key(key) else value
+    """Mask a value if the key is sensitive, unless it is a ``${VAR}`` reference."""
+    if key is None or not is_sensitive_key(key) or is_env_reference(value):
+        return value
+    return MASK
 
 
 def _order_section(section_type: str, raw: Dict[str, Any]) -> Dict[str, Any]:

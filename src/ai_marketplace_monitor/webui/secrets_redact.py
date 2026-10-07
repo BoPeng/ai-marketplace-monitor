@@ -14,6 +14,10 @@ out and restore them on the way in, so:
     ``"<REDACTED>"`` round-trips back to the original value.
   - Typing a real new value over the mask *does* write it through.
 
+Values that are exactly one ``${VAR}`` reference are shown as they are: the
+secret lives in the environment variable, and the reference tells the user
+which variable is used.
+
 Scope
 -----
 This is a line-based TOML scanner for common flat assignments like
@@ -29,6 +33,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Tuple
 
+from ..utils import is_env_reference
 from ..utils import is_sensitive_key as _is_sensitive
 
 # The literal we render in place of real secret values.
@@ -72,7 +77,8 @@ def redact(content: str) -> Tuple[str, SecretMap]:
             key = assign_match.group("key")
             if _is_sensitive(key):
                 value = assign_match.group("value")
-                if value and value != MASK:
+                # a ${VAR} reference is not a secret: it names where the secret is
+                if value and value != MASK and not is_env_reference(value):
                     secrets[(section, key)] = value
                     quote = assign_match.group("quote")
                     tail = assign_match.group("tail")

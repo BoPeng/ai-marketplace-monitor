@@ -1441,6 +1441,11 @@
       } else {
         input = document.createElement("input");
         input.type = fieldDef.type || "text";
+        // A ${VAR} reference is not a secret (the secret is in the environment
+        // variable), so show it as text: the user can see which variable is used.
+        if (fieldDef.type === "password" && /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(String(currentVal))) {
+          input.type = "text";
+        }
         // For password fields with <REDACTED>, show placeholder instead.
         if (fieldDef.type === "password" && String(currentVal) === "<REDACTED>") {
           input.value = "";

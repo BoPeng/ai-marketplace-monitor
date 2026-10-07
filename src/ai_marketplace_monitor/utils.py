@@ -779,3 +779,14 @@ def is_sensitive_key(key: str) -> bool:
     """Whether a config key holds a secret that must never be displayed."""
     k = key.lower()
     return k in _SENSITIVE_EXACT or any(s in k for s in _SENSITIVE_SUBSTRINGS)
+
+
+_ENV_REFERENCE = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}")
+
+
+def is_env_reference(value: Any) -> bool:
+    """Whether a value is exactly one ``${VAR}`` reference.
+
+    The secret lives in the environment, so the reference itself can be shown.
+    """
+    return isinstance(value, str) and _ENV_REFERENCE.fullmatch(value) is not None

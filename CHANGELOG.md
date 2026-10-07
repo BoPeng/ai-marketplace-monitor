@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `aimm configure` now offers UnitySVC email (`smtp.svcpass.com` with `smtp_username = "smtp-to-mailbox"`) first when the user wants email, with Gmail as the next option and instructions for creating a Gmail app password. UnitySVC HTTP notifications are offered for phone and chat alerts (Discord, Slack, SMS, push), not email.
 - Notification summaries in `aimm configure` tell UnitySVC email (with listing photos) apart from UnitySVC phone/chat notifications (text only).
 - `aimm configure` handles requests such as "switch my notifications to UnitySVC email" by replacing the old channel for the users who received it, instead of adding a second one.
+- The web UI no longer hides settings such as `api_key = "${UNITYSVC_API_KEY}"`: a value that is a single `${VAR}` reference only names the environment variable that holds the secret, so it is shown as is, and as text in the form editor. Literal secrets are still shown as `<REDACTED>`.
 
 ### Fixed
 - Listing descriptions are read correctly from Facebook's newer item pages when a category adds attributes after Condition, such as "Has Bluetooth" for electronics or "Bicycle Type" for bikes. aimm used to take the first such attribute (e.g. "Has BluetoothYes") as the description, so the AI never saw the seller's text.
