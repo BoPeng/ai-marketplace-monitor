@@ -93,6 +93,7 @@ def test_a_newer_release_is_logged_and_remembered(
         "current": "0.10.3",
         "latest": "0.11.0",
         "command": "pip install --upgrade ai-marketplace-monitor",
+        "note": "",
         "changelog": update_check.CHANGELOG_URL,
     }
 
@@ -133,7 +134,7 @@ def test_turning_it_off(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize(
     "docker, prefix, command",
     [
-        ("1", "/usr/local", "the Update button next to the version in the web UI"),
+        ("1", "/usr/local", "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest"),
         (None, "/home/me/.local/share/pipx/venvs/ai-marketplace-monitor", "pipx upgrade"),
         (None, "/home/me/.local/share/uv/tools/ai-marketplace-monitor", "uv tool upgrade"),
         (None, "/home/me/venv", "pip install --upgrade"),
@@ -148,6 +149,22 @@ def test_upgrade_command_fits_the_installation(
         monkeypatch.delenv("AIMM_DOCKER", raising=False)
     monkeypatch.setattr(sys, "prefix", prefix)
     assert update_check.upgrade_command().startswith(command)
+
+
+def test_docker_command_can_be_copied_and_run(
+    pypi: PyPI, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("AIMM_DOCKER", "1")
+    logger = logging.getLogger("monitor-test")
+    with caplog.at_level(logging.INFO, logger="monitor-test"):
+        notice = update_check.check(logger, current="0.10.3")
+    assert notice is not None
+    # the command alone, so pasting it does not hand the instructions to `docker rm`
+    assert notice.command == (
+        "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker rm -f aimm"
+    )
+    assert "run your `docker run` command again" in notice.note
+    assert notice.note in caplog.text
 
 
 def test_web_ui_status_carries_the_notice(tmp_path: Path, pypi: PyPI) -> None:
@@ -177,7 +194,12 @@ def installer(monkeypatch: pytest.MonkeyPatch, pypi: PyPI) -> List[Any]:
     calls: List[Any] = []
     monkeypatch.setenv("AIMM_DOCKER", "1")
     monkeypatch.setattr(update_check, "_self_update", update_check.SelfUpdate())
-    monkeypatch.setattr(update_check, "_run", lambda command, logger: calls.append(command))
+
+    def run(command: List[str], logger: Any) -> str:
+        calls.append(command)
+        return "ai-marketplace-monitor==0.10.3\nplaywright==1.50.0\n"  # for `pip freeze`
+
+    monkeypatch.setattr(update_check, "_run", run)
     monkeypatch.setattr(update_check, "_restart", lambda: calls.append("restart"))
     update_check.check(None, current="0.10.3")
     return calls
@@ -185,7 +207,8 @@ def installer(monkeypatch: pytest.MonkeyPatch, pypi: PyPI) -> List[Any]:
 
 def test_self_update_installs_the_release_then_restarts(installer: List[Any]) -> None:
     update_check.install_and_restart("0.11.0", None)
-    pip, playwright, restart = installer
+    freeze, pip, playwright, restart = installer
+    assert freeze[1:4] == ["-m", "pip", "freeze"]
     assert pip[1:] == ["-m", "pip", "install", "ai-marketplace-monitor==0.11.0"]
     assert playwright[1:] == ["-m", "playwright", "install", "chromium"]
     assert restart == "restart"
@@ -195,7 +218,7 @@ def test_self_update_installs_the_release_then_restarts(installer: List[Any]) ->
 def test_failed_self_update_keeps_aimm_running(
     installer: List[Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fail(command: List[str], logger: Any) -> None:
+    def fail(command: List[str], logger: Any) -> str:
         raise RuntimeError("no network")
 
     monkeypatch.setattr(update_check, "_run", fail)
@@ -203,6 +226,43 @@ def test_failed_self_update_keeps_aimm_running(
     assert "restart" not in installer
     status = update_check.self_update_status()
     assert (status["state"], status["error"]) == ("failed", "no network")
+
+
+@pytest.mark.parametrize("restore_fails", [False, True])
+def test_failed_browser_install_restores_the_previous_packages(
+    installer: List[Any], monkeypatch: pytest.MonkeyPatch, restore_fails: bool
+) -> None:
+    restored: List[str] = []
+
+    def run(command: List[str], logger: Any) -> str:
+        if "freeze" in command:
+            return "ai-marketplace-monitor==0.10.3\nplaywright==1.50.0\n"
+        if "playwright" in command:
+            raise RuntimeError("download failed")
+        if "-r" in command:  # the restore: the snapshot, without resolving again
+            if restore_fails:
+                raise RuntimeError("no network")
+            assert "--no-deps" in command
+            with open(command[-1], encoding="utf-8") as requirements:
+                restored.append(requirements.read())
+        return ""
+
+    monkeypatch.setattr(update_check, "_run", run)
+    update_check.install_and_restart("0.11.0", None)
+    assert "restart" not in installer
+    status = update_check.self_update_status()
+    assert status["state"] == "failed"
+    assert status["error"].startswith("download failed\n")
+    if restore_fails:
+        assert "recreate the container" in status["error"]
+    else:
+        assert restored == ["ai-marketplace-monitor==0.10.3\nplaywright==1.50.0\n"]
+        assert "Restored aimm" in status["error"]
+
+
+def test_run_kills_a_command_that_does_not_finish() -> None:
+    with pytest.raises(RuntimeError, match=r"did not finish in 0\.5 seconds"):
+        update_check._run([sys.executable, "-c", "import time; time.sleep(30)"], None, timeout=0.5)
 
 
 def test_self_update_needs_docker_a_release_and_no_update_running(

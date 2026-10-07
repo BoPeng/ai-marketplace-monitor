@@ -19,6 +19,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from dataclasses import asdict, dataclass
 from logging import Logger
@@ -37,14 +38,16 @@ _RELEASE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 class UpdateNotice:
     current: str
     latest: str
-    command: str  # how to upgrade this installation
+    command: str  # how to upgrade this installation: a command only, safe to copy and run
+    note: str = ""  # what else to do, in words
     changelog: str = CHANGELOG_URL
 
     def message(self: "UpdateNotice") -> str:
-        return (
+        message = (
             f"AI Marketplace Monitor {self.latest} is available (you have {self.current}). "
             f"Upgrade with: {self.command}"
         )
+        return f"{message}. {self.note}" if self.note else message
 
 
 # the latest result, for the web UI; None until a check finds a newer release
@@ -70,18 +73,24 @@ def is_newer(latest: str, current: str) -> bool:
 def upgrade_command() -> str:
     """The upgrade command for how aimm was installed."""
     if os.environ.get("AIMM_DOCKER") == "1":
-        # `docker restart` keeps the old image; the container must be recreated.
-        return (
-            "the Update button next to the version in the web UI, or"
-            " docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker rm -f aimm,"
-            " then run your `docker run` command again"
-        )
+        # `docker restart` keeps the old image; the container must be recreated (see upgrade_note)
+        return "docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest && docker rm -f aimm"
     prefix = sys.prefix.replace("\\", "/")
     if "/pipx/" in prefix:
         return "pipx upgrade ai-marketplace-monitor"
     if "/uv/tools/" in prefix:
         return "uv tool upgrade ai-marketplace-monitor"
     return "pip install --upgrade ai-marketplace-monitor"
+
+
+def upgrade_note() -> str:
+    """What to do besides running the upgrade command."""
+    if os.environ.get("AIMM_DOCKER") == "1":
+        return (
+            "Then run your `docker run` command again, or click Update next to the version in the"
+            " web UI to update this container"
+        )
+    return ""
 
 
 def enabled(check_updates: bool | None) -> bool:
@@ -114,7 +123,9 @@ def check(logger: Logger | None, current: str = __version__) -> UpdateNotice | N
     latest = latest_version()
     if latest is None or not is_newer(latest, current):
         return None
-    _notice = UpdateNotice(current=current, latest=latest, command=upgrade_command())
+    _notice = UpdateNotice(
+        current=current, latest=latest, command=upgrade_command(), note=upgrade_note()
+    )
     if logger:
         logger.info(f"""{hilight("[UPDATE]", "info")} {_notice.message()}""")
     return _notice
@@ -130,6 +141,7 @@ class SelfUpdate:
 _self_update = SelfUpdate()
 _self_update_lock = threading.Lock()
 RESTART_GRACE = 60  # seconds to clean up before aimm exits anyway
+INSTALL_TIMEOUT = 15 * 60  # seconds for each install command
 
 
 def can_self_update() -> bool:
@@ -170,17 +182,22 @@ def install_and_restart(version: str, logger: Logger | None) -> None:
     global _self_update
     if logger:
         logger.info(f"""{hilight("[UPDATE]", "info")} Installing aimm {version}...""")
+    pip = [sys.executable, "-m", "pip"]
+    snapshot: str | None = None
     try:
-        _run(
-            [sys.executable, "-m", "pip", "install", f"ai-marketplace-monitor=={version}"], logger
-        )
+        # the exact version of every package, to go back to if the update cannot finish
+        snapshot = _run([*pip, "freeze", "--exclude-editable"], None)
+        _run([*pip, "install", f"ai-marketplace-monitor=={version}"], logger)
         # a newer Playwright cannot drive the Chromium that came with the image
         _run([sys.executable, "-m", "playwright", "install", "chromium"], logger)
     except Exception as e:
-        _self_update = SelfUpdate("failed", version, str(e))
+        error = str(e)
+        if snapshot is not None:
+            error += _restore(pip, snapshot, logger)
+        _self_update = SelfUpdate("failed", version, error)
         if logger:
             logger.error(
-                f"""{hilight("[UPDATE]", "fail")} Failed to install aimm {version}: {e}"""
+                f"""{hilight("[UPDATE]", "fail")} Failed to install aimm {version}: {error}"""
             )
         return
     _self_update = SelfUpdate("restarting", version)
@@ -189,20 +206,59 @@ def install_and_restart(version: str, logger: Logger | None) -> None:
     _restart()
 
 
-def _run(command: List[str], logger: Logger | None) -> None:
-    """Run a command, logging its output; raise with the last lines when it fails."""
+def _restore(pip: List[str], snapshot: str, logger: Logger | None) -> str:
+    """Put back the packages from before the update; what happened, for the error message.
+
+    A failed update may have installed a newer aimm and Playwright already, which the next
+    restart would run without the Chromium they need.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as requirements:
+        requirements.write(snapshot)
+    try:
+        _run([*pip, "install", "--no-deps", "-r", requirements.name], logger)
+    except Exception as e:
+        return (
+            f"\nThe previous version could not be restored either ({e}); recreate the container"
+            " to go back to the version in the image."
+        )
+    finally:
+        os.unlink(requirements.name)
+    return f"\nRestored aimm {__version__}."
+
+
+def _run(command: List[str], logger: Logger | None, timeout: float = INSTALL_TIMEOUT) -> str:
+    """Run a command, logging its output; raise with the last lines when it fails.
+
+    Returns the output. A command still running after ``timeout`` seconds is killed.
+    """
     output: List[str] = []
+    timed_out = threading.Event()
     with subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     ) as process:
-        assert process.stdout is not None
-        for line in process.stdout:
-            output.append(line.rstrip())
-            if logger:
-                logger.debug(f"""{hilight("[UPDATE]", "info")} {line.rstrip()}""")
+
+        def kill() -> None:
+            timed_out.set()
+            process.kill()
+
+        timer = threading.Timer(timeout, kill)
+        timer.daemon = True
+        timer.start()
+        try:
+            assert process.stdout is not None
+            for line in process.stdout:
+                output.append(line.rstrip())
+                if logger:
+                    logger.debug(f"""{hilight("[UPDATE]", "info")} {line.rstrip()}""")
+        finally:
+            timer.cancel()
+    name = " ".join(command[2:])
+    if timed_out.is_set():
+        raise RuntimeError(f"`{name}` did not finish in {timeout:g} seconds")
     if process.returncode != 0:
         tail = "\n".join(output[-5:])
-        raise RuntimeError(f"`{' '.join(command[2:])}` exited with {process.returncode}:\n{tail}")
+        raise RuntimeError(f"`{name}` exited with {process.returncode}:\n{tail}")
+    return "\n".join(output) + "\n"
 
 
 def _restart() -> None:

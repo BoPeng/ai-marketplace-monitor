@@ -1880,6 +1880,7 @@
       badge.textContent = `⬆ aimm ${update.latest} available`;
       badge.href = update.changelog;
       badge.title = `You have ${update.current}. Upgrade with:\n${update.command}`;
+      if (update.note) badge.title += `\n${update.note}.`;
     } catch (_) {}
   };
 
