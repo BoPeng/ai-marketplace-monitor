@@ -63,6 +63,7 @@ reference (not for Ollama), and for Ollama a `base_url` and `model`. Before savi
 ## Rules
 
 - Change `timeout` and `max_retries` only when asked.
-- Set `use_images` only when the user wants the AI to look at listing photos; say that it needs a
-  vision model and costs more per listing (`image_detail = "low"` keeps it small).
+- The AI sees each listing's main photo by default (`use_images`). Set `use_images = false` when
+  the user wants to save tokens or the model cannot read images; say that the AI then judges
+  listings from their text only.
 - Do not change a section's provider; set up another section instead.

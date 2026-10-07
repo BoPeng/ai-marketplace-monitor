@@ -272,7 +272,7 @@ api_key = 'your_openai_key'
 [item.camera]
 description = '''High-quality DSLR camera in good condition.
 Exclude listings with water damage or missing parts.'''
-rating = 4  # Only notify for 4+ star AI ratings
+rating = 5  # Only notify for great deals (default: 4+)
 ```
 
 ## 📚 Documentation

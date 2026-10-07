@@ -1,3 +1,5 @@
+import base64
+import io
 import re
 import time
 from dataclasses import asdict, dataclass, field
@@ -5,7 +7,9 @@ from enum import Enum
 from logging import Logger
 from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
+import requests  # type: ignore
 from diskcache import Cache  # type: ignore
+from PIL import Image
 from rich.pretty import pretty_repr
 
 from .listing import Listing
@@ -98,7 +102,7 @@ class AIConfig(BaseConfig):
     base_url: str | None = None
     max_retries: int = 10
     timeout: int | None = None
-    use_images: bool = False
+    use_images: bool = True
     image_detail: str = "low"
 
     def handle_provider(self: "AIConfig") -> None:
@@ -185,6 +189,43 @@ class AnthropicConfig(AIConfig):
 
 TAIConfig = TypeVar("TAIConfig", bound=AIConfig)
 
+# told to the AI along with the photo, so it checks what is actually for sale
+IMAGE_NOTE = (
+    "The listing's main photo is attached. Use it to check what is actually being sold "
+    "(for example a case, cover or accessory instead of the device) and its visible condition."
+)
+
+
+@dataclass
+class ListingImage:
+    """A listing photo downloaded by aimm, ready to embed in an AI request."""
+
+    media_type: str
+    data: str  # base64
+
+    @property
+    def data_url(self: "ListingImage") -> str:
+        return f"data:{self.media_type};base64,{self.data}"
+
+
+# longest side of a photo sent to the AI; enough to tell what is for sale, and few tokens
+IMAGE_MAX_SIDE = 800
+
+
+def fetch_listing_image(url: str, timeout: int = 15) -> ListingImage:
+    """Download a listing photo and shrink it so its longest side is at most IMAGE_MAX_SIDE.
+
+    The photo is sent to the AI as data rather than as its URL: Facebook photo URLs expire,
+    and not every AI service fetches image URLs.
+    """
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    with Image.open(io.BytesIO(response.content)) as img:
+        img.thumbnail((IMAGE_MAX_SIDE, IMAGE_MAX_SIDE))
+        buffer = io.BytesIO()
+        img.convert("RGB").save(buffer, format="JPEG", quality=85)
+    return ListingImage("image/jpeg", base64.b64encode(buffer.getvalue()).decode("ascii"))
+
 
 class AIBackend(Generic[TAIConfig]):
     def __init__(self: "AIBackend", config: AIConfig, logger: Logger | None = None) -> None:
@@ -198,6 +239,19 @@ class AIBackend(Generic[TAIConfig]):
 
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
+
+    def listing_image(self: "AIBackend", listing: Listing) -> ListingImage | None:
+        """The listing's main photo for the AI, or None if not wanted or not available."""
+        if not self.config.use_images or not listing.image:
+            return None
+        try:
+            return fetch_listing_image(listing.image)
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[AI-Error]", "fail")} Could not download the photo of {hilight(listing.title)}, evaluating its text only: {e}"""
+                )
+            return None
 
     def get_prompt(
         self: "AIBackend",
@@ -323,11 +377,11 @@ class OpenAIBackend(AIBackend):
         retries = 0
         response: Any | None = None
         last_error: Exception | None = None
-        include_image = True
+        image = self.listing_image(listing)
         while retries < self.config.max_retries:
             self.connect()
             assert self.client is not None
-            user_message = self._user_message(prompt, listing, include_image=include_image)
+            user_message = self._user_message(prompt, image)
             try:
                 response = self.client.chat.completions.create(
                     model=self.config.model or self.default_model,
@@ -345,14 +399,13 @@ class OpenAIBackend(AIBackend):
                 raise
             except Exception as e:
                 last_error = e
-                if isinstance(user_message["content"], list):
-                    # the model may not support images, or the (expiring) image URL
-                    # may no longer be accessible, so fall back to text-only
+                if image is not None:
+                    # the model may not support images, so fall back to text-only
                     if self.logger:
                         self.logger.warning(
                             f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)} with image, retrying without image: {e}"""
                         )
-                    include_image = False
+                    image = None
                     continue
                 if self.logger:
                     self.logger.error(
@@ -408,20 +461,17 @@ class OpenAIBackend(AIBackend):
         return res
 
     def _user_message(
-        self: "OpenAIBackend", prompt: str, listing: Listing, include_image: bool = True
+        self: "OpenAIBackend", prompt: str, image: ListingImage | None
     ) -> dict[str, Any]:
-        if not include_image or not self.config.use_images or not listing.image:
+        if image is None:
             return {"role": "user", "content": prompt}
         return {
             "role": "user",
             "content": [
-                {"type": "text", "text": prompt},
+                {"type": "text", "text": f"{prompt}\n{IMAGE_NOTE}"},
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": listing.image,
-                        "detail": self.config.image_detail,
-                    },
+                    "image_url": {"url": image.data_url, "detail": self.config.image_detail},
                 },
             ],
         }
@@ -506,6 +556,7 @@ class AnthropicBackend(AIBackend):
         self.connect()
 
         retries = 0
+        image = self.listing_image(listing)
         while retries < self.config.max_retries:
             self.connect()
             assert self.client is not None
@@ -514,14 +565,20 @@ class AnthropicBackend(AIBackend):
                     model=self.config.model or self.default_model,
                     max_tokens=1024,
                     system="You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
-                    messages=[
-                        {"role": "user", "content": prompt},
-                    ],
+                    messages=[self._user_message(prompt, image)],
                 )
                 break
             except KeyboardInterrupt:
                 raise
             except Exception as e:
+                if image is not None:
+                    # the model may not support images, so fall back to text-only
+                    if self.logger:
+                        self.logger.warning(
+                            f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)} with image, retrying without image: {e}"""
+                        )
+                    image = None
+                    continue
                 if self.logger:
                     self.logger.error(
                         f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
@@ -563,3 +620,23 @@ class AnthropicBackend(AIBackend):
         res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
         return res
+
+    def _user_message(
+        self: "AnthropicBackend", prompt: str, image: ListingImage | None
+    ) -> dict[str, Any]:
+        if image is None:
+            return {"role": "user", "content": prompt}
+        return {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": image.data,
+                    },
+                },
+                {"type": "text", "text": f"{prompt}\n{IMAGE_NOTE}"},
+            ],
+        }

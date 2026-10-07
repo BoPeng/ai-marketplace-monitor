@@ -285,3 +285,13 @@ async def test_image_options_can_be_set(tmp_path: Path) -> None:
     assert problems == [] and A.validate(ws, draft) == []
     draft.values["image_detail"] = "huge"
     assert "image_detail" in A.validate(ws, draft)[0]
+
+
+async def test_summary_shows_whether_photos_are_read(tmp_path: Path) -> None:
+    ws = await ws_for(tmp_path, BASE)
+    assert A.summary(ws, {}) == (
+        "default model; reads listing photos (use_images = false saves tokens)"
+    )
+    assert A.summary(ws, {"model": "gpt-4o", "use_images": False}) == (
+        "model gpt-4o; text only (use_images = true lets it read listing photos)"
+    )

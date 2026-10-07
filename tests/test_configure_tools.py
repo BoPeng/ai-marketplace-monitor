@@ -103,7 +103,13 @@ async def test_list_sections_shows_names_requests_and_summaries(tmp_path: Path) 
     assert by_type["marketplace"] == {
         "type": "marketplace",
         "configurable_here": True,
-        "sections": [{"name": "facebook", "request": "Houston", "summary": "searches houston"}],
+        "sections": [
+            {
+                "name": "facebook",
+                "request": "Houston",
+                "summary": "searches houston; notifies AI rating 4+ (rating = 3 for more notifications)",
+            }
+        ],
     }
     assert by_type["item"]["configurable_here"] is False
     assert by_type["ai"]["sections"] == [{"name": "unitysvc", "request": None}]

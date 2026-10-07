@@ -80,7 +80,10 @@ _ITEM_SPECIFIC: Dict[str, Tuple[str, str]] = {
         "free text replacing aimm's rating instructions",
     ),
     "rating": (
-        "how good a match must be to notify: 4 or 5 for picky users, 2 for anything plausible",
+        (
+            "how good a match must be to notify (default 4): 5 for picky users, 3 to also see "
+            "poor matches, 2 for anything plausible"
+        ),
         "list of integers 1-5, e.g. `[4]`",
     ),
 }
