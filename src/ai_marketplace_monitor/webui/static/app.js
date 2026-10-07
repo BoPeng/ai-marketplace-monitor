@@ -692,6 +692,9 @@
         appendChatMessage("assistant", msg.text, msg.kind || "info");
       } else if (msg.type === "prompt") {
         renderChatPrompt(msg);
+      } else if (msg.type === "config_saved") {
+        // the session wrote the config file; show it while the chat continues
+        await reloadConfigAfterChat();
       } else if (msg.type === "done") {
         const ok = msg.exit_code === 0;
         appendChatMessage(
@@ -702,7 +705,6 @@
         clearChatPrompt();
         setChatControls(false, true);
         state.chatWs = null;
-        await reloadConfigAfterChat();
       }
     };
     ws.onclose = () => {
