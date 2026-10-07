@@ -24,7 +24,7 @@ that provider; for a second section of the same provider, use another name (`ope
 
 - **UnitySVC** (recommended): one key for AI and email notifications. `base_url` only for
   another endpoint or an alias such as `https://api.svcpass.com/a/myllm`; models include tiers
-  such as `balanced`.
+  such as `balanced`. Recommend `balanced`: it is relatively inexpensive and reads listing photos.
 - **OpenAI**, **Anthropic**: an API key from the provider.
 - **Ollama**: runs locally, no key; `base_url` (usually `http://localhost:11434/v1`) and a model
   the server has.
@@ -45,6 +45,9 @@ Call `section_check` once the section has its provider and key: aimm tries it as
 `aimm configure ai` does and returns `trial` with `works`, the message, `available_models` and
 sometimes `suggested_base_url` (the same URL with `/v1`, which works). Offer models from
 `available_models` (the current or newest of the same family first); never invent a model name.
+`section_check` sends text only, so it does not show whether a model can read images. When the
+user picks a model other than UnitySVC's `balanced`, tell them to make sure it accepts image input,
+or set `use_images = false` for it.
 A section that does not work can be saved as a backup, but not as the default.
 
 ### The default

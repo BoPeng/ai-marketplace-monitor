@@ -58,7 +58,7 @@ AI_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "model",
         "a model from `available_models` of section_check; for UnitySVC also a tier "
-        "(`balanced`, ...)",
+        "(`balanced`, recommended: inexpensive and reads listing photos)",
         'e.g. `"balanced"`, `"gpt-4o"`, `"claude-sonnet-5-5"`',
         "the provider's default model",
     ),
