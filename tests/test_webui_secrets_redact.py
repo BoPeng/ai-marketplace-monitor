@@ -115,3 +115,36 @@ def test_single_quoted_string_redacted() -> None:
     assert MASK in redacted
     assert secrets[("x", "password")] == "quoted"
     assert restore(redacted, secrets) == src
+
+
+def test_env_references_are_not_redacted() -> None:
+    src = """
+[ai.unitysvc]
+api_key = "${UNITYSVC_API_KEY}"
+
+[notification.gmail]
+smtp_password = '${GMAIL_APP_PASSWORD}'
+
+[marketplace.facebook]
+username = "me@gmail.com"
+
+[user.me]
+pushbullet_token = "abc${NOT_A_REFERENCE}"
+telegram_token = "${not a variable}"
+"""
+    redacted, secrets = redact(src)
+    # references name the environment variable; the secret is not in the file
+    assert 'api_key = "${UNITYSVC_API_KEY}"' in redacted
+    assert "smtp_password = '${GMAIL_APP_PASSWORD}'" in redacted
+    assert ("ai.unitysvc", "api_key") not in secrets
+    # literal secrets, and values that are not exactly one reference, are still masked
+    assert "me@gmail.com" not in redacted
+    assert "abc${NOT_A_REFERENCE}" not in redacted
+    assert "${not a variable}" not in redacted
+    assert set(secrets) == {
+        ("marketplace.facebook", "username"),
+        ("user.me", "pushbullet_token"),
+        ("user.me", "telegram_token"),
+    }
+    # saving the shown content writes the original file back
+    assert restore(redacted, secrets) == src
