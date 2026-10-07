@@ -8,6 +8,7 @@ from the main thread to that loop via ``loop.call_soon_threadsafe``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import mimetypes
 import os
@@ -95,6 +96,14 @@ def _origin_matches_host(origin: str | None, host: str | None) -> bool:
     origin_host = parsed.hostname.rstrip(".").lower()
     request_host, request_port = _host_port(host, default_port)
     return origin_host == request_host and (origin_port or default_port) == request_port
+
+
+def _select_vnc_subprotocol(header: str | None) -> str | None:
+    """Return a WebSocket subprotocol only when the client requested it."""
+    if not header:
+        return None
+    requested = {part.strip().lower() for part in header.split(",")}
+    return "binary" if "binary" in requested else None
 
 
 @dataclass
@@ -532,7 +541,11 @@ def create_app(
             if rejection_code is not None:
                 await websocket.close(code=rejection_code)
                 return
-            await websocket.accept(subprotocol="binary")
+            await websocket.accept(
+                subprotocol=_select_vnc_subprotocol(
+                    websocket.headers.get("sec-websocket-protocol")
+                )
+            )
             try:
                 reader, writer = await asyncio.open_connection(vnc_host, vnc_port)
             except OSError:
@@ -549,6 +562,8 @@ def create_app(
                     pass
                 finally:
                     writer.close()
+                    with contextlib.suppress(Exception):
+                        await writer.wait_closed()
 
             async def tcp_to_ws() -> None:
                 try:
@@ -563,7 +578,11 @@ def create_app(
                     except Exception:  # noqa: S110 — already closed
                         pass
 
-            await asyncio.gather(ws_to_tcp(), tcp_to_ws(), return_exceptions=True)
+            tasks = {asyncio.create_task(ws_to_tcp()), asyncio.create_task(tcp_to_ws())}
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*done, *pending, return_exceptions=True)
 
     # ------------------------------------------------------------------
     # Static UI
