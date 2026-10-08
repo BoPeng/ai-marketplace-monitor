@@ -51,22 +51,25 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "login_wait_time",
-        "only if the user says logging in to Facebook by hand takes long",
-        "seconds, e.g. `120`",
-        "a short wait",
+        "deprecated and ignored (aimm waits until the login finishes); never set it, and "
+        "remove it when the section has it",
+        "do not set",
+        "aimm waits until the login finishes",
     ),
     FieldGuide(
         "username",
-        "only if the user wants aimm to log in to Facebook",
+        "required, since aimm searches only while logged in to Facebook; set it unless the "
+        "user keeps it in the FACEBOOK_USERNAME environment variable",
         '`"${FACEBOOK_USERNAME}"`',
-        "read from FACEBOOK_USERNAME, or no login",
+        "read from FACEBOOK_USERNAME; required",
         secret=True,
     ),
     FieldGuide(
         "password",
-        "only if the user wants aimm to log in to Facebook",
+        "required, since aimm searches only while logged in to Facebook; set it unless the "
+        "user keeps it in the FACEBOOK_PASSWORD environment variable",
         '`"${FACEBOOK_PASSWORD}"`',
-        "read from FACEBOOK_PASSWORD, or no login",
+        "read from FACEBOOK_PASSWORD; required",
         secret=True,
     ),
     FieldGuide(

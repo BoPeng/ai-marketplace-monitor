@@ -308,8 +308,9 @@ class BaseConfig:
     def _value_from_environ(self: "BaseConfig", key: str) -> str | None:
         """Replace key with value from an environment variable if it has a format of ${KEY}.
 
-        Returns None (with a warning) when the variable is not set, so
-        that optional credentials degrade gracefully to anonymous mode.
+        Returns None (with a warning) when the variable is not set, so that a missing
+        optional value is left unset; required ones (e.g. Facebook credentials) are
+        reported by the config validation.
         """
         if not isinstance(key, str) or not key.startswith("${") or not key.endswith("}"):
             return key

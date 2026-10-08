@@ -44,6 +44,7 @@ from ..configure.flow import (
     validate_section_address,
 )
 from ..configure.ui import JsonSetupUI, SetupClosedError
+from ..control import control
 from ..update_check import current_notice, self_update_status, start_self_update
 from ..utils import cache
 from .auth import (
@@ -334,7 +335,32 @@ def create_app(
             and Path(os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")).is_dir(),
             "update": current_notice(),  # a newer release, if the update check found one
             "self_update": self_update_status(),
+            "monitor": control.status(),  # paused, or waiting for the Facebook login
         }
+
+    @app.post("/api/monitor/pause")
+    async def pause_monitor(
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Stop searching after the current listing, until resumed (not kept across restarts)."""
+        if not control.is_paused():
+            control.pause()
+            logging.getLogger("monitor").info(
+                "[Pause] Pausing from the web UI: searches stop after the current listing."
+            )
+        return {"ok": True, **control.status()}
+
+    @app.post("/api/monitor/resume")
+    async def resume_monitor(
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Resume, and search all items now (touching the config wakes the monitor)."""
+        control.resume()
+        with contextlib.suppress(OSError):
+            config_service.editable_path.touch()
+        return {"ok": True, **control.status()}
 
     @app.post("/api/update")
     async def update_aimm(

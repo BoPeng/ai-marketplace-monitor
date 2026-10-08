@@ -29,6 +29,7 @@ def _search_urls(item: FacebookItemConfig, market: FacebookMarketplaceConfig) ->
     mp = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
     mp.configure(market)
     mp.page = MagicMock()
+    mp.page.url = "https://www.facebook.com/marketplace/houston/search"  # not a login page
     urls: List[str] = []
     # ruff targets py39, so no parenthesized context managers
     with (

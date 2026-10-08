@@ -224,7 +224,10 @@ After the container starts:
    in-container browser from outside access.
 3. If Facebook asks for a login, CAPTCHA, or other interactive check, click
    **Browser** in the web UI header to open the live Chromium session in a new
-   tab and complete the prompt there.
+   tab and complete the prompt there. aimm waits (the status shows "waiting for
+   Facebook login") and starts searching once you are logged in. The **⏸**
+   button in the header pauses searches whenever you need the browser to
+   yourself; **▶** resumes them.
 4. Once the prompt is handled, you can close the Browser/noVNC tab. The monitor
    keeps running in Docker, so you do not need to keep a Playwright browser
    window open on your desktop.
@@ -318,7 +321,7 @@ For detailed information on setup and advanced features, see the comprehensive d
 - Multi-city and region search
 - Currency conversion
 - Keyword filtering with Boolean logic
-- Proxy/anonymous searching
+- Searching through a proxy
 
 **Configuration:**
 

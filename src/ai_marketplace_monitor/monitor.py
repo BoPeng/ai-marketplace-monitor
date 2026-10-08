@@ -20,6 +20,7 @@ from .config import (
     supported_ai_backends,
     supported_marketplaces,
 )
+from .control import control
 from .listing import Listing
 from .marketplace import (
     DEFAULT_RATING,
@@ -58,10 +59,6 @@ class MarketplaceMonitor:
         self.config: Config | None = None
         self.config_hash: str | None = None
         self.headless = headless
-        # When True, start_monitor blocks until every enabled marketplace
-        # has a username + password in the config. The web UI sets this
-        # so Playwright doesn't race the web UI for Facebook credentials.
-        self.defer_login_until_credentials: bool = False
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
@@ -413,8 +410,22 @@ class MarketplaceMonitor:
                         item_config,
                     ).tag(item_config.name)
 
+    def wait_while_paused(self: "MarketplaceMonitor") -> None:
+        """Hold searches while the web UI has paused the monitor."""
+        if not control.is_paused():
+            return
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Pause]", "info")} Searches are paused. Click Resume in the web UI to continue."""
+            )
+        while not control.wait_until_resumed(60):
+            pass
+        if self.logger:
+            self.logger.info(f"""{hilight("[Pause]", "succ")} Searches resumed.""")
+
     def handle_pause(self: "MarketplaceMonitor") -> None:
         """Handle interruption signal."""
+        self.wait_while_paused()
         if self.keyboard_monitor is None or not self.keyboard_monitor.is_paused():
             return
 
@@ -453,51 +464,6 @@ class MarketplaceMonitor:
                 if self.logger:
                     self.logger.debug(f"Failed to check item {url}: {e}")
 
-    def _has_marketplace_credentials(self: "MarketplaceMonitor") -> bool:
-        """True if every enabled marketplace has a username and password.
-
-        Used to defer launching the Playwright browser until the user has
-        provided credentials (typically via the web UI), to avoid the
-        confusing state of two places asking for Facebook login at once.
-        """
-        assert self.config is not None
-        for mp in self.config.marketplace.values():
-            if getattr(mp, "enabled", True) is False:
-                continue
-            if not getattr(mp, "username", None) or not getattr(mp, "password", None):
-                return False
-        return True
-
-    def _wait_for_marketplace_credentials(self: "MarketplaceMonitor") -> None:
-        """Block until config has marketplace credentials.
-
-        Reloads the config whenever the file changes on disk.
-        No-op if credentials are already present.
-        """
-        assert self.config is not None
-        while not self._has_marketplace_credentials():
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Login]", "info")} Waiting for Facebook credentials. Sign in via the web UI or add username/password under [marketplace.facebook] in your config. The Playwright browser will launch once credentials are available.""",
-                    extra=aimm_event("credentials_wait", status="waiting"),
-                )
-            # doze wakes up on file change OR keyboard interrupt OR timeout.
-            doze(300, self.config_files, self.keyboard_monitor)
-            # File may have changed — reload the config (non-fatal on parse error).
-            try:
-                self.load_config_file()
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if self.logger:
-                    self.logger.debug(f"Config reload failed during credential wait: {e}")
-                continue
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[Login]", "succ")} Facebook credentials found — launching browser.""",
-                extra=aimm_event("credentials_wait", status="found"),
-            )
-
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
         # start a browser with playwright, cannot use with statement since the jobs will be
@@ -514,13 +480,6 @@ class MarketplaceMonitor:
         check_in_background(self.logger, self.config.monitor.check_updates)
         if self.logger:
             self.logger.info(f"""{hilight("[Community]", "info")} {COMMUNITY_MESSAGE}""")
-        # If requested (by the web UI), defer browser launch until
-        # marketplace credentials are set. Without this, Playwright
-        # navigates to the Facebook login page and waits for manual
-        # input even though the user has a web UI open that's also
-        # asking for those same credentials.
-        if self.defer_login_until_credentials:
-            self._wait_for_marketplace_credentials()
         self.browser = self._launch_browser()
         #
         assert self.browser is not None
