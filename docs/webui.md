@@ -66,7 +66,7 @@ The **⚙** button at the right end of the header opens Settings:
   as UnitySVC SMS may cost a little), but nothing is recorded in the cache. This is the same
   test as `aimm admin --test-notification`.
 - **Cache**: the number of entries of each type (listing details, AI ratings, notified
-  records, counters, update check), with a **Clear** button for each type and **Clear all**.
+  records, counters, update check, evaluation history), with a **Clear** button for each type and **Clear all**.
   Clearing notified records means listings you were already notified about can be sent
   again; clearing AI ratings means new AI calls. A cache that cannot be read can only be
   cleared as a whole: aimm removes its files, then restarts in Docker (elsewhere, restart

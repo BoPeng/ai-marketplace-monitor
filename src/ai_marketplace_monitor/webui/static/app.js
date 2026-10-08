@@ -2207,6 +2207,10 @@
       label: "Update check",
       effect: "aimm checks for a newer release again.",
     },
+    evaluations: {
+      label: "Evaluation history",
+      effect: "The Listings view starts empty and fills again as aimm evaluates listings.",
+    },
   };
 
   const showSettingsTab = (tab) => {
