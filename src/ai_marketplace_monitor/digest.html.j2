@@ -3,6 +3,7 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{ digest.title }}</title>
     {% include "email_style.html.j2" %}
 </head>
 <body>
@@ -47,13 +48,13 @@
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                         {% for label, value in [
                             ("Searches", digest.total.searches),
-                            ("Listings evaluated", digest.total.examined),
+                            ("Listings examined", digest.total.examined),
                             ("Rated by AI", digest.total.rated),
                             ("Notified", digest.total.notified|length),
                             ("Rejected by AI", digest.total.rejected|length),
                             ("Excluded", digest.total.n_excluded),
                         ] %}
-                        <tr><td style="font-weight: bold; color: #333333;">{{ label }}</td><td>{{ value }}</td></tr>
+                        <tr><td style="font-weight: bold; color: #333333;">{{ label }}</td><td>{{ "{:,}".format(value) }}</td></tr>
                         {% endfor %}
                     </table>
                     {% if digest.total.excluded %}
@@ -67,17 +68,17 @@
                     <h2 style="margin-top: 30px;">By item</h2>
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                         <tr style="color: #333333; font-weight: bold;">
-                            <td>Item</td><td>Searches</td><td>Evaluated</td><td>Rated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
+                            <td>Item</td><td>Searches</td><td>Examined</td><td>Rated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
                         </tr>
                         {% for item in digest.items %}
                         <tr>
                             <td>{{ item.name }}</td>
-                            <td>{{ item.searches }}</td>
-                            <td>{{ item.examined }}</td>
-                            <td>{{ item.rated }}</td>
-                            <td>{{ item.notified|length }}</td>
-                            <td>{{ item.rejected|length }}</td>
-                            <td>{{ item.n_excluded }}</td>
+                            <td>{{ "{:,}".format(item.searches) }}</td>
+                            <td>{{ "{:,}".format(item.examined) }}</td>
+                            <td>{{ "{:,}".format(item.rated) }}</td>
+                            <td>{{ "{:,}".format(item.notified|length) }}</td>
+                            <td>{{ "{:,}".format(item.rejected|length) }}</td>
+                            <td>{{ "{:,}".format(item.n_excluded) }}</td>
                         </tr>
                         {% endfor %}
                     </table>

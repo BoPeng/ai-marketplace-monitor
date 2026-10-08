@@ -2,7 +2,7 @@
 
 A user with ``digest_at = "08:00"`` receives, every day at that (local) time, a summary of
 everything aimm did in the last 24 hours, grouped by item with a total first. The content is
-composed from the per-listing evaluation records (#401) and the per-hour counters of
+composed from the per-listing evaluation records (``evaluations.py``) and the per-hour counters of
 ``utils.counter``, and sent once a day in two versions chosen by the channel type: a short
 phone version for push channels, and the full digest for email.
 
@@ -16,7 +16,6 @@ Entry points:
 """
 
 import html
-import importlib
 import re
 import time
 from dataclasses import dataclass, field, fields
@@ -30,13 +29,13 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    Protocol,
     Tuple,
     Type,
 )
 
 from diskcache import Cache  # type: ignore
 
+from .evaluations import EXCLUDED, NOTIFIED, REJECTED, EvaluationRecord, iter_evaluations
 from .utils import CacheType, CounterItem, cache, counter, hilight
 
 if TYPE_CHECKING:
@@ -52,23 +51,6 @@ PHONE_ENTRIES = 3
 PHONE_MAX_LENGTH = 700
 PHONE_TITLE_LENGTH = 60
 MAX_COMMENT_LENGTH = 80
-
-
-class EvaluationLike(Protocol):
-    """The fields of a #401 ``EvaluationRecord`` that the digest uses."""
-
-    time: float
-    item: str
-    marketplace: str
-    id: str
-    url: str
-    title: str
-    price: str
-    location: str
-    stage: str  # "excluded" | "rejected" | "notified"
-    rating: int | None
-    ai_comment: str
-    reason: str
 
 
 @dataclass
@@ -131,25 +113,34 @@ def _shorten(text: str, length: int = MAX_COMMENT_LENGTH) -> str:
     return text if len(text) <= length else text[: length - 1].rstrip() + "…"
 
 
+def _price(price: str) -> str:
+    """``"$180 | $250"`` (a price drop) as ``"$180 (was $250)"``."""
+    if "|" not in price:
+        return price
+    new, old = (x.strip() for x in price.split("|", 1))
+    return f"{new} (was {old})"
+
+
 def _by_rating(listing: DigestListing) -> Tuple[int, float]:
     """Best ratings first, then the most recent."""
     return (-(listing.rating if listing.rating is not None else -1), -listing.time)
 
 
 def build_digest(
-    records: Iterable[EvaluationLike],
+    records: Iterable[EvaluationRecord],
     counters: Mapping[str, Mapping[str, int]],
     since: float,
     until: float,
 ) -> Digest:
     """Compose a digest from evaluation records and ``counter.since()`` counts.
 
-    A listing evaluated more than once in the period counts once, with its latest decision.
-    The records keep only the last decision of a listing, so a listing still on the market is
-    evaluated, and listed, again in the next digest: the digest reports listings evaluated in
-    the period, not new listings.
+    A listing counts once per item, with its latest decision. The records keep only the last
+    decision of a listing, so a listing still on the market is evaluated, and listed, again in
+    the next digest: the digest reports listings evaluated in the period, not new listings.
+    Exclusions are grouped by the kind of reason (``"out of area: Austin, TX"`` counts as
+    ``"out of area"``).
     """
-    latest: Dict[Tuple[str, str, str], EvaluationLike] = {}
+    latest: Dict[Tuple[str, str, str], EvaluationRecord] = {}
     for record in records:
         if not since <= record.time <= until:
             continue
@@ -175,13 +166,13 @@ def build_digest(
         digest = item_digest(record.item)
         if record.rating is not None:
             digest.rated += 1
-        if record.stage == "excluded":
-            reason = record.reason or "other"
+        if record.stage == EXCLUDED:
+            reason = record.reason.split(":")[0].strip() or "other"
             digest.excluded[reason] = digest.excluded.get(reason, 0) + 1
             continue
         listing = DigestListing(
             title=record.title,
-            price=record.price,
+            price=_price(record.price),
             url=record.url.split("?")[0],
             location=record.location,
             item=record.item,
@@ -189,9 +180,9 @@ def build_digest(
             rating=record.rating,
             comment=_shorten(record.ai_comment or record.reason or ""),
         )
-        if record.stage == "notified":
+        if record.stage == NOTIFIED:
             digest.notified.append(listing)
-        elif record.stage == "rejected":
+        elif record.stage == REJECTED:
             digest.rejected.append(listing)
 
     total = ItemDigest(name="Total")
@@ -219,14 +210,9 @@ def build_digest(
     )
 
 
-def load_evaluations(since: float, local_cache: Cache | None = None) -> List[EvaluationLike]:
-    """The evaluation records since a time, or none if they are not available."""
-    # TODO(#401): import iter_evaluations from .evaluations directly once #401 has merged.
-    try:
-        evaluations: Any = importlib.import_module(f"{__package__}.evaluations")
-    except ImportError:
-        return []
-    return list(evaluations.iter_evaluations(since=since, local_cache=local_cache))
+def load_evaluations(since: float, local_cache: Cache | None = None) -> List[EvaluationRecord]:
+    """The evaluation records since a time (none if the cache cannot be read)."""
+    return list(iter_evaluations(since=since, local_cache=local_cache))
 
 
 def compose_digest(
@@ -326,7 +312,7 @@ def _phone_digest(digest: Digest, f: _Format) -> str:
     total = digest.total
     totals = (
         f"Last 24 h: {_count(total.searches, 'search')}, "
-        f"{total.examined:,} listings evaluated, {len(total.notified):,} notified, "
+        f"{total.examined:,} listings examined, {len(total.notified):,} notified, "
         f"{len(total.rejected):,} rejected by AI, {total.n_excluded:,} excluded"
     )
     lines = [f.text(totals)]

@@ -1,12 +1,10 @@
 """Daily digest (#402): composing, rendering, sending and scheduling."""
 
-import sys
 import time
 import types
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import pytest
 import schedule  # type: ignore
@@ -15,11 +13,21 @@ from diskcache import Cache  # type: ignore
 from ai_marketplace_monitor import digest as dg
 from ai_marketplace_monitor.config import Config
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
+from ai_marketplace_monitor.evaluations import (
+    EXCLUDED,
+    NOTIFIED,
+    REJECTED,
+    EvaluationRecord,
+    iter_evaluations,
+    record_evaluation,
+    set_history_days,
+)
 from ai_marketplace_monitor.monitor import DIGEST_TAG, MarketplaceMonitor
 from ai_marketplace_monitor.notification import NotificationConfig
 from ai_marketplace_monitor.user import UserConfig
 from ai_marketplace_monitor.utils import (
     DAILY_COUNTER_EXPIRE,
+    BrokenCache,
     CacheType,
     CounterItem,
     counter,
@@ -30,40 +38,51 @@ NOW = datetime(2026, 10, 8, 9, 30).timestamp()
 SINCE = NOW - dg.DIGEST_PERIOD
 
 
-@dataclass
-class Record:
-    """The fields of #401's EvaluationRecord."""
+def rec(
+    time: float,
+    item: str,
+    stage: str,
+    listing_id: str = "1",
+    url: str = "https://www.facebook.com/marketplace/item/1/?ref=search",
+    title: str = "GoPro Hero 11",
+    price: str = "$200",
+    location: str = "Houston, TX",
+    rating: int | None = None,
+    ai_comment: str = "",
+    reason: str = "",
+) -> EvaluationRecord:
+    return EvaluationRecord(
+        time=time,
+        item=item,
+        marketplace="facebook",
+        id=listing_id,
+        url=url,
+        title=title,
+        price=price,
+        location=location,
+        seller="",
+        condition="",
+        stage=stage,
+        rating=rating,
+        ai_comment=ai_comment,
+        reason=reason,
+    )
 
-    time: float
-    item: str
-    stage: str
-    id: str = "1"
-    marketplace: str = "facebook"
-    url: str = "https://www.facebook.com/marketplace/item/1/?ref=search"
-    title: str = "GoPro Hero 11"
-    price: str = "$200"
-    location: str = "Houston, TX"
-    seller: str = ""
-    condition: str = ""
-    rating: int | None = None
-    ai_comment: str = ""
-    reason: str = ""
 
-
-def records() -> List[Record]:
+def records() -> List[EvaluationRecord]:
     return [
-        Record(NOW - 100, "gopro", "notified", id="1", rating=5, ai_comment="great"),
-        Record(NOW - 200, "gopro", "rejected", id="2", rating=2, ai_comment="x" * 200),
-        Record(NOW - 300, "gopro", "rejected", id="3", rating=3, title="Hero 9"),
-        Record(NOW - 400, "gopro", "excluded", id="4", reason="keywords"),
-        Record(NOW - 500, "gopro", "excluded", id="5", reason="keywords"),
-        Record(NOW - 600, "gopro", "excluded", id="6", reason="out of area"),
-        Record(NOW - 700, "ipad", "rejected", id="7", rating=1, title="iPad <mini>"),
+        rec(NOW - 100, "gopro", "notified", listing_id="1", rating=5, ai_comment="great"),
+        rec(NOW - 200, "gopro", "rejected", listing_id="2", rating=2, ai_comment="x" * 200),
+        rec(NOW - 300, "gopro", "rejected", listing_id="3", rating=3, title="Hero 9"),
+        rec(NOW - 400, "gopro", "excluded", listing_id="4", reason="keywords"),
+        rec(NOW - 500, "gopro", "excluded", listing_id="5", reason="keywords"),
+        rec(NOW - 600, "gopro", "excluded", listing_id="6", reason="out of area"),
+        rec(NOW - 700, "ipad", "rejected", listing_id="7", rating=1, title="iPad <mini>"),
         # evaluated again later: only the latest decision counts
-        Record(NOW - 9000, "ipad", "rejected", id="8", rating=1),
-        Record(NOW - 800, "ipad", "notified", id="8", rating=4),
+        rec(NOW - 9000, "ipad", "rejected", listing_id="8", rating=1),
+        rec(NOW - 800, "ipad", "notified", listing_id="8", rating=4),
         # older than 24 hours
-        Record(SINCE - 10, "ipad", "notified", id="9", rating=5),
+        rec(SINCE - 10, "ipad", "notified", listing_id="9", rating=5),
     ]
 
 
@@ -109,7 +128,8 @@ def test_no_matches_explains_silence() -> None:
 
 def test_email_lists_are_capped() -> None:
     many = [
-        Record(NOW - i, "gopro", "rejected", id=str(i), rating=1, title=f"t{i}") for i in range(30)
+        rec(NOW - i, "gopro", "rejected", listing_id=str(i), rating=1, title=f"t{i}")
+        for i in range(30)
     ]
     text, html = dg.render_email_digest(dg.build_digest(many, {}, SINCE, NOW))
     assert text.count("\n- [1] ") == dg.MAX_ENTRIES
@@ -125,7 +145,7 @@ def test_email_digest() -> None:
     assert "- [3] Hero 9, $200" in text
     assert "Daily digest" in html
     assert ".listing-table" in html  # the listing email styles
-    assert "Listings evaluated" in html and "By item" in html  # summary and per-item tables
+    assert "Listings examined" in html and "By item" in html  # summary and per-item tables
     assert "Rejected by AI (2)" in html
     assert 'href="https://www.facebook.com/marketplace/item/1/"' in html
     # titles are escaped
@@ -134,12 +154,12 @@ def test_email_digest() -> None:
 
 def test_phone_digest() -> None:
     many = [
-        Record(NOW - i, "gopro", "notified", id=str(i), rating=i % 5, title="x" * 200)
+        rec(NOW - i, "gopro", "notified", listing_id=str(i), rating=i % 5, title="x" * 200)
         for i in range(40)
     ]
     digest = dg.build_digest(many, COUNTERS, SINCE, NOW)
     plain = dg.render_phone_digest(digest)
-    assert plain.startswith("Last 24 h: 15 searches, 50 listings evaluated, 40 notified,")
+    assert plain.startswith("Last 24 h: 15 searches, 50 listings examined, 40 notified,")
     assert plain.count("\n- [4] ") == dg.PHONE_ENTRIES
     assert "…and 37 more" in plain
     markdown = dg.render_phone_digest(digest, "markdown")
@@ -149,7 +169,7 @@ def test_phone_digest() -> None:
     for message in (plain, markdown, html):
         assert len(message) <= dg.PHONE_MAX_LENGTH < 1024
     # a listing with absurdly long values is cut to the limit
-    huge = [Record(NOW, "gopro", "notified", rating=5, price="$" * 2000)]
+    huge = [rec(NOW, "gopro", "notified", rating=5, price="$" * 2000)]
     assert len(dg.render_phone_digest(dg.build_digest(huge, {}, SINCE, NOW), "html")) == (
         dg.PHONE_MAX_LENGTH
     )
@@ -179,22 +199,116 @@ def test_daily_counters(temp_cache: Cache) -> None:
     }
 
 
-def test_load_evaluations_without_and_with_401(monkeypatch: pytest.MonkeyPatch) -> None:
-    # None in sys.modules makes the import fail, as it does before #401
-    monkeypatch.setitem(sys.modules, "ai_marketplace_monitor.evaluations", None)
-    assert dg.load_evaluations(SINCE) == []
+def test_broken_cache_has_no_records(tmp_path: Path) -> None:
+    broken = BrokenCache(tmp_path, ValueError("malformed"))
+    assert dg.load_evaluations(SINCE, local_cache=broken) == []
 
-    calls: List[Dict[str, Any]] = []
 
-    def iter_evaluations(**kwargs: Any) -> Iterator[Record]:
-        calls.append(kwargs)
-        yield from records()
+HOUR = 60 * 60
 
-    module = types.ModuleType("ai_marketplace_monitor.evaluations")
-    module.iter_evaluations = iter_evaluations  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "ai_marketplace_monitor.evaluations", module)
-    assert len(dg.load_evaluations(SINCE)) == len(records())
-    assert calls == [{"since": SINCE, "local_cache": None}]
+
+def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
+    """The digest of records saved by record_evaluation, as aimm saves them."""
+    now = time.time()
+    saved = [
+        # gopro: 2 notified, 2 rejected, 3 excluded (2 by keyword), 1 more than 24 hours ago
+        rec(now - 1 * HOUR, "gopro", NOTIFIED, listing_id="g1", rating=5, ai_comment="Great deal"),
+        rec(
+            now - 2 * HOUR,
+            "gopro",
+            NOTIFIED,
+            listing_id="g2",
+            title="GoPro 10",
+            price="$180 | $250",
+        ),
+        rec(
+            now - 3 * HOUR,
+            "gopro",
+            REJECTED,
+            listing_id="g3",
+            rating=2,
+            ai_comment="Only the case is for sale.",
+            reason="rating 2 < 3: Only the case is for sale.",
+        ),
+        rec(now - 4 * HOUR, "gopro", REJECTED, listing_id="g4", rating=1, ai_comment="Broken."),
+        rec(now - 5 * HOUR, "gopro", EXCLUDED, listing_id="g5", reason="excluded keyword: broken"),
+        rec(
+            now - 6 * HOUR,
+            "gopro",
+            EXCLUDED,
+            listing_id="g6",
+            reason="excluded keyword: parts, case",
+        ),
+        rec(now - 7 * HOUR, "gopro", EXCLUDED, listing_id="g7", reason="out of area: Austin, TX"),
+        rec(now - 30 * HOUR, "gopro", NOTIFIED, listing_id="g8", rating=5),
+        # ipad: rejected, then notified when it was evaluated again (the record is replaced)
+        rec(now - 10 * HOUR, "ipad", REJECTED, listing_id="i1", rating=2, ai_comment="Too old."),
+        rec(
+            now - 9 * HOUR,
+            "ipad",
+            NOTIFIED,
+            listing_id="i1",
+            rating=4,
+            ai_comment="Price dropped.",
+        ),
+        rec(now - 8 * HOUR, "ipad", EXCLUDED, listing_id="i2", reason="banned seller: Bob"),
+        # bike: only an exclusion more than 24 hours ago
+        rec(now - 25 * HOUR, "bike", EXCLUDED, listing_id="b1", reason="out of area: Dallas, TX"),
+    ]
+    for record in saved:
+        record_evaluation(record, local_cache=temp_cache)
+    counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", 12, local_cache=temp_cache)
+    counter.increment(CounterItem.LISTING_EXAMINED, "gopro", 40, local_cache=temp_cache)
+    counter.increment(CounterItem.SEARCH_PERFORMED, "ipad", 6, local_cache=temp_cache)
+    # searches more than 24 hours ago are not counted
+    stale = (
+        CacheType.COUNTERS_DAILY.value,
+        counter_period(now - 30 * HOUR),
+        CounterItem.SEARCH_PERFORMED.value,
+        "bike",
+    )
+    temp_cache.set(stale, 99)
+
+    digest = dg.compose_digest(until=now, local_cache=temp_cache)
+    assert [item.name for item in digest.items] == ["gopro", "ipad"]
+    gopro, ipad = digest.items
+    assert (gopro.searches, gopro.examined, gopro.rated) == (12, 40, 3)
+    assert [x.title for x in gopro.notified] == ["GoPro Hero 11", "GoPro 10"]
+    assert gopro.notified[1].price == "$180 (was $250)"  # a price drop
+    assert [x.rating for x in gopro.rejected] == [2, 1]
+    assert gopro.rejected[0].comment == "Only the case is for sale."
+    assert gopro.excluded == {"excluded keyword": 2, "out of area": 1}
+    assert (ipad.searches, ipad.examined, ipad.rated) == (6, 2, 1)
+    assert [x.comment for x in ipad.notified] == ["Price dropped."]
+    assert ipad.rejected == [] and ipad.excluded == {"banned seller": 1}
+    total = digest.total
+    assert (total.searches, total.examined, len(total.notified), len(total.rejected)) == (
+        18,
+        42,
+        3,
+        2,
+    )
+    assert total.n_excluded == 4
+
+    phone = dg.render_phone_digest(digest)
+    assert phone.startswith(
+        "Last 24 h: 18 searches, 42 listings examined, 3 notified, 2 rejected by AI, "
+        "4 excluded\nTop matches (3)\n- [5] GoPro Hero 11, $200\n"
+    )
+    text, html = dg.render_email_digest(digest)
+    assert "excluded keyword 2, out of area 1" in text
+    assert "By item" in html and html.count("<h2") == 4  # digest, by item, gopro, ipad
+
+    # records older than evaluation_history_days are ignored (and removed)
+    set_history_days(5 * HOUR / (24 * HOUR))
+    try:
+        digest = dg.compose_digest(until=now, local_cache=temp_cache)
+    finally:
+        set_history_days(None)
+    assert len(digest.total.notified) == 2  # g1 and g2; i1 is 9 hours old
+    assert [x.name for x in digest.items] == ["gopro", "ipad"]  # ipad still has searches
+    assert digest.items[1].notified == [] and digest.items[1].excluded == {}
+    assert len(list(iter_evaluations(local_cache=temp_cache))) == 4
 
 
 def test_user_digest_options() -> None:
