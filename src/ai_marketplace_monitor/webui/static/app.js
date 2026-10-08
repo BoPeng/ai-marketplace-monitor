@@ -2072,8 +2072,12 @@
       const res = await fetch("/api/status", { credentials: "same-origin" });
       if (!res.ok) return;
       const status = await res.json();
-      const version = document.getElementById("aimm-version");
-      if (version && status.version) version.textContent = `v${status.version}`;
+      if (status.version) {
+        ["aimm-version", "settings-version"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = `v${status.version}`;
+        });
+      }
       state.version = status.version;
       state.update = status.update || null;
       state.updateInPlace = !!(status.update && status.self_update && status.self_update.available);
@@ -2226,6 +2230,7 @@
 
   wireClick("#settings-btn", () => settingsModal.open());
   wireClick("#update-badge", () => settingsModal.open("about"));
+  wireClick("#aimm-version", () => settingsModal.open("about"));
   wireClick("#settings-close", () => settingsModal.close());
   const settingsBackdrop = document.querySelector("#settings-modal .modal-backdrop");
   if (settingsBackdrop) settingsBackdrop.addEventListener("click", () => settingsModal.close());

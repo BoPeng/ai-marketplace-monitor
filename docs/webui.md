@@ -13,6 +13,7 @@ The web UI provides:
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level (all, problems, or errors) and text search; click a line to see its details
 - **Listings** view of every listing aimm evaluated, with its AI rating and the decision: notified, rejected by AI, or excluded (see [Listings](#listings))
+- **Version** of the running aimm (`vX.Y.Z`) in the header, next to the app name; click it to open Settings, About
 - **⏸ / ▶** button in the header: ⏸ pauses searches after the current listing, and ▶ resumes them and searches all items right away
 - **Login banner** while aimm waits for you to finish logging in to Facebook (a CAPTCHA or a security code). It says where to complete it; in Docker, its **Open browser** button (like **Browser** in the header) opens aimm's browser in a new tab
 - **⚙ Settings** at the right end of the header (see below): the version and updates, test notifications, the cache, Export CSV and Logout

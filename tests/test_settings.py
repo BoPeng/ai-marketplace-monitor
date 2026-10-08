@@ -156,6 +156,33 @@ def test_a_channel_that_does_not_answer_times_out(monkeypatch: pytest.MonkeyPatc
     assert not result.ok and result.error == "No answer in 0.1 seconds."
 
 
+def test_a_channel_error_is_one_short_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(self: Any, *args: Any, **kwargs: Any) -> bool:
+        raise RuntimeError("first line " + "x" * 400 + "\nTraceback (most recent call last):")
+
+    monkeypatch.setattr(NtfyNotificationConfig, "notify", fail)
+    config = NtfyNotificationConfig(name="me", ntfy_server="https://ntfy.example", ntfy_topic="t")
+    [result] = NotificationConfig.test_all(config)
+    assert not result.ok and result.error is not None
+    assert result.error.startswith("Failed to send: first line")
+    assert "\n" not in result.error and len(result.error) <= 300
+
+
+def test_web_does_not_return_config_errors(
+    tmp_path: Path, config_path: Path, sent: List[str]
+) -> None:
+    config_path.write_text("[user.me]\nremind = 'whenever'\n", encoding="utf-8")
+    client = make_client(config_path)
+    data = client.get("/api/notifications/users").json()
+    assert data == {
+        "ok": False,
+        "error": "The configuration cannot be loaded; see the log for the error.",
+        "users": [],
+    }
+    out = client.post("/api/notifications/test", json={"user": "me"})
+    assert out.status_code == 409 and "whenever" not in out.text
+
+
 def test_email_without_recipient_is_not_a_channel() -> None:
     config = EmailNotificationConfig(name="me", smtp_password="x")
     assert NotificationConfig.channels(config) == []
@@ -284,12 +311,14 @@ def test_web_clears_a_corrupted_cache(
         monkeypatch.delenv("AIMM_DOCKER", raising=False)
     client = make_client(config_path)
     status = client.get("/api/cache").json()
-    assert status["broken"] is True and status["error"]
+    assert status["broken"] is True
+    assert status["error"] == "The cache database cannot be read; see the log for the error."
     # only all of it can be cleared
     out = client.post("/api/cache/clear", json={"type": CacheType.AI_INQUIRY.value})
     assert out.status_code == 400 and "clear all" in out.json()["detail"]
     out = client.post("/api/cache/clear", json={"type": "all"}).json()
     assert out["ok"] and not (corrupted / "cache.db").exists()
+    assert out["message"].startswith("The cache could not be read, so its files were removed.")
     assert out["restart"] == ("restarting" if docker else "needed")
     assert restarts == ([True] if docker else [])
 

@@ -30,6 +30,10 @@ def print_normalized_config(config_files: List[Path] | None, *, expanded: bool) 
 def run_clear_cache(clear_cache: str, *, verbose: bool | None = False) -> None:
     logger, _ = setup_logging(verbose, webui=False)
     result = clear_cache_now(cache, clear_cache)
+    if result.error:
+        logger.info(
+            f"""{hilight("[Clear Cache]", "info")} The cache cannot be read: {result.error}"""
+        )
     for path in result.removed:
         logger.info(f"""{hilight("[Clear Cache]", "info")} Removed {path}""")
     if not result.ok:

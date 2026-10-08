@@ -140,6 +140,16 @@ html, body {
   white-space: nowrap;
 }
 .login-banner-open:hover { background: rgba(251, 191, 36, 0.15); }
+.header button.version-link {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+}
+.header button.version-link:hover { color: var(--text); text-decoration: underline; }
+.header button.version-link:empty { display: none; }
 .header button.status-chip { font-size: 11px; padding: 3px 8px; border-radius: 10px; white-space: nowrap; }
 .header button.status-chip[hidden] { display: none; }
 .status-err { color: var(--err); border-color: rgba(248, 113, 113, 0.35); }

@@ -99,14 +99,27 @@ class _TestLog(logging.Handler):
             self.forward.handle(record)
 
     def error(self: "_TestLog") -> str:
-        """The most telling failure: the exception of the last attempt, else the last error."""
+        """The most telling failure: the exception of the last attempt, else the last error.
+
+        Only the first line, shortened, is returned: it is shown to the user.
+        """
         for _, message in reversed(self.messages):
             if " failed: " in message and "Attempt" in message:
-                return message.split(" failed: ", 1)[1]
+                return _one_line(message.split(" failed: ", 1)[1])
         for level, message in reversed(self.messages):
             if level >= logging.WARNING and "Max retries reached" not in message:
-                return message
+                return _one_line(message)
         return "The message was not sent."
+
+
+# the longest error shown for a channel
+MAX_ERROR_LENGTH = 300
+
+
+def _one_line(message: str) -> str:
+    lines = [line.strip() for line in message.strip().splitlines() if line.strip()]
+    line = lines[0] if lines else "The message was not sent."
+    return line if len(line) <= MAX_ERROR_LENGTH else line[: MAX_ERROR_LENGTH - 3] + "..."
 
 
 class _ChannelTest:
@@ -125,7 +138,6 @@ class _ChannelTest:
         self.logger = logging.Logger(f"aimm.test.{self.name}", logging.DEBUG)
         self.logger.addHandler(self.log)
         self.sent = False
-        self.failure: str | None = None
         self.thread = threading.Thread(
             target=self._send,
             args=(channel, listings, ratings),
@@ -149,14 +161,13 @@ class _ChannelTest:
                 logger=self.logger,
             )
         except Exception as e:
-            self.failure = str(e) or e.__class__.__name__
+            # reported like any other failure: from the channel's log, as one line
+            self.logger.error(f"Failed to send: {e or e.__class__.__name__}")
 
     def result(self: "_ChannelTest", wait: float, timeout: float) -> ChannelResult:
         self.thread.join(max(wait, 0))
         if self.thread.is_alive():
             return ChannelResult(self.name, False, f"No answer in {timeout:g} seconds.")
-        if self.failure is not None:
-            return ChannelResult(self.name, False, self.failure)
         if self.sent:
             return ChannelResult(self.name, True)
         return ChannelResult(self.name, False, self.log.error())

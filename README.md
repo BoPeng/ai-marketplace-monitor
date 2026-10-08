@@ -273,7 +273,7 @@ docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest
 docker rm -f aimm
 ```
 
-then run the `docker run` command above again. Your config, cache, and logs live in the mounted directory, so nothing is lost. The web UI shows the running version in Settings (⚙), as does `docker exec aimm ai-marketplace-monitor --version`.
+then run the `docker run` command above again. Your config, cache, and logs live in the mounted directory, so nothing is lost. The web UI header shows the running version, as does `docker exec aimm ai-marketplace-monitor --version`.
 
 While the container is running, run other aimm commands inside it, e.g. `docker exec -it aimm aimm check <listing>`, not on the host: aimm's cache is an SQLite database, and an aimm on the host and one in the container writing it through the shared folder at the same time can damage it. If that happens, aimm stops with "cannot be read"; clear the cache with `docker exec aimm aimm admin --clear-cache all` and restart the container. To check your notifications, use **Send test** in Settings or `docker exec aimm aimm admin --test-notification`.
 

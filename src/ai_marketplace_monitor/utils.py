@@ -130,6 +130,8 @@ class CacheClearResult:
     message: str
     # files removed because the cache could not be read: aimm must restart to open a new one
     removed: List[Path] = field(default_factory=list)
+    # why the cache could not be read; for the log (``message`` never contains it)
+    error: str | None = None
 
 
 def clear_cache(c: Any, clear_type: str) -> CacheClearResult:
@@ -149,9 +151,10 @@ def clear_cache(c: Any, clear_type: str) -> CacheClearResult:
             removed = remove_cache_files(Path(c.directory))
             return CacheClearResult(
                 True,
-                f"The cache could not be read ({e}), so its files were removed. "
+                "The cache could not be read, so its files were removed. "
                 "aimm starts with an empty cache.",
                 removed,
+                str(e),
             )
         return CacheClearResult(True, "Cache cleared.")
     if clear_type not in allowed:
