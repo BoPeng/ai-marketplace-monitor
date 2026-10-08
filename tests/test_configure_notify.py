@@ -50,7 +50,13 @@ def test_notification_guides_cover_channels_and_delivery() -> None:
 
 
 def test_user_guides_cover_recipients() -> None:
-    expected = set(RECIPIENT_FIELDS) | {"notify_with", "remind", "enabled"}
+    expected = set(RECIPIENT_FIELDS) | {
+        "notify_with",
+        "remind",
+        "digest",
+        "digest_channels",
+        "enabled",
+    }
     assert sorted(g.name for g in USER_GUIDES) == sorted(expected)
 
 

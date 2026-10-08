@@ -18,6 +18,8 @@ from .utils import hilight
 class NtfyNotificationConfig(PushNotificationConfig):
     notify_method = "ntfy"
     required_fields: ClassVar[List[str]] = ["ntfy_server", "ntfy_topic"]
+    # ntfy turns a message longer than 4096 bytes into an attachment
+    digest_max_length: ClassVar[int | None] = 3500
 
     message_format: str | None = notification_field(COMMON)
     ntfy_server: str | None = notification_field(CHANNEL)

@@ -4,11 +4,14 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, DefaultDict, Deque, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, ClassVar, DefaultDict, Deque, List, Optional, Tuple, Type
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
 from .utils import BaseConfig, hilight
+
+if TYPE_CHECKING:
+    from .digest import Digest
 
 
 class NotificationStatus(Enum):
@@ -39,6 +42,10 @@ def fields_with_role(cls: type, role: str) -> Tuple[str, ...]:
 @dataclass
 class NotificationConfig(BaseConfig):
     required_fields: ClassVar[List[str]] = []
+    # longest digest message the channel takes in one piece; a longer one is shortened
+    digest_max_length: ClassVar[int | None] = None
+    # format of the digest if the channel does not follow message_format
+    digest_format: ClassVar[str | None] = None
 
     max_retries: int = notification_field(COMMON, 5)
     retry_delay: int = notification_field(COMMON, 60)
@@ -297,6 +304,18 @@ class NotificationConfig(BaseConfig):
         logger: Logger | None = None,
     ) -> bool:
         raise NotImplementedError("send_message needs to be defined.")
+
+    def send_digest(
+        self: "NotificationConfig", digest: "Digest", logger: Logger | None = None
+    ) -> bool:
+        """Send the daily digest as one message in the channel's format."""
+        from .digest import render_digest
+
+        if not self._has_required_fields():
+            return False
+        fmt = self.digest_format or getattr(self, "message_format", None) or "plain_text"
+        message = render_digest(digest, fmt, max_length=self.digest_max_length)
+        return self.send_message_with_retry(digest.title, message, logger=logger)
 
 
 @dataclass

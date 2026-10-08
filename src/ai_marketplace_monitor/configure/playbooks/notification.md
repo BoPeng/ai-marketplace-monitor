@@ -79,7 +79,9 @@ the notifications it should receive.
 ### Options
 
 `with_description` (include the listing description), `message_format` for push channels,
-`remind` on the user (remind about listings still available later). Ask only if the user cares.
+`remind` on the user (remind about listings still available later), `digest` on the user (a
+daily summary at a local time such as `"08:00"`, with `digest_channels` to choose its channels).
+Ask only if the user cares.
 
 ## Completion
 

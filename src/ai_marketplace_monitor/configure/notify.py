@@ -171,6 +171,19 @@ USER_GUIDES: Tuple[FieldGuide, ...] = (
         '`"1 day"`, `"2 days"` or `false`',
         "no reminders",
     ),
+    FieldGuide(
+        "digest",
+        "local time of a daily digest of the last 24 hours: searches, matches and rejected "
+        "listings of every item",
+        '`"08:00"`',
+        "no digest",
+    ),
+    FieldGuide(
+        "digest_channels",
+        "the channel types that receive the digest",
+        'list of `"email"`, `"unitysvc"`, `"telegram"`, `"pushover"`, `"pushbullet"`, `"ntfy"`',
+        "email and UnitySVC, or every channel if the user has neither",
+    ),
     FieldGuide("enabled", "only to stop notifying this user", "`false`", "on"),
 )
 

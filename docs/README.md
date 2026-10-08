@@ -137,12 +137,23 @@ One or more `user.username` sections can be defined in the configuration. The `u
 | ------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `notify_with` | Optional    | String/List | Specifies one or more notification methods to be used for this user. If left unspecified, all available notification methods will be used.                   |
 | `remind`      | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
+| `digest`      | Optional    | String      | Local time (`HH:MM`, e.g. `"08:00"`) at which the user receives a daily digest of the last 24 hours. By default, no digest is sent.                         |
+| `digest_channels` | Optional | String/List | Channel types that receive the digest: `email`, `unitysvc`, `telegram`, `pushover`, `pushbullet` or `ntfy`. By default, the user's email and UnitySVC channels, or all of the user's channels if the user has neither. |
 
 Note that
 
 1. **Default Notification Behavior**: If the `notify_with` option is not specified, the system will use all available notification methods for the user.
 2. **Inline Notification Settings**: Notification settings can be defined directly under the user section. Any settings described in the [Notification](#notification) section can be applied to a user's configuration.
 3. **Repeated Notifications**: The `remind` option allows users to receive repeated notifications after a specified time interval. If not set, users will only be notified once about a listing.
+4. **Daily Digest**: With `digest = "08:00"`, the user receives every day at 8 am (local time) a summary of everything aimm did in the last 24 hours, for all items, not only the ones the user is notified for: a total line, then for each item the number of searches, listings examined, rated by AI, notified, rejected by AI and excluded (by reason), the notified listings (title, price, rating and link) and the listings rejected by AI (best ratings first, with a short reason). Lists show up to 20 listings, and a day without matches says how many searches aimm ran, so that silence does not look like a broken aimm. Email receives an HTML digest; push channels receive a message in their `message_format`, shortened to the counts and the top 3 matches for channels with a length limit (Pushover, Telegram, ntfy). A digest missed while aimm was not running is sent once when aimm starts again after that day's digest time, and a restart does not send it twice.
+
+```toml
+[user.me]
+email = "me@example.com"
+digest = "08:00"
+# optional: send the digest to Telegram instead of email
+# digest_channels = ["telegram"]
+```
 
 ### Notification
 

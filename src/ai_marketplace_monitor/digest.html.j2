@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    {% include "email_style.html.j2" %}
+</head>
+<body>
+    {% macro listing_rows(listings, with_comment) %}
+    {% for listing in listings[:max_entries] %}
+    <tr>
+        <td style="padding: 8px 12px;">
+            {% if listing.rating is not none %}<span class="status-tag {{ 'status-new' if not with_comment else 'status-sent' }}">{{ listing.rating }}</span>{% endif %}
+            <a href="{{ listing.url }}" style="color: #2C5364; font-weight: bold;">{{ listing.title }}</a>
+            <span style="color: #666666;">{% if listing.price %}{{ listing.price }}{% endif %}{% if listing.location %}, {{ listing.location }}{% endif %}</span>
+            {% if with_comment and listing.comment %}
+            <div style="color: #666666; font-size: 14px;"><em>{{ listing.comment }}</em></div>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    {% if listings|length > max_entries %}
+    <tr><td style="padding: 8px 12px; color: #666666;">…and {{ listings|length - max_entries }} more</td></tr>
+    {% endif %}
+    {% endmacro %}
+    <div class="wrapper">
+        <!-- Header -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td class="header">
+                    <h1>AI Marketplace Monitor</h1>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Content -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td class="content">
+                    <h2>Daily digest</h2>
+                    <p style="color: #666666; margin-top: 0;">Last 24 hours ({{ digest.period }})</p>
+                    {% if not digest.total.notified %}
+                    <p><b>{{ no_matches }}</b></p>
+                    {% endif %}
+
+                    <!-- Summary -->
+                    <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
+                        <tr style="color: #333333; font-weight: bold;">
+                            <td>Item</td><td>Searches</td><td>Examined</td><td>Rated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
+                        </tr>
+                        {% for item in [digest.total] + digest.items %}
+                        <tr{% if loop.first %} style="font-weight: bold;"{% endif %}>
+                            <td>{{ item.name }}</td>
+                            <td>{{ item.searches }}</td>
+                            <td>{{ item.examined }}</td>
+                            <td>{{ item.rated }}</td>
+                            <td>{{ item.notified|length }}</td>
+                            <td>{{ item.rejected|length }}</td>
+                            <td>{{ item.n_excluded }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    {% if digest.total.excluded %}
+                    <p style="color: #666666; font-size: 14px;">Excluded:
+                        {% for reason, n in digest.total.excluded|dictsort(by='value', reverse=true) %}{{ reason }} {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    </p>
+                    {% endif %}
+
+                    {% for item in digest.items if item.notified or item.rejected %}
+                    <h2 style="margin-top: 30px;">{{ item.name }}</h2>
+                    {% if item.notified %}
+                    <h3 style="color: #2C5364; font-size: 16px; margin: 0;">Notified ({{ item.notified|length }})</h3>
+                    <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
+                        {{ listing_rows(item.notified, false) }}
+                    </table>
+                    {% endif %}
+                    {% if item.rejected %}
+                    <h3 style="color: #2C5364; font-size: 16px; margin: 0;">Rejected by AI ({{ item.rejected|length }})</h3>
+                    <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
+                        {{ listing_rows(item.rejected, true) }}
+                    </table>
+                    {% endif %}
+                    {% endfor %}
+                </td>
+            </tr>
+        </table>
+
+        <!-- Footer -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td class="footer">
+                    <p>This is an automated daily digest from <a href="https://github.com/BoPeng/ai-marketplace-monitor">AI Marketplace Monitor</a></p>
+                    <p>To stop it, remove the <code>digest</code> option of your user section.</p>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

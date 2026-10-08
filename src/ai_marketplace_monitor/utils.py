@@ -150,8 +150,10 @@ class CacheType(Enum):
     AI_INQUIRY = "ai-inquiries"
     USER_NOTIFIED = "user-notifications"
     COUNTERS = "counters"
+    COUNTERS_DAILY = "counters-daily"
     UPDATE_CHECK = "update-check"
     EVALUATIONS = "evaluations"
+    DIGEST = "digest"
 
 
 class CounterItem(Enum):
@@ -295,14 +297,65 @@ class KeyboardMonitor:
                 self._paused = True
 
 
+# how long the per-hour counters of the daily digest are kept
+DAILY_COUNTER_EXPIRE = 8 * 24 * 60 * 60
+
+
+def counter_period(when: float | None = None) -> str:
+    """The hour a daily counter is kept under, e.g. ``"2026-10-08 07"``.
+
+    Counters are kept per hour so that the digest can add up exactly the last 24 hours.
+    """
+    return time.strftime("%Y-%m-%d %H", time.localtime(when))
+
+
 class Counter:
-    def increment(self: "Counter", counter_key: CounterItem, item_name: str, by: int = 1) -> None:
+    def increment(
+        self: "Counter",
+        counter_key: CounterItem,
+        item_name: str,
+        by: int = 1,
+        local_cache: Cache | None = None,
+    ) -> None:
+        c = cache if local_cache is None else local_cache
         key = (CacheType.COUNTERS.value, counter_key.value, item_name)
         try:
-            cache.incr(key, by, default=None)
+            c.incr(key, by, default=None)
         except KeyError:
             # if key does not exist, set it to by, and set tag
-            cache.set(key, by, tag=CacheType.COUNTERS.value)
+            c.set(key, by, tag=CacheType.COUNTERS.value)
+        # the same count for this hour, for the daily digest; incr keeps the expiry
+        daily_key = (
+            CacheType.COUNTERS_DAILY.value,
+            counter_period(),
+            counter_key.value,
+            item_name,
+        )
+        try:
+            c.incr(daily_key, by, default=None)
+        except KeyError:
+            c.set(daily_key, by, expire=DAILY_COUNTER_EXPIRE, tag=CacheType.COUNTERS_DAILY.value)
+
+    def since(
+        self: "Counter", since: float, local_cache: Cache | None = None
+    ) -> Dict[str, Dict[str, int]]:
+        """Counts since a time (to the hour), as ``{item_name: {counter_key.value: count}}``."""
+        c = cache if local_cache is None else local_cache
+        first = counter_period(since)
+        counts: Dict[str, Dict[str, int]] = {}
+        for key in c.iterkeys():
+            if not (
+                isinstance(key, tuple)
+                and len(key) == 4
+                and key[0] == CacheType.COUNTERS_DAILY.value
+                and key[1] >= first
+            ):
+                continue
+            value = c.get(key)
+            if isinstance(value, int):
+                item = counts.setdefault(key[3], {})
+                item[key[2]] = item.get(key[2], 0) + value
+        return counts
 
     def __str__(self: "Counter") -> str:
         """Return pretty form of all non-zero counters"""

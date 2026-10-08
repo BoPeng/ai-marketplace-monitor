@@ -76,6 +76,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
+- Optional daily digest of searches, matches and rejected listings
 
 🖥️ **Web UI**
 

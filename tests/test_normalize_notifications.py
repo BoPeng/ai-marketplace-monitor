@@ -365,3 +365,17 @@ def test_disabled_user_is_normalized_and_stays_disabled() -> None:
         "notify_with": ["email"],
     }
     assert cfg["notification"]["email"] == {"smtp_password": "pw"}
+
+
+def test_user_digest_options_are_kept() -> None:
+    cfg = _run(
+        """
+    [user.alice]
+    email = "alice@example.com"
+    smtp_password = "pw"
+    digest = "08:00"
+    digest_channels = ["email"]
+    """
+    )
+    assert cfg["user"]["alice"]["digest"] == "08:00"
+    assert cfg["user"]["alice"]["digest_channels"] == ["email"]

@@ -37,7 +37,7 @@ RECIPIENT_FIELDS: Tuple[str, ...] = tuple(
 CHANNEL_FIELDS: Dict[str, Tuple[str, ...]] = {
     t: fields_with_role(cls, CHANNEL) for t, cls in TYPE_CLASSES.items()
 }
-_USER_KEPT_FIELDS = ("enabled", "request", "remind")
+_USER_KEPT_FIELDS = ("enabled", "request", "remind", "digest", "digest_channels")
 _MERGE_SKIPPED = ("type", "name", "request")
 
 

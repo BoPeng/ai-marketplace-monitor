@@ -7,6 +7,7 @@ from typing import Any, List, Tuple, Type
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
+from .digest import DIGEST_CHANNEL_TYPES
 from .email_notify import EmailNotificationConfig
 from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
@@ -41,6 +42,10 @@ class UserConfig(
 
     notify_with: List[str] | None = None
     remind: int | None = None
+    # local time (HH:MM) of the daily digest; None for no digest
+    digest: str | None = None
+    # channel types that receive the digest; None for the email-like ones
+    digest_channels: List[str] | None = None
 
     def handle_remind(self: "UserConfig") -> None:
         if self.remind is None:
@@ -70,6 +75,40 @@ class UserConfig(
         if not isinstance(self.remind, int):
             raise ValueError(
                 f"Item {hilight(self.name)} remind must be an time (e.g. 1 day) or false."
+            )
+
+    def handle_digest(self: "UserConfig") -> None:
+        if self.digest is None or self.digest is False:
+            self.digest = None
+            return
+
+        matched = (
+            re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", self.digest)
+            if isinstance(self.digest, str)
+            else None
+        )
+        if matched is None or int(matched.group(1)) > 23 or int(matched.group(2)) > 59:
+            raise ValueError(
+                f"User {hilight(self.name)} digest must be a local time such as '08:00', or false."
+            )
+        # schedule needs two-digit hours
+        self.digest = f"{int(matched.group(1)):02d}:{matched.group(2)}"
+
+    def handle_digest_channels(self: "UserConfig") -> None:
+        if self.digest_channels is None:
+            return
+
+        if isinstance(self.digest_channels, str):
+            self.digest_channels = [self.digest_channels]
+
+        if (
+            not isinstance(self.digest_channels, list)
+            or not self.digest_channels
+            or not all(x in DIGEST_CHANNEL_TYPES for x in self.digest_channels)
+        ):
+            raise ValueError(
+                f"User {hilight(self.name)} digest_channels must be one or more of "
+                f"{', '.join(DIGEST_CHANNEL_TYPES)}."
             )
 
     def handle_notify_with(self: "UserConfig") -> None:
