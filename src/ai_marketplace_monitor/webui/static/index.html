@@ -72,7 +72,7 @@
       <section class="chat-pane">
         <div class="chat-toolbar">
           <span class="pane-title">Configure</span>
-          <input id="chat-section" list="chat-section-options" type="text" placeholder="section" autocomplete="off" />
+          <input id="chat-section" list="chat-section-options" type="text" placeholder="section (optional)" title="Configure one section, e.g. item.ipad; leave empty to choose in the chat" autocomplete="off" />
           <datalist id="chat-section-options">
             <option value="ai"></option>
             <option value="marketplace"></option>
@@ -83,8 +83,7 @@
             <option value="translation"></option>
             <option value="monitor"></option>
           </datalist>
-          <button id="chat-start" class="toolbar-btn">Start</button>
-          <button id="chat-cancel" class="toolbar-btn" disabled>Cancel</button>
+          <button id="chat-toggle" class="toolbar-btn" title="Start a chat with the configuration assistant">Start Chat</button>
         </div>
         <div id="chat-messages" class="chat-messages"></div>
         <div id="chat-options" class="chat-options"></div>

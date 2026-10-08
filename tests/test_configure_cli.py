@@ -361,6 +361,22 @@ async def test_aimm_configure_without_an_ai_runs_ai_setup_first(
     assert "No AI service is configured yet." in ui.said("error")
 
 
+async def test_ending_the_session_during_ai_setup_is_not_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text('[user.me]\npushbullet_token = "abc"\n', encoding="utf-8")
+
+    async def closed_setup(ui: Any, files: Any, **kw: Any) -> int:
+        ui.closed = True  # what the setup's UI records when the user ends the chat
+        return 0
+
+    monkeypatch.setattr(flow, "configure_ai", closed_setup)
+    ui = ScriptedSetupUI([])
+    assert await flow.configure_front_door(ui, [config], home=tmp_path) == 0
+    assert ui.said("error") == []
+
+
 async def test_default_ai_works_tries_the_first_section(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

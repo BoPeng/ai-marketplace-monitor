@@ -67,6 +67,7 @@ class JsonSetupUI:
         self._send = send
         self._receive = receive
         self.monitor_running = monitor_running
+        self.closed = False  # the user ended the session
 
     async def say(
         self: "JsonSetupUI", text: str, *, kind: str = "info", markdown: bool = False
@@ -141,6 +142,7 @@ class JsonSetupUI:
             reply = await self._receive()
             reply_type = reply.get("type")
             if reply_type in ("cancel", "close"):
+                self.closed = True
                 raise SetupClosedError
             try:
                 if reply_type != "answer":
@@ -172,6 +174,7 @@ class ConsoleSetupUI:
         read: Callable[[str], str] = input,
         interactive: bool | None = None,
     ) -> None:
+        self.closed = False  # the user ended the session (Ctrl-C or end of input)
         if interactive is None:
             interactive = sys.stdin.isatty()
         if not interactive:
@@ -242,6 +245,7 @@ class ConsoleSetupUI:
         try:
             return self._read(prompt)
         except (KeyboardInterrupt, EOFError) as e:
+            self.closed = True
             raise SetupClosedError from e
 
 
@@ -252,6 +256,7 @@ class ScriptedSetupUI:
         self: "ScriptedSetupUI", answers: List[str], *, monitor_running: bool = False
     ) -> None:
         self.monitor_running = monitor_running
+        self.closed = False
         self.answers = list(answers)
         self.messages: List[Tuple[str, str]] = []
         self.questions: List[str] = []
@@ -298,5 +303,6 @@ class ScriptedSetupUI:
             raise AssertionError(f"unexpected question: {prompt}")
         answer = self.answers.pop(0)
         if answer == "<close>":
+            self.closed = True
             raise SetupClosedError
         return answer

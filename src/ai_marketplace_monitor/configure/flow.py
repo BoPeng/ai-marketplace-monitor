@@ -124,6 +124,8 @@ async def ai_for_configure(
     await ui.say(f"{problem} Let's set up an AI service first.", kind="warning")
     if await configure_ai(ui, config_files, home=home):
         return None
+    if getattr(ui, "closed", False):
+        raise SetupClosedError  # the user ended the session during the AI setup: not an error
     backend, problem = default_ai(config_files)
     if backend is None:
         await ui.say(problem, kind="error")
