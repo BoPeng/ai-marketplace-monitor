@@ -46,10 +46,6 @@ def root(
             help="Path to one or more configuration files in TOML format. `~/.ai-marketplace-monitor/config.toml will always be read.",
         ),
     ] = None,
-    headless: Annotated[
-        Optional[bool],
-        typer.Option("--headless", help="If set to true, will not show the browser window."),
-    ] = False,
     verbose: Annotated[
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
@@ -84,7 +80,6 @@ def root(
     if ctx.invoked_subcommand is None:
         _run_monitor(
             config_files,
-            headless,
             verbose,
             webui,
             webui_host,
@@ -104,10 +99,6 @@ def run(
             help="Path to one or more configuration files in TOML format. `~/.ai-marketplace-monitor/config.toml will always be read.",
         ),
     ] = None,
-    headless: Annotated[
-        Optional[bool],
-        typer.Option("--headless", help="If set to true, will not show the browser window."),
-    ] = False,
     verbose: Annotated[
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
@@ -141,7 +132,6 @@ def run(
     """Run the long-lived marketplace monitor loop."""
     _run_monitor(
         config_files,
-        headless,
         verbose,
         webui,
         webui_host,
@@ -167,10 +157,6 @@ def check(
             help="Path to one or more configuration files in TOML format. `~/.ai-marketplace-monitor/config.toml will always be read.",
         ),
     ] = None,
-    headless: Annotated[
-        Optional[bool],
-        typer.Option("--headless", help="If set to true, will not show the browser window."),
-    ] = False,
     verbose: Annotated[
         Optional[bool],
         typer.Option("--verbose", "-v", help="If set to true, will show debug messages."),
@@ -184,7 +170,7 @@ def check(
     ] = None,
 ) -> None:
     """Check one or more listings once, then exit."""
-    _run_check(config_files, headless, verbose, items, for_item)
+    _run_check(config_files, verbose, items, for_item)
 
 
 @app.command("admin")

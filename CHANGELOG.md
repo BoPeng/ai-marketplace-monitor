@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- The `--headless` option of `aimm`, `aimm run` and `aimm check`. aimm needs a visible browser so that you can complete Facebook's login checks (CAPTCHA, security code), which a hidden browser cannot show. To run aimm on a machine without a screen, use the Docker image: it has a virtual display, and its web UI shows you the browser.
+- The documentation for searching without logging in to Facebook, which 0.10.8 no longer allows.
+
 ## [0.10.8] - 2026-10-07
 
 ### Added

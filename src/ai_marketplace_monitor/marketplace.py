@@ -549,7 +549,6 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         self.translator = Translator()
         self.logger = logger
         self.page: Page | None = None
-        self.headless = False  # the browser window is hidden, set by the monitor
 
     @classmethod
     def get_config(cls: Type["Marketplace"], **kwargs: Any) -> TMarketplaceConfig:

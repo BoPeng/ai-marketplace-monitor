@@ -70,8 +70,8 @@ Browser and Playwright Issues
 
 *Solution:*
 - Restart the monitor
-- Try headless mode: ``aimm run --headless``
 - Check system resources (RAM, CPU)
+- On a machine without a screen, run aimm in Docker, which provides a virtual display
 
 Notification Problems
 --------------------
@@ -158,7 +158,6 @@ Performance Issues
 **High CPU/memory usage**
 
 *Solutions:*
-- Use headless mode: ``--headless``
 - Reduce number of concurrent browser tabs
 - Clear browser cache and data
 - Consider running on a more powerful machine
