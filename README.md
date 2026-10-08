@@ -81,6 +81,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 - Built-in config editor with TOML syntax highlighting
 - Live log streaming and filtering
+- A **Listings** table of every listing aimm evaluated, with its AI rating and why it was notified, rejected, or excluded
 - Add, edit, and delete config sections from your browser
 - No password required on localhost
 

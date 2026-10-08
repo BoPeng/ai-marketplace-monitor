@@ -6,7 +6,7 @@ summary: Global settings in the single [monitor] section, currently the proxy ai
 
 A `[monitor]` section with the settings that apply to aimm as a whole: a proxy, which aimm's
 browser uses to reach Facebook (it helps when Facebook blocks or limits the user's own
-connection), and the update reminder.
+connection), the update reminder, and how long aimm keeps the history of evaluated listings.
 
 ## Subtasks
 
@@ -22,6 +22,12 @@ the user names hosts that should not use the proxy.
 
 aimm checks PyPI once a day and says in its log and the web UI when a newer release is out. Set
 `check_updates = false` only if the user wants that off.
+
+### Evaluation history
+
+The web UI's Listings view shows every listing aimm evaluated and why it was notified, rejected
+by the AI or excluded. Set `evaluation_history_days` (default 30) only if the user wants to keep
+these records for a different number of days.
 
 ### Removing the proxy
 

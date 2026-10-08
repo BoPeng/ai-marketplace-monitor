@@ -401,7 +401,7 @@ Please see [Support for non-English languages](../README.md#support-for-non-engl
 
 ### Monitor Configuration
 
-The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked.
+The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked, and for how long aimm keeps its history of evaluated listings.
 
 | Option           | Requirement | DataType    | Description                              |
 | ---------------- | ----------- | ----------- | ---------------------------------------- |
@@ -409,8 +409,11 @@ The optional `monitor` section allows you to define system configurations for th
 | `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy. |
 | `proxy_username` | Optional    | String      | username for the proxy.                  |
 | `proxy_password` | Optional    | String      | password for the proxy.                  |
+| `check_updates`  | Optional    | Boolean     | Check PyPI once a day for a newer release (default `true`). |
+| `evaluation_history_days` | Optional | Integer | Days to keep the record of each evaluated listing shown in the web UI's **Listings** view (default `30`). |
 
 - If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
+- aimm records every listing it evaluates: excluded before the AI (by keywords, area or seller), rejected because the AI rating is below the item's `rating`, or notified. A later decision about the same listing and item replaces the earlier one, and records older than `evaluation_history_days` are removed.
 
 ### Additional options
 

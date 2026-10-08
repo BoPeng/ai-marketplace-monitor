@@ -11,7 +11,8 @@ The web UI provides:
 - **TOML Config Editor** with syntax highlighting, powered by CodeMirror
 - **Configure Chat** that uses the same AI-assisted configuration tools as `aimm configure`
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
-- **Live Log Streaming** with filtering by level, item, AI score, and text search
+- **Live Log Streaming** with filtering by level (all, problems, or errors) and text search; click a line to see its details
+- **Listings** view of every listing aimm evaluated, with its AI rating and the decision: notified, rejected by AI, or excluded (see [Listings](#listings))
 - **Version** of the running aimm in the header; in Docker, an **Update** button next to it installs a newer release in the container and restarts aimm
 - **⏸ / ▶** button in the header: ⏸ pauses searches after the current listing, and ▶ resumes them and searches all items right away
 - **Login banner** while aimm waits for you to finish logging in to Facebook (a CAPTCHA or a security code). It says where to complete it; in Docker, its **Open browser** button (like **Browser** in the header) opens aimm's browser in a new tab
@@ -46,6 +47,39 @@ The **Configure** pane lets you edit the config through the same AI-assisted flo
 or enter a section address such as `ai`, `marketplace`, `item.gopro`, or `notification`
 before starting. The chat asks for confirmation before tool-driven changes are written,
 then the editor reloads the updated config.
+
+## Logs and Listings
+
+The **Logs | Listings** switch at the left of the bottom pane's toolbar picks what the pane shows.
+
+### Logs
+
+The live log of the monitor. **All** shows every message, **Problems** shows warnings and
+errors, and **Errors** shows errors only; a red badge on **Errors** counts errors you have not
+looked at yet. Type in the text filter to show matching messages, and click a message to see its
+details, such as the item, listing and AI score.
+
+### Listings
+
+A table of every listing aimm evaluated in the last 30 days, newest first, with:
+
+- the time of the decision, the item, and the listing title (a link to the listing)
+- the price and the AI rating (1–5, or – if the AI did not rate it)
+- the decision: **Notified**; **Rejected by AI** when the rating is below the item's `rating`;
+  or **Excluded** before the AI, for an excluded keyword, missing required keywords, a seller
+  outside `seller_locations`, or a seller in `exclude_sellers`. The reason is shown under the
+  title and when you hover over the decision.
+
+Filter by item, decision, minimum rating and text, and click **Time** or **Rating** to sort. The
+table refreshes every 30 seconds. **⬇ CSV** downloads the listings that match the filters. A
+listing that aimm evaluates again (for example, after you change the item) shows its latest
+decision. To keep the history longer or shorter than 30 days, set
+`evaluation_history_days` in the `[monitor]` section:
+
+```toml
+[monitor]
+evaluation_history_days = 60
+```
 
 ## Disabling the Web UI
 

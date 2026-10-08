@@ -96,32 +96,41 @@
 
       <section class="logs-pane">
         <div class="logs-toolbar">
-          <div class="level-chips">
-            <button data-level="ALL" class="chip active">All</button>
-            <button data-level="INFO" class="chip">Info</button>
-            <button data-level="WARNING" class="chip">Warn</button>
-            <button data-level="ERROR" class="chip">Error</button>
+          <div class="view-switch" role="tablist" aria-label="Show">
+            <button data-view="logs" class="chip active" role="tab" aria-selected="true">Logs</button>
+            <button data-view="listings" class="chip" role="tab" aria-selected="false" title="Every listing aimm evaluated, and what it decided">Listings</button>
           </div>
-          <div class="kind-chips">
-            <button data-kind="" class="chip active">Any</button>
-            <button data-kind="ai_eval" class="chip">AI eval</button>
-            <button data-kind="search_summary" class="chip">Searches</button>
-            <button data-kind="listing_skip" class="chip">Skipped</button>
-            <button data-kind="credentials_wait" class="chip">Login</button>
+          <div id="logs-controls" class="toolbar-group">
+            <div class="level-chips">
+              <button data-level="ALL" class="chip active">All</button>
+              <button data-level="WARNING" class="chip" title="Warnings and errors">Problems</button>
+              <button data-level="ERROR" class="chip">Errors</button>
+            </div>
+            <input id="log-filter" class="text-filter" type="search" placeholder="Text filter…" />
+            <label class="autoscroll">
+              <input id="autoscroll" type="checkbox" checked /> auto-scroll
+            </label>
           </div>
-          <select id="item-filter" title="Filter by item"><option value="">Any item</option></select>
-          <select id="score-filter" title="Minimum score">
-            <option value="">Any score</option>
-            <option value="3">≥ 3</option>
-            <option value="4">≥ 4</option>
-            <option value="5">= 5 (high)</option>
-          </select>
-          <input id="log-filter" type="search" placeholder="Text filter…" />
-          <label class="autoscroll">
-            <input id="autoscroll" type="checkbox" checked /> auto-scroll
-          </label>
+          <div id="listings-controls" class="toolbar-group" hidden>
+            <select id="eval-item" title="Filter by item"><option value="">Any item</option></select>
+            <select id="eval-stage" title="Filter by decision">
+              <option value="">Any decision</option>
+              <option value="notified">Notified</option>
+              <option value="rejected">Rejected by AI</option>
+              <option value="excluded">Excluded</option>
+            </select>
+            <select id="eval-rating" title="Minimum AI rating">
+              <option value="">Any rating</option>
+              <option value="3">≥ 3</option>
+              <option value="4">≥ 4</option>
+              <option value="5">= 5</option>
+            </select>
+            <input id="eval-filter" class="text-filter" type="search" placeholder="Text filter…" />
+            <button id="eval-export" class="chip" title="Download the listings shown as CSV">⬇ CSV</button>
+          </div>
         </div>
         <div id="logs" class="logs"></div>
+        <div id="listings" class="listings" hidden></div>
       </section>
     </main>
 

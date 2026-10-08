@@ -21,6 +21,7 @@ from .config import (
     supported_marketplaces,
 )
 from .control import control
+from .evaluations import REJECTED, EvaluationRecord, record_evaluation, set_history_days
 from .listing import Listing
 from .marketplace import (
     DEFAULT_RATING,
@@ -79,6 +80,7 @@ class MarketplaceMonitor:
                 self.config_hash = new_file_hash
                 # self.logger.debug(self.config)
                 assert self.config is not None
+                set_history_days(self.config.monitor.evaluation_history_days)
                 return self.config
             except KeyboardInterrupt:
                 raise
@@ -252,6 +254,16 @@ class MarketplaceMonitor:
                             threshold=acceptable_rating,
                         ),
                     )
+                record_evaluation(
+                    EvaluationRecord.from_listing(
+                        listing,
+                        item=item_config.name,
+                        stage=REJECTED,
+                        rating=res.score,
+                        ai_comment=res.comment,
+                        reason=f"rating {res.score} < {acceptable_rating}: {res.comment}",
+                    )
+                )
                 counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
                 continue
             new_listings.append(listing)

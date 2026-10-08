@@ -151,6 +151,7 @@ class CacheType(Enum):
     USER_NOTIFIED = "user-notifications"
     COUNTERS = "counters"
     UPDATE_CHECK = "update-check"
+    EVALUATIONS = "evaluations"
 
 
 class CounterItem(Enum):
@@ -415,10 +416,22 @@ class MonitorConfig(BaseConfig):
     proxy_password: str | None = None
     # tell the user when a newer release is on PyPI (log line and web UI)
     check_updates: bool | None = None
+    # days to keep the record of each evaluated listing (the web UI's Listings view)
+    evaluation_history_days: int | None = None
 
     def handle_check_updates(self: "MonitorConfig") -> None:
         if self.check_updates is not None and not isinstance(self.check_updates, bool):
             raise ValueError("monitor check_updates must be true or false.")
+
+    def handle_evaluation_history_days(self: "MonitorConfig") -> None:
+        if self.evaluation_history_days is None:
+            return
+        if (
+            isinstance(self.evaluation_history_days, bool)
+            or not isinstance(self.evaluation_history_days, int)
+            or self.evaluation_history_days < 1
+        ):
+            raise ValueError("monitor evaluation_history_days must be a positive integer.")
 
     def handle_proxy_server(self: "MonitorConfig") -> None:
         if self.proxy_server is None:

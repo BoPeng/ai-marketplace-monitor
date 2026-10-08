@@ -202,19 +202,24 @@ def _drain(buffer: io.StringIO) -> str:
     return text
 
 
-def iter_found_csv(rows: Iterable[Dict[str, str]]) -> Iterator[str]:
+def iter_csv(rows: Iterable[Dict[str, str]], columns: List[str]) -> Iterator[str]:
     """Yield CSV text incrementally (header first), one chunk per row.
 
     Cells are sanitized against spreadsheet formula injection.  ``newline=""``
     keeps the csv module's line terminators intact.
     """
     buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+    writer = csv.DictWriter(buffer, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     yield _drain(buffer)
     for row in rows:
         writer.writerow({key: _sanitize(value) for key, value in row.items()})
         yield _drain(buffer)
+
+
+def iter_found_csv(rows: Iterable[Dict[str, str]]) -> Iterator[str]:
+    """Yield the found-items CSV incrementally (see :func:`iter_csv`)."""
+    return iter_csv(rows, CSV_COLUMNS)
 
 
 def rows_to_csv(rows: Iterable[Dict[str, str]]) -> str:

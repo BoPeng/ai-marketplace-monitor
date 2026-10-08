@@ -3,6 +3,7 @@
 //   - Login form + session cookie handling
 //   - TOML editor with line numbers and syntax highlighting (lightweight)
 //   - Live log tail via WebSocket with level/text filtering + expand
+//   - Listings view: every evaluated listing, with its rating and decision
 //   - Save / Validate with inline error at the offending line
 
 (() => {
@@ -16,14 +17,19 @@
     originalContent: "",
     currentContent: "",
     logLevel: "ALL",
-    logKind: "",
-    logItem: "",
-    logMinScore: null,
     logFilter: "",
+    view: "logs", // "logs" | "listings"
+    evalItem: "",
+    evalStage: "",
+    evalMinRating: "",
+    evalFilter: "",
+    evalSort: { key: "time", desc: true },
+    evalRecords: [],
+    evalTotal: 0,
+    evalTimer: null,
     ws: null,
     records: [],
     expanded: new Set(),
-    knownItems: new Set(),
     lastActivity: null, // epoch seconds of the most recent log record
     monitorState: "disconnected", // "connected" | "idle" | "disconnected"
     wsConnected: false,
@@ -322,30 +328,6 @@
     if (!state.logFilter) return true;
     return record.message.toLowerCase().includes(state.logFilter.toLowerCase());
   };
-  const matchesKind = (record) => {
-    if (!state.logKind) return true;
-    return record.extra && record.extra.kind === state.logKind;
-  };
-  const matchesItem = (record) => {
-    if (!state.logItem) return true;
-    return record.extra && record.extra.item === state.logItem;
-  };
-  const matchesScore = (record) => {
-    if (state.logMinScore == null) return true;
-    const score = record.extra && record.extra.score;
-    return typeof score === "number" && score >= state.logMinScore;
-  };
-
-  const updateItemDropdown = (record) => {
-    const item = record.extra && record.extra.item;
-    if (!item || state.knownItems.has(item)) return;
-    state.knownItems.add(item);
-    const opt = document.createElement("option");
-    opt.value = item;
-    opt.textContent = item;
-    $("#item-filter").appendChild(opt);
-  };
-
   const renderDetail = (record) => {
     const lines = [];
     lines.push(
@@ -371,16 +353,10 @@
   };
 
   const renderLogs = () => {
+    if (state.view !== "logs") return;
     const container = $("#logs");
     const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 16;
-    const visible = state.records.filter(
-      (r) =>
-        matchesLevel(r) &&
-        matchesFilter(r) &&
-        matchesKind(r) &&
-        matchesItem(r) &&
-        matchesScore(r)
-    );
+    const visible = state.records.filter((r) => matchesLevel(r) && matchesFilter(r));
     container.innerHTML = visible
       .map((r) => {
         const expanded = state.expanded.has(r.id);
@@ -424,33 +400,11 @@
       $$(".level-chips .chip").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       state.logLevel = btn.dataset.level;
-      // Clear error badge when user views errors.
-      if (btn.dataset.level === "ERROR" || btn.dataset.level === "ALL") {
-        state.errorCount = 0;
-        renderErrorBadge();
-      }
+      // Every level shows errors, so viewing any of them clears the badge.
+      state.errorCount = 0;
+      renderErrorBadge();
       renderLogs();
     });
-  });
-
-  $$(".kind-chips .chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      $$(".kind-chips .chip").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.logKind = btn.dataset.kind;
-      renderLogs();
-    });
-  });
-
-  $("#item-filter").addEventListener("change", (e) => {
-    state.logItem = e.target.value;
-    renderLogs();
-  });
-
-  $("#score-filter").addEventListener("change", (e) => {
-    const v = e.target.value;
-    state.logMinScore = v === "" ? null : Number(v);
-    renderLogs();
   });
 
   $("#log-filter").addEventListener("input", (e) => {
@@ -461,13 +415,204 @@
   const loadLogs = async () => {
     const res = await (await api("/api/logs?limit=500")).json();
     state.records = res.records;
-    state.records.forEach((r) => {
-      updateItemDropdown(r);
-      noteActivity(r);
-    });
+    state.records.forEach(noteActivity);
     renderLogs();
     renderMonitorStatus();
   };
+
+  // ---------------------------------------------------------------
+  // Listings: every listing aimm evaluated, and what it decided
+  // ---------------------------------------------------------------
+  const STAGE_LABELS = { notified: "Notified", rejected: "Rejected by AI", excluded: "Excluded" };
+
+  const evalQuery = () => {
+    const params = new URLSearchParams();
+    if (state.evalItem) params.set("item", state.evalItem);
+    if (state.evalStage) params.set("stage", state.evalStage);
+    if (state.evalMinRating) params.set("min_rating", state.evalMinRating);
+    if (state.evalFilter.trim()) params.set("q", state.evalFilter.trim());
+    return params;
+  };
+
+  const formatEvalTime = (epoch) =>
+    new Date(epoch * 1000).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const sortedEvaluations = () => {
+    const { key, desc } = state.evalSort;
+    const sign = desc ? -1 : 1;
+    return [...state.evalRecords].sort((a, b) => {
+      if (key === "rating" && a.rating !== b.rating) {
+        // unrated listings go last either way
+        if (a.rating == null) return 1;
+        if (b.rating == null) return -1;
+        return sign * (a.rating - b.rating);
+      }
+      // by time, or newest first among equal ratings
+      return (key === "time" ? sign : -1) * (a.time - b.time);
+    });
+  };
+
+  const renderEvaluations = () => {
+    const container = $("#listings");
+    const arrow = (key) =>
+      state.evalSort.key === key ? (state.evalSort.desc ? " ▾" : " ▴") : "";
+    const header =
+      `<div class="eval-row eval-head">` +
+      `<button class="eval-sort" data-sort="time">Time${arrow("time")}</button>` +
+      `<span>Item</span><span>Listing</span><span>Price</span>` +
+      `<button class="eval-sort" data-sort="rating">Rating${arrow("rating")}</button>` +
+      `<span>Decision</span></div>`;
+    const rows = sortedEvaluations()
+      .map((r) => {
+        const stage = STAGE_LABELS[r.stage] ? r.stage : "excluded";
+        const why = r.reason || (r.ai_comment ? `AI: ${r.ai_comment}` : "");
+        const rating =
+          r.rating == null
+            ? `<span class="eval-rating none" title="Not rated by AI">–</span>`
+            : `<span class="eval-rating r${esc(r.rating)}" title="AI rating ${esc(r.rating)} of 5">${esc(r.rating)}</span>`;
+        const title = r.url
+          ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title || r.id)}</a>`
+          : esc(r.title || r.id);
+        return (
+          `<div class="eval-row stage-${esc(stage)}">` +
+          `<span class="eval-time" title="${esc(new Date(r.time * 1000).toLocaleString())}">${esc(formatEvalTime(r.time))}</span>` +
+          `<span class="eval-item" title="${esc(r.item)}">${esc(r.item)}</span>` +
+          `<span class="eval-title">${title}` +
+          (why ? `<span class="eval-reason" title="${esc(why)}">${esc(why)}</span>` : "") +
+          `</span>` +
+          `<span class="eval-price">${esc(r.price || "")}</span>` +
+          rating +
+          `<span class="eval-stage stage-${esc(stage)}" title="${esc(why || STAGE_LABELS[stage])}">${esc(STAGE_LABELS[stage])}</span>` +
+          `</div>`
+        );
+      })
+      .join("");
+    const empty = state.evalRecords.length
+      ? ""
+      : `<div class="eval-empty">No evaluated listings${evalQuery().toString() ? " match these filters" : " yet"}.</div>`;
+    const more =
+      state.evalTotal > state.evalRecords.length
+        ? `<div class="eval-empty">Showing the newest ${state.evalRecords.length} of ${state.evalTotal}. Narrow the filters, or export CSV for all.</div>`
+        : "";
+    container.innerHTML = header + rows + empty + more;
+  };
+
+  const updateEvalItems = (items) => {
+    const select = $("#eval-item");
+    const current = select.value;
+    const names = new Set(items);
+    if (current) names.add(current);
+    select.innerHTML =
+      `<option value="">Any item</option>` +
+      [...names]
+        .sort()
+        .map((n) => `<option value="${esc(n)}">${esc(n)}</option>`)
+        .join("");
+    select.value = current;
+  };
+
+  const loadEvaluations = async () => {
+    try {
+      const params = evalQuery();
+      params.set("limit", "500");
+      const res = await api(`/api/evaluations?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      state.evalRecords = data.records || [];
+      state.evalTotal = data.total || 0;
+      updateEvalItems(data.items || []);
+      renderEvaluations();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const showView = (view) => {
+    state.view = view === "listings" ? "listings" : "logs";
+    const listings = state.view === "listings";
+    $$(".view-switch .chip").forEach((b) => {
+      const active = b.dataset.view === state.view;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    $("#logs-controls").hidden = listings;
+    $("#logs").hidden = listings;
+    $("#listings-controls").hidden = !listings;
+    $("#listings").hidden = !listings;
+    try {
+      localStorage.setItem("aimm.logsView", state.view);
+    } catch (_) {}
+    clearInterval(state.evalTimer);
+    state.evalTimer = null;
+    if (listings) {
+      loadEvaluations();
+      state.evalTimer = setInterval(loadEvaluations, 30000);
+    } else {
+      renderLogs();
+    }
+  };
+
+  $$(".view-switch .chip").forEach((btn) => {
+    btn.addEventListener("click", () => showView(btn.dataset.view));
+  });
+
+  $("#listings").addEventListener("click", (e) => {
+    const btn = e.target.closest(".eval-sort");
+    if (!btn) return;
+    const key = btn.dataset.sort;
+    state.evalSort =
+      state.evalSort.key === key ? { key, desc: !state.evalSort.desc } : { key, desc: true };
+    renderEvaluations();
+  });
+
+  [
+    ["#eval-item", "evalItem"],
+    ["#eval-stage", "evalStage"],
+    ["#eval-rating", "evalMinRating"],
+  ].forEach(([sel, key]) => {
+    $(sel).addEventListener("change", (e) => {
+      state[key] = e.target.value;
+      loadEvaluations();
+    });
+  });
+
+  let evalFilterTimer = null;
+  $("#eval-filter").addEventListener("input", (e) => {
+    state.evalFilter = e.target.value;
+    clearTimeout(evalFilterTimer);
+    evalFilterTimer = setTimeout(loadEvaluations, 300);
+  });
+
+  $("#eval-export").addEventListener("click", async () => {
+    const btn = $("#eval-export");
+    btn.disabled = true;
+    try {
+      const res = await api(`/api/evaluations.csv?${evalQuery().toString()}`);
+      if (!res.ok) {
+        setEditorStatus("⬇ Export failed: " + res.status, "err");
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.download = match ? match[1] : "evaluations.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setEditorStatus("⬇ Export failed: " + err.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   // -------- Monitor status chip derived from the log stream --------
   // Track activity timestamp from any log record.
@@ -1885,7 +2030,6 @@
       const msg = JSON.parse(ev.data);
       if (msg.type === "log") {
         state.records.push(msg.record);
-        updateItemDropdown(msg.record);
         noteActivity(msg.record);
         if (state.records.length > 5000) state.records.shift();
         renderLogs();
@@ -2024,6 +2168,11 @@
       if (editor.refresh) editor.refresh();
       await loadLogs();
       connectWs();
+      let view = "logs";
+      try {
+        view = localStorage.getItem("aimm.logsView") || "logs";
+      } catch (_) {}
+      showView(view);
     } catch (err) {
       console.error(err);
     }
