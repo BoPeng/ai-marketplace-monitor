@@ -356,7 +356,10 @@ def create_app(
         _: str = Depends(require_session),
         __: None = Depends(require_csrf),
     ) -> Dict[str, Any]:
+        """Resume, and search all items now (touching the config wakes the monitor)."""
         control.resume()
+        with contextlib.suppress(OSError):
+            config_service.editable_path.touch()
         return {"ok": True, **control.status()}
 
     @app.post("/api/update")

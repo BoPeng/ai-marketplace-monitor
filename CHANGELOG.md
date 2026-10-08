@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- A **⏸ Pause** / **▶ Resume** button in the web UI header stops searching after the current listing and resumes it, like pressing a key in the terminal. The status chip shows when aimm is paused. A restart resumes searching.
+- The **▶** button in the web UI header is now a pause/resume toggle: **⏸** stops searching after the current listing, like pressing a key in the terminal, and **▶** resumes and searches all items right away. The status chip shows when aimm is paused. A restart resumes searching.
 
 ### Changed
 - aimm waits after logging in until Facebook has really logged it in (the `c_user` cookie is set and the page is not a login, checkpoint or two-step verification page), however long a CAPTCHA or security code takes, and reminds you every five minutes. It used to wait a fixed minute and then search with a half-finished login, so Facebook redirected search and listing pages to its login page. The web UI shows "waiting for Facebook login" meanwhile.

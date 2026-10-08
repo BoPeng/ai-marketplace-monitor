@@ -119,7 +119,6 @@ html, body {
 .status-update { color: var(--accent, #60a5fa); border-color: rgba(96, 165, 250, 0.35); text-decoration: none; }
 .status-update[hidden] { display: none; }
 .header #update-btn { font-size: 11px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
-.header #pause-btn { white-space: nowrap; }
 .header #update-btn:disabled { cursor: progress; opacity: 0.8; }
 .status-err { color: var(--err); border-color: rgba(248, 113, 113, 0.35); }
 

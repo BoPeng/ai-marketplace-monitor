@@ -541,12 +541,13 @@
   setInterval(renderMonitorStatus, 1000);
 
   // Paused, or waiting for the Facebook login: state the log stream does not carry.
+  // One button: ⏸ pauses searches; while paused, ▶ resumes and searches all items now.
   const renderPauseButton = () => {
-    const btn = $("#pause-btn");
+    const btn = $("#run-btn");
     if (!btn || !state.monitor) return;
     const paused = state.monitor.paused;
-    btn.textContent = paused ? "▶ Resume" : "⏸ Pause";
-    btn.title = paused ? "Resume searching" : "Stop searching after the current listing";
+    btn.textContent = paused ? "▶" : "⏸";
+    btn.title = paused ? "Resume and search all items now" : "Pause searches after the current listing";
     btn.setAttribute("aria-label", paused ? "Resume searches" : "Pause searches");
   };
 
@@ -566,26 +567,8 @@
     if (el) el.addEventListener("click", fn);
     else console.warn("missing element:", sel);
   };
-  wireClick("#restart-btn", async () => {
-    const btn = $("#restart-btn");
-    if (btn) btn.disabled = true;
-    try {
-      const res = await api("/api/monitor/restart", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setEditorStatus("▶ Waking monitor — searching all items now…", "ok");
-      } else {
-        setEditorStatus("▶ Failed: " + (data.detail || "unknown"), "err");
-      }
-    } catch (err) {
-      setEditorStatus("↻ Restart failed: " + err.message, "err");
-    } finally {
-      setTimeout(() => { if (btn) btn.disabled = false; }, 2000);
-    }
-  });
-
-  wireClick("#pause-btn", async () => {
-    const btn = $("#pause-btn");
+  wireClick("#run-btn", async () => {
+    const btn = $("#run-btn");
     const resume = !!(state.monitor && state.monitor.paused);
     if (btn) btn.disabled = true;
     try {
@@ -596,7 +579,9 @@
       renderPauseButton();
       renderMonitorStatus();
       setEditorStatus(
-        resume ? "▶ Searches resumed." : "⏸ Pausing: searches stop after the current listing.",
+        resume
+          ? "▶ Resumed: searching all items now…"
+          : "⏸ Pausing: searches stop after the current listing.",
         "ok"
       );
     } catch (err) {

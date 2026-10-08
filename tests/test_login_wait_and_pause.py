@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
@@ -246,5 +247,7 @@ def test_web_ui_pause_and_resume(tmp_path: Path) -> None:
     assert client.post("/api/monitor/pause").json()["paused"] is True
     assert control.is_paused()
     assert client.get("/api/status").json()["monitor"]["paused"] is True
+    os.utime(cfg, (1, 1))
     assert client.post("/api/monitor/resume").json()["paused"] is False
     assert not control.is_paused()
+    assert cfg.stat().st_mtime > 1  # touched: the monitor wakes up and searches now
