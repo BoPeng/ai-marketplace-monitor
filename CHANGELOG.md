@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-10-07
+
 ### Added
 - The **▶** button in the web UI header is now a pause/resume toggle: **⏸** stops searching after the current listing, like pressing a key in the terminal, and **▶** resumes and searches all items right away. The status chip shows when aimm is paused. A restart resumes searching.
 
