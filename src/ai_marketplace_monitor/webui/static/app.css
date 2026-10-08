@@ -118,6 +118,28 @@ html, body {
 .status-warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); }
 .status-update { color: var(--accent, #60a5fa); border-color: rgba(96, 165, 250, 0.35); text-decoration: none; }
 .status-update[hidden] { display: none; }
+.login-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  color: var(--warn);
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.4);
+  font-size: 13px;
+}
+.login-banner[hidden], .login-banner-open[hidden] { display: none; }
+.login-banner-open {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.login-banner-open:hover { background: rgba(251, 191, 36, 0.15); }
 .header #update-btn { font-size: 11px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
 .header #update-btn:disabled { cursor: progress; opacity: 0.8; }
 .status-err { color: var(--err); border-color: rgba(248, 113, 113, 0.35); }

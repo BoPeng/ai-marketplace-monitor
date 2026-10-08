@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - The **▶** button in the web UI header is now a pause/resume toggle: **⏸** stops searching after the current listing, like pressing a key in the terminal, and **▶** resumes and searches all items right away. The status chip shows when aimm is paused. A restart resumes searching.
+- While aimm waits for the Facebook login, the web UI shows a banner that says where to complete the CAPTCHA or security code. In Docker it has an **Open browser** button that opens aimm's browser (noVNC) in a new tab, so you do not have to find the **Browser** button in the header. The log message fits where aimm runs: Docker, a visible browser window, or `--headless`, which cannot show a CAPTCHA.
 
 ### Changed
+- The README's quick start and Docker instructions describe the login flow: aimm types your Facebook username and password, you complete any CAPTCHA or security code (in Docker, through **Open browser**), and searches start once you are logged in.
 - aimm waits after logging in until Facebook has really logged it in (the `c_user` cookie is set and the page is not a login, checkpoint or two-step verification page), however long a CAPTCHA or security code takes, and reminds you every five minutes. It used to wait a fixed minute and then search with a half-finished login, so Facebook redirected search and listing pages to its login page. The web UI shows "waiting for Facebook login" meanwhile.
 - If Facebook logs aimm out later, it waits for the login the same way and retries the search or listing, instead of reporting that the listing "might be missing key information or not in English".
 - Facebook `username` and `password` are required (in `[marketplace.facebook]` or the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables): aimm no longer searches without logging in, which worked only some of the time.

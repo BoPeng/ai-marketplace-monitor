@@ -7,7 +7,7 @@ the user to finish logging in to Facebook. Nothing is saved: a restart resumes s
 from __future__ import annotations
 
 import threading
-from typing import Dict
+from typing import Any, Dict
 
 
 class MonitorControl:
@@ -15,6 +15,7 @@ class MonitorControl:
         self._running = threading.Event()
         self._running.set()
         self.waiting_for_login = False
+        self.login_hint = ""  # where to finish logging in, while waiting_for_login
 
     def pause(self: "MonitorControl") -> None:
         self._running.clear()
@@ -29,8 +30,12 @@ class MonitorControl:
         """Block while paused; True once resumed, False if ``timeout`` passed first."""
         return self._running.wait(timeout)
 
-    def status(self: "MonitorControl") -> Dict[str, bool]:
-        return {"paused": self.is_paused(), "waiting_for_login": self.waiting_for_login}
+    def status(self: "MonitorControl") -> Dict[str, Any]:
+        return {
+            "paused": self.is_paused(),
+            "waiting_for_login": self.waiting_for_login,
+            "login_hint": self.login_hint if self.waiting_for_login else "",
+        }
 
 
 control = MonitorControl()
