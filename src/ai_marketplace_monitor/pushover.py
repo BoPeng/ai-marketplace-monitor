@@ -13,8 +13,6 @@ from .utils import hilight
 class PushoverNotificationConfig(PushNotificationConfig):
     notify_method = "pushover"
     required_fields: ClassVar[List[str]] = ["pushover_user_key", "pushover_api_token"]
-    # 1024 characters per message, less the signature that send_message adds
-    digest_max_length: ClassVar[int | None] = 900
 
     pushover_user_key: str | None = notification_field(RECIPIENT)
     pushover_api_token: str | None = notification_field(CHANNEL)

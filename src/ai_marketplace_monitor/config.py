@@ -316,6 +316,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
 
     def expand_notifications(self: "Config", logger: Logger | None = None) -> None:
         for config in self.user.values():
+            self.validate_digest_with(config)
             for notification_name in (
                 config.notify_with if config.notify_with is not None else self.notification.keys()
             ):
@@ -347,6 +348,24 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                                     f"Overriding {hilight(key)} for user {config.name} with value {value} from notification {hilight(notification_name)}."
                                 )
                         setattr(config, key, value)
+
+    def validate_digest_with(self: "Config", config: UserConfig) -> None:
+        """The digest goes to some of the notifications that the user receives."""
+        if config.digest_with is None:
+            return
+        received = [
+            name
+            for name in (
+                config.notify_with if config.notify_with is not None else self.notification.keys()
+            )
+            if name in self.notification and self.notification[name].enabled is not False
+        ]
+        for name in config.digest_with:
+            if name not in received:
+                raise ValueError(
+                    f"User {hilight(config.name)} digest_with names {name}, which is not an "
+                    f"enabled notification the user receives ({', '.join(received) or 'none'})."
+                )
 
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist

@@ -437,21 +437,23 @@ class MarketplaceMonitor:
         """
         assert self.config is not None
         for user_config in self.config.user.values():
-            if user_config.enabled is False or not user_config.digest:
+            if user_config.enabled is False or not user_config.digest_at:
                 continue
             if self.logger:
                 self.logger.info(
-                    f"""{hilight("[Schedule]", "info")} Scheduling the daily digest for {user_config.name} every day at {user_config.digest}"""
+                    f"""{hilight("[Schedule]", "info")} Scheduling the daily digest for {user_config.name} every day at {user_config.digest_at}"""
                 )
-            schedule.every().day.at(user_config.digest).do(self.send_digest, user_config.name).tag(
-                f"{DIGEST_TAG}{user_config.name}"
-            )
+            schedule.every().day.at(user_config.digest_at).do(
+                self.send_digest, user_config.name
+            ).tag(f"{DIGEST_TAG}{user_config.name}")
 
     def send_digest(self: "MarketplaceMonitor", user_name: str) -> None:
         """Send the daily digest to a user if it is due."""
         assert self.config is not None
         if user_name in self.config.user:
-            send_due_digest(self.config.user[user_name], logger=self.logger)
+            send_due_digest(
+                self.config.user[user_name], self.config.notification, logger=self.logger
+            )
 
     def wait_while_paused(self: "MarketplaceMonitor") -> None:
         """Hold searches while the web UI has paused the monitor."""

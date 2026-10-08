@@ -289,18 +289,13 @@ class EmailNotificationConfig(NotificationConfig):
     def send_digest(
         self: "EmailNotificationConfig", digest: "Digest", logger: Logger | None = None
     ) -> bool:
-        """Send the daily digest as an HTML email, with a plain-text alternative."""
-        from .digest import render_digest, render_digest_email
+        """Send the full daily digest as an HTML email, with a plain-text alternative."""
+        from .digest import render_email_digest
 
         if not self._has_required_fields():
             return False
-        return self.send_email_message(
-            digest.title,
-            render_digest(digest, "plain_text"),
-            render_digest_email(digest),
-            [],
-            logger=logger,
-        )
+        text, html = render_email_digest(digest)
+        return self.send_email_message(digest.title, text, html, [], logger=logger)
 
     def send_email_message(
         self: "EmailNotificationConfig",

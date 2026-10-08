@@ -5,13 +5,15 @@ import time
 import types
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, Iterator, List, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 import pytest
 import schedule  # type: ignore
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor import digest as dg
+from ai_marketplace_monitor.config import Config
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.monitor import DIGEST_TAG, MarketplaceMonitor
 from ai_marketplace_monitor.notification import NotificationConfig
@@ -100,64 +102,57 @@ def test_no_matches_explains_silence() -> None:
     digest = dg.build_digest([], COUNTERS, SINCE, NOW)
     assert digest.title.endswith("no matches in 15 searches")
     for fmt in ("plain_text", "markdown", "html"):
-        assert "No matches today; aimm ran 15 searches." in dg.render_digest(digest, fmt)
-    assert "No matches today" in dg.render_digest_email(digest)
-    assert "No matches today" in dg.render_digest(digest, "plain_text", max_length=200)
+        assert "No matches today; aimm ran 15 searches." in dg.render_phone_digest(digest, fmt)
+    text, html = dg.render_email_digest(digest)
+    assert "No matches today" in text and "No matches today" in html
 
 
-def test_lists_are_capped() -> None:
+def test_email_lists_are_capped() -> None:
     many = [
         Record(NOW - i, "gopro", "rejected", id=str(i), rating=1, title=f"t{i}") for i in range(30)
     ]
-    digest = dg.build_digest(many, {}, SINCE, NOW)
-    message = dg.render_digest(digest)
-    assert message.count("\n- [1] ") == dg.MAX_ENTRIES
-    assert "…and 10 more" in message
-    assert "…and 10 more" in dg.render_digest_email(digest)
-
-
-def test_render_formats() -> None:
-    digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
-    plain = dg.render_digest(digest)
-    assert plain.startswith("Listings evaluated in the last 24 hours (")
-    assert "Total: 15 searches, 52 examined" in plain
-    assert "3 excluded (keywords 2, out of area 1)" in plain
-    assert "- [5] GoPro Hero 11, $200\n  https://www.facebook.com/marketplace/item/1/" in plain
-    assert "- [3] Hero 9, $200" in plain
-
-    markdown = dg.render_digest(digest, "markdown")
-    assert "**gopro**" in markdown
-    assert "- [5] [GoPro Hero 11](https://www.facebook.com/marketplace/item/1/), $200" in markdown
-
-    html = dg.render_digest(digest, "html")
-    assert "\n" not in html
-    assert "<b>gopro</b>" in html
-    assert "iPad &lt;mini&gt;" in html
-
-
-def test_short_channels_get_counts_and_top_matches() -> None:
-    many = [
-        Record(NOW - i, "gopro", "notified", id=str(i), rating=i % 5, title=f"listing {i}")
-        for i in range(40)
-    ]
-    digest = dg.build_digest(many, COUNTERS, SINCE, NOW)
-    assert len(dg.render_digest(digest, "html")) > 1024
-    for fmt in ("plain_text", "markdown", "html"):
-        short = dg.render_digest(digest, fmt, max_length=1024)
-        assert len(short) <= 1024
-        assert "Total:" in short
-        assert "…and 37 more" in short
-    # even the short digest is cut to the limit
-    assert len(dg.render_digest(digest, "plain_text", max_length=50)) == 50
+    text, html = dg.render_email_digest(dg.build_digest(many, {}, SINCE, NOW))
+    assert text.count("\n- [1] ") == dg.MAX_ENTRIES
+    assert "…and 10 more" in text and "…and 10 more" in html
 
 
 def test_email_digest() -> None:
-    html = dg.render_digest_email(dg.build_digest(records(), COUNTERS, SINCE, NOW))
+    text, html = dg.render_email_digest(dg.build_digest(records(), COUNTERS, SINCE, NOW))
+    assert text.startswith("Listings evaluated in the last 24 hours (")
+    assert "Total: 15 searches, 52 examined" in text
+    assert "3 excluded (keywords 2, out of area 1)" in text
+    assert "- [5] GoPro Hero 11, $200\n  https://www.facebook.com/marketplace/item/1/" in text
+    assert "- [3] Hero 9, $200" in text
     assert "Daily digest" in html
     assert ".listing-table" in html  # the listing email styles
+    assert "Listings evaluated" in html and "By item" in html  # summary and per-item tables
     assert "Rejected by AI (2)" in html
+    assert 'href="https://www.facebook.com/marketplace/item/1/"' in html
     # titles are escaped
     assert "iPad &lt;mini&gt;" in html
+
+
+def test_phone_digest() -> None:
+    many = [
+        Record(NOW - i, "gopro", "notified", id=str(i), rating=i % 5, title="x" * 200)
+        for i in range(40)
+    ]
+    digest = dg.build_digest(many, COUNTERS, SINCE, NOW)
+    plain = dg.render_phone_digest(digest)
+    assert plain.startswith("Last 24 h: 15 searches, 50 listings evaluated, 40 notified,")
+    assert plain.count("\n- [4] ") == dg.PHONE_ENTRIES
+    assert "…and 37 more" in plain
+    markdown = dg.render_phone_digest(digest, "markdown")
+    assert "- [4] [" in markdown and "](https://www.facebook.com/marketplace/item/1/)" in markdown
+    html = dg.render_phone_digest(digest, "html")
+    assert "\n" not in html and "<a href=" in html
+    for message in (plain, markdown, html):
+        assert len(message) <= dg.PHONE_MAX_LENGTH < 1024
+    # a listing with absurdly long values is cut to the limit
+    huge = [Record(NOW, "gopro", "notified", rating=5, price="$" * 2000)]
+    assert len(dg.render_phone_digest(dg.build_digest(huge, {}, SINCE, NOW), "html")) == (
+        dg.PHONE_MAX_LENGTH
+    )
 
 
 def test_daily_counters(temp_cache: Cache) -> None:
@@ -203,23 +198,96 @@ def test_load_evaluations_without_and_with_401(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_user_digest_options() -> None:
-    config = UserConfig(name="me", digest="8:05", digest_channels="telegram")  # type: ignore[arg-type]
-    assert (config.digest, config.digest_channels) == ("08:05", ["telegram"])
-    assert UserConfig(name="me", digest=False).digest is None  # type: ignore[arg-type]
+    config = UserConfig(name="me", digest_at="8:05", digest_with="gmail")  # type: ignore[arg-type]
+    assert (config.digest_at, config.digest_with) == ("08:05", ["gmail"])
+    assert UserConfig(name="me", digest_at=False).digest_at is None  # type: ignore[arg-type]
     for bad in ("25:00", "8am", "08:60", 8):
-        with pytest.raises(ValueError, match="digest"):
-            UserConfig(name="me", digest=bad)  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="digest_channels"):
-        UserConfig(name="me", digest_channels=["sms"])
+        with pytest.raises(ValueError, match="digest_at"):
+            UserConfig(name="me", digest_at=bad)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="digest_with"):
+        UserConfig(name="me", digest_with=[1])  # type: ignore[list-item]
+
+
+CONFIG = """
+[marketplace.facebook]
+search_city = "houston"
+
+[item.gopro]
+search_phrases = "gopro"
+
+[notification.gmail]
+smtp_server = "smtp.gmail.com"
+smtp_username = "me@gmail.com"
+smtp_password = "pw"
+
+[notification.unitysvc_email]
+smtp_password = "svcpass_abc"
+
+[notification.tg]
+telegram_token = "123:abc"
+
+[notification.off]
+ntfy_server = "https://ntfy.sh"
+enabled = false
+
+[user.me]
+email = "me@example.com"
+telegram_chat_id = "456"
+digest_at = "08:00"
+max_retries = 1
+retry_delay = 0
+"""
+
+
+def load(config_file: Callable[[str], str], extra: str = "") -> Config:
+    return Config([Path(config_file(CONFIG + extra))])
+
+
+def test_digest_with_is_validated(config_file: Callable[[str], str]) -> None:
+    assert load(config_file, 'digest_with = ["gmail", "tg"]').user["me"].digest_with == [
+        "gmail",
+        "tg",
+    ]
+    for names in ('"nope"', '"off"'):
+        with pytest.raises(ValueError, match="digest_with"):
+            load(config_file, f"digest_with = {names}")
+    # only notifications the user receives
+    with pytest.raises(ValueError, match="digest_with"):
+        load(config_file, 'notify_with = ["tg"]\ndigest_with = ["gmail"]')
+
+
+def test_digest_channels(config_file: Callable[[str], str]) -> None:
+    # by default, every channel the user is notified with
+    config = load(config_file)
+    assert sorted(dg.digest_channels(config.user["me"], config.notification)) == [
+        "email",
+        "telegram",
+    ]
+    # one of two email sections
+    config = load(config_file, 'digest_with = ["gmail"]')
+    channels = dg.digest_channels(config.user["me"], config.notification)
+    assert list(channels) == ["gmail"]
+    gmail = channels["gmail"]
+    assert isinstance(gmail, EmailNotificationConfig)
+    assert (gmail.smtp_server, gmail.email) == ("smtp.gmail.com", ["me@example.com"])
+    config = load(config_file, 'digest_with = ["unitysvc_email", "tg"]')
+    channels = dg.digest_channels(config.user["me"], config.notification)
+    assert list(channels) == ["unitysvc_email", "tg"]
+    unitysvc_email = channels["unitysvc_email"]
+    assert isinstance(unitysvc_email, EmailNotificationConfig)
+    assert unitysvc_email.smtp_password == "svcpass_abc"
 
 
 #
 # sending, with fake channels
 #
+Sent = List[Tuple[str, str, str]]
+
+
 @pytest.fixture
-def sent(monkeypatch: pytest.MonkeyPatch) -> List[Tuple[str, str, str]]:
+def sent(monkeypatch: pytest.MonkeyPatch) -> Sent:
     """Record the messages instead of sending them."""
-    messages: List[Tuple[str, str, str]] = []
+    messages: Sent = []
 
     def send_message(
         self: NotificationConfig, title: str, message: str, logger: Any = None
@@ -248,7 +316,7 @@ def sent(monkeypatch: pytest.MonkeyPatch) -> List[Tuple[str, str, str]]:
 def user(**kwargs: Any) -> UserConfig:
     return UserConfig(
         name="me",
-        digest="08:00",
+        digest_at="08:00",
         pushover_user_key="u",
         pushover_api_token="t",
         telegram_token="123:abc",
@@ -259,29 +327,20 @@ def user(**kwargs: Any) -> UserConfig:
     )
 
 
-def test_digest_channels() -> None:
-    # no email-like channel: every channel
-    assert sorted(dg.digest_channels(user())) == ["pushover", "telegram"]
-    with_email = user(email=["me@example.com"], smtp_password="p")
-    assert list(dg.digest_channels(with_email)) == ["email"]
-    chosen = user(email=["me@example.com"], smtp_password="p", digest_channels=["telegram"])
-    assert list(dg.digest_channels(chosen)) == ["telegram"]
-
-
-def test_send_digest_per_channel_format(sent: List[Tuple[str, str, str]]) -> None:
+def test_send_digest_version_by_channel_type(sent: Sent) -> None:
     digest = dg.compose_digest(SINCE, NOW)
     config = user(email=["me@example.com"], smtp_password="p")
-    config.digest_channels = ["email", "pushover", "telegram"]
     assert dg.send_digest(config, digest) == {"email": True, "pushover": True, "telegram": True}
     by_channel = {channel: (title, message) for channel, title, message in sent}
     assert all(title == digest.title for title, _ in by_channel.values())
-    assert "<html>" in by_channel["email"][1]
-    assert "<b>Total:</b> " in by_channel["pushover"][1]
-    assert len(by_channel["pushover"][1]) <= 1024
-    assert "Total: " in by_channel["telegram"][1] and "<b>" not in by_channel["telegram"][1]
+    # the full digest by email, the phone digest on push channels
+    assert "<html>" in by_channel["email"][1] and "Rejected by AI" in by_channel["email"][1]
+    assert by_channel["pushover"][1] == dg.render_phone_digest(digest, "html")
+    # Telegram escapes Markdown, so it gets plain text
+    assert by_channel["telegram"][1] == dg.render_phone_digest(digest, "plain_text")
 
 
-def test_send_due_digest_once(sent: List[Tuple[str, str, str]], temp_cache: Cache) -> None:
+def test_send_due_digest_once(sent: Sent, temp_cache: Cache) -> None:
     config = user()
     morning = datetime(2026, 10, 8, 7, 59)
     # not due before the digest time
@@ -302,8 +361,19 @@ def test_send_due_digest_once(sent: List[Tuple[str, str, str]], temp_cache: Cach
     assert len(sent) == 4
 
 
+def test_send_due_digest_with_sections(
+    sent: Sent, temp_cache: Cache, config_file: Callable[[str], str]
+) -> None:
+    config = load(config_file, 'digest_with = ["tg"]')
+    now = datetime(2026, 10, 8, 9)
+    assert dg.send_due_digest(
+        config.user["me"], config.notification, now=now, local_cache=temp_cache
+    )
+    assert [channel for channel, _, _ in sent] == ["telegram"]
+
+
 def test_failed_digest_is_retried(
-    monkeypatch: pytest.MonkeyPatch, sent: List[Tuple[str, str, str]], temp_cache: Cache
+    monkeypatch: pytest.MonkeyPatch, sent: Sent, temp_cache: Cache
 ) -> None:
     monkeypatch.setattr(dg, "send_digest", lambda *args, **kwargs: {"pushover": False})
     now = datetime(2026, 10, 8, 9)
@@ -311,11 +381,11 @@ def test_failed_digest_is_retried(
     assert temp_cache.get(dg.digest_key("me")) is None
 
 
-def test_no_digest_without_option(sent: List[Tuple[str, str, str]], temp_cache: Cache) -> None:
+def test_no_digest_without_option(sent: Sent, temp_cache: Cache) -> None:
     config = user()
-    config.digest = None
+    config.digest_at = None
     assert not dg.send_due_digest(config, now=datetime(2026, 10, 8, 9), local_cache=temp_cache)
-    config.digest, config.enabled = "08:00", False
+    config.digest_at, config.enabled = "08:00", False
     assert not dg.send_due_digest(config, now=datetime(2026, 10, 8, 9), local_cache=temp_cache)
     assert sent == []
 
@@ -324,12 +394,12 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
     calls: List[str] = []
     monkeypatch.setattr(
         "ai_marketplace_monitor.monitor.send_due_digest",
-        lambda config, logger=None: calls.append(config.name),
+        lambda config, notifications, logger=None: calls.append(config.name),
     )
     users = {"me": user(), "other": UserConfig(name="other")}
     monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)
     monitor.logger = None
-    monitor.config = types.SimpleNamespace(user=users)  # type: ignore[assignment]
+    monitor.config = types.SimpleNamespace(user=users, notification={})  # type: ignore[assignment]
     schedule.clear()
     try:
         monitor.schedule_digests()
@@ -340,7 +410,7 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
         assert calls == ["me"]
         # the config changes: the jobs are cleared and scheduled again
         schedule.clear()
-        users["me"].digest = "20:30"
+        users["me"].digest_at = "20:30"
         monitor.schedule_digests()
         jobs = schedule.get_jobs()
         assert len(jobs) == 1 and jobs[0].at_time is not None

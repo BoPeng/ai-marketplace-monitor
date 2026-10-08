@@ -21,8 +21,6 @@ if TYPE_CHECKING:
 class TelegramNotificationConfig(PushNotificationConfig):
     notify_method = "telegram"
     required_fields: ClassVar[List[str]] = ["telegram_token", "telegram_chat_id"]
-    # 4096 characters per message, less the title and the MarkdownV2 escapes
-    digest_max_length: ClassVar[int | None] = 3500
     # send_message escapes all Markdown, so the digest is sent as plain text
     digest_format: ClassVar[str | None] = "plain_text"
 

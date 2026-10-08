@@ -42,8 +42,6 @@ def fields_with_role(cls: type, role: str) -> Tuple[str, ...]:
 @dataclass
 class NotificationConfig(BaseConfig):
     required_fields: ClassVar[List[str]] = []
-    # longest digest message the channel takes in one piece; a longer one is shortened
-    digest_max_length: ClassVar[int | None] = None
     # format of the digest if the channel does not follow message_format
     digest_format: ClassVar[str | None] = None
 
@@ -308,13 +306,13 @@ class NotificationConfig(BaseConfig):
     def send_digest(
         self: "NotificationConfig", digest: "Digest", logger: Logger | None = None
     ) -> bool:
-        """Send the daily digest as one message in the channel's format."""
-        from .digest import render_digest
+        """Send the short (phone) daily digest, in the channel's format."""
+        from .digest import render_phone_digest
 
         if not self._has_required_fields():
             return False
         fmt = self.digest_format or getattr(self, "message_format", None) or "plain_text"
-        message = render_digest(digest, fmt, max_length=self.digest_max_length)
+        message = render_phone_digest(digest, fmt)
         return self.send_message_with_retry(digest.title, message, logger=logger)
 
 

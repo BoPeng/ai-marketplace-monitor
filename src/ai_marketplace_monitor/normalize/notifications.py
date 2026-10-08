@@ -37,7 +37,7 @@ RECIPIENT_FIELDS: Tuple[str, ...] = tuple(
 CHANNEL_FIELDS: Dict[str, Tuple[str, ...]] = {
     t: fields_with_role(cls, CHANNEL) for t, cls in TYPE_CLASSES.items()
 }
-_USER_KEPT_FIELDS = ("enabled", "request", "remind", "digest", "digest_channels")
+_USER_KEPT_FIELDS = ("enabled", "request", "remind", "digest_at")
 _MERGE_SKIPPED = ("type", "name", "request")
 
 
@@ -203,6 +203,11 @@ def _name_groups(groups: Dict[str, Dict[str, Any]], notif_raw: Dict[str, Any]) -
 def normalize_notifications(cfg: Dict[str, Any], loaded: Config) -> None:
     """Rewrite cfg['user'] and cfg['notification'] into canonical form, in place."""
     notif_raw: Dict[str, Any] = cfg.get("notification", {})
+    digest_with = {
+        u: [v] if isinstance(v, str) else list(v)
+        for u, user_raw in cfg.get("user", {}).items()
+        if (v := user_raw.get("digest_with")) is not None
+    }
     groups: Dict[str, Dict[str, Any]] = {}
     plans: Dict[str, Tuple[Dict[str, Any], List[str]]] = {}
     for user_name, user_raw in cfg.get("user", {}).items():
@@ -240,5 +245,16 @@ def normalize_notifications(cfg: Dict[str, Any], loaded: Config) -> None:
     cfg["user"] = {
         u: {**user, "notify_with": [names[k] for k in keys]} for u, (user, keys) in plans.items()
     }
+    # digest_with names sections, which are now the canonical section of each channel type
+    for user_name, raw_with in digest_with.items():
+        renamed = {groups[k]["type"]: names[k] for k in plans[user_name][1]}
+        cfg["user"][user_name]["digest_with"] = list(
+            dict.fromkeys(
+                renamed[t]
+                for name in raw_with
+                for t, channel_fields in CHANNEL_FIELDS.items()
+                if any(f in notif_raw[name] for f in channel_fields) and t in renamed
+            )
+        )
     if new_notifs:
         cfg["notification"] = new_notifs

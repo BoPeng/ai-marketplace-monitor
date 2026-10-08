@@ -76,7 +76,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
-- Optional daily digest of searches, matches and rejected listings
+- Optional daily digest (`digest_at`) of searches, matches and rejected listings: the full digest by email, a short summary on push channels
 
 🖥️ **Web UI**
 

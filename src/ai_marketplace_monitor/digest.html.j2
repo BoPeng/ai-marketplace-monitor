@@ -45,11 +45,32 @@
 
                     <!-- Summary -->
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
+                        {% for label, value in [
+                            ("Searches", digest.total.searches),
+                            ("Listings evaluated", digest.total.examined),
+                            ("Rated by AI", digest.total.rated),
+                            ("Notified", digest.total.notified|length),
+                            ("Rejected by AI", digest.total.rejected|length),
+                            ("Excluded", digest.total.n_excluded),
+                        ] %}
+                        <tr><td style="font-weight: bold; color: #333333;">{{ label }}</td><td>{{ value }}</td></tr>
+                        {% endfor %}
+                    </table>
+                    {% if digest.total.excluded %}
+                    <p style="color: #666666; font-size: 14px;">Excluded:
+                        {% for reason, n in digest.total.excluded|dictsort(by='value', reverse=true) %}{{ reason }} {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    </p>
+                    {% endif %}
+
+                    <!-- Per item -->
+                    {% if digest.items %}
+                    <h2 style="margin-top: 30px;">By item</h2>
+                    <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                         <tr style="color: #333333; font-weight: bold;">
-                            <td>Item</td><td>Searches</td><td>Examined</td><td>Rated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
+                            <td>Item</td><td>Searches</td><td>Evaluated</td><td>Rated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
                         </tr>
-                        {% for item in [digest.total] + digest.items %}
-                        <tr{% if loop.first %} style="font-weight: bold;"{% endif %}>
+                        {% for item in digest.items %}
+                        <tr>
                             <td>{{ item.name }}</td>
                             <td>{{ item.searches }}</td>
                             <td>{{ item.examined }}</td>
@@ -60,10 +81,6 @@
                         </tr>
                         {% endfor %}
                     </table>
-                    {% if digest.total.excluded %}
-                    <p style="color: #666666; font-size: 14px;">Excluded:
-                        {% for reason, n in digest.total.excluded|dictsort(by='value', reverse=true) %}{{ reason }} {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}
-                    </p>
                     {% endif %}
 
                     {% for item in digest.items if item.notified or item.rejected %}
@@ -90,7 +107,7 @@
             <tr>
                 <td class="footer">
                     <p>This is an automated daily digest from <a href="https://github.com/BoPeng/ai-marketplace-monitor">AI Marketplace Monitor</a></p>
-                    <p>To stop it, remove the <code>digest</code> option of your user section.</p>
+                    <p>To stop it, remove the <code>digest_at</code> option of your user section.</p>
                 </td>
             </tr>
         </table>
