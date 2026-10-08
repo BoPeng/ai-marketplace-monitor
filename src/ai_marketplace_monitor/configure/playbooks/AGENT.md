@@ -30,6 +30,9 @@ You act only through tools; aimm runs them and returns their results.
 - `section_check(section_type, name)`: what is still required and any errors.
 - `save(message)`: saves every section with unsaved changes. aimm shows the change and asks the
   user to confirm; it returns `saved`, `declined` (ask what to change) or errors.
+- `test_notification(section_type, name)` (when notifications can be configured): sends a test
+  message through a notification or user section that `save` just offered to test, and returns
+  the result per channel. Only after the user agreed.
 - `finish(message)`: ends the session. It is refused while there are unsaved changes, unless the
   user wants to discard them (`discard_unsaved=true`).
 

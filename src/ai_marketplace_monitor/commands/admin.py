@@ -1,23 +1,16 @@
 """Implementation for the `aimm admin` command."""
 
-import sqlite3
 from pathlib import Path
 from typing import List
 
 import typer
 
-from ..config import load_config_dicts
+from ..config import Config, load_config_dicts
 from ..config_toml import dump_config_toml
 from ..normalize import expand, normalize
-from ..utils import (
-    CacheCorruptedError,
-    CacheType,
-    amm_home,
-    cache,
-    hilight,
-    is_cache_broken,
-    remove_cache_files,
-)
+from ..user import send_test_notifications
+from ..utils import amm_home, cache, hilight, is_cache_broken
+from ..utils import clear_cache as clear_cache_now
 from .common import setup_logging
 
 
@@ -36,33 +29,39 @@ def print_normalized_config(config_files: List[Path] | None, *, expanded: bool) 
 
 def run_clear_cache(clear_cache: str, *, verbose: bool | None = False) -> None:
     logger, _ = setup_logging(verbose, webui=False)
-    if clear_cache == "all":
-        try:
-            if is_cache_broken(cache):
-                raise CacheCorruptedError(str(cache.error))  # type: ignore[attr-defined]
-            cache.clear()
-        except (CacheCorruptedError, sqlite3.DatabaseError) as e:
-            # a corrupted database cannot be cleared from inside: remove its files
-            cache.close()
-            directory = Path(cache.directory)
-            for path in remove_cache_files(directory):
-                logger.info(f"""{hilight("[Clear Cache]", "info")} Removed {path}""")
-            logger.info(
-                f"""{hilight("[Clear Cache]", "succ")} The cache could not be read ({e}), so its """
-                f"files were removed. aimm starts with an empty cache."
-            )
-            return
-    elif clear_cache in [x.value for x in CacheType]:
-        if is_cache_broken(cache):
-            logger.error(
-                f"""{hilight("[Clear Cache]", "fail")} The cache cannot be read, so it cannot be """
-                "cleared in part. Use --clear-cache all."
-            )
-            raise typer.Exit(1)
-        cache.evict(tag=clear_cache)
-    else:
-        logger.error(
-            f"""{hilight("[Clear Cache]", "fail")} {clear_cache} is not a valid cache type. Allowed cache types are {", ".join([x.value for x in CacheType])} and all """
-        )
+    result = clear_cache_now(cache, clear_cache)
+    for path in result.removed:
+        logger.info(f"""{hilight("[Clear Cache]", "info")} Removed {path}""")
+    if not result.ok:
+        hint = " Use --clear-cache all." if is_cache_broken(cache) else ""
+        logger.error(f"""{hilight("[Clear Cache]", "fail")} {result.message}{hint}""")
         raise typer.Exit(1)
-    logger.info(f"""{hilight("[Clear Cache]", "succ")} Cache cleared.""")
+    logger.info(f"""{hilight("[Clear Cache]", "succ")} {result.message}""")
+
+
+def run_test_notification(
+    config_files: List[Path] | None, user: str | None, *, verbose: bool | None = False
+) -> None:
+    """Send a test message through each channel of each user (or one user); exit 1 on failure."""
+    logger, _ = setup_logging(verbose, webui=False)
+    try:
+        config = Config(config_files_with_default(config_files), logger)
+        results = send_test_notifications(config.user, user, logger=logger)
+    except Exception as e:  # the config does not load, or there is no such user
+        logger.error(f"""{hilight("[Test]", "fail")} {e.args[0] if e.args else e}""")
+        raise typer.Exit(1) from e
+    failed = not results
+    if not results:
+        typer.echo("No enabled user to send a test notification to.")
+    for name, channels in results.items():
+        if not channels:
+            failed = True
+            typer.echo(f"✗ {name}: no notification channel is set up")
+        for channel in channels:
+            failed = failed or not channel.ok
+            mark = "✓" if channel.ok else "✗"
+            typer.echo(
+                f"{mark} {name}: {channel.channel}" + ("" if channel.ok else f": {channel.error}")
+            )
+    if failed:
+        raise typer.Exit(1)

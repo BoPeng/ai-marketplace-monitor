@@ -118,6 +118,8 @@ class ToolExecutor:
     calls: List[Tuple[str, Dict[str, Any]]] = field(default_factory=list)
     # section types whose guide (playbook + field table) the model has read
     guides_read: Set[str] = field(default_factory=set)
+    # saved sections aimm offers to try with test_notification (e.g. a notification channel)
+    testable: Set[SectionKey] = field(default_factory=set)
 
     # --- state ------------------------------------------------------------------------------
     @property
@@ -370,6 +372,8 @@ class ToolExecutor:
         ]
         for note in notes:
             await self.ws.ui.say(note, kind="warning", markdown=True)
+        tests = [d.key for d in pending if self.ws.toolkits[d.section_type].testable(self.ws, d)]
+        self.testable.update(tests)
         for draft in pending:
             del self.ws.drafts[draft.key]
         try:
@@ -389,7 +393,33 @@ class ToolExecutor:
         )
         if notes:
             result["shown_to_user"] = notes
+        if tests:
+            result["test_notification"] = {
+                "sections": [{"section_type": t, "name": n} for t, n in tests],
+                "note": (
+                    "aimm can send a test message through what was just saved, now while the "
+                    "user can still fix it: offer it with ask_user, in your own words, and say "
+                    "that it sends a real message (metered channels such as UnitySVC SMS may "
+                    "cost a little). Call test_notification for a section above only if the "
+                    "user agrees."
+                ),
+            }
         return result
+
+    async def test_notification(
+        self: "ToolExecutor", section_type: str, name: str
+    ) -> Dict[str, Any]:
+        if (section_type, name) not in self.testable:
+            offered = ", ".join(section_label(t, n) for t, n in sorted(self.testable))
+            return {
+                "ok": False,
+                "errors": [
+                    f"No test is offered for {section_label(section_type, name)}"
+                    + (f"; only for {offered}." if offered else ".")
+                    + " aimm offers one after a notification, or a user's channels, is saved."
+                ],
+            }
+        return await self.ws.toolkits[section_type].send_test(self.ws, name)
 
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False
@@ -474,6 +504,24 @@ class ToolExecutor:
 
             tools.append(list_sections)
         tools += _section_tools(self)
+        if any(t in self.ws.toolkits for t in ("notification", "user")):
+
+            async def test_notification(section_type: str, name: str) -> Dict[str, Any]:
+                """Send a test message through a notification or user section just saved.
+
+                Offered by `save` (its `test_notification` result) for the sections it lists;
+                call it only after the user agreed. aimm sends one real message per channel,
+                shows the result to the user and returns it (per channel: ok, or the error).
+
+                Args:
+                    section_type: "notification" or "user".
+                    name: the section name, as listed by `save`.
+                """
+                return await self.call(
+                    "test_notification", {"section_type": section_type, "name": name}
+                )
+
+            tools.append(test_notification)
         return tools
 
     async def call(self: "ToolExecutor", name: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -511,6 +559,8 @@ class ToolExecutor:
                 )
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
+            if name == "test_notification":
+                return await self.test_notification(section_type, section_name)
             if name == "section_guide":
                 return await self.section_guide(section_type)
             if name == "section_show":

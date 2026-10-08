@@ -76,6 +76,15 @@ A user receives a notification when it is in the user's `notify_with`, or when t
 notification to it; if it has none, it already receives it. A new user gets `notify_with` with
 the notifications it should receive.
 
+### Testing
+
+After a notification, or a user's channels, is saved, `save` returns `test_notification` with
+the sections aimm can test. Offer the test (it sends a real message; metered channels may cost a
+little) and call `test_notification` if the user agrees. Explain the result: on a failure, say
+what the error likely means (a wrong token, a server that does not support STARTTLS, ...) and
+help fix it, for example with another token or another channel, then save and offer the test
+again. If the test cannot run here (`can_run_here` is false), pass on the `reason`.
+
 ### Options
 
 `with_description` (include the listing description), `message_format` for push channels,

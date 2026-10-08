@@ -124,6 +124,59 @@ def remove_cache_files(directory: Path) -> List[Path]:
 cache = open_cache(amm_home)
 
 
+@dataclass
+class CacheClearResult:
+    ok: bool
+    message: str
+    # files removed because the cache could not be read: aimm must restart to open a new one
+    removed: List[Path] = field(default_factory=list)
+
+
+def clear_cache(c: Any, clear_type: str) -> CacheClearResult:
+    """Clear one type of entries (a ``CacheType`` value), or ``all`` of the cache ``c``.
+
+    A cache that cannot be read can only be cleared as a whole, by removing its files.
+    """
+    allowed = [x.value for x in CacheType]
+    if clear_type == "all":
+        try:
+            if is_cache_broken(c):
+                raise CacheCorruptedError(str(c.error))
+            c.clear()
+        except (CacheCorruptedError, sqlite3.DatabaseError) as e:
+            # a corrupted database cannot be cleared from inside: remove its files
+            c.close()
+            removed = remove_cache_files(Path(c.directory))
+            return CacheClearResult(
+                True,
+                f"The cache could not be read ({e}), so its files were removed. "
+                "aimm starts with an empty cache.",
+                removed,
+            )
+        return CacheClearResult(True, "Cache cleared.")
+    if clear_type not in allowed:
+        return CacheClearResult(
+            False,
+            f"{clear_type} is not a valid cache type. Allowed cache types are "
+            f"{', '.join(allowed)} and all",
+        )
+    if is_cache_broken(c):
+        return CacheClearResult(
+            False, "The cache cannot be read, so it cannot be cleared in part: clear all of it."
+        )
+    c.evict(tag=clear_type)
+    return CacheClearResult(True, "Cache cleared.")
+
+
+def cache_counts(c: Any) -> Dict[str, int]:
+    """The number of entries of each ``CacheType``; raises if the cache cannot be read."""
+    counts = {x.value: 0 for x in CacheType}
+    for key in c.iterkeys():
+        if isinstance(key, tuple) and key and key[0] in counts:
+            counts[key[0]] += 1
+    return counts
+
+
 TConfigType = TypeVar("TConfigType", bound="BaseConfig")
 
 

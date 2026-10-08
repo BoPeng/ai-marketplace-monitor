@@ -130,6 +130,7 @@
   });
 
   $("#logout-btn").addEventListener("click", async () => {
+    $("#settings-modal").classList.add("hidden");
     await api("/api/logout", { method: "POST" });
     if (state.ws) state.ws.close();
     state.csrf = null;
@@ -2064,7 +2065,8 @@
   // Boot
   // ---------------------------------------------------------------
   // The running aimm version, and a newer release found by the monitor's
-  // update check (once a day).
+  // update check (once a day). The header shows a chip when there is one;
+  // Settings > About says how to update (in Docker, aimm installs it itself).
   const refreshUpdateBadge = async () => {
     try {
       const res = await fetch("/api/status", { credentials: "same-origin" });
@@ -2073,28 +2075,47 @@
       const version = document.getElementById("aimm-version");
       if (version && status.version) version.textContent = `v${status.version}`;
       state.version = status.version;
-      const update = status.update;
-      // In Docker, aimm installs the release itself; elsewhere the badge shows how.
-      const inPlace = !!(update && status.self_update && status.self_update.available);
-      const updateBtn = document.getElementById("update-btn");
-      if (updateBtn && !state.updating) {
-        updateBtn.hidden = !inPlace;
-        if (inPlace) {
-          state.updateTarget = update.latest;
-          updateBtn.disabled = false;
-          updateBtn.textContent = `⬆ Update to ${update.latest}`;
-          updateBtn.title = `Install aimm ${update.latest} in this container and restart it`;
-        }
-      }
+      state.update = status.update || null;
+      state.updateInPlace = !!(status.update && status.self_update && status.self_update.available);
+      // there is nothing to log out of on 127.0.0.1
+      const logoutRow = document.getElementById("logout-row");
+      if (logoutRow) logoutRow.hidden = !!status.open;
       const badge = document.getElementById("update-badge");
-      if (!badge) return;
-      badge.hidden = !update || inPlace;
-      if (!update) return;
-      badge.textContent = `⬆ aimm ${update.latest} available`;
-      badge.href = update.changelog;
-      badge.title = `You have ${update.current}. Upgrade with:\n${update.command}`;
-      if (update.note) badge.title += `\n${update.note}.`;
+      if (badge) {
+        badge.hidden = !state.update;
+        if (state.update) badge.textContent = `⬆ aimm ${state.update.latest} available`;
+      }
+      renderUpdateInfo();
     } catch (_) {}
+  };
+
+  const renderUpdateInfo = () => {
+    const info = document.getElementById("update-info");
+    const updateBtn = document.getElementById("update-btn");
+    if (!info || !updateBtn) return;
+    const update = state.update;
+    if (!update) {
+      info.textContent = "No newer release is known. The monitor checks for one once a day.";
+      if (!state.updating) updateBtn.hidden = true;
+      return;
+    }
+    const changelog = `<a href="${esc(update.changelog)}" target="_blank" rel="noopener">What's new</a>`;
+    if (state.updateInPlace) {
+      info.innerHTML = `aimm ${esc(update.latest)} is available. ${changelog}`;
+      if (!state.updating) {
+        state.updateTarget = update.latest;
+        updateBtn.hidden = false;
+        updateBtn.disabled = false;
+        updateBtn.textContent = `⬆ Update to ${update.latest}`;
+        updateBtn.title = `Install aimm ${update.latest} in this container and restart it`;
+      }
+      return;
+    }
+    updateBtn.hidden = true;
+    const note = update.note ? ` ${esc(update.note)}.` : "";
+    info.innerHTML =
+      `aimm ${esc(update.latest)} is available (you have ${esc(update.current)}). ` +
+      `Upgrade with <code>${esc(update.command)}</code>.${note} ${changelog}`;
   };
 
   const resetUpdateButton = (message) => {
@@ -2155,6 +2176,232 @@
     } catch (err) {
       resetUpdateButton(err.message);
     }
+  });
+
+  // ---------------------------------------------------------------
+  // Settings dialog: version and update, test notifications, cache, account
+  // ---------------------------------------------------------------
+  // What each type of cache entry is, and what clearing it does.
+  const CACHE_TYPES = {
+    "listing-details": {
+      label: "Listing details",
+      effect: "Listings are fetched from Facebook again the next time a search finds them.",
+    },
+    "ai-inquiries": {
+      label: "AI ratings",
+      effect: "Listings are rated by the AI again, which means new AI calls (and their cost).",
+    },
+    "user-notifications": {
+      label: "Notified records",
+      effect: "Listings you were already notified about can be sent to you again.",
+    },
+    counters: {
+      label: "Counters",
+      effect: "The statistics (searches, listings, notifications) start again from zero.",
+    },
+    "update-check": {
+      label: "Update check",
+      effect: "aimm checks for a newer release again.",
+    },
+  };
+
+  const showSettingsTab = (tab) => {
+    $$("#settings-nav button").forEach((b) => b.classList.toggle("active", b.dataset.settingsTab === tab));
+    $$("#settings-modal [data-settings-section]").forEach((sec) => {
+      sec.hidden = sec.dataset.settingsSection !== tab;
+    });
+    if (tab === "notifications") loadSettingsUsers();
+    if (tab === "cache") loadCacheStatus();
+  };
+
+  const settingsModal = {
+    el: () => $("#settings-modal"),
+    open(tab = "about") {
+      this.el().classList.remove("hidden");
+      refreshUpdateBadge();
+      showSettingsTab(tab);
+    },
+    close() { this.el().classList.add("hidden"); },
+  };
+
+  wireClick("#settings-btn", () => settingsModal.open());
+  wireClick("#update-badge", () => settingsModal.open("about"));
+  wireClick("#settings-close", () => settingsModal.close());
+  const settingsBackdrop = document.querySelector("#settings-modal .modal-backdrop");
+  if (settingsBackdrop) settingsBackdrop.addEventListener("click", () => settingsModal.close());
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !settingsModal.el().classList.contains("hidden")) settingsModal.close();
+  });
+  $$("#settings-nav button").forEach((btn) => {
+    btn.addEventListener("click", () => showSettingsTab(btn.dataset.settingsTab));
+  });
+
+  const settingsMessage = (container, text, cls = "") => {
+    container.innerHTML = `<p class="settings-status ${cls}">${esc(text)}</p>`;
+  };
+
+  // One row per user: its channels, a "Send test" button and the result of
+  // each channel. Other actions for a user can be added to `.settings-row-actions`.
+  const renderUserRow = (user) => {
+    const row = document.createElement("div");
+    row.className = "settings-row settings-user";
+    row.dataset.user = user.name;
+    const channels = user.channels.length ? user.channels.join(", ") : "no notification channel";
+    row.innerHTML =
+      `<div class="settings-row-main">` +
+      `<span class="settings-row-name">${esc(user.name)}</span>` +
+      `${user.enabled ? "" : ' <span class="settings-dim">(disabled)</span>'}` +
+      `<div class="settings-dim">${esc(channels)}</div>` +
+      `<ul class="test-results"></ul>` +
+      `</div>` +
+      `<div class="settings-row-actions"><button class="test-btn">Send test</button></div>`;
+    const btn = row.querySelector(".test-btn");
+    btn.disabled = !user.channels.length;
+    btn.addEventListener("click", () => sendTestNotification(user.name, btn, row.querySelector(".test-results")));
+    return row;
+  };
+
+  const loadSettingsUsers = async () => {
+    const container = $("#settings-users");
+    settingsMessage(container, "Loading…", "settings-dim");
+    try {
+      const res = await api("/api/notifications/users");
+      const data = await res.json();
+      if (!data.ok) {
+        settingsMessage(container, `The configuration cannot be loaded: ${data.error}`, "err");
+        return;
+      }
+      if (!data.users.length) {
+        settingsMessage(container, "There is no [user.*] section yet: add one in the editor or with Configure.", "settings-dim");
+        return;
+      }
+      container.innerHTML = "";
+      data.users.forEach((user) => container.appendChild(renderUserRow(user)));
+    } catch (err) {
+      settingsMessage(container, String(err.message || err), "err");
+    }
+  };
+
+  const sendTestNotification = async (name, btn, results) => {
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    results.innerHTML = "";
+    try {
+      const res = await api("/api/notifications/test", {
+        method: "POST",
+        body: JSON.stringify({ user: name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      results.innerHTML = data.results.length
+        ? data.results
+            .map((r) =>
+              r.ok
+                ? `<li class="ok">✓ ${esc(r.channel)}</li>`
+                : `<li class="err">✗ ${esc(r.channel)}: ${esc(r.error || "not sent")}</li>`
+            )
+            .join("")
+        : `<li class="err">✗ no notification channel is set up</li>`;
+    } catch (err) {
+      results.innerHTML = `<li class="err">✗ ${esc(err.message)}</li>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Send test";
+    }
+  };
+
+  const setCacheStatus = (text, cls = "") => {
+    const el = $("#settings-cache-status");
+    el.hidden = !text;
+    el.className = `settings-status ${cls}`;
+    el.textContent = text;
+  };
+
+  const loadCacheStatus = async () => {
+    const container = $("#settings-cache");
+    settingsMessage(container, "Loading…", "settings-dim");
+    try {
+      const res = await api("/api/cache");
+      const data = await res.json();
+      if (data.broken) {
+        // only Clear all works on a cache that cannot be read
+        settingsMessage(container, `The cache cannot be read (${data.error}). Clear all of it to start with an empty cache.`, "err");
+        return;
+      }
+      container.innerHTML = "";
+      Object.entries(data.counts).forEach(([type, count]) => {
+        const info = CACHE_TYPES[type] || { label: type, effect: "" };
+        const row = document.createElement("div");
+        row.className = "settings-row";
+        row.innerHTML =
+          `<div class="settings-row-main"><span class="settings-row-name">${esc(info.label)}</span>` +
+          ` <span class="settings-dim">${count} ${count === 1 ? "entry" : "entries"}</span>` +
+          `<div class="settings-dim">${esc(info.effect)}</div></div>` +
+          `<div class="settings-row-actions"><button class="danger">Clear</button></div>`;
+        const btn = row.querySelector("button");
+        btn.disabled = count === 0;
+        btn.addEventListener("click", () => clearCacheEntries(type));
+        container.appendChild(row);
+      });
+    } catch (err) {
+      settingsMessage(container, String(err.message || err), "err");
+    }
+  };
+
+  // aimm exits and supervisord starts it again: wait until the server has gone
+  // away and answers again, then reload the page.
+  const reloadAfterRestart = () => {
+    const started = Date.now();
+    let wentAway = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/status", { credentials: "same-origin" });
+        if (wentAway || res.status === 401) {
+          window.location.reload();
+          return;
+        }
+      } catch (_) {
+        wentAway = true;
+      }
+      if (Date.now() - started < 10 * 60 * 1000) setTimeout(poll, 2000);
+      else setCacheStatus("aimm did not come back; check `docker logs aimm`.", "err");
+    };
+    setTimeout(poll, 2000);
+  };
+
+  const clearCacheEntries = async (type) => {
+    const describe = (t) => CACHE_TYPES[t] || { label: t, effect: "" };
+    const what =
+      type === "all"
+        ? "Clear the whole cache?\n\n" +
+          Object.values(CACHE_TYPES).map((t) => `${t.label}: ${t.effect}`).join("\n")
+        : `Clear ${describe(type).label}?\n\n${describe(type).effect}`;
+    if (!confirm(what)) return;
+    setCacheStatus("Clearing…", "settings-dim");
+    try {
+      const res = await api("/api/cache/clear", { method: "POST", body: JSON.stringify({ type }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      if (data.restart === "restarting") {
+        setCacheStatus(`${data.message} aimm is restarting to open a new cache; the page reloads when it is back.`, "ok");
+        reloadAfterRestart();
+        return;
+      }
+      if (data.restart === "needed") {
+        setCacheStatus(`${data.message} Restart aimm to open a new cache.`, "err");
+        return;
+      }
+      setCacheStatus(data.message, "ok");
+      loadCacheStatus();
+    } catch (err) {
+      setCacheStatus(`Clear failed: ${err.message}`, "err");
+    }
+  };
+
+  wireClick("#cache-clear-all", () => clearCacheEntries("all"));
+  wireClick("#cache-refresh", () => {
+    setCacheStatus("");
+    loadCacheStatus();
   });
 
   const buildVncUrl = () => {

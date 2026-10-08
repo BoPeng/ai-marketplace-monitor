@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type
 
 from diskcache import Cache  # type: ignore
 
@@ -11,7 +11,7 @@ from .email_notify import EmailNotificationConfig
 from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
 from .marketplace import TItemConfig
-from .notification import NotificationConfig, NotificationStatus
+from .notification import TEST_TIMEOUT, ChannelResult, NotificationConfig, NotificationStatus
 from .ntfy import NtfyNotificationConfig
 from .pushbullet import PushbulletNotificationConfig
 from .pushover import PushoverNotificationConfig
@@ -243,3 +243,25 @@ class User:
                         ),
                         local_cache=local_cache,
                     )
+
+
+def send_test_notifications(
+    users: Dict[str, UserConfig],
+    name: str | None = None,
+    logger: Logger | None = None,
+    timeout: float = TEST_TIMEOUT,
+) -> Dict[str, List[ChannelResult]]:
+    """Send a test message through every channel of every enabled user, or of one user.
+
+    Returns the results by user (an empty list: the user has no channel). Nothing is written
+    to the cache; see ``NotificationConfig.test_all``. Raises KeyError for an unknown user.
+    """
+    if name is not None:
+        if name not in users:
+            raise KeyError(f"There is no user {name}. Users: {', '.join(users) or 'none'}.")
+        names = [name]
+    else:
+        names = [n for n, u in users.items() if u.enabled is not False]
+    return {
+        n: NotificationConfig.test_all(users[n], timeout=timeout, logger=logger) for n in names
+    }

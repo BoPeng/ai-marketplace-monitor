@@ -261,6 +261,17 @@ def _run(command: List[str], logger: Logger | None, timeout: float = INSTALL_TIM
     return "\n".join(output) + "\n"
 
 
+def restart_later(logger: Logger | None, delay: float = 1.0) -> None:
+    """Restart aimm in the Docker image after ``delay`` seconds (time to answer the request)."""
+    if not can_self_update():
+        raise RuntimeError("aimm can restart itself only in the Docker image.")
+    if logger:
+        logger.info(f"""{hilight("[Restart]", "info")} Restarting aimm...""")
+    timer = threading.Timer(delay, _restart)
+    timer.daemon = True
+    timer.start()
+
+
 def _restart() -> None:
     """Exit so that supervisord starts the new version.
 
