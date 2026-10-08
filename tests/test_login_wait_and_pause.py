@@ -69,10 +69,10 @@ def test_wait_for_login_waits_until_facebook_has_logged_in(
     reminders: List[str] = []
 
     class Logger:
-        def warning(self, message: str) -> None:
+        def warning(self, message: str, **kwargs: Any) -> None:
             reminders.append(message)
 
-        def info(self, message: str) -> None:
+        def info(self, message: str, **kwargs: Any) -> None:
             pass
 
     page = FakePage(polls_to_login=3)
@@ -188,7 +188,7 @@ def test_login_wait_time_is_deprecated(monkeypatch: pytest.MonkeyPatch) -> None:
     warnings: List[str] = []
 
     class Logger:
-        def warning(self, message: str) -> None:
+        def warning(self, message: str, **kwargs: Any) -> None:
             warnings.append(message)
 
         def debug(self, message: str) -> None:

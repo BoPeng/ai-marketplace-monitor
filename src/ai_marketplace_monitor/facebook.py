@@ -28,6 +28,7 @@ from .utils import (
     CounterItem,
     KeyboardMonitor,
     Translator,
+    aimm_event,
     convert_to_seconds,
     counter,
     extract_price,
@@ -427,7 +428,7 @@ class FacebookMarketplace(Marketplace):
             "the web UI in Docker). Searches start once you are logged in."
         )
         if self.logger:
-            self.logger.warning(message)
+            self.logger.warning(message, extra=aimm_event("credentials_wait", status="waiting"))
         control.waiting_for_login = True
         try:
             reminded = time.monotonic()
@@ -437,11 +438,16 @@ class FacebookMarketplace(Marketplace):
                 if time.monotonic() - reminded > LOGIN_REMINDER_EVERY:
                     reminded = time.monotonic()
                     if self.logger:
-                        self.logger.warning(message)
+                        self.logger.warning(
+                            message, extra=aimm_event("credentials_wait", status="waiting")
+                        )
         finally:
             control.waiting_for_login = False
         if self.logger:
-            self.logger.info(f"""{hilight("[Login]", "succ")} Logged in to Facebook.""")
+            self.logger.info(
+                f"""{hilight("[Login]", "succ")} Logged in to Facebook.""",
+                extra=aimm_event("credentials_wait", status="found"),
+            )
 
     def recover_login(self: "FacebookMarketplace") -> bool:
         """After a page failed: if Facebook logged aimm out, wait for the login; True to retry."""
