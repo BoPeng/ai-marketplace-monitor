@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import smtplib
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Coroutine, Dict, Iterator, List, Tuple, TypeVar
 
 import pytest
 import requests  # type: ignore
@@ -37,6 +39,7 @@ from ai_marketplace_monitor.webui.server import AuthState, WebUIConfig, create_a
 from tests.configure_util import make_ws, ui_of
 
 runner = CliRunner()
+T = TypeVar("T")
 
 CONFIG = """
 [marketplace.facebook]
@@ -337,6 +340,17 @@ KITS: Dict[str, Any] = {"notification": NotificationToolkit(), "user": UserToolk
 AI_ONLY = '[ai.unitysvc]\napi_key = "svcpass_testkey"\n'
 
 
+def in_new_loop(coro: Coroutine[Any, Any, T]) -> T:
+    """Run a configure session in a thread with an event loop of its own.
+
+    pytest-playwright's session-wide Playwright (started by test_facebook.py) leaves the main
+    thread's event loop running on Python 3.10 and 3.11, so pytest-asyncio cannot run async
+    tests after it. aimm configure itself runs in its own loop, as here.
+    """
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(asyncio.run, coro).result()
+
+
 async def saved_pushbullet(tmp_path: Path) -> ToolExecutor:
     """A session that has just saved a Pushbullet notification for [user.me]."""
     ws = await make_ws(tmp_path, AI_ONLY, ["yes"], toolkits=KITS)
@@ -360,67 +374,82 @@ async def saved_pushbullet(tmp_path: Path) -> ToolExecutor:
     return ex
 
 
-async def test_configure_offers_and_runs_a_test(
+def test_configure_offers_and_runs_a_test(
     tmp_path: Path, sent: List[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PB_TOKEN", "token")
-    ex = await saved_pushbullet(tmp_path)
-    assert "test_notification" in [fn.__name__ for fn in ex.tools_for_model()]
-    out = await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+
+    async def session() -> Tuple[ToolExecutor, Dict[str, Any]]:
+        ex = await saved_pushbullet(tmp_path)
+        assert "test_notification" in [fn.__name__ for fn in ex.tools_for_model()]
+        test = {"section_type": "notification", "name": "pb"}
+        return ex, await ex.call("test_notification", test)
+
+    ex, out = in_new_loop(session())
     assert out["sent"] is True
     assert out["results"] == [{"user": "me", "channel": "pushbullet", "ok": True, "error": None}]
     assert "✓ pushbullet to [user.me]" in ui_of(ex.ws).said()
     assert len(sent) == 1
 
 
-async def test_configure_tests_only_the_saved_channel(
+def test_configure_tests_only_the_saved_channel(
     tmp_path: Path, sent: List[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """[user.me] also has an email channel; testing [notification.pb] sends no email."""
     monkeypatch.setenv("PB_TOKEN", "token")
-    ws = await make_ws(
-        tmp_path,
-        AI_ONLY
-        + '[notification.mail]\nsmtp_password = "secret"\n'
-        + '[user.me]\nemail = "me@example.com"\nnotify_with = ["mail"]\n',
-        ["yes"],
-        toolkits=KITS,
-    )
-    ex = ToolExecutor(ws)
-    ex.guides_read.update(["notification", "user"])
-    await ex.call(
-        "section_update",
-        {
-            "section_type": "notification",
-            "name": "pb",
-            "values": {"pushbullet_token": "${PB_TOKEN}"},
-        },
-    )
-    await ex.call(
-        "section_update",
-        {"section_type": "user", "name": "me", "values": {"notify_with": ["mail", "pb"]}},
-    )
-    await ex.call("save", {"message": "Saving."})
-    out = await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+
+    async def session() -> Dict[str, Any]:
+        ws = await make_ws(
+            tmp_path,
+            AI_ONLY
+            + '[notification.mail]\nsmtp_password = "secret"\n'
+            + '[user.me]\nemail = "me@example.com"\nnotify_with = ["mail"]\n',
+            ["yes"],
+            toolkits=KITS,
+        )
+        ex = ToolExecutor(ws)
+        ex.guides_read.update(["notification", "user"])
+        await ex.call(
+            "section_update",
+            {
+                "section_type": "notification",
+                "name": "pb",
+                "values": {"pushbullet_token": "${PB_TOKEN}"},
+            },
+        )
+        await ex.call(
+            "section_update",
+            {"section_type": "user", "name": "me", "values": {"notify_with": ["mail", "pb"]}},
+        )
+        await ex.call("save", {"message": "Saving."})
+        return await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+
+    out = in_new_loop(session())
     assert [r["channel"] for r in out["results"]] == ["pushbullet"]
     assert sent == [s for s in sent if s.startswith("pushbullet")]
 
 
-async def test_configure_does_not_test_with_unset_variables(
+def test_configure_does_not_test_with_unset_variables(
     tmp_path: Path, sent: List[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("PB_TOKEN", raising=False)
-    ex = await saved_pushbullet(tmp_path)
-    out = await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+
+    async def session() -> Dict[str, Any]:
+        ex = await saved_pushbullet(tmp_path)
+        return await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+
+    out = in_new_loop(session())
     assert out["sent"] is False and out["can_run_here"] is False
     assert "PB_TOKEN" in out["reason"]
     assert sent == []
 
 
-async def test_configure_tests_only_offered_sections(tmp_path: Path, sent: List[str]) -> None:
-    ws = await make_ws(tmp_path, AI_ONLY, toolkits=KITS)
-    ex = ToolExecutor(ws)
-    out = await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+def test_configure_tests_only_offered_sections(tmp_path: Path, sent: List[str]) -> None:
+    async def session() -> Dict[str, Any]:
+        ex = ToolExecutor(await make_ws(tmp_path, AI_ONLY, toolkits=KITS))
+        return await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
+
+    out = in_new_loop(session())
     assert out["ok"] is False and "No test is offered" in out["errors"][0]
     assert sent == []
 
