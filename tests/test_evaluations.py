@@ -148,7 +148,7 @@ def test_iter_skips_other_and_malformed_entries(eval_cache: Cache) -> None:
     # an older record without some fields still loads
     eval_cache.set(
         (CacheType.EVALUATIONS.value, "facebook", "8", "bike"),
-        {"time": 5, "item": "bike", "id": "8", "stage": "excluded", "extra": 1},
+        {"time": time.time(), "item": "bike", "id": "8", "stage": "excluded", "extra": 1},
     )
     [record] = _all(eval_cache)
     assert record.id == "8"
@@ -160,6 +160,61 @@ def test_broken_cache_records_and_yields_nothing(tmp_path: Path) -> None:
     broken: Any = BrokenCache(tmp_path, Exception("database disk image is malformed"))
     record_evaluation(_record(), local_cache=broken)
     assert list(iter_evaluations(local_cache=broken)) == []
+
+
+def test_lower_history_days_hides_and_evicts_old_records(
+    eval_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(evaluations, "_history_days", 30)
+    now = time.time()
+    record_evaluation(_record("old", when=now - 3 * 86400), local_cache=eval_cache)
+    record_evaluation(_record("new", when=now - 3600), local_cache=eval_cache)
+    assert {r.id for r in _all(eval_cache)} == {"old", "new"}
+    # saved with a 30-day expiry; lowering the setting still applies to them
+    evaluations.set_history_days(1)
+    assert [r.id for r in _all(eval_cache)] == ["new"]
+    assert (CacheType.EVALUATIONS.value, "facebook", "old", "bike") not in eval_cache
+    assert (CacheType.EVALUATIONS.value, "facebook", "new", "bike") in eval_cache
+    # filtered reads evict too
+    record_evaluation(_record("old", item="tv", when=now - 3 * 86400), local_cache=eval_cache)
+    assert _all(eval_cache, item="bike", stage=EXCLUDED)[0].id == "new"
+    assert (CacheType.EVALUATIONS.value, "facebook", "old", "tv") not in eval_cache
+
+
+def test_api_applies_history_cutoff(
+    tmp_path: Path, eval_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(evaluations, "_history_days", 1)
+    now = time.time()
+    record_evaluation(_record("old", when=now - 3 * 86400), local_cache=eval_cache)
+    record_evaluation(_record("new", when=now - 60), local_cache=eval_cache)
+    client = _client(tmp_path, eval_cache, monkeypatch)
+    assert [r["id"] for r in client.get("/api/evaluations").json()["records"]] == ["new"]
+    record_evaluation(_record("old", when=now - 3 * 86400), local_cache=eval_cache)
+    rows = list(csv.DictReader(io.StringIO(client.get("/api/evaluations.csv").text)))
+    assert [r["url"] for r in rows] == ["https://www.facebook.com/marketplace/item/new/"]
+
+
+def test_filter_evaluations_sort() -> None:
+    now = time.time()
+    records = [
+        _record("a", rating=None, when=now - 50),
+        _record("b", rating=3, when=now - 40),
+        _record("c", rating=5, when=now - 30),
+        _record("d", rating=3, when=now - 20),
+        _record("e", rating=None, when=now - 10),
+    ]
+    assert [r.id for r in filter_evaluations(records, sort="time")] == list("edcba")
+    assert [r.id for r in filter_evaluations(records, sort="time", descending=False)] == list(
+        "abcde"
+    )
+    # unrated last either way; equal ratings newest first
+    assert [r.id for r in filter_evaluations(records, sort="rating")] == list("cdbea")
+    assert [r.id for r in filter_evaluations(records, sort="rating", descending=False)] == list(
+        "dbcea"
+    )
+    with pytest.raises(ValueError, match="sort"):
+        filter_evaluations(records, sort="price")
 
 
 def test_filter_evaluations() -> None:
@@ -346,6 +401,34 @@ def test_api_evaluations(
     limited = client.get("/api/evaluations?limit=1").json()
     assert ([r["id"] for r in limited["records"]], limited["total"]) == (["3"], 3)
     assert client.get("/api/evaluations?stage=bogus").status_code == 400
+
+
+def test_api_sorts_before_limit(
+    tmp_path: Path, eval_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = time.time()
+    # the best-rated listing is the oldest, so a newest-first limit would drop it
+    record_evaluation(
+        _record("best", stage=NOTIFIED, rating=5, when=now - 500), local_cache=eval_cache
+    )
+    for i in range(5):
+        record_evaluation(
+            _record(f"n{i}", stage=REJECTED, rating=2, when=now - i), local_cache=eval_cache
+        )
+    client = _client(tmp_path, eval_cache, monkeypatch)
+
+    def ids(query: str) -> List[str]:
+        return [r["id"] for r in client.get(f"/api/evaluations?{query}").json()["records"]]
+
+    assert ids("sort=rating&limit=1") == ["best"]
+    assert ids("sort=rating&order=asc&limit=2") == ["n0", "n1"]
+    assert ids("limit=2") == ["n0", "n1"]
+    assert ids("order=asc&limit=1") == ["best"]
+    assert client.get("/api/evaluations?sort=price").status_code == 400
+    assert client.get("/api/evaluations?order=up").status_code == 400
+    rows = list(csv.DictReader(io.StringIO(client.get("/api/evaluations.csv?sort=rating").text)))
+    assert [r["rating"] for r in rows] == ["5", "2", "2", "2", "2", "2"]
+    assert client.get("/api/evaluations.csv?sort=price").status_code == 400
 
 
 def test_api_evaluations_csv(

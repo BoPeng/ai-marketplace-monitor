@@ -116,6 +116,15 @@ def record_evaluation(record: EvaluationRecord, *, local_cache: Cache | None = N
         logger.debug("Failed to record the evaluation of %s", record.id, exc_info=True)
 
 
+def history_cutoff() -> float:
+    """Epoch seconds before which records are out of the history.
+
+    Records carry the expiry that was in effect when they were saved, so a lower
+    ``evaluation_history_days`` only takes effect through this cutoff.
+    """
+    return time.time() - _history_days * 24 * 60 * 60
+
+
 def iter_evaluations(
     *,
     since: float | None = None,
@@ -125,7 +134,9 @@ def iter_evaluations(
 ) -> Iterator[EvaluationRecord]:
     """Yield the saved records, in no particular order, optionally filtered.
 
-    ``since`` is in epoch seconds. Yields nothing when the cache cannot be read.
+    ``since`` is in epoch seconds. Records older than the history (see
+    :func:`history_cutoff`) are removed instead. Yields nothing when the cache
+    cannot be read.
     """
     c = cache if local_cache is None else local_cache
     if is_cache_broken(c):
@@ -137,28 +148,35 @@ def iter_evaluations(
     except Exception:
         logger.debug("Failed to read the evaluation history", exc_info=True)
         return
+    cutoff = history_cutoff()
     for key in keys:
         if not isinstance(key, tuple) or len(key) < 4:
             continue
         if key[0] != CacheType.EVALUATIONS.value:
-            continue
-        if item is not None and key[3] != item:
             continue
         try:
             value = c.get(key)  # None once the record has expired
             if not isinstance(value, dict):
                 continue
             record = EvaluationRecord.from_dict(value)
+            if record.time < cutoff:
+                c.delete(key)
+                continue
         except KeyboardInterrupt:
             raise
         except Exception:
             logger.debug("Skipping malformed evaluation record %r", key, exc_info=True)
+            continue
+        if item is not None and record.item != item:
             continue
         if stage is not None and record.stage != stage:
             continue
         if since is not None and record.time < since:
             continue
         yield record
+
+
+SORT_KEYS = ("time", "rating")
 
 
 def filter_evaluations(
@@ -169,11 +187,17 @@ def filter_evaluations(
     stage: str | None = None,
     min_rating: int | None = None,
     text: str | None = None,
+    sort: str = "time",
+    descending: bool = True,
 ) -> List[EvaluationRecord]:
-    """The matching records, newest first.
+    """The matching records, sorted by ``sort`` ("time" or "rating"), newest first by default.
 
     ``text`` matches title, seller, location, price, reason and AI comment, ignoring case.
+    Sorting by rating puts unrated listings last either way, and orders equal ratings
+    newest first.
     """
+    if sort not in SORT_KEYS:
+        raise ValueError(f"sort must be one of {', '.join(SORT_KEYS)}")
     needle = (text or "").strip().lower()
     matched = [
         r
@@ -184,7 +208,11 @@ def filter_evaluations(
         and (min_rating is None or (r.rating is not None and r.rating >= min_rating))
         and (not needle or needle in _searchable(r))
     ]
-    matched.sort(key=lambda r: r.time, reverse=True)
+    matched.sort(key=lambda r: r.time, reverse=sort == "rating" or descending)
+    if sort == "rating":
+        # stable sorts: rated before unrated, then by rating, keeping newest first among equals
+        matched.sort(key=lambda r: r.rating or 0, reverse=descending)
+        matched.sort(key=lambda r: r.rating is None)
     return matched
 
 

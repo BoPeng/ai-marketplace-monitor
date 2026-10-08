@@ -45,7 +45,7 @@ from ..configure.flow import (
 )
 from ..configure.ui import JsonSetupUI, SetupClosedError
 from ..control import control
-from ..evaluations import STAGES, filter_evaluations, iter_evaluations
+from ..evaluations import SORT_KEYS, STAGES, filter_evaluations, iter_evaluations
 from ..update_check import current_notice, self_update_status, start_self_update
 from ..utils import cache
 from .auth import (
@@ -670,6 +670,16 @@ def create_app(
             )
         return stage
 
+    def check_sort(sort: str, order: str) -> bool:
+        """Validate the sort key and return whether the order is descending."""
+        if sort not in SORT_KEYS:
+            raise HTTPException(
+                status_code=400, detail=f"sort must be one of {', '.join(SORT_KEYS)}"
+            )
+        if order not in ("desc", "asc"):
+            raise HTTPException(status_code=400, detail="order must be desc or asc")
+        return order == "desc"
+
     # Sync defs, like the CSV export above: the cache scan runs in a threadpool.
     @app.get("/api/evaluations")
     def get_evaluations(
@@ -678,13 +688,24 @@ def create_app(
         since: float | None = None,
         min_rating: int | None = None,
         q: str | None = None,
+        sort: str = "time",
+        order: str = "desc",
         limit: int = 500,
         _: str = Depends(require_session),
     ) -> Dict[str, Any]:
         stage = check_stage(stage)
+        descending = check_sort(sort, order)
         records = list(iter_evaluations(local_cache=cache))
+        # sorted before the limit, so "highest rated" means across all matches
         matched = filter_evaluations(
-            records, since=since, item=item or None, stage=stage, min_rating=min_rating, text=q
+            records,
+            since=since,
+            item=item or None,
+            stage=stage,
+            min_rating=min_rating,
+            text=q,
+            sort=sort,
+            descending=descending,
         )
         limit = max(1, min(limit, MAX_LIMIT))
         return {
@@ -700,9 +721,12 @@ def create_app(
         since: float | None = None,
         min_rating: int | None = None,
         q: str | None = None,
+        sort: str = "time",
+        order: str = "desc",
         _: str = Depends(require_session),
     ) -> StreamingResponse:
         stage = check_stage(stage)
+        descending = check_sort(sort, order)
         matched = filter_evaluations(
             iter_evaluations(local_cache=cache),
             since=since,
@@ -710,6 +734,8 @@ def create_app(
             stage=stage,
             min_rating=min_rating,
             text=q,
+            sort=sort,
+            descending=descending,
         )
         filename = f"evaluations-{time.strftime('%Y%m%d-%H%M%S')}.csv"
         return StreamingResponse(

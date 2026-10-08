@@ -71,10 +71,11 @@ A table of every listing aimm evaluated in the last 30 days, newest first, with:
   title and when you hover over the decision.
 
 Filter by item, decision, minimum rating and text, and click **Time** or **Rating** to sort. The
-table refreshes every 30 seconds. **⬇ CSV** downloads the listings that match the filters. A
-listing that aimm evaluates again (for example, after you change the item) shows its latest
-decision. To keep the history longer or shorter than 30 days, set
-`evaluation_history_days` in the `[monitor]` section:
+table refreshes every 30 seconds. **⬇ CSV** downloads the listings that match the filters, in
+the same order. A listing that aimm evaluates again (for example, after you change the item)
+shows its latest decision. To keep the history longer or shorter than 30 days, set
+`evaluation_history_days` in the `[monitor]` section (a shorter history also applies to
+listings already recorded):
 
 ```toml
 [monitor]

@@ -395,20 +395,28 @@
     renderLogs();
   });
 
+  // Every level shows errors, so the unread-error badge clears once the text
+  // filter (if any) lets all of them through.
+  const clearErrorBadgeIfSeen = () => {
+    const isError = (r) => r.level === "ERROR" || r.level === "CRITICAL";
+    if (state.logFilter && !state.records.filter(isError).every(matchesFilter)) return;
+    state.errorCount = 0;
+    renderErrorBadge();
+  };
+
   $$(".level-chips .chip").forEach((btn) => {
     btn.addEventListener("click", () => {
       $$(".level-chips .chip").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       state.logLevel = btn.dataset.level;
-      // Every level shows errors, so viewing any of them clears the badge.
-      state.errorCount = 0;
-      renderErrorBadge();
+      clearErrorBadgeIfSeen();
       renderLogs();
     });
   });
 
   $("#log-filter").addEventListener("input", (e) => {
     state.logFilter = e.target.value;
+    clearErrorBadgeIfSeen();
     renderLogs();
   });
 
@@ -425,12 +433,17 @@
   // ---------------------------------------------------------------
   const STAGE_LABELS = { notified: "Notified", rejected: "Rejected by AI", excluded: "Excluded" };
 
-  const evalQuery = () => {
+  const evalQuery = (withSort = true) => {
     const params = new URLSearchParams();
     if (state.evalItem) params.set("item", state.evalItem);
     if (state.evalStage) params.set("stage", state.evalStage);
     if (state.evalMinRating) params.set("min_rating", state.evalMinRating);
     if (state.evalFilter.trim()) params.set("q", state.evalFilter.trim());
+    if (withSort) {
+      // the server sorts before it limits the rows, so the order covers every match
+      params.set("sort", state.evalSort.key);
+      params.set("order", state.evalSort.desc ? "desc" : "asc");
+    }
     return params;
   };
 
@@ -442,21 +455,6 @@
       minute: "2-digit",
     });
 
-  const sortedEvaluations = () => {
-    const { key, desc } = state.evalSort;
-    const sign = desc ? -1 : 1;
-    return [...state.evalRecords].sort((a, b) => {
-      if (key === "rating" && a.rating !== b.rating) {
-        // unrated listings go last either way
-        if (a.rating == null) return 1;
-        if (b.rating == null) return -1;
-        return sign * (a.rating - b.rating);
-      }
-      // by time, or newest first among equal ratings
-      return (key === "time" ? sign : -1) * (a.time - b.time);
-    });
-  };
-
   const renderEvaluations = () => {
     const container = $("#listings");
     const arrow = (key) =>
@@ -467,7 +465,7 @@
       `<span>Item</span><span>Listing</span><span>Price</span>` +
       `<button class="eval-sort" data-sort="rating">Rating${arrow("rating")}</button>` +
       `<span>Decision</span></div>`;
-    const rows = sortedEvaluations()
+    const rows = state.evalRecords
       .map((r) => {
         const stage = STAGE_LABELS[r.stage] ? r.stage : "excluded";
         const why = r.reason || (r.ai_comment ? `AI: ${r.ai_comment}` : "");
@@ -494,10 +492,10 @@
       .join("");
     const empty = state.evalRecords.length
       ? ""
-      : `<div class="eval-empty">No evaluated listings${evalQuery().toString() ? " match these filters" : " yet"}.</div>`;
+      : `<div class="eval-empty">No evaluated listings${evalQuery(false).toString() ? " match these filters" : " yet"}.</div>`;
     const more =
       state.evalTotal > state.evalRecords.length
-        ? `<div class="eval-empty">Showing the newest ${state.evalRecords.length} of ${state.evalTotal}. Narrow the filters, or export CSV for all.</div>`
+        ? `<div class="eval-empty">Showing the first ${state.evalRecords.length} of ${state.evalTotal}. Narrow the filters, or export CSV for all.</div>`
         : "";
     container.innerHTML = header + rows + empty + more;
   };
@@ -516,13 +514,18 @@
     select.value = current;
   };
 
+  // Responses can arrive out of order (a slow one for an old filter); only the
+  // latest request's response is shown.
+  let evalRequestSeq = 0;
   const loadEvaluations = async () => {
+    const seq = ++evalRequestSeq;
     try {
       const params = evalQuery();
       params.set("limit", "500");
       const res = await api(`/api/evaluations?${params.toString()}`);
-      if (!res.ok) return;
+      if (seq !== evalRequestSeq || !res.ok) return;
       const data = await res.json();
+      if (seq !== evalRequestSeq) return;
       state.evalRecords = data.records || [];
       state.evalTotal = data.total || 0;
       updateEvalItems(data.items || []);
@@ -567,7 +570,7 @@
     const key = btn.dataset.sort;
     state.evalSort =
       state.evalSort.key === key ? { key, desc: !state.evalSort.desc } : { key, desc: true };
-    renderEvaluations();
+    loadEvaluations();
   });
 
   [
