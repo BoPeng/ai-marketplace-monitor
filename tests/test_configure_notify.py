@@ -50,7 +50,13 @@ def test_notification_guides_cover_channels_and_delivery() -> None:
 
 
 def test_user_guides_cover_recipients() -> None:
-    expected = set(RECIPIENT_FIELDS) | {"notify_with", "remind", "enabled"}
+    expected = set(RECIPIENT_FIELDS) | {
+        "notify_with",
+        "remind",
+        "digest_at",
+        "digest_with",
+        "enabled",
+    }
     assert sorted(g.name for g in USER_GUIDES) == sorted(expected)
 
 
@@ -152,6 +158,16 @@ async def test_user_and_notification_drafts_check_together(tmp_path: Path) -> No
     user = ws.draft("user", "me")
     user.values = {"notify_with": ["unitysvc"]}
     assert U.validate(ws, user) == [] and N.validate(ws, notification) == []
+    # the digest goes with notifications the user receives
+    user.values = {"notify_with": ["unitysvc"], "digest_at": "08:00", "digest_with": "unitysvc"}
+    assert U.validate(ws, user) == []
+    user.values = {"notify_with": ["unitysvc"], "digest_with": ["gmail"]}
+    assert U.validate(ws, user) == [
+        (
+            "`digest_with` names ['gmail'], which are not notifications this user receives "
+            "(['unitysvc'])."
+        )
+    ]
     assert N.missing(ws, notification) == [] and U.missing(ws, user) == []
 
 

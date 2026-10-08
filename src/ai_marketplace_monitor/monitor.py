@@ -21,6 +21,7 @@ from .config import (
     supported_marketplaces,
 )
 from .control import control
+from .digest import send_due_digest
 from .evaluations import REJECTED, EvaluationRecord, record_evaluation, set_history_days
 from .listing import Listing
 from .marketplace import (
@@ -44,6 +45,9 @@ from .utils import (
     doze,
     hilight,
 )
+
+# tag of the daily digest jobs, followed by the user name
+DIGEST_TAG = "digest:"
 
 
 class MarketplaceMonitor:
@@ -422,6 +426,35 @@ class MarketplaceMonitor:
                         item_config,
                     ).tag(item_config.name)
 
+        self.schedule_digests()
+
+    def schedule_digests(self: "MarketplaceMonitor") -> None:
+        """Schedule the daily digest of each user who has one.
+
+        Like the searches, the jobs run once when they are (re)scheduled; a digest is sent
+        only when it is due and not sent yet today, so this sends a digest missed while aimm
+        was not running and nothing else.
+        """
+        assert self.config is not None
+        for user_config in self.config.user.values():
+            if user_config.enabled is False or not user_config.digest_at:
+                continue
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Schedule]", "info")} Scheduling the daily digest for {user_config.name} every day at {user_config.digest_at}"""
+                )
+            schedule.every().day.at(user_config.digest_at).do(
+                self.send_digest, user_config.name
+            ).tag(f"{DIGEST_TAG}{user_config.name}")
+
+    def send_digest(self: "MarketplaceMonitor", user_name: str) -> None:
+        """Send the daily digest to a user if it is due."""
+        assert self.config is not None
+        if user_name in self.config.user:
+            send_due_digest(
+                self.config.user[user_name], self.config.notification, logger=self.logger
+            )
+
     def wait_while_paused(self: "MarketplaceMonitor") -> None:
         """Hold searches while the web UI has paused the monitor."""
         if not control.is_paused():
@@ -551,9 +584,15 @@ class MarketplaceMonitor:
                     # the sleep time might not be enough, causing this message
                     # to be sent repeatedly. Having a idle_seconds > 60 helps
                     # to reduce the frequency of this message.
+                    tag = str(next(iter(next_job.tags)))
+                    task = (
+                        f"send the daily digest to {hilight(tag[len(DIGEST_TAG) :])}"
+                        if tag.startswith(DIGEST_TAG)
+                        else f"search {hilight(tag)}"
+                    )
                     if self.logger:
                         self.logger.info(
-                            f"""{hilight("[Schedule]", "info")} Next job to search {hilight(str(next(iter(next_job.tags))))} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
+                            f"""{hilight("[Schedule]", "info")} Next job to {task} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
                         )
 
                 # sleep at most 1 hr, and print updated "next job" message

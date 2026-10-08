@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 class TelegramNotificationConfig(PushNotificationConfig):
     notify_method = "telegram"
     required_fields: ClassVar[List[str]] = ["telegram_token", "telegram_chat_id"]
+    # send_message escapes all Markdown, so the digest is sent as plain text
+    digest_format: ClassVar[str | None] = "plain_text"
 
     telegram_token: str | None = notification_field(CHANNEL)
     telegram_chat_id: str | None = notification_field(RECIPIENT)

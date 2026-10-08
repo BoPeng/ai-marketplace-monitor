@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.utils import formataddr
 from logging import Logger
 from pathlib import Path
-from typing import ClassVar, List, Tuple
+from typing import TYPE_CHECKING, ClassVar, List, Tuple
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
@@ -23,6 +23,9 @@ from .notification import (
     notification_field,
 )
 from .utils import fetch_with_retry, hilight, resize_image_data
+
+if TYPE_CHECKING:
+    from .digest import Digest
 
 # Preset for UnitySVC's SMTP gateway: the SMTP username selects the UnitySVC service and the
 # API key is the password. smtp-to-mailbox delivers to the account's registered email address
@@ -282,6 +285,17 @@ class EmailNotificationConfig(NotificationConfig):
             listings, ratings, notification_status, force, logger=logger
         )
         return self.send_email_message(title, message, html_message, images, logger=logger)
+
+    def send_digest(
+        self: "EmailNotificationConfig", digest: "Digest", logger: Logger | None = None
+    ) -> bool:
+        """Send the full daily digest as an HTML email, with a plain-text alternative."""
+        from .digest import render_email_digest
+
+        if not self._has_required_fields():
+            return False
+        text, html = render_email_digest(digest)
+        return self.send_email_message(digest.title, text, html, [], logger=logger)
 
     def send_email_message(
         self: "EmailNotificationConfig",

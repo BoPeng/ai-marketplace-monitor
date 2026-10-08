@@ -365,3 +365,41 @@ def test_disabled_user_is_normalized_and_stays_disabled() -> None:
         "notify_with": ["email"],
     }
     assert cfg["notification"]["email"] == {"smtp_password": "pw"}
+
+
+def test_user_digest_options_are_kept() -> None:
+    cfg = _run(
+        """
+    [user.alice]
+    email = "alice@example.com"
+    telegram_chat_id = "123"
+    digest_at = "08:00"
+    digest_with = "work_mail"
+
+    [notification.work_mail]
+    smtp_server = "smtp.example.com"
+    smtp_password = "pw"
+
+    [notification.tg]
+    telegram_token = "123:abc"
+    """
+    )
+    alice = cfg["user"]["alice"]
+    assert alice["digest_at"] == "08:00"
+    # digest_with follows the section of its channel type
+    email_section = next(
+        n for n in alice["notify_with"] if "smtp_server" in cfg["notification"][n]
+    )
+    assert alice["digest_with"] == [email_section]
+
+
+def test_merged_sections_are_renamed_in_digest_with() -> None:
+    from ai_marketplace_monitor.normalize.compact import compact
+
+    cfg, _ = compact(
+        {
+            "notification": {"a": {"ntfy_topic": "t"}, "b": {"ntfy_topic": "t"}},
+            "user": {"me": {"notify_with": ["a", "b"], "digest_with": ["b"]}},
+        }
+    )
+    assert cfg["user"]["me"]["digest_with"] == ["a"]

@@ -459,6 +459,8 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "radius": (list, type(None)),
         "rating": (list, type(None)),
         "remind": (int, type(None)),
+        "digest_at": (str, type(None)),
+        "digest_with": (list, type(None)),
         "request": (str, type(None)),
         "search_city": (list, type(None)),
         "search_interval": (int, type(None)),

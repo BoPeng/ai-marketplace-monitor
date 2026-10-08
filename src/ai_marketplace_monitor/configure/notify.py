@@ -171,6 +171,19 @@ USER_GUIDES: Tuple[FieldGuide, ...] = (
         '`"1 day"`, `"2 days"` or `false`',
         "no reminders",
     ),
+    FieldGuide(
+        "digest_at",
+        "local time of a daily digest of the last 24 hours (searches, matches and rejected "
+        "listings of every item): the full digest by email, a short one on push channels",
+        '`"08:00"`',
+        "no digest",
+    ),
+    FieldGuide(
+        "digest_with",
+        "the [notification.*] sections, among those the user receives, that send the digest",
+        'list of notification names, e.g. `["gmail"]`',
+        "every notification the user receives",
+    ),
     FieldGuide("enabled", "only to stop notifying this user", "`false`", "on"),
 )
 
@@ -507,6 +520,15 @@ class UserToolkit(_NotifyToolkit):
         if unknown:
             return [
                 f"`notify_with` names {unknown}, which are not in can_reference.notifications."
+            ]
+        receives = received(ws, draft.values)
+        unreceived = [n for n in _listed(draft.values.get("digest_with")) if n not in receives]
+        if unreceived:
+            return [
+                (
+                    f"`digest_with` names {unreceived}, which are not notifications this user "
+                    f"receives ({receives})."
+                )
             ]
         return self._loads_with_others(ws, draft)
 

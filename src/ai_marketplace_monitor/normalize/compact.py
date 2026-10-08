@@ -55,9 +55,10 @@ def _merge_notifications(cfg: Dict[str, Any], notes: Notes) -> None:
         del notifs[other]
         notes[(f"notification.{other}", None)] = f"merged into notification.{keep}"
     for user in cfg.get("user", {}).values():
-        if isinstance(user.get("notify_with"), list):
-            merged = (replace.get(n, n) for n in user["notify_with"])
-            user["notify_with"] = list(dict.fromkeys(merged))
+        for key in ("notify_with", "digest_with"):
+            if isinstance(user.get(key), list):
+                merged = (replace.get(n, n) for n in user[key])
+                user[key] = list(dict.fromkeys(merged))
 
 
 def _remove_default_marketplace_bindings(cfg: Dict[str, Any], notes: Notes) -> None:
