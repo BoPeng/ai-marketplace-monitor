@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import Any
 
 import rich
+import typer
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.text import Text
 
 from .. import __version__
-from ..utils import amm_home, hilight
+from ..utils import amm_home, cache, cache_corrupted_message, hilight, is_cache_broken
 
 DEFAULT_CONFIG_TEMPLATE = """\
 # AI Marketplace Monitor — configuration file
@@ -126,3 +127,13 @@ def print_webui_banner(info: Any) -> None:
         text.append("No password required (local access only).\n", style="dim")
 
     rich.print(Panel(text, title="[bold]Web UI[/bold]", border_style="cyan", padding=(1, 2)))
+
+
+def require_readable_cache(logger: logging.Logger) -> None:
+    """Stop with how to fix it when the cache database cannot be read."""
+    if is_cache_broken(cache):
+        logger.error(
+            f"""{hilight("[Cache]", "fail")} """
+            + cache_corrupted_message(amm_home, cache.error)  # type: ignore[attr-defined]
+        )
+        raise typer.Exit(1)

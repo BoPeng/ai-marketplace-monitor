@@ -250,6 +250,8 @@ docker rm -f aimm
 
 then run the `docker run` command above again. Your config, cache, and logs live in the mounted directory, so nothing is lost. The web UI header shows the running version, as does `docker exec aimm ai-marketplace-monitor --version`.
 
+While the container is running, run other aimm commands inside it, e.g. `docker exec -it aimm aimm check <listing>`, not on the host: aimm's cache is an SQLite database, and an aimm on the host and one in the container writing it through the shared folder at the same time can damage it. If that happens, aimm stops with "cannot be read"; clear the cache with `docker exec aimm aimm admin --clear-cache all` and restart the container.
+
 To build the image yourself instead of pulling: `docker build -t aimm .` from a checkout of this repo.
 
 ## 💡 Example Usage

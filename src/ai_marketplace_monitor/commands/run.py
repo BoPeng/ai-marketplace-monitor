@@ -7,7 +7,12 @@ import rich
 import typer
 
 from ..utils import amm_home, counter, hilight
-from .common import print_webui_banner, seed_default_config, setup_logging
+from .common import (
+    print_webui_banner,
+    require_readable_cache,
+    seed_default_config,
+    setup_logging,
+)
 
 
 def run_monitor(
@@ -22,6 +27,7 @@ def run_monitor(
     logger, log_broadcast_handler = setup_logging(
         verbose, webui=webui, webui_log_retention=webui_log_retention
     )
+    require_readable_cache(logger)
     from ..monitor import MarketplaceMonitor
 
     monitor = None  # type: ignore[assignment]

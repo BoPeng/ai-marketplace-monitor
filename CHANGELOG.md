@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - "Failed to get search results" was logged as an error after every search, including successful ones. A search that finds nothing now logs a "No search results" warning.
+- A corrupted cache database (`cache.db`) no longer stops every `aimm` command, including `aimm admin --clear-cache`, with "database disk image is malformed". `aimm run` and `aimm check` now stop at startup with a message saying how to fix it, and `aimm admin --clear-cache all` removes the damaged cache files (`cache.db`, its `-wal`/`-shm` files and large-value folders) when the database cannot be read or cleared. The cache can be damaged when aimm on the host and aimm in Docker use `~/.ai-marketplace-monitor` at the same time.
 
 ## [0.10.7] - 2026-10-07
 

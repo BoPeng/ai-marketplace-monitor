@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List
 
 from ..utils import hilight
-from .common import setup_logging
+from .common import require_readable_cache, setup_logging
 
 
 def run_check(
@@ -15,6 +15,7 @@ def run_check(
     for_item: str | None,
 ) -> None:
     logger, _ = setup_logging(verbose, webui=False)
+    require_readable_cache(logger)
     from ..monitor import MarketplaceMonitor
 
     monitor = None
