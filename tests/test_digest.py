@@ -195,10 +195,32 @@ def test_daily_counters(temp_cache: Cache) -> None:
         temp_cache.get((CacheType.COUNTERS.value, CounterItem.SEARCH_PERFORMED.value, "gopro"))
         == 3
     )
-    # an hour older than 24 hours is not counted
+    # a minute older than 24 hours is not counted
     old = (CacheType.COUNTERS_DAILY.value, counter_period(time.time() - 25 * 3600), *key[2:])
     temp_cache.set(old, 100)
     assert counter.since(time.time() - dg.DIGEST_PERIOD, local_cache=temp_cache) == {
+        "gopro": {CounterItem.SEARCH_PERFORMED.value: 3}
+    }
+
+
+def test_search_counts_cover_the_last_24_hours_to_the_minute(temp_cache: Cache) -> None:
+    """A digest at 10:30:20 counts the searches from 10:30 the day before, not from 10:00."""
+    since = datetime(2026, 10, 7, 10, 30, 20).timestamp()
+    for when, n in (
+        (datetime(2026, 10, 7, 10, 5), 100),  # in the same hour, before the window
+        (datetime(2026, 10, 7, 10, 29, 59), 10),  # the minute before
+        (datetime(2026, 10, 7, 10, 30, 5), 1),  # the minute of `since`: counted
+        (datetime(2026, 10, 8, 10, 30), 2),
+    ):
+        key = (
+            CacheType.COUNTERS_DAILY.value,
+            counter_period(when.timestamp()),
+            CounterItem.SEARCH_PERFORMED.value,
+            "gopro",
+        )
+        temp_cache.set(key, n)
+    assert counter_period(since) == "2026-10-07 10:30"
+    assert counter.since(since, local_cache=temp_cache) == {
         "gopro": {CounterItem.SEARCH_PERFORMED.value: 3}
     }
 
@@ -469,7 +491,8 @@ def test_send_due_digest_once(sent: Sent, temp_cache: Cache) -> None:
         config, now=morning.replace(hour=8, minute=0), local_cache=temp_cache
     )
     assert len(sent) == 2
-    assert temp_cache.get(dg.digest_key("me")) == "2026-10-08"
+    assert temp_cache.get(dg.digest_key("me", "pushover")) == "2026-10-08"
+    assert temp_cache.get(dg.digest_key("me", "telegram")) == "2026-10-08"
     # a restart or a config change runs the job again: not sent again
     assert not dg.send_due_digest(config, now=morning.replace(hour=11), local_cache=temp_cache)
     assert len(sent) == 2
@@ -491,13 +514,45 @@ def test_send_due_digest_with_sections(
     assert [channel for channel, _, _ in sent] == ["telegram"]
 
 
+def test_failed_channel_is_retried_alone(
+    monkeypatch: pytest.MonkeyPatch, sent: Sent, temp_cache: Cache
+) -> None:
+    config = user()
+    now = datetime(2026, 10, 8, 9)
+    telegram = dg.channel_classes()["telegram"]
+    working = telegram.send_message
+
+    def fail(*args: Any, **kwargs: Any) -> bool:
+        raise RuntimeError("Telegram is down")
+
+    # Pushover succeeds, Telegram fails: only Pushover is done for today
+    monkeypatch.setattr(telegram, "send_message", fail)
+    assert dg.send_due_digest(config, now=now, local_cache=temp_cache)
+    assert [channel for channel, _, _ in sent] == ["pushover"]
+    assert temp_cache.get(dg.digest_key("me", "telegram")) is None
+    assert dg.pending_digest_channels(config, now=now, local_cache=temp_cache) == ["telegram"]
+    # the next run (a restart or a config change) tries Telegram again, and only Telegram
+    monkeypatch.setattr(telegram, "send_message", working)
+    later = now + timedelta(hours=1)
+    assert dg.send_due_digest(config, now=later, local_cache=temp_cache)
+    assert [channel for channel, _, _ in sent] == ["pushover", "telegram"]
+    # all channels have it: nothing is sent again today
+    assert not dg.send_due_digest(config, now=later, local_cache=temp_cache)
+    assert len(sent) == 2
+
+
 def test_failed_digest_is_retried(
     monkeypatch: pytest.MonkeyPatch, sent: Sent, temp_cache: Cache
 ) -> None:
-    monkeypatch.setattr(dg, "send_digest", lambda *args, **kwargs: {"pushover": False})
+    monkeypatch.setattr(
+        dg, "send_digest", lambda *args, **kwargs: {"pushover": False, "telegram": False}
+    )
     now = datetime(2026, 10, 8, 9)
     assert not dg.send_due_digest(user(), now=now, local_cache=temp_cache)
-    assert temp_cache.get(dg.digest_key("me")) is None
+    assert sorted(dg.pending_digest_channels(user(), now=now, local_cache=temp_cache)) == [
+        "pushover",
+        "telegram",
+    ]
 
 
 def test_no_digest_without_option(sent: Sent, temp_cache: Cache) -> None:

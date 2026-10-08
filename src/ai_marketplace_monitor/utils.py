@@ -297,18 +297,18 @@ class KeyboardMonitor:
                 self._paused = True
 
 
-# how long the per-hour counters of the daily digest are kept
+# how long the per-minute counters of the daily digest are kept
 DAILY_COUNTER_EXPIRE = 8 * 24 * 60 * 60
-# the counters the daily digest uses, also kept per hour
+# the counters the daily digest uses, also kept per minute
 DAILY_COUNTERS = (CounterItem.SEARCH_PERFORMED,)
 
 
 def counter_period(when: float | None = None) -> str:
-    """The hour a daily counter is kept under, e.g. ``"2026-10-08 07"``.
+    """The minute a daily counter is kept under, e.g. ``"2026-10-08 07:42"``.
 
-    Counters are kept per hour so that the digest can add up exactly the last 24 hours.
+    Counters are kept per minute so that the digest adds up the last 24 hours to the minute.
     """
-    return time.strftime("%Y-%m-%d %H", time.localtime(when))
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(when))
 
 
 class Counter:
@@ -328,7 +328,7 @@ class Counter:
             c.set(key, by, tag=CacheType.COUNTERS.value)
         if counter_key not in DAILY_COUNTERS:
             return
-        # the same count for this hour, for the daily digest; incr keeps the expiry
+        # the same count for this minute, for the daily digest; incr keeps the expiry
         daily_key = (
             CacheType.COUNTERS_DAILY.value,
             counter_period(),
@@ -343,7 +343,10 @@ class Counter:
     def since(
         self: "Counter", since: float, local_cache: Cache | None = None
     ) -> Dict[str, Dict[str, int]]:
-        """Counts since a time (to the hour), as ``{item_name: {counter_key.value: count}}``."""
+        """Counts since a time, as ``{item_name: {counter_key.value: count}}``.
+
+        Counts from the minute of ``since`` on are included, so the error is under a minute.
+        """
         c = cache if local_cache is None else local_cache
         first = counter_period(since)
         counts: Dict[str, Dict[str, int]] = {}

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
+    Collection,
     Dict,
     Iterable,
     List,
@@ -448,10 +449,16 @@ def send_digest(
     digest: Digest,
     notifications: Mapping[str, Any] | None = None,
     logger: Logger | None = None,
+    channels: Collection[str] | None = None,
 ) -> Dict[str, bool]:
-    """Send the digest to the user's digest channels; whether each one succeeded."""
+    """Send the digest to the user's digest channels; whether each one succeeded.
+
+    ``channels`` limits it to some of them (names as ``digest_channels`` returns them).
+    """
     results: Dict[str, bool] = {}
     for name, channel in digest_channels(user_config, notifications).items():
+        if channels is not None and name not in channels:
+            continue
         try:
             results[name] = channel.send_digest(digest, logger=logger)
         except KeyboardInterrupt:
@@ -465,19 +472,31 @@ def send_digest(
     return results
 
 
-def digest_key(user_name: str) -> Tuple[str, str]:
-    return (CacheType.DIGEST.value, user_name)
+def digest_key(user_name: str, channel: str) -> Tuple[str, str, str]:
+    """Cache key of the day a channel last received the user's digest."""
+    return (CacheType.DIGEST.value, user_name, channel)
 
 
-def is_digest_due(digest_at: str, last_sent: str | None, now: datetime) -> bool:
-    """Whether today's digest time has passed and today's digest has not been sent.
-
-    This also sends a digest missed while aimm was not running, once, on the next start.
-    """
+def is_digest_time(digest_at: str, now: datetime) -> bool:
+    """Whether today's digest time has passed."""
     hour, minute = (int(x) for x in digest_at.split(":")[:2])
-    return now >= now.replace(
-        hour=hour, minute=minute, second=0, microsecond=0
-    ) and last_sent != now.strftime("%Y-%m-%d")
+    return now >= now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+def pending_digest_channels(
+    user_config: Any,
+    notifications: Mapping[str, Any] | None = None,
+    now: datetime | None = None,
+    local_cache: Cache | None = None,
+) -> List[str]:
+    """The user's digest channels that have not received today's digest."""
+    c = cache if local_cache is None else local_cache
+    today = (datetime.now() if now is None else now).strftime("%Y-%m-%d")
+    return [
+        name
+        for name in digest_channels(user_config, notifications)
+        if c.get(digest_key(user_config.name, name)) != today
+    ]
 
 
 def send_due_digest(
@@ -487,32 +506,45 @@ def send_due_digest(
     now: datetime | None = None,
     local_cache: Cache | None = None,
 ) -> bool:
-    """Send the user's digest if it is due; whether one was sent."""
+    """Send the user's digest to the channels it is due on; whether it was sent to any.
+
+    The digest is due once today's digest time has passed, on each channel that has not
+    received it today. So a restart or a config change does not send it twice, a digest
+    missed while aimm was not running is sent on the next start, and a channel that failed
+    is tried again (on the next start, or when the jobs are scheduled again).
+    """
     if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
         return False
     c = cache if local_cache is None else local_cache
     now = datetime.now() if now is None else now
-    key = digest_key(user_config.name)
-    if not is_digest_due(user_config.digest_at, c.get(key), now):
+    if not is_digest_time(user_config.digest_at, now):
+        return False
+    pending = pending_digest_channels(user_config, notifications, now, local_cache)
+    if not pending:
+        if logger and not digest_channels(user_config, notifications):
+            logger.warning(
+                f"""{hilight("[Digest]", "fail")} No daily digest sent to {hilight(user_config.name)}: the user has no notification channel for the digest."""
+            )
         return False
 
     digest = compose_digest(until=now.timestamp(), local_cache=local_cache)
-    results = send_digest(user_config, digest, notifications, logger=logger)
-    if not any(results.values()):
-        if logger:
-            logger.warning(
-                f"""{hilight("[Digest]", "fail")} No daily digest sent to {hilight(user_config.name)}: """
-                + (
-                    "all channels failed."
-                    if results
-                    else "the user has no notification channel for the digest."
-                )
+    results = send_digest(user_config, digest, notifications, logger=logger, channels=pending)
+    # remember the day per channel, so that only the failed ones are tried again
+    for name, sent in results.items():
+        if sent:
+            c.set(
+                digest_key(user_config.name, name),
+                now.strftime("%Y-%m-%d"),
+                tag=CacheType.DIGEST.value,
             )
-        return False
-    # remember the day, so that a restart or a config change does not send it again
-    c.set(key, now.strftime("%Y-%m-%d"), tag=CacheType.DIGEST.value)
-    if logger:
+    sent_with = [name for name, sent in results.items() if sent]
+    failed = [name for name, sent in results.items() if not sent]
+    if logger and sent_with:
         logger.info(
-            f"""{hilight("[Digest]", "succ")} Sent the daily digest to {hilight(user_config.name)} with {", ".join(k for k, v in results.items() if v)}."""
+            f"""{hilight("[Digest]", "succ")} Sent the daily digest to {hilight(user_config.name)} with {", ".join(sent_with)}."""
         )
-    return True
+    if logger and failed:
+        logger.warning(
+            f"""{hilight("[Digest]", "fail")} Failed to send the daily digest to {hilight(user_config.name)} with {", ".join(failed)}; it is tried again when aimm restarts or reloads its config."""
+        )
+    return bool(sent_with)
