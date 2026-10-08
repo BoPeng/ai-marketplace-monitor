@@ -38,7 +38,7 @@
             <tr>
                 <td class="content">
                     <h2>Daily digest</h2>
-                    <p style="color: #666666; margin-top: 0;">Last 24 hours ({{ digest.period }})</p>
+                    <p style="color: #666666; margin-top: 0;">Listings evaluated in the last 24 hours ({{ digest.period }}). A listing still on the market is evaluated again on every search, so it can appear in more than one digest.</p>
                     {% if not digest.total.notified %}
                     <p><b>{{ no_matches }}</b></p>
                     {% endif %}

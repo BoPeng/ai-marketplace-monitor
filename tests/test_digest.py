@@ -119,7 +119,7 @@ def test_lists_are_capped() -> None:
 def test_render_formats() -> None:
     digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
     plain = dg.render_digest(digest)
-    assert plain.startswith("Last 24 hours (")
+    assert plain.startswith("Listings evaluated in the last 24 hours (")
     assert "Total: 15 searches, 52 examined" in plain
     assert "3 excluded (keywords 2, out of area 1)" in plain
     assert "- [5] GoPro Hero 11, $200\n  https://www.facebook.com/marketplace/item/1/" in plain

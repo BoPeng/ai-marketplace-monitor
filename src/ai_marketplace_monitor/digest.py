@@ -144,6 +144,9 @@ def build_digest(
     """Compose a digest from evaluation records and ``counter.since()`` counts.
 
     A listing evaluated more than once in the period counts once, with its latest decision.
+    The records keep only the last decision of a listing, so a listing still on the market is
+    evaluated, and listed, again in the next digest: the digest reports listings evaluated in
+    the period, not new listings.
     """
     latest: Dict[Tuple[str, str, str], EvaluationLike] = {}
     for record in records:
@@ -314,7 +317,7 @@ def _listings(
 def _full_digest(digest: Digest, f: _Format) -> str:
     sections = [
         [
-            f.text(f"Last 24 hours ({digest.period})"),
+            f.text(f"Listings evaluated in the last 24 hours ({digest.period})"),
             f.bold("Total:") + " " + f.text(_counts(digest.total)),
         ]
     ]
