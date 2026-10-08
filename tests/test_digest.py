@@ -87,7 +87,7 @@ def records() -> List[EvaluationRecord]:
 
 
 COUNTERS: Dict[str, Dict[str, int]] = {
-    "gopro": {CounterItem.SEARCH_PERFORMED.value: 10, CounterItem.LISTING_EXAMINED.value: 50},
+    "gopro": {CounterItem.SEARCH_PERFORMED.value: 10},
     "ipad": {CounterItem.SEARCH_PERFORMED.value: 5},
 }
 
@@ -96,20 +96,19 @@ def test_build_digest_counts_and_groups() -> None:
     digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
     assert [x.name for x in digest.items] == ["gopro", "ipad"]
     gopro, ipad = digest.items
-    assert (gopro.searches, gopro.examined, gopro.rated) == (10, 50, 3)
+    assert (gopro.searches, gopro.evaluated) == (10, 6)
     assert [x.title for x in gopro.notified] == ["GoPro Hero 11"]
     # best ratings first, comment cut to about 80 characters, query string dropped
     assert [x.rating for x in gopro.rejected] == [3, 2]
     assert len(gopro.rejected[1].comment) == dg.MAX_COMMENT_LENGTH
     assert gopro.notified[0].url == "https://www.facebook.com/marketplace/item/1/"
     assert gopro.excluded == {"keywords": 2, "out of area": 1}
-    # no counter: examined is at least the listings decided on
-    assert (ipad.searches, ipad.examined) == (5, 2)
+    assert (ipad.searches, ipad.evaluated) == (5, 2)
     assert [x.rating for x in ipad.notified] == [4]
     total = digest.total
-    assert (total.searches, total.examined, len(total.notified), len(total.rejected)) == (
+    assert (total.searches, total.evaluated, len(total.notified), len(total.rejected)) == (
         15,
-        52,
+        8,
         2,
         3,
     )
@@ -139,13 +138,13 @@ def test_email_lists_are_capped() -> None:
 def test_email_digest() -> None:
     text, html = dg.render_email_digest(dg.build_digest(records(), COUNTERS, SINCE, NOW))
     assert text.startswith("Listings evaluated in the last 24 hours (")
-    assert "Total: 15 searches, 52 examined" in text
+    assert "Total: 15 searches, 8 listings evaluated" in text
     assert "3 excluded (keywords 2, out of area 1)" in text
     assert "- [5] GoPro Hero 11, $200\n  https://www.facebook.com/marketplace/item/1/" in text
     assert "- [3] Hero 9, $200" in text
     assert "Daily digest" in html
     assert ".listing-table" in html  # the listing email styles
-    assert "Listings examined" in html and "By item" in html  # summary and per-item tables
+    assert "Listings evaluated" in html and "By item" in html  # summary and per-item tables
     assert "Rejected by AI (2)" in html
     assert 'href="https://www.facebook.com/marketplace/item/1/"' in html
     # titles are escaped
@@ -159,7 +158,7 @@ def test_phone_digest() -> None:
     ]
     digest = dg.build_digest(many, COUNTERS, SINCE, NOW)
     plain = dg.render_phone_digest(digest)
-    assert plain.startswith("Last 24 h: 15 searches, 50 listings examined, 40 notified,")
+    assert plain.startswith("Last 24 h: 15 searches, 40 listings evaluated, 40 notified,")
     assert plain.count("\n- [4] ") == dg.PHONE_ENTRIES
     assert "…and 37 more" in plain
     markdown = dg.render_phone_digest(digest, "markdown")
@@ -178,6 +177,11 @@ def test_phone_digest() -> None:
 def test_daily_counters(temp_cache: Cache) -> None:
     counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", local_cache=temp_cache)
     counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", 2, local_cache=temp_cache)
+    # only the counters the digest uses are kept per hour
+    counter.increment(CounterItem.LISTING_EXAMINED, "gopro", 5, local_cache=temp_cache)
+    assert [k[2] for k in temp_cache.iterkeys() if k[0] == CacheType.COUNTERS_DAILY.value] == [
+        CounterItem.SEARCH_PERFORMED.value
+    ]
     key = (
         CacheType.COUNTERS_DAILY.value,
         counter_period(),
@@ -258,7 +262,8 @@ def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
     for record in saved:
         record_evaluation(record, local_cache=temp_cache)
     counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", 12, local_cache=temp_cache)
-    counter.increment(CounterItem.LISTING_EXAMINED, "gopro", 40, local_cache=temp_cache)
+    # counted for each listing a search returns, repeats included: not in the digest
+    counter.increment(CounterItem.LISTING_EXAMINED, "gopro", 960, local_cache=temp_cache)
     counter.increment(CounterItem.SEARCH_PERFORMED, "ipad", 6, local_cache=temp_cache)
     # searches more than 24 hours ago are not counted
     stale = (
@@ -272,19 +277,19 @@ def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
     digest = dg.compose_digest(until=now, local_cache=temp_cache)
     assert [item.name for item in digest.items] == ["gopro", "ipad"]
     gopro, ipad = digest.items
-    assert (gopro.searches, gopro.examined, gopro.rated) == (12, 40, 3)
+    assert (gopro.searches, gopro.evaluated) == (12, 7)
     assert [x.title for x in gopro.notified] == ["GoPro Hero 11", "GoPro 10"]
     assert gopro.notified[1].price == "$180 (was $250)"  # a price drop
     assert [x.rating for x in gopro.rejected] == [2, 1]
     assert gopro.rejected[0].comment == "Only the case is for sale."
     assert gopro.excluded == {"excluded keyword": 2, "out of area": 1}
-    assert (ipad.searches, ipad.examined, ipad.rated) == (6, 2, 1)
+    assert (ipad.searches, ipad.evaluated) == (6, 2)
     assert [x.comment for x in ipad.notified] == ["Price dropped."]
     assert ipad.rejected == [] and ipad.excluded == {"banned seller": 1}
     total = digest.total
-    assert (total.searches, total.examined, len(total.notified), len(total.rejected)) == (
+    assert (total.searches, total.evaluated, len(total.notified), len(total.rejected)) == (
         18,
-        42,
+        9,
         3,
         2,
     )
@@ -292,7 +297,7 @@ def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
 
     phone = dg.render_phone_digest(digest)
     assert phone.startswith(
-        "Last 24 h: 18 searches, 42 listings examined, 3 notified, 2 rejected by AI, "
+        "Last 24 h: 18 searches, 9 listings evaluated, 3 notified, 2 rejected by AI, "
         "4 excluded\nTop matches (3)\n- [5] GoPro Hero 11, $200\n"
     )
     text, html = dg.render_email_digest(digest)

@@ -69,8 +69,6 @@ class DigestListing:
 class ItemDigest:
     name: str
     searches: int = 0
-    examined: int = 0
-    rated: int = 0
     notified: List[DigestListing] = field(default_factory=list)
     rejected: List[DigestListing] = field(default_factory=list)
     # number of excluded listings by reason
@@ -79,6 +77,11 @@ class ItemDigest:
     @property
     def n_excluded(self: "ItemDigest") -> int:
         return sum(self.excluded.values())
+
+    @property
+    def evaluated(self: "ItemDigest") -> int:
+        """Distinct listings decided on: notified, rejected by AI or excluded."""
+        return len(self.notified) + len(self.rejected) + self.n_excluded
 
 
 @dataclass
@@ -157,15 +160,11 @@ def build_digest(
 
     for name, counts in counters.items():
         searches = counts.get(CounterItem.SEARCH_PERFORMED.value, 0)
-        examined = counts.get(CounterItem.LISTING_EXAMINED.value, 0)
-        if searches or examined:
-            digest = item_digest(name)
-            digest.searches, digest.examined = searches, examined
+        if searches:
+            item_digest(name).searches = searches
 
     for record in latest.values():
         digest = item_digest(record.item)
-        if record.rating is not None:
-            digest.rated += 1
         if record.stage == EXCLUDED:
             reason = record.reason.split(":")[0].strip() or "other"
             digest.excluded[reason] = digest.excluded.get(reason, 0) + 1
@@ -187,15 +186,9 @@ def build_digest(
 
     total = ItemDigest(name="Total")
     for digest in items.values():
-        # a listing is examined at least once; counters can miss it (e.g. after a cache reset)
-        digest.examined = max(
-            digest.examined, len(digest.notified) + len(digest.rejected) + digest.n_excluded
-        )
         digest.notified.sort(key=_by_rating)
         digest.rejected.sort(key=_by_rating)
         total.searches += digest.searches
-        total.examined += digest.examined
-        total.rated += digest.rated
         total.notified.extend(digest.notified)
         total.rejected.extend(digest.rejected)
         for reason, n in digest.excluded.items():
@@ -275,8 +268,7 @@ class _Format:
 def _counts(digest: ItemDigest) -> str:
     parts = [
         _count(digest.searches, "search"),
-        f"{digest.examined:,} examined",
-        f"{digest.rated:,} rated by AI",
+        f"{digest.evaluated:,} listings evaluated",
         f"{len(digest.notified):,} notified",
         f"{len(digest.rejected):,} rejected by AI",
     ]
@@ -312,7 +304,7 @@ def _phone_digest(digest: Digest, f: _Format) -> str:
     total = digest.total
     totals = (
         f"Last 24 h: {_count(total.searches, 'search')}, "
-        f"{total.examined:,} listings examined, {len(total.notified):,} notified, "
+        f"{total.evaluated:,} listings evaluated, {len(total.notified):,} notified, "
         f"{len(total.rejected):,} rejected by AI, {total.n_excluded:,} excluded"
     )
     lines = [f.text(totals)]

@@ -48,8 +48,7 @@
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                         {% for label, value in [
                             ("Searches", digest.total.searches),
-                            ("Listings examined", digest.total.examined),
-                            ("Rated by AI", digest.total.rated),
+                            ("Listings evaluated", digest.total.evaluated),
                             ("Notified", digest.total.notified|length),
                             ("Rejected by AI", digest.total.rejected|length),
                             ("Excluded", digest.total.n_excluded),
@@ -68,14 +67,13 @@
                     <h2 style="margin-top: 30px;">By item</h2>
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                         <tr style="color: #333333; font-weight: bold;">
-                            <td>Item</td><td>Searches</td><td>Examined</td><td>Rated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
+                            <td>Item</td><td>Searches</td><td>Evaluated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
                         </tr>
                         {% for item in digest.items %}
                         <tr>
                             <td>{{ item.name }}</td>
                             <td>{{ "{:,}".format(item.searches) }}</td>
-                            <td>{{ "{:,}".format(item.examined) }}</td>
-                            <td>{{ "{:,}".format(item.rated) }}</td>
+                            <td>{{ "{:,}".format(item.evaluated) }}</td>
                             <td>{{ "{:,}".format(item.notified|length) }}</td>
                             <td>{{ "{:,}".format(item.rejected|length) }}</td>
                             <td>{{ "{:,}".format(item.n_excluded) }}</td>

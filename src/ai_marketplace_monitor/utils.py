@@ -299,6 +299,8 @@ class KeyboardMonitor:
 
 # how long the per-hour counters of the daily digest are kept
 DAILY_COUNTER_EXPIRE = 8 * 24 * 60 * 60
+# the counters the daily digest uses, also kept per hour
+DAILY_COUNTERS = (CounterItem.SEARCH_PERFORMED,)
 
 
 def counter_period(when: float | None = None) -> str:
@@ -324,6 +326,8 @@ class Counter:
         except KeyError:
             # if key does not exist, set it to by, and set tag
             c.set(key, by, tag=CacheType.COUNTERS.value)
+        if counter_key not in DAILY_COUNTERS:
+            return
         # the same count for this hour, for the daily digest; incr keeps the expiry
         daily_key = (
             CacheType.COUNTERS_DAILY.value,
