@@ -1,14 +1,27 @@
+import logging
+import re
 import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from logging import Logger
-from typing import TYPE_CHECKING, Any, ClassVar, DefaultDict, Deque, List, Optional, Tuple, Type
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    DefaultDict,
+    Deque,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+)
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import BaseConfig, hilight
+from .utils import PACKAGE_DIR, BaseConfig, hilight
 
 if TYPE_CHECKING:
     from .digest import Digest
@@ -39,11 +52,153 @@ def fields_with_role(cls: type, role: str) -> Tuple[str, ...]:
     return tuple(f.name for f in fields(cls) if f.metadata.get(ROLE) == role)
 
 
+# seconds a test message may take on one channel before it is reported as failed
+TEST_TIMEOUT = 60
+TEST_LISTING_URL = "https://github.com/BoPeng/ai-marketplace-monitor"
+SAMPLE_IMAGE = PACKAGE_DIR / "sample_listing.jpg"
+
+
+@dataclass
+class ChannelResult:
+    """Whether a test message went out through one channel (e.g. ``email``), and why not."""
+
+    channel: str
+    ok: bool
+    error: str | None = None
+
+
+def sample_listing() -> Tuple[Listing, AIResponse]:
+    """A sample listing, clearly marked as a test, that links to the aimm repository.
+
+    Every part of a real notification is filled in, so that a test shows the channel's real
+    layout. Its photo is bundled with aimm: an email test attaches it as it attaches the photo
+    of a real listing, without downloading anything.
+    """
+    listing = Listing(
+        marketplace="aimm",
+        name="test notification",
+        id="aimm-test-notification",
+        title="aimm test notification",
+        image=SAMPLE_IMAGE.as_uri(),
+        price="$100",
+        post_url=TEST_LISTING_URL,
+        location="Houston, TX",
+        seller="AI Marketplace Monitor",
+        condition="New",
+        description=(
+            "This is a test message from AI Marketplace Monitor (aimm), not a real listing. "
+            "A real notification shows the listing's description here."
+        ),
+    )
+    rating = AIResponse(
+        score=5,
+        comment=(
+            "Test: this is where aimm's AI explains how well a listing matches what you are "
+            "looking for."
+        ),
+        name="test",
+    )
+    return listing, rating
+
+
+# the color tags hilight() puts in log messages
+_HILIGHT = re.compile(r"\[/?(?:cyan|red|blue|green|gray)\]")
+
+
+class _TestLog(logging.Handler):
+    """Keeps what a channel logs while it sends a test, to report why it failed."""
+
+    def __init__(self: "_TestLog", forward: Logger | None) -> None:
+        super().__init__(logging.DEBUG)
+        self.forward = forward
+        self.messages: List[Tuple[int, str]] = []
+
+    def emit(self: "_TestLog", record: logging.LogRecord) -> None:
+        self.messages.append((record.levelno, _HILIGHT.sub("", record.getMessage())))
+        if self.forward is not None and self.forward.isEnabledFor(record.levelno):
+            self.forward.handle(record)
+
+    def error(self: "_TestLog") -> str:
+        """The most telling failure: the exception of the last attempt, else the last error.
+
+        Only the first line, shortened, is returned: it is shown to the user.
+        """
+        for _, message in reversed(self.messages):
+            if " failed: " in message and "Attempt" in message:
+                return _one_line(message.split(" failed: ", 1)[1])
+        for level, message in reversed(self.messages):
+            if level >= logging.WARNING and "Max retries reached" not in message:
+                return _one_line(message)
+        return "The message was not sent."
+
+
+# the longest error shown for a channel
+MAX_ERROR_LENGTH = 300
+
+
+def _one_line(message: str) -> str:
+    lines = [line.strip() for line in message.strip().splitlines() if line.strip()]
+    line = lines[0] if lines else "The message was not sent."
+    return line if len(line) <= MAX_ERROR_LENGTH else line[: MAX_ERROR_LENGTH - 3] + "..."
+
+
+class _ChannelTest:
+    """A test message being sent through one channel, in a thread of its own."""
+
+    def __init__(
+        self: "_ChannelTest",
+        channel: "NotificationConfig",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+        logger: Logger | None,
+    ) -> None:
+        self.name = channel.notify_method
+        self.log = _TestLog(logger)
+        # a logger of its own (not registered), so that tests at the same time do not mix
+        self.logger = logging.Logger(f"aimm.test.{self.name}", logging.DEBUG)
+        self.logger.addHandler(self.log)
+        self.sent = False
+        self.thread = threading.Thread(
+            target=self._send,
+            args=(channel, listings, ratings),
+            daemon=True,  # a channel that does not answer must not keep aimm running
+            name=f"aimm-test-{self.name}",
+        )
+        self.thread.start()
+
+    def _send(
+        self: "_ChannelTest",
+        channel: "NotificationConfig",
+        listings: List[Listing],
+        ratings: List[AIResponse],
+    ) -> None:
+        try:
+            self.sent = channel.notify(  # type: ignore[attr-defined]
+                listings,
+                ratings,
+                [NotificationStatus.NOT_NOTIFIED] * len(listings),
+                force=True,
+                logger=self.logger,
+            )
+        except Exception as e:
+            # reported like any other failure: from the channel's log, as one line
+            self.logger.error(f"Failed to send: {e or e.__class__.__name__}")
+
+    def result(self: "_ChannelTest", wait: float, timeout: float) -> ChannelResult:
+        self.thread.join(max(wait, 0))
+        if self.thread.is_alive():
+            return ChannelResult(self.name, False, f"No answer in {timeout:g} seconds.")
+        if self.sent:
+            return ChannelResult(self.name, True)
+        return ChannelResult(self.name, False, self.log.error())
+
+
 @dataclass
 class NotificationConfig(BaseConfig):
     required_fields: ClassVar[List[str]] = []
     # format of the digest if the channel does not follow message_format
     digest_format: ClassVar[str | None] = None
+    notify_method: ClassVar[str] = ""
 
     max_retries: int = notification_field(COMMON, 5)
     retry_delay: int = notification_field(COMMON, 60)
@@ -112,6 +267,69 @@ class NotificationConfig(BaseConfig):
             if hasattr(subclass_obj, "notify_all"):
                 succ.append(subclass.notify_all(config, *args, **kwargs))
         return any(succ)
+
+    @classmethod
+    def _channel_classes(
+        cls: type["NotificationConfig"],
+    ) -> Iterator[type["NotificationConfig"]]:
+        """The classes that send through one channel (email, pushbullet, ...), as notify_all."""
+        seen = set()
+        for subclass in cls.__subclasses__():
+            if subclass.__name__ not in ("UserConfig", "PushNotificationConfig") and hasattr(
+                subclass, "notify"
+            ):
+                seen.add(subclass)
+                yield subclass
+            for sub in subclass._channel_classes():
+                if sub not in seen:
+                    seen.add(sub)
+                    yield sub
+
+    @classmethod
+    def channels(
+        cls: type["NotificationConfig"], config: "NotificationConfig", **overrides: Any
+    ) -> List["NotificationConfig"]:
+        """The channels set up in ``config`` (a user with its notifications merged in).
+
+        A channel without its required fields is not set up for this user and is left out.
+        """
+        out = []
+        for subclass in cls._channel_classes():
+            flds = {f.name for f in fields(subclass) if not f.name.startswith("_")}
+            values = {k: getattr(config, k) for k in flds if hasattr(config, k)}
+            channel = subclass(**{**values, **overrides})
+            if channel._has_required_fields():
+                out.append(channel)
+        return out
+
+    @classmethod
+    def test_all(
+        cls: type["NotificationConfig"],
+        config: "NotificationConfig",
+        listings: List[Listing] | None = None,
+        ratings: List[AIResponse] | None = None,
+        *,
+        channels: List[str] | None = None,
+        timeout: float = TEST_TIMEOUT,
+        logger: Logger | None = None,
+    ) -> List[ChannelResult]:
+        """Send a test message through each channel of ``config``; one result per channel.
+
+        Unlike ``User.notify``, nothing is written to the cache. Each channel makes one attempt
+        (no retries); the channels send at the same time and have ``timeout`` seconds in all.
+        ``listings`` default to ``sample_listing()``; ``channels`` limits the test to these
+        channels (``notify_method``, e.g. ``["email"]``).
+        """
+        if listings is None or ratings is None:
+            listing, rating = sample_listing()
+            listings, ratings = [listing], [rating]
+        tests = [
+            _ChannelTest(channel, listings, ratings, logger)
+            for channel in cls.channels(config, max_retries=1)
+            if channels is None or channel.notify_method in channels
+        ]
+        deadline = time.monotonic() + timeout
+        return [test.result(deadline - time.monotonic(), timeout) for test in tests]
 
     def _execute_with_retry(
         self: "NotificationConfig",

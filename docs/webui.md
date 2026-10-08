@@ -13,10 +13,11 @@ The web UI provides:
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level (all, problems, or errors) and text search; click a line to see its details
 - **Listings** view of every listing aimm evaluated, with its AI rating and the decision: notified, rejected by AI, or excluded (see [Listings](#listings))
-- **Version** of the running aimm in the header; in Docker, an **Update** button next to it installs a newer release in the container and restarts aimm
+- **Version** of the running aimm (`vX.Y.Z`) in the header, next to the app name; click it to open Settings, About
 - **⏸ / ▶** button in the header: ⏸ pauses searches after the current listing, and ▶ resumes them and searches all items right away
 - **Login banner** while aimm waits for you to finish logging in to Facebook (a CAPTCHA or a security code). It says where to complete it; in Docker, its **Open browser** button (like **Browser** in the header) opens aimm's browser in a new tab
-- **Export CSV** button in the header downloads all found (notified) listings — link, price, rating, and details — as a CSV file
+- **⚙ Settings** at the right end of the header (see below): the version and updates, test notifications, the cache, Export CSV and Logout
+- **⬆ aimm X available** in the header when a newer release is out; it opens Settings, About
 - **Auto-validation** of your config as you type
 
 ## Getting Started
@@ -46,7 +47,32 @@ The **Configure** pane lets you edit the config through the same AI-assisted flo
 `aimm configure`. Leave the section field blank to let the assistant route the request,
 or enter a section address such as `ai`, `marketplace`, `item.gopro`, or `notification`
 before starting. The chat asks for confirmation before tool-driven changes are written,
-then the editor reloads the updated config.
+then the editor reloads the updated config. After a notification is saved, the assistant
+offers to send a test message through it, so you can fix a channel that does not work
+right away.
+
+## Settings
+
+The **⚙** button at the right end of the header opens Settings:
+
+- **About**: the running version and whether a newer release is out. In Docker, an
+  **Update** button installs it in the container and restarts aimm; elsewhere, it shows the
+  upgrade command and a link to the changelog.
+- **Notifications**: one row per user with a **Send test** button. aimm sends a sample
+  listing titled "aimm test notification" through each of the user's channels, once, in
+  the channel's real format (HTML email with a photo, text or Markdown for chat and phone),
+  and
+  shows ✓ or ✗ with the error for each channel. It is a real message (metered channels such
+  as UnitySVC SMS may cost a little), but nothing is recorded in the cache. This is the same
+  test as `aimm admin --test-notification`.
+- **Cache**: the number of entries of each type (listing details, AI ratings, notified
+  records, counters, update check, evaluation history), with a **Clear** button for each type and **Clear all**.
+  Clearing notified records means listings you were already notified about can be sent
+  again; clearing AI ratings means new AI calls. A cache that cannot be read can only be
+  cleared as a whole: aimm removes its files, then restarts in Docker (elsewhere, restart
+  aimm yourself).
+- **Account**: **Export CSV** downloads all found (notified) listings — link, price, rating,
+  and details — as a CSV file; **Logout** signs out (only when a password is required).
 
 ## Logs and Listings
 

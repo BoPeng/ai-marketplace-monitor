@@ -14,9 +14,11 @@ import mimetypes
 import os
 import secrets
 import socket
+import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field
+import warnings
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List
 from urllib.parse import urlparse
@@ -46,8 +48,23 @@ from ..configure.flow import (
 from ..configure.ui import JsonSetupUI, SetupClosedError
 from ..control import control
 from ..evaluations import SORT_KEYS, STAGES, filter_evaluations, iter_evaluations
-from ..update_check import current_notice, self_update_status, start_self_update
-from ..utils import cache
+from ..notification import NotificationConfig
+from ..update_check import (
+    can_self_update,
+    current_notice,
+    restart_later,
+    self_update_status,
+    start_self_update,
+)
+from ..user import UserConfig, send_test_notifications
+from ..utils import (
+    CacheCorruptedError,
+    cache,
+    cache_counts,
+    clear_cache,
+    hilight,
+    is_cache_broken,
+)
 from .auth import (
     CSRF_COOKIE,
     CSRF_HEADER,
@@ -71,6 +88,10 @@ from .log_handler import LogBroadcastHandler
 mimetypes.add_type("application/wasm", ".wasm")
 
 STATIC_DIR = Path(__file__).parent / "static"
+# Errors from loading the config or reading the cache are logged, not returned: responses
+# carry these fixed messages, which point to the log.
+CONFIG_ERROR = "The configuration cannot be loaded; see the log for the error."
+CACHE_ERROR = "The cache database cannot be read; see the log for the error."
 
 
 def _host_port(host: str, default_port: int) -> tuple[str, int]:
@@ -375,6 +396,114 @@ def create_app(
         except RuntimeError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
         return {"ok": True, "version": version}
+
+    # ------------------------------------------------------------------
+    # Settings: test notifications, clear the cache
+    # ------------------------------------------------------------------
+    def load_users() -> Dict[str, UserConfig] | None:
+        """The users of the config as the monitor reads it (notifications merged in).
+
+        None if the config cannot be loaded (the error is logged).
+        """
+        from ..config import Config
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")  # unset variables: the test reports the channel
+                return Config(list(config.config_files)).user
+        except Exception as e:
+            logging.getLogger("monitor").error(
+                f"""{hilight("[Settings]", "fail")} The configuration cannot be loaded: {e}"""
+            )
+            return None
+
+    # Sync defs (not async): FastAPI runs them in a threadpool, so loading the config,
+    # sending test messages and scanning the cache never block the event loop.
+    @app.get("/api/notifications/users")
+    def notification_users(_: str = Depends(require_session)) -> Dict[str, Any]:
+        users = load_users()
+        if users is None:
+            return {"ok": False, "error": CONFIG_ERROR, "users": []}
+        return {
+            "ok": True,
+            "users": [
+                {
+                    "name": name,
+                    "enabled": user.enabled is not False,
+                    "channels": [c.notify_method for c in NotificationConfig.channels(user)],
+                }
+                for name, user in users.items()
+            ],
+        }
+
+    @app.post("/api/notifications/test")
+    def test_notifications(
+        body: Dict[str, Any],
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Send a test message through each channel of a user; nothing goes to the cache."""
+        name = body.get("user")
+        if not isinstance(name, str) or not name:
+            raise HTTPException(status_code=400, detail="Missing 'user' field")
+        users = load_users()
+        if users is None:
+            raise HTTPException(status_code=409, detail=CONFIG_ERROR)
+        if name not in users:
+            raise HTTPException(status_code=404, detail=f"There is no user {name}.")
+        results = send_test_notifications(users, name, logger=logging.getLogger("monitor"))[name]
+        return {
+            "ok": bool(results) and all(r.ok for r in results),
+            "user": name,
+            "results": [asdict(r) for r in results],
+        }
+
+    @app.get("/api/cache")
+    def cache_status(_: str = Depends(require_session)) -> Dict[str, Any]:
+        """Entries of each type in the cache, or why the cache cannot be read."""
+        try:
+            if is_cache_broken(cache):
+                raise CacheCorruptedError(str(cache.error))  # type: ignore[attr-defined]
+            return {"broken": False, "counts": cache_counts(cache)}
+        except (CacheCorruptedError, sqlite3.DatabaseError) as e:
+            logging.getLogger("monitor").error(
+                f"""{hilight("[Cache]", "fail")} The cache cannot be read: {e}"""
+            )
+            return {"broken": True, "error": CACHE_ERROR, "counts": {}}
+
+    @app.post("/api/cache/clear")
+    def clear_cache_entries(
+        body: Dict[str, Any],
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Clear one type of entries, or ``all``.
+
+        Clearing a corrupted cache removes its files, and the running aimm can only open a new
+        cache when it starts: in Docker it restarts, elsewhere the user restarts it.
+        """
+        clear_type = body.get("type")
+        if not isinstance(clear_type, str) or not clear_type:
+            raise HTTPException(status_code=400, detail="Missing 'type' field")
+        logger = logging.getLogger("monitor")
+        result = clear_cache(cache, clear_type)
+        if not result.ok:
+            raise HTTPException(status_code=400, detail=result.message)
+        if result.error:
+            logger.error(
+                f"""{hilight("[Clear Cache]", "fail")} The cache cannot be read: {result.error}"""
+            )
+        logger.info(
+            f"""{hilight("[Clear Cache]", "succ")} {clear_type}: {result.message} (web UI)"""
+        )
+        restart = None
+        if result.removed:
+            if can_self_update():
+                restart_later(logger)
+                restart = "restarting"
+            else:
+                restart = "needed"
+        return {"ok": True, "message": result.message, "restart": restart}
 
     @app.get("/api/config/files")
     async def list_config_files(_: str = Depends(require_session)) -> Dict[str, Any]:

@@ -264,7 +264,7 @@ container.
 
 Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch between them (one at a time; see below).
 
-When a new release is out, the web UI shows an **Update** button next to the version. It installs the release inside the container and restarts aimm, and the page reloads when it is back. The update lives in the container: it survives `docker restart`, but recreating the container from an older image brings back the old version (the button then offers the update again).
+When a new release is out, the web UI header shows **⬆ aimm X available**, which opens Settings with an **Update** button. It installs the release inside the container and restarts aimm, and the page reloads when it is back. The update lives in the container: it survives `docker restart`, but recreating the container from an older image brings back the old version (the button then offers the update again).
 
 To update the image itself, pull it and recreate the container — `docker restart` keeps running the old image:
 
@@ -275,7 +275,7 @@ docker rm -f aimm
 
 then run the `docker run` command above again. Your config, cache, and logs live in the mounted directory, so nothing is lost. The web UI header shows the running version, as does `docker exec aimm ai-marketplace-monitor --version`.
 
-While the container is running, run other aimm commands inside it, e.g. `docker exec -it aimm aimm check <listing>`, not on the host: aimm's cache is an SQLite database, and an aimm on the host and one in the container writing it through the shared folder at the same time can damage it. If that happens, aimm stops with "cannot be read"; clear the cache with `docker exec aimm aimm admin --clear-cache all` and restart the container.
+While the container is running, run other aimm commands inside it, e.g. `docker exec -it aimm aimm check <listing>`, not on the host: aimm's cache is an SQLite database, and an aimm on the host and one in the container writing it through the shared folder at the same time can damage it. If that happens, aimm stops with "cannot be read"; clear the cache with `docker exec aimm aimm admin --clear-cache all` and restart the container. To check your notifications, use **Send test** in Settings or `docker exec aimm aimm admin --test-notification`.
 
 To build the image yourself instead of pulling: `docker build -t aimm .` from a checkout of this repo.
 

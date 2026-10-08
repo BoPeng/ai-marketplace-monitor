@@ -310,6 +310,17 @@ class Toolkit:
         """Notes for the user once the section is written (none by default)."""
         return []
 
+    def testable(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        """Whether aimm offers to try the section once this draft is saved (none by default)."""
+        return False
+
+    async def send_test(self: "Toolkit", ws: "Workspace", name: str) -> Dict[str, Any]:
+        """Try a saved section, e.g. send a test message through it; changes nothing."""
+        return {
+            "ok": False,
+            "errors": [f"{section_label(self.section_type, name)} cannot be tested."],
+        }
+
     async def check_extra(self: "Toolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
         """Results added to ``section_check``, e.g. from trying the section (none by default)."""
         return {}

@@ -29,17 +29,15 @@
     <header class="header">
       <div class="header-left">
         <span class="brand">AI Marketplace Monitor</span>
-        <span id="aimm-version" class="config-name" title="aimm version"></span>
-        <button id="update-btn" class="status-chip status-update" hidden></button>
+        <button id="aimm-version" class="version-link" title="aimm version: open Settings › About"></button>
         <span id="config-name" class="config-name">—</span>
       </div>
       <div class="header-right">
-        <a id="update-badge" class="status-chip status-update" target="_blank" rel="noopener" hidden></a>
+        <button id="update-badge" class="status-chip status-update" title="Show how to update aimm" hidden></button>
         <span id="monitor-status" class="status-chip status-warn" title="Last activity from the monitor">● monitor: idle</span>
         <button id="run-btn" class="ghost small" title="Pause searches after the current listing" aria-label="Pause searches">⏸</button>
         <a id="browser-btn" class="ghost" href="/vnc/vnc.html?path=ws/vnc&autoconnect=1&resize=scale" target="_blank" rel="noopener" title="Open the live Chromium view (CAPTCHA / login)" hidden>Browser</a>
-        <button id="export-csv-btn" class="ghost small" title="Download all found items as CSV" aria-label="Download all found items as CSV">⬇ Export CSV</button>
-        <button id="logout-btn" class="ghost">Logout</button>
+        <button id="settings-btn" class="ghost small" title="Settings: version, test notifications, cache, export, logout" aria-label="Settings">⚙</button>
       </div>
     </header>
     <div id="login-banner" class="login-banner" role="status" hidden>
@@ -155,6 +153,66 @@
       <div class="modal-footer">
         <button type="button" id="form-cancel" class="ghost">Cancel</button>
         <button type="button" id="form-save" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings dialog (same modal component as the section editor) -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-header">
+        <h2 id="settings-title">Settings</h2>
+        <button class="modal-close" id="settings-close" aria-label="Close">×</button>
+      </div>
+      <div class="settings-layout">
+        <nav class="settings-nav" id="settings-nav">
+          <button data-settings-tab="about" class="active">About</button>
+          <button data-settings-tab="notifications">Notifications</button>
+          <button data-settings-tab="cache">Cache</button>
+          <button data-settings-tab="account">Account</button>
+        </nav>
+        <div class="modal-body settings-body">
+          <section class="settings-section" data-settings-section="about">
+            <h3>About</h3>
+            <p>AI Marketplace Monitor <span id="settings-version" class="settings-version"></span></p>
+            <p id="update-info" class="modal-hint"></p>
+            <button id="update-btn" class="primary" hidden></button>
+          </section>
+          <section class="settings-section" data-settings-section="notifications" hidden>
+            <h3>Notifications</h3>
+            <p class="modal-hint">
+              Send a test message through every notification channel of a user. It is a real
+              message (metered channels such as UnitySVC SMS may cost a little), sent once,
+              and aimm does not record it as a notified listing.
+            </p>
+            <div id="settings-users" class="settings-rows"></div>
+          </section>
+          <section class="settings-section" data-settings-section="cache" hidden>
+            <h3>Cache</h3>
+            <p class="modal-hint">
+              aimm remembers listings, AI ratings and who was notified, so it does not fetch,
+              rate or notify twice.
+            </p>
+            <div id="settings-cache" class="settings-rows"></div>
+            <div class="settings-actions">
+              <button id="cache-clear-all" class="danger">Clear all</button>
+              <button id="cache-refresh">Refresh</button>
+            </div>
+            <p id="settings-cache-status" class="settings-status" hidden></p>
+          </section>
+          <section class="settings-section" data-settings-section="account" hidden>
+            <h3>Account</h3>
+            <div class="settings-row">
+              <span>Download every listing aimm found, with its AI rating, as a CSV file.</span>
+              <button id="export-csv-btn" title="Download all found items as CSV">⬇ Export CSV</button>
+            </div>
+            <div class="settings-row" id="logout-row">
+              <span>Sign out of the web UI.</span>
+              <button id="logout-btn">Logout</button>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </div>

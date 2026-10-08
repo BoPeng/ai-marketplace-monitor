@@ -140,8 +140,18 @@ html, body {
   white-space: nowrap;
 }
 .login-banner-open:hover { background: rgba(251, 191, 36, 0.15); }
-.header #update-btn { font-size: 11px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
-.header #update-btn:disabled { cursor: progress; opacity: 0.8; }
+.header button.version-link {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+}
+.header button.version-link:hover { color: var(--text); text-decoration: underline; }
+.header button.version-link:empty { display: none; }
+.header button.status-chip { font-size: 11px; padding: 3px 8px; border-radius: 10px; white-space: nowrap; }
+.header button.status-chip[hidden] { display: none; }
 .status-err { color: var(--err); border-color: rgba(248, 113, 113, 0.35); }
 
 .header button,
@@ -526,6 +536,91 @@ html, body {
 }
 .modal-footer button.primary:hover { background: var(--accent-dim); }
 .modal-footer button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Settings dialog */
+.settings-card { width: min(92vw, 760px); height: min(85vh, 560px); }
+.settings-layout { display: flex; flex: 1; min-height: 0; }
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border);
+}
+.settings-nav button {
+  text-align: left;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.settings-nav button:hover { background: var(--bg-elev-2); color: var(--text); }
+.settings-nav button.active { background: var(--bg-elev-2); color: var(--text); font-weight: 600; }
+.settings-section[hidden], .settings-row[hidden] { display: none; }
+.settings-section h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.settings-section > p { font-size: 13px; line-height: 1.5; }
+.settings-section a { color: var(--accent); }
+.settings-section code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg-elev-2);
+  overflow-wrap: anywhere;
+}
+.settings-version { font-family: var(--mono); color: var(--text-dim); }
+.settings-rows { display: flex; flex-direction: column; }
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.settings-row-main { flex: 1; min-width: 0; }
+.settings-row-name { font-weight: 600; }
+.settings-row-actions { display: flex; gap: 6px; flex: none; }
+.settings-dim { color: var(--text-dim); font-size: 12px; }
+.settings-actions { display: flex; gap: 8px; margin-top: 12px; }
+.settings-body button {
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings-body button:hover:not(:disabled) { border-color: var(--accent); }
+.settings-body button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+.settings-body button.primary:hover:not(:disabled) { background: var(--accent-dim); }
+.settings-body button.danger:hover:not(:disabled) { border-color: var(--err); color: var(--err); }
+.settings-body button:disabled { opacity: 0.5; cursor: not-allowed; }
+.settings-body button[hidden] { display: none; }
+.test-results { list-style: none; margin: 6px 0 0; padding: 0; font-family: var(--mono); font-size: 12px; }
+.test-results:empty { display: none; }
+.test-results li { overflow-wrap: anywhere; }
+.settings-status { margin: 10px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.settings-status[hidden] { display: none; }
+.test-results .ok, .settings-status.ok { color: var(--ok); }
+.test-results .err, .settings-status.err { color: var(--err); }
+@media (max-width: 600px) {
+  .settings-layout { flex-direction: column; }
+  .settings-nav {
+    flex-direction: row;
+    min-width: 0;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
 
 /* Fallback textarea (used when CodeMirror fails to load) */
 .aimm-editor {

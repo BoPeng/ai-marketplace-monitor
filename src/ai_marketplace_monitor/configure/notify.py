@@ -7,6 +7,7 @@ credentials); a `[user.*]` section holds where the user receives it (email addre
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import os
 import warnings
@@ -16,7 +17,7 @@ from ..config_toml import dump_config_toml
 from ..email_notify import UNITYSVC_SMTP_SERVER, UNITYSVC_SMTP_USERNAME
 from ..normalize import NormalizeError, expand
 from ..normalize.notifications import CHANNEL_FIELDS, RECIPIENT_FIELDS, TYPE_CLASSES
-from ..notification import NotificationConfig
+from ..notification import TEST_TIMEOUT, NotificationConfig
 from ..user import UserConfig
 from .marketplace import _plain
 from .toolkits import FieldGuide, SectionDraft, Toolkit, is_reference, unset_variable_notes
@@ -277,6 +278,25 @@ def missing_recipients(notification: Dict[str, Any], user: Dict[str, Any]) -> Li
     return out
 
 
+# fields whose change is worth a test message: the user's channels and where they receive them
+_TESTED_USER_FIELDS = {
+    "notify_with",
+    *RECIPIENT_FIELDS,
+    *(f for names in CHANNEL_FIELDS.values() for f in names),
+}
+
+
+def _unset_variables(sections: List[Dict[str, Any]]) -> List[str]:
+    """Variables of ``${VAR}`` references in these sections that are not set here."""
+    names = []
+    for section in sections:
+        for value in section.values():
+            for v in value if isinstance(value, list) else [value]:
+                if is_reference(v) and v[2:-1] not in os.environ:
+                    names.append(v[2:-1])
+    return list(dict.fromkeys(names))
+
+
 class _NotifyToolkit(Toolkit):
     """What users and notifications have in common."""
 
@@ -338,6 +358,74 @@ class _NotifyToolkit(Toolkit):
         except NormalizeError as e:
             return [str(e)]
         return []
+
+    def _test_plan(
+        self: "_NotifyToolkit", ws: "Workspace", name: str
+    ) -> Tuple[Dict[str, Any], List[str] | None, List[str], List[Dict[str, Any]]]:
+        """What a test of this section sends.
+
+        Returns the config to load, the channels to test (None: all), the users to send to,
+        and the sections the test reads.
+        """
+        raise NotImplementedError
+
+    async def send_test(self: "_NotifyToolkit", ws: "Workspace", name: str) -> Dict[str, Any]:
+        """Send a test message through the saved section's channels, to the users who get it.
+
+        One attempt per channel; nothing is written to the cache or the config.
+        """
+        from ..config import Config
+
+        label = f"[{self.section_type}.{name}]"
+        cfg, channels, user_names, sections = self._test_plan(ws, name)
+        if not user_names:
+            return {"ok": False, "errors": [f"No enabled user receives {label}."]}
+        unset = _unset_variables(sections)
+        if unset:
+            return {
+                "ok": True,
+                "sent": False,
+                "can_run_here": False,
+                "reason": (
+                    f"{label} uses environment variables that are not set where aimm "
+                    f"configure runs: {', '.join(unset)}, so a test here would fail for that "
+                    "reason alone. Set them and test again; if aimm runs elsewhere (e.g. in "
+                    "Docker), use Send test in the Settings of aimm's web UI, which runs with "
+                    "aimm's own environment."
+                ),
+            }
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                users = Config.from_dicts(ws.system_cfg, cfg, partial=True).user
+        except Exception as e:
+            return {"ok": False, "errors": [f"The configuration does not load: {e}"]}
+        await ws.ui.say(f"Sending a test message through {label}...")
+        results = []
+        for user in user_names:
+            for r in await asyncio.to_thread(
+                NotificationConfig.test_all, users[user], channels=channels, timeout=TEST_TIMEOUT
+            ):
+                results.append({"user": user, "channel": r.channel, "ok": r.ok, "error": r.error})
+        if not results:
+            return {"ok": False, "errors": [f"{label} has no channel that can send yet."]}
+        lines = [
+            f"{'✓' if r['ok'] else '✗'} {r['channel']} to [user.{r['user']}]"
+            + ("" if r["ok"] else f": {r['error']}")
+            for r in results
+        ]
+        failed = not all(r["ok"] for r in results)
+        await ws.ui.say("\n".join(lines), kind="warning" if failed else "info")
+        return {
+            "ok": True,
+            "sent": True,
+            "results": results,
+            "note": (
+                "aimm showed these results to the user. Explain them in a sentence; for a "
+                "failure, say what the error likely means and offer a fix (e.g. another token "
+                "or another channel)."
+            ),
+        }
 
     async def choose_target(
         self: "_NotifyToolkit", ui: SetupUI, ws: "Workspace", name: str | None
@@ -492,6 +580,20 @@ class NotificationToolkit(_NotifyToolkit):
             ]
         return out
 
+    def testable(self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        return bool(channel_types(draft.values)) and draft.values.get("enabled") is not False
+
+    def _test_plan(
+        self: "NotificationToolkit", ws: "Workspace", name: str
+    ) -> Tuple[Dict[str, Any], List[str] | None, List[str], List[Dict[str, Any]]]:
+        """This notification only, to each user who receives it."""
+        values = ws.section("notification", name) or {}
+        cfg = copy.deepcopy(ws.user_cfg)
+        users = receivers(ws, name)
+        for user in users:
+            cfg["user"][user]["notify_with"] = [name]
+        return cfg, channel_types(values), users, [values, *(cfg["user"][u] for u in users)]
+
     def can_apply(self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
         # a channel without its user yet is still part of the config the user's checks see
         return bool(draft.values) and not self._channel_missing(draft.values)
@@ -554,6 +656,20 @@ class UserToolkit(_NotifyToolkit):
                 for f in missing_recipients(values, draft.values)
             ]
         return out
+
+    def testable(self: "UserToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        changed = set(draft.unsaved_changes()) & _TESTED_USER_FIELDS
+        return bool(changed) and draft.values.get("enabled") is not False
+
+    def _test_plan(
+        self: "UserToolkit", ws: "Workspace", name: str
+    ) -> Tuple[Dict[str, Any], List[str] | None, List[str], List[Dict[str, Any]]]:
+        """Every channel of the user."""
+        values = _active(ws, "user", name)
+        if values is None:
+            return ws.user_cfg, None, [], []
+        notifications = [ws.section("notification", n) or {} for n in received(ws, values)]
+        return ws.user_cfg, None, [name], [values, *notifications]
 
     def can_apply(self: "UserToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
         # only with notifications that are part of the config too

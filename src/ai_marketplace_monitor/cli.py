@@ -12,6 +12,9 @@ from .commands.admin import (
 from .commands.admin import (
     run_clear_cache as _run_clear_cache,
 )
+from .commands.admin import (
+    run_test_notification as _run_test_notification,
+)
 from .commands.check import run_check as _run_check
 from .commands.run import run_monitor as _run_monitor
 from .utils import CacheType
@@ -194,6 +197,20 @@ def admin(
             ),
         ),
     ] = None,
+    test_notification: Annotated[
+        bool,
+        typer.Option(
+            "--test-notification",
+            help=(
+                "Send a test message through every notification channel of every enabled user, "
+                "or of USER, and report which channels work. Nothing is recorded in the cache."
+            ),
+        ),
+    ] = False,
+    user: Annotated[
+        Optional[str],
+        typer.Argument(help="With --test-notification: the user to test (default: all users)."),
+    ] = None,
     normalize_config: Annotated[
         bool,
         typer.Option(
@@ -216,15 +233,24 @@ def admin(
     ] = False,
 ) -> None:
     """Run one-shot local administration tasks, then exit."""
-    actions = sum([clear_cache is not None, normalize_config, expand_config])
+    actions = sum([clear_cache is not None, test_notification, normalize_config, expand_config])
     if actions != 1:
         typer.echo(
-            "Choose exactly one of --clear-cache, --normalize-config, and --expand-config.",
+            "Choose exactly one of --clear-cache, --test-notification, --normalize-config, and "
+            "--expand-config.",
             err=True,
+        )
+        raise typer.Exit(1)
+    if user is not None and not test_notification:
+        typer.echo(
+            f"Unexpected argument {user}: a user is given with --test-notification.", err=True
         )
         raise typer.Exit(1)
     if clear_cache is not None:
         _run_clear_cache(clear_cache, verbose=verbose)
+        return
+    if test_notification:
+        _run_test_notification(config_files, user, verbose=verbose)
         return
     try:
         _print_normalized_config(config_files, expanded=expand_config)
