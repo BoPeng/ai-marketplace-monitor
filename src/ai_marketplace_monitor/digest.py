@@ -1,10 +1,15 @@
 """Daily digest: the searches, matches and rejected listings of the last 24 hours.
 
 A user with ``digest_at = "08:00"`` receives, every day at that (local) time, a summary of
-everything aimm did in the last 24 hours, grouped by item with a total first. The content is
-composed from the per-listing evaluation records (``evaluations.py``) and the per-hour counters of
-``utils.counter``, and sent once a day in two versions chosen by the channel type: a short
-phone version for push channels, and the full digest for email.
+everything aimm did in the 24 hours up to that time, grouped by item with a total first. The
+content is composed from the per-listing evaluation records (``evaluations.py``) and the
+per-minute search counts of ``utils.counter``, and sent once a day in two versions chosen by
+the channel type: a short phone version for push channels, and the full digest for email.
+
+Delivery: each day's digest covers the 24 hours up to that day's ``digest_at`` (its cutoff),
+whenever it is sent. Each channel remembers the cutoff of the last digest it received. A
+channel that is behind (it failed, or aimm was not running) gets one digest from its last
+cutoff (at most 7 days back) to the latest cutoff, never several stale digests in a row.
 
 Entry points:
 
@@ -19,7 +24,7 @@ import html
 import re
 import time
 from dataclasses import dataclass, field, fields
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging import Logger
 from pathlib import Path
 from typing import (
@@ -43,6 +48,10 @@ if TYPE_CHECKING:
     from .notification import NotificationConfig
 
 DIGEST_PERIOD = 24 * 60 * 60
+# a catch-up digest goes back at most this far (the minute counters are kept 8 days)
+MAX_CATCH_UP = 7 * DIGEST_PERIOD
+# a window this much longer than a day (e.g. across a daylight saving change) is still a day
+WINDOW_SLACK = 60 * 60
 # entries listed per section of the email digest; the rest are summarized as "and N more"
 MAX_ENTRIES = 20
 # matches listed by the phone digest
@@ -105,6 +114,19 @@ class Digest:
             return datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M")
 
         return f"{fmt(self.since)} to {fmt(self.until)}"
+
+    @property
+    def is_daily(self: "Digest") -> bool:
+        """Whether the digest covers a day, rather than catching up on several."""
+        return self.until - self.since <= DIGEST_PERIOD + WINDOW_SLACK
+
+    @property
+    def window(self: "Digest") -> str:
+        """``"in the last 24 hours"``, or ``"since Mon Oct 5 08:00"`` for a longer window."""
+        if self.is_daily:
+            return "in the last 24 hours"
+        since = datetime.fromtimestamp(self.since)
+        return f"since {since:%a %b} {since.day} {since:%H:%M}"
 
 
 def _count(n: int, noun: str) -> str:
@@ -214,12 +236,15 @@ def compose_digest(
     until: float | None = None,
     local_cache: Cache | None = None,
 ) -> Digest:
-    """The digest of all of aimm's activity, by default in the last 24 hours."""
+    """The digest of all of aimm's activity from ``since`` to ``until``.
+
+    By default, the 24 hours up to now.
+    """
     until = time.time() if until is None else until
     since = until - DIGEST_PERIOD if since is None else since
     return build_digest(
         load_evaluations(since, local_cache=local_cache),
-        counter.since(since, local_cache=local_cache),
+        counter.since(since, until, local_cache=local_cache),
         since,
         until,
     )
@@ -281,7 +306,8 @@ def _counts(digest: ItemDigest) -> str:
 
 
 def _no_matches(digest: Digest) -> str:
-    return f"No matches today; aimm ran {_count(digest.total.searches, 'search')}."
+    when = "today" if digest.is_daily else digest.window
+    return f"No matches {when}; aimm ran {_count(digest.total.searches, 'search')}."
 
 
 def _listings(
@@ -304,7 +330,8 @@ def _listings(
 def _phone_digest(digest: Digest, f: _Format) -> str:
     total = digest.total
     totals = (
-        f"Last 24 h: {_count(total.searches, 'search')}, "
+        f"{'Last 24 h' if digest.is_daily else 'S' + digest.window[1:]}: "
+        f"{_count(total.searches, 'search')}, "
         f"{total.evaluated:,} listings evaluated, {len(total.notified):,} notified, "
         f"{len(total.rejected):,} rejected by AI, {total.n_excluded:,} excluded"
     )
@@ -336,7 +363,7 @@ def _email_text(digest: Digest) -> str:
     f = _Format("plain_text")
     sections = [
         [
-            f"Listings evaluated in the last 24 hours ({digest.period})",
+            f"Listings evaluated {digest.window} ({digest.period})",
             f"Total: {_counts(digest.total)}",
         ]
     ]
@@ -473,14 +500,46 @@ def send_digest(
 
 
 def digest_key(user_name: str, channel: str) -> Tuple[str, str, str]:
-    """Cache key of the day a channel last received the user's digest."""
+    """Cache key of the cutoff of the last digest a channel received for a user."""
     return (CacheType.DIGEST.value, user_name, channel)
 
 
-def is_digest_time(digest_at: str, now: datetime) -> bool:
-    """Whether today's digest time has passed."""
+def latest_cutoff(digest_at: str, now: datetime) -> datetime:
+    """The latest scheduled digest time (local) that has passed: today's, or yesterday's."""
     hour, minute = (int(x) for x in digest_at.split(":")[:2])
-    return now >= now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    cutoff = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if cutoff > now:
+        cutoff -= timedelta(days=1)
+    return cutoff
+
+
+def pending_digest_windows(
+    user_config: Any,
+    notifications: Mapping[str, Any] | None = None,
+    now: datetime | None = None,
+    local_cache: Cache | None = None,
+) -> Dict[Tuple[float, float], List[str]]:
+    """The windows due on the user's digest channels, as ``{(since, until): [channel, ...]}``.
+
+    A channel is due when the latest scheduled cutoff has passed after the cutoff of the last
+    digest it received. Its window ends at the latest cutoff and starts at its last cutoff
+    (at most ``MAX_CATCH_UP`` back), or a day before if it never received a digest.
+    """
+    c = cache if local_cache is None else local_cache
+    now = datetime.now() if now is None else now
+    until = latest_cutoff(user_config.digest_at, now).timestamp()
+    windows: Dict[Tuple[float, float], List[str]] = {}
+    for name in digest_channels(user_config, notifications):
+        last = c.get(digest_key(user_config.name, name))
+        if isinstance(last, (int, float)) and last >= until:
+            continue
+        since = (
+            max(float(last), until - MAX_CATCH_UP)
+            if isinstance(last, (int, float))
+            else until - DIGEST_PERIOD
+        )
+        windows.setdefault((since, until), []).append(name)
+    return windows
 
 
 def pending_digest_channels(
@@ -489,14 +548,9 @@ def pending_digest_channels(
     now: datetime | None = None,
     local_cache: Cache | None = None,
 ) -> List[str]:
-    """The user's digest channels that have not received today's digest."""
-    c = cache if local_cache is None else local_cache
-    today = (datetime.now() if now is None else now).strftime("%Y-%m-%d")
-    return [
-        name
-        for name in digest_channels(user_config, notifications)
-        if c.get(digest_key(user_config.name, name)) != today
-    ]
+    """The user's digest channels that have not received the latest scheduled digest."""
+    windows = pending_digest_windows(user_config, notifications, now, local_cache)
+    return [name for names in windows.values() for name in names]
 
 
 def send_due_digest(
@@ -508,37 +562,33 @@ def send_due_digest(
 ) -> bool:
     """Send the user's digest to the channels it is due on; whether it was sent to any.
 
-    The digest is due once today's digest time has passed, on each channel that has not
-    received it today. So a restart or a config change does not send it twice, a digest
-    missed while aimm was not running is sent on the next start, and a channel that failed
-    is tried again (on the next start, or when the jobs are scheduled again).
+    The job runs at ``digest_at`` and whenever the jobs are scheduled (start, config change),
+    so a restart does not send a digest twice, a digest missed while aimm was not running is
+    sent on the next start, and a channel that failed is tried again with the same window.
     """
     if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
         return False
     c = cache if local_cache is None else local_cache
-    now = datetime.now() if now is None else now
-    if not is_digest_time(user_config.digest_at, now):
-        return False
-    pending = pending_digest_channels(user_config, notifications, now, local_cache)
-    if not pending:
+    windows = pending_digest_windows(user_config, notifications, now, local_cache)
+    if not windows:
         if logger and not digest_channels(user_config, notifications):
             logger.warning(
                 f"""{hilight("[Digest]", "fail")} No daily digest sent to {hilight(user_config.name)}: the user has no notification channel for the digest."""
             )
         return False
 
-    digest = compose_digest(until=now.timestamp(), local_cache=local_cache)
-    results = send_digest(user_config, digest, notifications, logger=logger, channels=pending)
-    # remember the day per channel, so that only the failed ones are tried again
-    for name, sent in results.items():
-        if sent:
-            c.set(
-                digest_key(user_config.name, name),
-                now.strftime("%Y-%m-%d"),
-                tag=CacheType.DIGEST.value,
-            )
-    sent_with = [name for name, sent in results.items() if sent]
-    failed = [name for name, sent in results.items() if not sent]
+    sent_with: List[str] = []
+    failed: List[str] = []
+    for (since, until), names in windows.items():
+        digest = compose_digest(since, until, local_cache=local_cache)
+        results = send_digest(user_config, digest, notifications, logger=logger, channels=names)
+        for name, sent in results.items():
+            if sent:
+                # the window this channel has received, so that it is not sent again
+                c.set(digest_key(user_config.name, name), until, tag=CacheType.DIGEST.value)
+                sent_with.append(name)
+            else:
+                failed.append(name)
     if logger and sent_with:
         logger.info(
             f"""{hilight("[Digest]", "succ")} Sent the daily digest to {hilight(user_config.name)} with {", ".join(sent_with)}."""

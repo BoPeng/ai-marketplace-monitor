@@ -303,12 +303,14 @@ DAILY_COUNTER_EXPIRE = 8 * 24 * 60 * 60
 DAILY_COUNTERS = (CounterItem.SEARCH_PERFORMED,)
 
 
-def counter_period(when: float | None = None) -> str:
-    """The minute a daily counter is kept under, e.g. ``"2026-10-08 07:42"``.
+def counter_minute(when: float | None = None) -> int:
+    """The minute a daily counter is kept under, in minutes since the epoch (UTC).
 
-    Counters are kept per minute so that the digest adds up the last 24 hours to the minute.
+    Counters are kept per minute so that the digest adds up its window to the minute. Epoch
+    minutes are unambiguous, unlike local times, which repeat an hour when daylight saving
+    time ends.
     """
-    return time.strftime("%Y-%m-%d %H:%M", time.localtime(when))
+    return int((time.time() if when is None else when) // 60)
 
 
 class Counter:
@@ -331,7 +333,7 @@ class Counter:
         # the same count for this minute, for the daily digest; incr keeps the expiry
         daily_key = (
             CacheType.COUNTERS_DAILY.value,
-            counter_period(),
+            counter_minute(),
             counter_key.value,
             item_name,
         )
@@ -341,21 +343,30 @@ class Counter:
             c.set(daily_key, by, expire=DAILY_COUNTER_EXPIRE, tag=CacheType.COUNTERS_DAILY.value)
 
     def since(
-        self: "Counter", since: float, local_cache: Cache | None = None
+        self: "Counter",
+        since: float,
+        until: float | None = None,
+        local_cache: Cache | None = None,
     ) -> Dict[str, Dict[str, int]]:
-        """Counts since a time, as ``{item_name: {counter_key.value: count}}``.
+        """Counts from ``since`` to ``until``, as ``{item_name: {counter_key.value: count}}``.
 
-        Counts from the minute of ``since`` on are included, so the error is under a minute.
+        The window is taken to the minute: the minutes that start from the minute of ``since``
+        up to before ``until``. Windows that meet at a whole minute, like the digest cutoffs,
+        do not overlap.
         """
         c = cache if local_cache is None else local_cache
-        first = counter_period(since)
+        first = counter_minute(since)
+        # the first minute that starts at or after `until`
+        last = None if until is None else -int(-until // 60)
         counts: Dict[str, Dict[str, int]] = {}
         for key in c.iterkeys():
             if not (
                 isinstance(key, tuple)
                 and len(key) == 4
                 and key[0] == CacheType.COUNTERS_DAILY.value
+                and isinstance(key[1], int)
                 and key[1] >= first
+                and (last is None or key[1] < last)
             ):
                 continue
             value = c.get(key)

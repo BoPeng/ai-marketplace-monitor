@@ -5,6 +5,7 @@ import types
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
+from zoneinfo import ZoneInfo
 
 import pytest
 import schedule  # type: ignore
@@ -31,7 +32,7 @@ from ai_marketplace_monitor.utils import (
     CacheType,
     CounterItem,
     counter,
-    counter_period,
+    counter_minute,
 )
 
 NOW = datetime(2026, 10, 8, 9, 30).timestamp()
@@ -177,14 +178,14 @@ def test_phone_digest() -> None:
 def test_daily_counters(temp_cache: Cache) -> None:
     counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", local_cache=temp_cache)
     counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", 2, local_cache=temp_cache)
-    # only the counters the digest uses are kept per hour
+    # only the counters the digest uses are kept per minute
     counter.increment(CounterItem.LISTING_EXAMINED, "gopro", 5, local_cache=temp_cache)
     assert [k[2] for k in temp_cache.iterkeys() if k[0] == CacheType.COUNTERS_DAILY.value] == [
         CounterItem.SEARCH_PERFORMED.value
     ]
     key = (
         CacheType.COUNTERS_DAILY.value,
-        counter_period(),
+        counter_minute(),
         CounterItem.SEARCH_PERFORMED.value,
         "gopro",
     )
@@ -196,7 +197,7 @@ def test_daily_counters(temp_cache: Cache) -> None:
         == 3
     )
     # a minute older than 24 hours is not counted
-    old = (CacheType.COUNTERS_DAILY.value, counter_period(time.time() - 25 * 3600), *key[2:])
+    old = (CacheType.COUNTERS_DAILY.value, counter_minute(time.time() - 25 * 3600), *key[2:])
     temp_cache.set(old, 100)
     assert counter.since(time.time() - dg.DIGEST_PERIOD, local_cache=temp_cache) == {
         "gopro": {CounterItem.SEARCH_PERFORMED.value: 3}
@@ -214,15 +215,37 @@ def test_search_counts_cover_the_last_24_hours_to_the_minute(temp_cache: Cache) 
     ):
         key = (
             CacheType.COUNTERS_DAILY.value,
-            counter_period(when.timestamp()),
+            counter_minute(when.timestamp()),
             CounterItem.SEARCH_PERFORMED.value,
             "gopro",
         )
         temp_cache.set(key, n)
-    assert counter_period(since) == "2026-10-07 10:30"
     assert counter.since(since, local_cache=temp_cache) == {
         "gopro": {CounterItem.SEARCH_PERFORMED.value: 3}
     }
+    # up to, not including, the minute of `until`: windows that meet do not overlap
+    until = datetime(2026, 10, 8, 10, 30).timestamp()
+    assert counter.since(since, until, local_cache=temp_cache) == {
+        "gopro": {CounterItem.SEARCH_PERFORMED.value: 1}
+    }
+
+
+def test_search_counts_when_daylight_saving_time_ends(
+    monkeypatch: pytest.MonkeyPatch, temp_cache: Cache
+) -> None:
+    """01:30 happens twice in Chicago on 2026-11-01; the two are counted apart."""
+    chicago = ZoneInfo("America/Chicago")
+    first = datetime(2026, 11, 1, 1, 30, tzinfo=chicago).timestamp()  # CDT
+    second = datetime(2026, 11, 1, 1, 30, fold=1, tzinfo=chicago).timestamp()  # CST
+    assert second - first == 60 * 60
+    for when, n in ((first, 1), (second, 2)):
+        monkeypatch.setattr(time, "time", lambda when=when: when)
+        counter.increment(CounterItem.SEARCH_PERFORMED, "gopro", n, local_cache=temp_cache)
+    monkeypatch.undo()
+    searches = CounterItem.SEARCH_PERFORMED.value
+    assert counter.since(first, local_cache=temp_cache) == {"gopro": {searches: 3}}
+    assert counter.since(first, second, local_cache=temp_cache) == {"gopro": {searches: 1}}
+    assert counter.since(first + 30 * 60, local_cache=temp_cache) == {"gopro": {searches: 2}}
 
 
 def test_broken_cache_has_no_records(tmp_path: Path) -> None:
@@ -290,7 +313,7 @@ def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
     # searches more than 24 hours ago are not counted
     stale = (
         CacheType.COUNTERS_DAILY.value,
-        counter_period(now - 30 * HOUR),
+        counter_minute(now - 30 * HOUR),
         CounterItem.SEARCH_PERFORMED.value,
         "bike",
     )
@@ -481,26 +504,47 @@ def test_send_digest_version_by_channel_type(sent: Sent) -> None:
     assert by_channel["telegram"][1] == dg.render_phone_digest(digest, "plain_text")
 
 
-def test_send_due_digest_once(sent: Sent, temp_cache: Cache) -> None:
+Window = Tuple[float, float]
+
+
+@pytest.fixture
+def windows(monkeypatch: pytest.MonkeyPatch) -> List[Window]:
+    """The (since, until) of each digest composed for sending."""
+    composed: List[Window] = []
+    compose = dg.compose_digest
+
+    def record(since: float, until: float, local_cache: Cache | None = None) -> dg.Digest:
+        composed.append((since, until))
+        return compose(since, until, local_cache=local_cache)
+
+    monkeypatch.setattr(dg, "compose_digest", record)
+    return composed
+
+
+DAY1 = datetime(2026, 10, 8, 8, 0)
+CUTOFF1 = DAY1.timestamp()
+CUTOFF2 = (DAY1 + timedelta(days=1)).timestamp()
+CUTOFF0 = (DAY1 - timedelta(days=1)).timestamp()
+
+
+def test_send_due_digest_once(sent: Sent, windows: List[Window], temp_cache: Cache) -> None:
     config = user()
-    morning = datetime(2026, 10, 8, 7, 59)
-    # not due before the digest time
-    assert not dg.send_due_digest(config, now=morning, local_cache=temp_cache)
-    # due: sent once
-    assert dg.send_due_digest(
-        config, now=morning.replace(hour=8, minute=0), local_cache=temp_cache
-    )
-    assert len(sent) == 2
-    assert temp_cache.get(dg.digest_key("me", "pushover")) == "2026-10-08"
-    assert temp_cache.get(dg.digest_key("me", "telegram")) == "2026-10-08"
+    # due at 08:00: both channels get the 24 hours up to 08:00
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache)
+    assert sorted(channel for channel, _, _ in sent) == ["pushover", "telegram"]
+    assert windows == [(CUTOFF0, CUTOFF1)]
+    assert temp_cache.get(dg.digest_key("me", "pushover")) == CUTOFF1
     # a restart or a config change runs the job again: not sent again
-    assert not dg.send_due_digest(config, now=morning.replace(hour=11), local_cache=temp_cache)
+    for later in (DAY1.replace(hour=11), DAY1 + timedelta(hours=23, minutes=59)):
+        assert not dg.send_due_digest(config, now=later, local_cache=temp_cache)
     assert len(sent) == 2
-    # missed while aimm was down the next day: sent once on the next start
-    next_day = morning + timedelta(days=1, hours=5)
+    # missed while aimm was down the next morning: sent once on the next start, with the
+    # window of that day's digest
+    next_day = DAY1 + timedelta(days=1, hours=5)
     assert dg.send_due_digest(config, now=next_day, local_cache=temp_cache)
     assert not dg.send_due_digest(config, now=next_day, local_cache=temp_cache)
     assert len(sent) == 4
+    assert windows == [(CUTOFF0, CUTOFF1), (CUTOFF1, CUTOFF2)]
 
 
 def test_send_due_digest_with_sections(
@@ -514,31 +558,80 @@ def test_send_due_digest_with_sections(
     assert [channel for channel, _, _ in sent] == ["telegram"]
 
 
+def fail_telegram(monkeypatch: pytest.MonkeyPatch, failing: bool) -> None:
+    telegram = dg.channel_classes()["telegram"]
+    if failing:
+
+        def fail(*args: Any, **kwargs: Any) -> bool:
+            raise RuntimeError("Telegram is down")
+
+        monkeypatch.setattr(telegram, "send_message", fail)
+    else:
+        monkeypatch.setattr(
+            telegram, "send_message", dg.channel_classes()["pushover"].send_message
+        )
+
+
 def test_failed_channel_is_retried_alone(
-    monkeypatch: pytest.MonkeyPatch, sent: Sent, temp_cache: Cache
+    monkeypatch: pytest.MonkeyPatch, sent: Sent, windows: List[Window], temp_cache: Cache
 ) -> None:
     config = user()
-    now = datetime(2026, 10, 8, 9)
-    telegram = dg.channel_classes()["telegram"]
-    working = telegram.send_message
-
-    def fail(*args: Any, **kwargs: Any) -> bool:
-        raise RuntimeError("Telegram is down")
-
-    # Pushover succeeds, Telegram fails: only Pushover is done for today
-    monkeypatch.setattr(telegram, "send_message", fail)
+    now = DAY1.replace(hour=9)
+    # Pushover succeeds, Telegram fails: only Pushover has today's digest
+    fail_telegram(monkeypatch, True)
     assert dg.send_due_digest(config, now=now, local_cache=temp_cache)
     assert [channel for channel, _, _ in sent] == ["pushover"]
     assert temp_cache.get(dg.digest_key("me", "telegram")) is None
     assert dg.pending_digest_channels(config, now=now, local_cache=temp_cache) == ["telegram"]
-    # the next run (a restart or a config change) tries Telegram again, and only Telegram
-    monkeypatch.setattr(telegram, "send_message", working)
-    later = now + timedelta(hours=1)
+    # retried later the same day: only Telegram, with the same window (not up to now)
+    fail_telegram(monkeypatch, False)
+    later = now + timedelta(hours=3)
     assert dg.send_due_digest(config, now=later, local_cache=temp_cache)
     assert [channel for channel, _, _ in sent] == ["pushover", "telegram"]
-    # all channels have it: nothing is sent again today
+    assert windows == [(CUTOFF0, CUTOFF1), (CUTOFF0, CUTOFF1)]
+    # all channels have it: nothing is sent again
     assert not dg.send_due_digest(config, now=later, local_cache=temp_cache)
     assert len(sent) == 2
+
+
+def test_channel_behind_gets_one_catch_up_digest(
+    monkeypatch: pytest.MonkeyPatch, sent: Sent, windows: List[Window], temp_cache: Cache
+) -> None:
+    config = user()
+    # both channels received the digest of the day before
+    assert dg.send_due_digest(config, now=DAY1 - timedelta(days=1), local_cache=temp_cache)
+    fail_telegram(monkeypatch, True)
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache)
+    fail_telegram(monkeypatch, False)
+    # retried only after the next day's digest time: Pushover gets the new day, Telegram one
+    # digest covering both days
+    next_day = DAY1 + timedelta(days=1, hours=1)
+    assert dg.send_due_digest(config, now=next_day, local_cache=temp_cache)
+    assert windows[2:] == [(CUTOFF1, CUTOFF2), (CUTOFF0, CUTOFF2)]
+    messages = {channel: message for channel, _, message in sent[3:]}
+    assert messages["pushover"].startswith("Last 24 h: ")
+    since = datetime.fromtimestamp(CUTOFF0)
+    assert messages["telegram"].startswith(f"Since {since:%a %b} {since.day} 08:00: ")
+    assert not dg.send_due_digest(config, now=next_day, local_cache=temp_cache)
+    assert len(sent) == 5
+
+
+def test_digest_after_an_outage_covers_at_most_7_days(
+    sent: Sent, windows: List[Window], temp_cache: Cache
+) -> None:
+    config = user()
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache)
+    # aimm was down for 10 days: one digest per channel, of the last 7 days
+    back = DAY1 + timedelta(days=10, hours=2)
+    assert dg.send_due_digest(config, now=back, local_cache=temp_cache)
+    cutoff = (DAY1 + timedelta(days=10)).timestamp()
+    assert windows[1:] == [(cutoff - dg.MAX_CATCH_UP, cutoff)]
+    assert len(sent) == 4
+    text, html = dg.render_email_digest(dg.compose_digest(cutoff - dg.MAX_CATCH_UP, cutoff))
+    assert text.startswith("Listings evaluated since ") and "No matches since " in text
+    assert "Listings evaluated since " in html
+    assert not dg.send_due_digest(config, now=back, local_cache=temp_cache)
+    assert len(sent) == 4
 
 
 def test_failed_digest_is_retried(
