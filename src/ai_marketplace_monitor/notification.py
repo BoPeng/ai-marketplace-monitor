@@ -6,7 +6,18 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from logging import Logger
-from typing import TYPE_CHECKING, Any, ClassVar, DefaultDict, Deque, Iterator, List, Optional, Tuple, Type
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    DefaultDict,
+    Deque,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+)
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
