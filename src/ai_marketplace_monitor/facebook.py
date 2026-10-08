@@ -457,11 +457,6 @@ class FacebookMarketplace(Marketplace):
                 waiting + "Click Open browser in the web UI (or Browser in its header) and "
                 "complete it there. Searches start once you are logged in."
             )
-        if self.headless:
-            return (
-                waiting + "aimm runs its browser hidden (--headless), so you cannot complete it: "
-                "stop aimm and start it without --headless."
-            )
         return (
             waiting + "Complete it in the browser window aimm opened. Searches start once you "
             "are logged in."

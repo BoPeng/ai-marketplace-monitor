@@ -138,4 +138,4 @@ Common Issues
    Check your PushBullet token and ensure the app is installed on your phone.
 
 **Browser doesn't open**
-   Try running without ``--headless`` flag to see the browser window.
+   Run ``playwright install`` to install the browser aimm uses.

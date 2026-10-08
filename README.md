@@ -217,7 +217,7 @@ What happens next:
 
 A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). Its **⏸** button pauses searches and **▶** resumes them. `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
 
-With `--headless`, the browser window is hidden, so you cannot complete a CAPTCHA: start aimm without it whenever Facebook asks you to verify the login.
+aimm always shows its browser, because Facebook may ask you to complete a CAPTCHA or a security code. To run aimm on a server, a NAS or another machine without a screen, use the [Docker image](#run-with-docker): it has a virtual display, and the web UI shows you its browser when you need it.
 
 ### Run with Docker
 

@@ -20,11 +20,10 @@ Run with a custom configuration file:
 
     $ aimm run --config /path/to/your/config.toml
 
-Run in headless mode (without browser window):
-
-.. code-block:: console
-
-    $ aimm run --headless
+aimm always shows its browser window, because Facebook may ask you to complete a CAPTCHA or a
+security code while logging in. To run aimm on a machine without a screen (a server or a NAS),
+use the Docker image: it has a virtual display, and its web UI shows you the browser when you
+need it.
 
 Check Individual Listings
 -------------------------

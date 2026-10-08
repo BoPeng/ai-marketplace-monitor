@@ -51,14 +51,12 @@ class MarketplaceMonitor:
     def __init__(
         self: "MarketplaceMonitor",
         config_files: List[Path] | None,
-        headless: bool | None,
         logger: Logger | None,
     ) -> None:
         self.config_files = resolve_config_files(config_files)
         #
         self.config: Config | None = None
         self.config_hash: str | None = None
-        self.headless = headless
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
@@ -107,7 +105,9 @@ class MarketplaceMonitor:
             try:
                 if self.logger:
                     self.logger.debug(f"Attempting to launch {browser_name} browser...")
-                browser = browser_type.launch(headless=self.headless)
+                browser = browser_type.launch(
+                    headless=False
+                )  # the user may need to complete a login check
                 if self.logger:
                     self.logger.info(
                         f"""{hilight("[Browser]", "info")} Successfully launched {browser_name} browser.""",
@@ -337,7 +337,6 @@ class MarketplaceMonitor:
                 marketplace = marketplace_class(
                     marketplace_config.name, self.browser, self.keyboard_monitor, self.logger
                 )
-                marketplace.headless = bool(self.headless)
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
             # Configure might have been changed
@@ -622,7 +621,6 @@ class MarketplaceMonitor:
                     marketplace = marketplace_class(
                         marketplace_config.name, None, None, self.logger
                     )
-                    marketplace.headless = bool(self.headless)
                     self.active_marketplaces[marketplace_config.name] = marketplace
 
                 # Configure might have been changed

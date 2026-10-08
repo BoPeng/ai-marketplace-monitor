@@ -44,13 +44,12 @@ Features
 - **Hot Reloading**: Automatic restart when configuration changes are detected
 - **Keyword Logic**: Complex boolean search expressions with AND, OR, NOT operators
 - **Multi-Language**: Support for Spanish, Chinese, and extensible translation system
-- **Proxy Support**: Anonymous searching with proxy server integration
+- **Proxy Support**: Route searches through a proxy server
 
 🔒 **Security & Privacy**
 -------------------------
 
 - **Environment Variables**: Keep sensitive data out of config files
-- **Anonymous Mode**: Search without logging into Facebook
 - **Proxy Integration**: Route traffic through VPN/proxy services
 - **Local AI**: Use self-hosted Ollama models to keep data private
 - **Cache Management**: Control what data is stored locally

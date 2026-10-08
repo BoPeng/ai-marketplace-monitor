@@ -62,7 +62,7 @@ def test_root_command_without_args_defaults_to_run(monkeypatch: pytest.MonkeyPat
     result = runner.invoke(cli.app, [])
 
     assert result.exit_code == 0
-    assert calls == [(None, False, False, True, "127.0.0.1", 8467, 2000)]
+    assert calls == [(None, False, True, "127.0.0.1", 8467, 2000)]
 
 
 def test_root_command_without_subcommand_accepts_run_options(
@@ -80,7 +80,6 @@ def test_root_command_without_subcommand_accepts_run_options(
         [
             "--config",
             "custom.toml",
-            "--headless",
             "--verbose",
             "--no-webui",
             "--webui-host",
@@ -93,7 +92,7 @@ def test_root_command_without_subcommand_accepts_run_options(
     )
 
     assert result.exit_code == 0
-    assert calls == [([Path("custom.toml")], True, True, False, "127.0.0.2", 9090, 50)]
+    assert calls == [([Path("custom.toml")], True, False, "127.0.0.2", 9090, 50)]
 
 
 def test_run_command_does_not_expose_one_shot_options() -> None:
@@ -107,7 +106,7 @@ def test_run_command_does_not_expose_one_shot_options() -> None:
     run_command = next(command for command in cli.app.registered_commands if command.name == "run")
     assert run_command.callback is not None
     run_params = set(inspect.signature(run_command.callback).parameters)
-    assert "headless" in run_params
+    assert "headless" not in run_params  # aimm needs a visible browser for login checks
     assert "webui" in run_params
     assert "clear_cache" not in run_params
     assert "normalize_config" not in run_params

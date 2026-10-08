@@ -17,7 +17,6 @@ from .common import (
 
 def run_monitor(
     config_files: List[Path] | None,
-    headless: bool | None,
     verbose: bool | None,
     webui: bool,
     webui_host: str,
@@ -39,7 +38,7 @@ def run_monitor(
         if webui and not config_files and not (amm_home / "config.toml").exists():
             seed_default_config(amm_home / "config.toml", logger)
 
-        monitor = MarketplaceMonitor(config_files, headless, logger)
+        monitor = MarketplaceMonitor(config_files, logger)
         if webui and log_broadcast_handler is not None:
             from ..webui.server import WebUIConfig, start_webui
 

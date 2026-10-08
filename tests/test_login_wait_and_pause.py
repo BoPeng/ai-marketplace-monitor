@@ -87,15 +87,14 @@ def test_wait_for_login_waits_until_facebook_has_logged_in(
 
 
 @pytest.mark.parametrize(
-    "docker, headless, where",
+    "docker, where",
     [
-        ("1", False, "Click Open browser in the web UI"),
-        (None, False, "in the browser window aimm opened"),
-        (None, True, "start it without --headless"),
+        ("1", "Click Open browser in the web UI"),
+        (None, "in the browser window aimm opened"),
     ],
 )
 def test_the_login_hint_says_where_to_finish_logging_in(
-    monkeypatch: pytest.MonkeyPatch, docker: str | None, headless: bool, where: str
+    monkeypatch: pytest.MonkeyPatch, docker: str | None, where: str
 ) -> None:
     if docker:
         monkeypatch.setenv("AIMM_DOCKER", docker)
@@ -110,7 +109,6 @@ def test_the_login_hint_says_where_to_finish_logging_in(
 
     page = HintPage(polls_to_login=2)
     marketplace = _marketplace(page)
-    marketplace.headless = headless
     marketplace.wait_for_login()
     assert where in hints[0] and "CAPTCHA" in hints[0]
     assert control.status()["login_hint"] == ""  # only while waiting
