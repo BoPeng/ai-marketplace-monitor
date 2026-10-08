@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The web UI's Configure pane has one **Start Chat** / **End Chat** button instead of **Start** and **Cancel**, which did not say that they start and stop the configuration chat (not a search). The section box reads "section (optional)".
+
 ### Removed
 - The `--headless` option of `aimm`, `aimm run` and `aimm check`. aimm needs a visible browser so that you can complete Facebook's login checks (CAPTCHA, security code), which a hidden browser cannot show. To run aimm on a machine without a screen, use the Docker image: it has a virtual display, and its web UI shows you the browser.
 - The documentation for searching without logging in to Facebook, which 0.10.8 no longer allows.
+
+### Fixed
+- Ending a configuration chat while it set up an AI service reported "No AI service is configured yet." and "Stopped with errors." It now reports "Chat ended.", and the web UI says so whichever step the chat was at.
 
 ## [0.10.8] - 2026-10-07
 

@@ -646,10 +646,15 @@
   // Configure chat — JSON SetupUI over WebSocket
   // ---------------------------------------------------------------
 
+  // One button: "Start Chat" opens a configuration chat, "End Chat" ends it.
   const setChatControls = (active, waiting = false) => {
     state.chatActive = active;
-    $("#chat-start").disabled = active;
-    $("#chat-cancel").disabled = !active;
+    const toggle = $("#chat-toggle");
+    toggle.disabled = false;
+    toggle.textContent = active ? "End Chat" : "Start Chat";
+    toggle.title = active
+      ? "End the chat; changes already saved stay saved"
+      : "Start a chat with the configuration assistant";
     $("#chat-input").disabled = !active || waiting;
     $("#chat-send").disabled = !active || waiting;
   };
@@ -755,7 +760,7 @@
         const ok = msg.exit_code === 0;
         appendChatMessage(
           "system",
-          msg.cancelled ? "Cancelled." : ok ? "Finished." : "Stopped with errors.",
+          msg.cancelled ? "Chat ended." : ok ? "Finished." : "Stopped with errors.",
           ok ? "success" : "error"
         );
         clearChatPrompt();
@@ -777,12 +782,12 @@
     };
   };
 
-  wireClick("#chat-start", startConfigureChat);
-  wireClick("#chat-cancel", () => {
+  const endConfigureChat = () => {
     const ws = state.chatWs;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "cancel" }));
       setChatControls(true, true);
+      $("#chat-toggle").disabled = true; // until the server confirms the chat ended
       setTimeout(() => {
         if (state.chatWs === ws && ws.readyState === WebSocket.OPEN) {
           ws.close();
@@ -793,6 +798,11 @@
     if (ws) {
       ws.close();
     }
+  };
+
+  wireClick("#chat-toggle", () => {
+    if (state.chatActive) endConfigureChat();
+    else startConfigureChat();
   });
   $("#chat-form").addEventListener("submit", (e) => {
     e.preventDefault();

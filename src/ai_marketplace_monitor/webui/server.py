@@ -518,6 +518,7 @@ def create_app(
 
         await websocket.accept()
         config_paths = list(config.config_files)
+        ended_by_user: List[bool] = []  # End Chat: report "ended", however the flow returns
 
         def config_stamp() -> List[int | None]:
             return [p.stat().st_mtime_ns if p.exists() else None for p in config_paths]
@@ -550,6 +551,8 @@ def create_app(
                 raise SetupClosedError from e
             if not isinstance(payload, dict):
                 return {"type": "invalid", "value": payload}
+            if payload.get("type") in ("cancel", "close"):
+                ended_by_user.append(True)
             return payload
 
         ui = JsonSetupUI(send, receive, monitor_running=True)  # the web UI runs in the monitor
@@ -560,7 +563,10 @@ def create_app(
                 exit_code = await configure_section(ui, config_paths, section)
             else:
                 exit_code = await configure_front_door(ui, config_paths)
-            await send_if_open({"type": "done", "exit_code": exit_code})
+            done: Dict[str, Any] = {"type": "done", "exit_code": exit_code}
+            if ended_by_user:
+                done["cancelled"] = True
+            await send_if_open(done)
         except SetupClosedError:
             await send_if_open({"type": "done", "exit_code": 0, "cancelled": True})
         except ConfigureAddressError as e:

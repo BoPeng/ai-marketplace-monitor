@@ -148,4 +148,5 @@ def test_configure_websocket_cancel_sends_done(
         prompt = ws.receive_json()
         assert prompt["type"] == "prompt"
         ws.send_json({"type": "cancel"})
-        assert ws.receive_json() == {"type": "done", "exit_code": 0}
+        # End Chat is reported as ended, even when the flow handles the end and returns
+        assert ws.receive_json() == {"type": "done", "exit_code": 0, "cancelled": True}
