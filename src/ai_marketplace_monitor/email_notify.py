@@ -22,7 +22,7 @@ from .notification import (
     NotificationStatus,
     notification_field,
 )
-from .utils import fetch_with_retry, hilight, resize_image_data
+from .utils import fetch_image, hilight, resize_image_data
 
 if TYPE_CHECKING:
     from .digest import Digest
@@ -233,7 +233,7 @@ class EmailNotificationConfig(NotificationConfig):
         # Process images first
         for listing in listings:
             if listing.image:
-                result = fetch_with_retry(listing.image, logger=logger)
+                result = fetch_image(listing.image, logger=logger)
                 if result:
                     image_data, content_type = result
                     image_data = resize_image_data(image_data)

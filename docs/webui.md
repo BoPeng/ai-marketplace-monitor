@@ -59,7 +59,9 @@ The **⚙** button at the right end of the header opens Settings:
   **Update** button installs it in the container and restarts aimm; elsewhere, it shows the
   upgrade command and a link to the changelog.
 - **Notifications**: one row per user with a **Send test** button. aimm sends a sample
-  listing titled "aimm test notification" through each of the user's channels, once, and
+  listing titled "aimm test notification" through each of the user's channels, once, in
+  the channel's real format (HTML email with a photo, text or Markdown for chat and phone),
+  and
   shows ✓ or ✗ with the error for each channel. It is a real message (metered channels such
   as UnitySVC SMS may cost a little), but nothing is recorded in the cache. This is the same
   test as `aimm admin --test-notification`.

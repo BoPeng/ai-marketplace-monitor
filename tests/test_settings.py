@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import smtplib
 from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Tuple
 
 import pytest
+import requests  # type: ignore
 from diskcache import Cache  # type: ignore
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
@@ -16,9 +17,17 @@ from ai_marketplace_monitor.commands import admin
 from ai_marketplace_monitor.configure.notify import NotificationToolkit, UserToolkit
 from ai_marketplace_monitor.configure.tools import ToolExecutor
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
-from ai_marketplace_monitor.notification import NotificationConfig
+from ai_marketplace_monitor.notification import (
+    SAMPLE_IMAGE,
+    TEST_LISTING_URL,
+    NotificationConfig,
+    NotificationStatus,
+    sample_listing,
+)
 from ai_marketplace_monitor.ntfy import NtfyNotificationConfig
 from ai_marketplace_monitor.pushbullet import PushbulletNotificationConfig
+from ai_marketplace_monitor.unitysvc_notify import UnitySVCNotificationConfig
+from ai_marketplace_monitor.user import UserConfig
 from ai_marketplace_monitor.utils import CacheType
 from ai_marketplace_monitor.webui import server as webui_server
 from ai_marketplace_monitor.webui.auth import AuthConfig, hash_password
@@ -414,3 +423,84 @@ async def test_configure_tests_only_offered_sections(tmp_path: Path, sent: List[
     out = await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
     assert out["ok"] is False and "No test is offered" in out["errors"][0]
     assert sent == []
+
+
+# --- the test looks like a real notification --------------------------------------------------
+@pytest.mark.parametrize("message_format", ["plain_text", "markdown", "html"])
+def test_a_push_test_is_a_real_notification(
+    message_format: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    messages: List[Tuple[str, str]] = []
+
+    def capture(self: Any, title: str, message: str, logger: Any = None) -> bool:
+        messages.append((title, message))
+        return True
+
+    monkeypatch.setattr(UnitySVCNotificationConfig, "send_message", capture)
+    # a user, as the monitor notifies it
+    config = UserConfig(name="me", unitysvc_api_key="svcpass_test", message_format=message_format)
+    [result] = NotificationConfig.test_all(config)
+    assert result.ok
+    # what aimm sends for the same listing when a search finds it (User.notify)
+    listing, rating = sample_listing()
+    assert NotificationConfig.notify_all(
+        config, [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
+    )
+    test, real = messages
+    assert test == real
+    title, body = test
+    assert title == "Found 1 new test notification from aimm"
+    for part in ("aimm test notification", "$100", "Houston, TX", "not a real listing"):
+        assert part in body
+    assert "Great deal (5)" in body and rating.comment in body
+    assert TEST_LISTING_URL in body
+
+
+def test_an_email_test_is_the_real_email_with_its_photo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: List[Any] = []
+
+    class SMTP(FakeSMTP):
+        def starttls(self, **kwargs: Any) -> None:
+            pass
+
+        def login(self, *args: Any) -> None:
+            pass
+
+        def send_message(self, msg: Any) -> None:
+            sent_messages.append(msg)
+
+    def no_download(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("the sample photo is bundled, not downloaded")
+
+    monkeypatch.setattr(smtplib, "SMTP", SMTP)
+    monkeypatch.setattr(requests, "get", no_download)
+    config = UserConfig(name="me", email=["me@example.com"], smtp_password="x")
+    [result] = NotificationConfig.test_all(config)
+    assert result.ok, result.error
+    listing, rating = sample_listing()
+    assert NotificationConfig.notify_all(
+        config, [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
+    )
+    test, real = sent_messages
+    assert test["Subject"] == real["Subject"] == "Found 1 new test notification listing from aimm"
+    [image] = [p for p in test.walk() if p.get_content_maintype() == "image"]
+    assert image["Content-ID"] == f"<image_{hash(listing.image)}>"
+    assert image.get_payload(decode=True)[:2] == b"\xff\xd8"  # a JPEG
+    html = next(p for p in test.walk() if p.get_content_type() == "text/html")
+    text = html.get_payload(decode=True).decode()
+    assert f"cid:image_{hash(listing.image)}" in text
+    for part in ("aimm test notification", "Houston, TX", "not a real listing", "★"):
+        assert part in text
+    real_html = next(p for p in real.walk() if p.get_content_type() == "text/html")
+    assert real_html.get_payload(decode=True).decode() == text
+
+
+def test_only_bundled_files_are_read_as_photos(tmp_path: Path) -> None:
+    assert SAMPLE_IMAGE.is_file() and SAMPLE_IMAGE.stat().st_size < 20_000
+    data = utils.fetch_image(SAMPLE_IMAGE.as_uri())
+    assert data is not None and data[1] == "image/jpeg"
+    secret = tmp_path / "secret.jpg"
+    secret.write_bytes(b"not for email")
+    assert utils.fetch_image(secret.as_uri()) is None

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, DefaultDict, Deque, Iterator, L
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
-from .utils import BaseConfig, hilight
+from .utils import PACKAGE_DIR, BaseConfig, hilight
 
 if TYPE_CHECKING:
     from .digest import Digest
@@ -44,6 +44,7 @@ def fields_with_role(cls: type, role: str) -> Tuple[str, ...]:
 # seconds a test message may take on one channel before it is reported as failed
 TEST_TIMEOUT = 60
 TEST_LISTING_URL = "https://github.com/BoPeng/ai-marketplace-monitor"
+SAMPLE_IMAGE = PACKAGE_DIR / "sample_listing.jpg"
 
 
 @dataclass
@@ -58,24 +59,32 @@ class ChannelResult:
 def sample_listing() -> Tuple[Listing, AIResponse]:
     """A sample listing, clearly marked as a test, that links to the aimm repository.
 
-    It has no photo, so an email test downloads nothing.
+    Every part of a real notification is filled in, so that a test shows the channel's real
+    layout. Its photo is bundled with aimm: an email test attaches it as it attaches the photo
+    of a real listing, without downloading anything.
     """
     listing = Listing(
         marketplace="aimm",
         name="test notification",
         id="aimm-test-notification",
         title="aimm test notification",
-        image="",
-        price="$0",
+        image=SAMPLE_IMAGE.as_uri(),
+        price="$100",
         post_url=TEST_LISTING_URL,
-        location="aimm",
-        seller="aimm",
-        condition="",
-        description="This is a test message from AI Marketplace Monitor, not a real listing.",
+        location="Houston, TX",
+        seller="AI Marketplace Monitor",
+        condition="New",
+        description=(
+            "This is a test message from AI Marketplace Monitor (aimm), not a real listing. "
+            "A real notification shows the listing's description here."
+        ),
     )
     rating = AIResponse(
         score=5,
-        comment="This is a test: aimm can send you notifications through this channel.",
+        comment=(
+            "Test: this is where aimm's AI explains how well a listing matches what you are "
+            "looking for."
+        ),
         name="test",
     )
     return listing, rating

@@ -228,7 +228,7 @@ aimm admin --test-notification        # every channel of every enabled user
 aimm admin --test-notification me     # the channels of [user.me] only
 ```
 
-aimm sends a sample listing titled "aimm test notification", which links to the aimm repository, through each channel once (no retries) and prints `✓` or `✗` with the error for each channel. It exits with 1 if any channel failed. The test is a real message (metered channels such as UnitySVC SMS may cost a little), but nothing is recorded in the cache. In Docker, run it in the container (`docker exec aimm aimm admin --test-notification`), or use **Send test** in the Settings of the web UI. After you set up a notification with `aimm configure`, the assistant offers the same test.
+aimm sends a sample listing titled "aimm test notification", which links to the aimm repository, through each channel once (no retries). The test uses the real format of each channel, so it checks the layout as well as the connection: email gets aimm's HTML email with the listing photo (a sample photo bundled with aimm), and chat and phone channels get the text or Markdown message of their `message_format`, with the price, location, description and AI rating as in a real notification. aimm prints `✓` or `✗` with the error for each channel. It exits with 1 if any channel failed. The test is a real message (metered channels such as UnitySVC SMS may cost a little), but nothing is recorded in the cache. In Docker, run it in the container (`docker exec aimm aimm admin --test-notification`), or use **Send test** in the Settings of the web UI. After you set up a notification with `aimm configure`, the assistant offers the same test.
 
 #### Common Notification settings
 

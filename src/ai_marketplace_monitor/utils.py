@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import logging
+import mimetypes
 import os
 import random
 import re
@@ -904,6 +905,29 @@ def fetch_with_retry(
     if logger:
         logger.error(f"Failed to fetch {url} after {max_retries} attempts")
     return None
+
+
+PACKAGE_DIR = Path(__file__).parent
+
+
+def fetch_image(url: str, logger: Logger | None = None) -> Tuple[bytes, str] | None:
+    """A listing photo: downloaded, or a ``file://`` image bundled with aimm.
+
+    Only files inside the aimm package are read (the sample photo of test notifications);
+    a ``file://`` URL elsewhere is refused, so a listing cannot attach a local file.
+    """
+    if not url.startswith("file://"):
+        return fetch_with_retry(url, logger=logger)
+    from urllib.parse import urlparse
+    from urllib.request import url2pathname
+
+    path = Path(url2pathname(urlparse(url).path)).resolve()
+    if not path.is_relative_to(PACKAGE_DIR.resolve()) or not path.is_file():
+        if logger:
+            logger.debug(f"Not a bundled image: {url}")
+        return None
+    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return path.read_bytes(), content_type
 
 
 def resize_image_data(image_data: bytes, max_width: int = 800, max_height: int = 600) -> bytes:
