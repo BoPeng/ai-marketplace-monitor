@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.9] - 2026-10-08
+
+### Added
+- A **Listings** view in the web UI shows every evaluated listing, its AI rating and reason, and whether it was notified, rejected by AI or excluded. Evaluation history is retained for 30 days by default, configurable with `evaluation_history_days`.
+- Optional daily digests summarize searches, matches, rejected listings and exclusions. Set `digest_at` on a user to choose the local delivery time and `digest_with` to choose channels. Email receives the full digest; phone and chat channels receive a shorter summary. Delivery progress is remembered across restarts, with a single catch-up digest for missed days.
+- A **Settings** dialog in the web UI provides version and update information, per-user test notifications, cache counts and clearing, CSV export, and logout where applicable. The header version and update notice also open Settings.
+- `aimm admin --test-notification [USER]` sends a sample listing through each configured channel and reports success or failure for each. Tests use the real notification format, make one attempt per channel, and leave notification caches unchanged. The web UI offers the same test, and `aimm configure` offers it after saving notification changes.
+
 ### Changed
 - The web UI's Configure pane has one **Start Chat** / **End Chat** button instead of **Start** and **Cancel**, which did not say that they start and stop the configuration chat (not a search). The section box reads "section (optional)".
 
@@ -337,7 +345,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.6...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.9...HEAD
+[0.10.9]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.8...v0.10.9
+[0.10.8]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.7...v0.10.8
+[0.10.7]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.6...v0.10.7
 [0.10.6]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.3...v0.10.4
