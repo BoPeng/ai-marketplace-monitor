@@ -316,6 +316,23 @@ Exclude listings with water damage or missing parts.'''
 rating = 5  # Only notify for great deals (default: 4+)
 ```
 
+**Alerts on your phone and by email, plus a daily digest:**
+
+```toml
+[user.me]
+email = 'me@gmail.com'
+notify_with = ['unitysvc', 'gmail']
+# every morning at 8: a summary of everything aimm did in the last 24 hours,
+# in full by email and as a short message on your phone
+digest_at = '08:00'
+
+[notification.unitysvc]
+unitysvc_api_key = '${UNITYSVC_API_KEY}'
+
+[notification.gmail]
+smtp_password = '${GMAIL_APP_PASSWORD}'
+```
+
 ## 📚 Documentation
 
 For detailed information on setup and advanced features, see the comprehensive documentation:
