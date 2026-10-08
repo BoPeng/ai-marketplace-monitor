@@ -17,6 +17,13 @@ from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.user import User, UserConfig
 
 
+@pytest.fixture(autouse=True)
+def facebook_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Aimm requires Facebook credentials; test configs read these unless they set their own."""
+    monkeypatch.setenv("FACEBOOK_USERNAME", "test-user@example.com")
+    monkeypatch.setenv("FACEBOOK_PASSWORD", "test-password")
+
+
 @pytest.fixture
 def version() -> Generator[str, None, None]:
     """Sample pytest fixture."""

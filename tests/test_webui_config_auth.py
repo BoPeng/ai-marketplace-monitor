@@ -6,7 +6,16 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from ai_marketplace_monitor.webui.config_auth import extract_credentials
+
+
+@pytest.fixture(autouse=True)
+def no_credentials_in_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests set the environment themselves where they need it."""
+    monkeypatch.delenv("FACEBOOK_USERNAME", raising=False)
+    monkeypatch.delenv("FACEBOOK_PASSWORD", raising=False)
 
 
 def _write(tmp_path: Path, content: str) -> Path:

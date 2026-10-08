@@ -497,6 +497,14 @@
       chip.className = "status-chip status-err";
       chip.textContent = "● monitor: disconnected";
       chip.title = "The aimm process may have stopped. Reconnecting…";
+    } else if (state.monitor && state.monitor.waiting_for_login) {
+      chip.className = "status-chip status-warn";
+      chip.textContent = "● monitor: waiting for Facebook login";
+      chip.title = "Finish logging in (CAPTCHA or security code) in the Browser tab. Searches start once you are logged in.";
+    } else if (state.monitor && state.monitor.paused) {
+      chip.className = "status-chip status-warn";
+      chip.textContent = "● monitor: paused";
+      chip.title = "Searches are paused. Click Resume to continue.";
     } else if (!state.lastActivity) {
       chip.className = "status-chip status-warn";
       chip.textContent = "● monitor: connected";
@@ -532,6 +540,26 @@
   // without new log records.
   setInterval(renderMonitorStatus, 1000);
 
+  // Paused, or waiting for the Facebook login: state the log stream does not carry.
+  const renderPauseButton = () => {
+    const btn = $("#pause-btn");
+    if (!btn || !state.monitor) return;
+    const paused = state.monitor.paused;
+    btn.textContent = paused ? "▶ Resume" : "⏸ Pause";
+    btn.title = paused ? "Resume searching" : "Stop searching after the current listing";
+    btn.setAttribute("aria-label", paused ? "Resume searches" : "Pause searches");
+  };
+
+  const refreshMonitorState = async () => {
+    try {
+      const res = await fetch("/api/status", { credentials: "same-origin" });
+      if (!res.ok) return;
+      state.monitor = (await res.json()).monitor || null;
+      renderPauseButton();
+      renderMonitorStatus();
+    } catch (_) {}
+  };
+
   // Restart button — soft-restarts the monitor by touching the config.
   const wireClick = (sel, fn) => {
     const el = $(sel);
@@ -553,6 +581,28 @@
       setEditorStatus("↻ Restart failed: " + err.message, "err");
     } finally {
       setTimeout(() => { if (btn) btn.disabled = false; }, 2000);
+    }
+  });
+
+  wireClick("#pause-btn", async () => {
+    const btn = $("#pause-btn");
+    const resume = !!(state.monitor && state.monitor.paused);
+    if (btn) btn.disabled = true;
+    try {
+      const res = await api(resume ? "/api/monitor/resume" : "/api/monitor/pause", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      state.monitor = { paused: data.paused, waiting_for_login: data.waiting_for_login };
+      renderPauseButton();
+      renderMonitorStatus();
+      setEditorStatus(
+        resume ? "▶ Searches resumed." : "⏸ Pausing: searches stop after the current listing.",
+        "ok"
+      );
+    } catch (err) {
+      setEditorStatus("⏸ " + err.message, "err");
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
 
@@ -1959,6 +2009,8 @@
   const bootstrap = async () => {
     refreshUpdateBadge();
     if (!state.updateTimer) state.updateTimer = setInterval(refreshUpdateBadge, 10 * 60 * 1000);
+    refreshMonitorState();
+    if (!state.monitorTimer) state.monitorTimer = setInterval(refreshMonitorState, 5000);
     try {
       await loadConfig();
       // CodeMirror needs a refresh after becoming visible (the editor

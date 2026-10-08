@@ -149,6 +149,8 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.get_item_config(config)
         self.validate_users()
         self.validate_ais()
+        if not partial:
+            self.validate_marketplaces()
         self.expand_notifications(logger)
         self.expand_regions()
         self.validate_items()
@@ -286,6 +288,22 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     raise ValueError(
                         f"User {hilight(user)} specified in {hilight(config.name)} does not exist."
                     )
+
+    def validate_marketplaces(self: "Config") -> None:
+        """Aimm searches only while logged in: logged-out searches fail unpredictably."""
+        for marketplace in self.marketplace.values():
+            if marketplace.enabled is False:
+                continue
+            username = getattr(marketplace, "username", None)
+            password = getattr(marketplace, "password", None)
+            if not username or not password:
+                raise ValueError(
+                    f"Marketplace {hilight(marketplace.name)} needs a Facebook username and "
+                    "password: aimm searches only while logged in. Set them in "
+                    f"[marketplace.{marketplace.name}], e.g. "
+                    'username = "${FACEBOOK_USERNAME}" and password = "${FACEBOOK_PASSWORD}", '
+                    "or set the FACEBOOK_USERNAME and FACEBOOK_PASSWORD environment variables."
+                )
 
     def validate_ais(self: "Config") -> None:
         # if ai is specified in other section, they must exist

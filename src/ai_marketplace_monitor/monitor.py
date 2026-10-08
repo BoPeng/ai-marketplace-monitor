@@ -20,6 +20,7 @@ from .config import (
     supported_ai_backends,
     supported_marketplaces,
 )
+from .control import control
 from .listing import Listing
 from .marketplace import (
     DEFAULT_RATING,
@@ -413,8 +414,22 @@ class MarketplaceMonitor:
                         item_config,
                     ).tag(item_config.name)
 
+    def wait_while_paused(self: "MarketplaceMonitor") -> None:
+        """Hold searches while the web UI has paused the monitor."""
+        if not control.is_paused():
+            return
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Pause]", "info")} Searches are paused. Click Resume in the web UI to continue."""
+            )
+        while not control.wait_until_resumed(60):
+            pass
+        if self.logger:
+            self.logger.info(f"""{hilight("[Pause]", "succ")} Searches resumed.""")
+
     def handle_pause(self: "MarketplaceMonitor") -> None:
         """Handle interruption signal."""
+        self.wait_while_paused()
         if self.keyboard_monitor is None or not self.keyboard_monitor.is_paused():
             return
 

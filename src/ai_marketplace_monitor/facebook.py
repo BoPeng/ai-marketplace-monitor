@@ -7,12 +7,12 @@ from enum import Enum
 from itertools import repeat
 from logging import Logger
 from typing import TYPE_CHECKING, Any, Generator, List, Tuple, Type, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
-import humanize
 from currency_converter import CurrencyConverter  # type: ignore
 from rich.pretty import pretty_repr
 
+from .control import control
 from .listing import Listing
 from .marketplace import (
     Fallback,
@@ -30,7 +30,6 @@ from .utils import (
     Translator,
     convert_to_seconds,
     counter,
-    doze,
     extract_price,
     hilight,
     is_substring,
@@ -38,6 +37,12 @@ from .utils import (
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
+
+
+# pages Facebook shows instead of the one asked for, until the user logs in
+LOGIN_PATHS = ("/login", "/checkpoint", "/two_step_verification", "/recover")
+LOGIN_CHECK_EVERY = 5  # seconds
+LOGIN_REMINDER_EVERY = 5 * 60  # seconds
 
 
 class Condition(Enum):
@@ -265,7 +270,7 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
     in the marketplace.facebook section only. None of the options are required.
     """
 
-    login_wait_time: int | None = None
+    login_wait_time: int | None = None  # deprecated and ignored: aimm waits for the login
     password: str | None = None
     username: str | None = None
 
@@ -389,21 +394,65 @@ class FacebookMarketplace(Marketplace):
             if self.logger:
                 self.logger.error(f"""{hilight("[Login]", "fail")} {e}""")
 
-        # in case there is a need to enter additional information
-        login_wait_time = (
-            60 if self.config.login_wait_time is None else self.config.login_wait_time
+        if self.config.login_wait_time is not None and self.logger:
+            self.logger.warning(
+                f"""{hilight("[Login]", "fail")} login_wait_time is deprecated and ignored: aimm """
+                "now waits until the Facebook login has finished. Remove it from "
+                f"[marketplace.{self.config.name}]."
+            )
+        # Facebook may ask for a CAPTCHA or a code first, which can take a while
+        self.wait_for_login()
+
+    def on_login_page(self: "FacebookMarketplace") -> bool:
+        """Whether Facebook is showing a login, CAPTCHA or verification page."""
+        assert self.page is not None
+        path = urlparse(self.page.url).path
+        return any(part in path for part in LOGIN_PATHS)
+
+    def logged_in(self: "FacebookMarketplace") -> bool:
+        assert self.page is not None
+        cookies = self.page.context.cookies("https://www.facebook.com")
+        return any(c.get("name") == "c_user" for c in cookies) and not self.on_login_page()
+
+    def wait_for_login(self: "FacebookMarketplace") -> None:
+        """Wait, however long it takes, until the user has finished logging in to Facebook.
+
+        Searching with a half-finished login only gets more pages redirected to the login page.
+        """
+        if self.logged_in():
+            return
+        message = (
+            f"""{hilight("[Login]", "fail")} Waiting for the Facebook login to finish. If Facebook """
+            "asks for a CAPTCHA or a security code, complete it in the browser (the Browser tab of "
+            "the web UI in Docker). Searches start once you are logged in."
         )
-        if login_wait_time > 0:
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Login]", "info")} Waiting {humanize.naturaldelta(login_wait_time)}"""
-                    + (
-                        f""" or press {hilight("Esc")} when you are ready."""
-                        if self.keyboard_monitor is not None
-                        else ""
-                    )
-                )
-            doze(login_wait_time, keyboard_monitor=self.keyboard_monitor)
+        if self.logger:
+            self.logger.warning(message)
+        control.waiting_for_login = True
+        try:
+            reminded = time.monotonic()
+            while not self.logged_in():
+                assert self.page is not None
+                self.page.wait_for_timeout(LOGIN_CHECK_EVERY * 1000)
+                if time.monotonic() - reminded > LOGIN_REMINDER_EVERY:
+                    reminded = time.monotonic()
+                    if self.logger:
+                        self.logger.warning(message)
+        finally:
+            control.waiting_for_login = False
+        if self.logger:
+            self.logger.info(f"""{hilight("[Login]", "succ")} Logged in to Facebook.""")
+
+    def recover_login(self: "FacebookMarketplace") -> bool:
+        """After a page failed: if Facebook logged aimm out, wait for the login; True to retry."""
+        if self.page is None or not self.on_login_page():
+            return False
+        if self.logger:
+            self.logger.warning(
+                f"""{hilight("[Login]", "fail")} Facebook redirected to its login page."""
+            )
+        self.wait_for_login()
+        return True
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
@@ -536,17 +585,25 @@ class FacebookMarketplace(Marketplace):
                         + (f" with radius={radius}" if radius else " with default radius")
                     )
 
-                self.goto_url(
-                    marketplace_url + "&".join([f"query={quote(search_phrase)}", *options])
+                if control.is_paused():
+                    return
+                search_url = marketplace_url + "&".join(
+                    [f"query={quote(search_phrase)}", *options]
                 )
+                self.goto_url(search_url)
 
                 found_listings = FacebookSearchResultPage(
                     self.page, self.translator, self.logger
                 ).get_listings()
+                if not found_listings and self.recover_login():
+                    self.goto_url(search_url)
+                    found_listings = FacebookSearchResultPage(
+                        self.page, self.translator, self.logger
+                    ).get_listings()
                 time.sleep(5)
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[Search]", "fail")} Failed to get search results for {search_phrase} from {city}"""
+                if not found_listings and self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Search]", "fail")} No search results for {search_phrase} from {city}"""
                     )
 
                 counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
@@ -556,7 +613,9 @@ class FacebookMarketplace(Marketplace):
                 for listing in found_listings:
                     if listing.post_url.split("?")[0] in found:
                         continue
-                    if self.keyboard_monitor is not None and self.keyboard_monitor.is_paused():
+                    if control.is_paused() or (
+                        self.keyboard_monitor is not None and self.keyboard_monitor.is_paused()
+                    ):
                         return
                     counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
                     found[listing.post_url.split("?")[0]] = True
@@ -632,6 +691,11 @@ class FacebookMarketplace(Marketplace):
         self.goto_url(post_url)
         counter.increment(CounterItem.LISTING_QUERY, item_config.name)
         details = parse_listing(self.page, post_url, self.translator, self.logger)
+        if details is None and self.recover_login():
+            self.goto_url(post_url)
+            details = parse_listing(self.page, post_url, self.translator, self.logger)
+        if details is None and self.on_login_page():
+            raise ValueError(f"Facebook showed its login page instead of listing {post_url}.")
         if details is None:
             raise ValueError(
                 f"Failed to get item details of listing {post_url}. "
