@@ -527,8 +527,39 @@ CUTOFF2 = (DAY1 + timedelta(days=1)).timestamp()
 CUTOFF0 = (DAY1 - timedelta(days=1)).timestamp()
 
 
+def add_digest(config: UserConfig, temp_cache: Cache, now: datetime, **kwargs: Any) -> None:
+    """The first time aimm sees the user's digest channels: nothing is sent yet."""
+    assert not dg.send_due_digest(config, now=now, local_cache=temp_cache, **kwargs)
+
+
+def test_first_digest_at_the_next_digest_at(
+    sent: Sent, windows: List[Window], temp_cache: Cache
+) -> None:
+    config = user()
+    # added at 07:00: nothing until 08:00, then a normal 24-hour digest
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
+    assert not dg.send_due_digest(config, now=DAY1 - timedelta(minutes=1), local_cache=temp_cache)
+    assert sent == []
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache)
+    assert windows == [(CUTOFF0, CUTOFF1)] and len(sent) == 2
+
+
+def test_first_digest_the_next_day_when_added_after_digest_at(
+    sent: Sent, windows: List[Window], temp_cache: Cache
+) -> None:
+    config = user()
+    # added at 09:00: nothing until 08:00 the next day
+    add_digest(config, temp_cache, DAY1.replace(hour=9))
+    for later in (DAY1.replace(hour=12), DAY1 + timedelta(hours=23, minutes=59)):
+        assert not dg.send_due_digest(config, now=later, local_cache=temp_cache)
+    assert sent == []
+    assert dg.send_due_digest(config, now=DAY1 + timedelta(days=1), local_cache=temp_cache)
+    assert windows == [(CUTOFF1, CUTOFF2)] and len(sent) == 2
+
+
 def test_send_due_digest_once(sent: Sent, windows: List[Window], temp_cache: Cache) -> None:
     config = user()
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
     # due at 08:00: both channels get the 24 hours up to 08:00
     assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache)
     assert sorted(channel for channel, _, _ in sent) == ["pushover", "telegram"]
@@ -551,6 +582,9 @@ def test_send_due_digest_with_sections(
     sent: Sent, temp_cache: Cache, config_file: Callable[[str], str]
 ) -> None:
     config = load(config_file, 'digest_with = ["tg"]')
+    add_digest(
+        config.user["me"], temp_cache, DAY1.replace(hour=7), notifications=config.notification
+    )
     now = datetime(2026, 10, 8, 9)
     assert dg.send_due_digest(
         config.user["me"], config.notification, now=now, local_cache=temp_cache
@@ -576,12 +610,13 @@ def test_failed_channel_is_retried_alone(
     monkeypatch: pytest.MonkeyPatch, sent: Sent, windows: List[Window], temp_cache: Cache
 ) -> None:
     config = user()
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
     now = DAY1.replace(hour=9)
     # Pushover succeeds, Telegram fails: only Pushover has today's digest
     fail_telegram(monkeypatch, True)
     assert dg.send_due_digest(config, now=now, local_cache=temp_cache)
     assert [channel for channel, _, _ in sent] == ["pushover"]
-    assert temp_cache.get(dg.digest_key("me", "telegram")) is None
+    assert temp_cache.get(dg.digest_key("me", "telegram")) == CUTOFF0
     assert dg.pending_digest_channels(config, now=now, local_cache=temp_cache) == ["telegram"]
     # retried later the same day: only Telegram, with the same window (not up to now)
     fail_telegram(monkeypatch, False)
@@ -598,6 +633,7 @@ def test_channel_behind_gets_one_catch_up_digest(
     monkeypatch: pytest.MonkeyPatch, sent: Sent, windows: List[Window], temp_cache: Cache
 ) -> None:
     config = user()
+    add_digest(config, temp_cache, DAY1 - timedelta(days=1, hours=1))
     # both channels received the digest of the day before
     assert dg.send_due_digest(config, now=DAY1 - timedelta(days=1), local_cache=temp_cache)
     fail_telegram(monkeypatch, True)
@@ -620,6 +656,7 @@ def test_digest_after_an_outage_covers_at_most_7_days(
     sent: Sent, windows: List[Window], temp_cache: Cache
 ) -> None:
     config = user()
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
     assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache)
     # aimm was down for 10 days: one digest per channel, of the last 7 days
     back = DAY1 + timedelta(days=10, hours=2)
@@ -640,7 +677,8 @@ def test_failed_digest_is_retried(
     monkeypatch.setattr(
         dg, "send_digest", lambda *args, **kwargs: {"pushover": False, "telegram": False}
     )
-    now = datetime(2026, 10, 8, 9)
+    add_digest(user(), temp_cache, DAY1.replace(hour=7))
+    now = DAY1.replace(hour=9)
     assert not dg.send_due_digest(user(), now=now, local_cache=temp_cache)
     assert sorted(dg.pending_digest_channels(user(), now=now, local_cache=temp_cache)) == [
         "pushover",

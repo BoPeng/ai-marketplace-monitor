@@ -7,7 +7,8 @@ per-minute search counts of ``utils.counter``, and sent once a day in two versio
 the channel type: a short phone version for push channels, and the full digest for email.
 
 Delivery: each day's digest covers the 24 hours up to that day's ``digest_at`` (its cutoff),
-whenever it is sent. Each channel remembers the cutoff of the last digest it received. A
+whenever it is sent. Each channel remembers the cutoff of the last digest it received; a new
+channel starts from the latest cutoff that has passed, so its first digest is the next one. A
 channel that is behind (it failed, or aimm was not running) gets one digest from its last
 cutoff (at most 7 days back) to the latest cutoff, never several stale digests in a row.
 
@@ -522,23 +523,26 @@ def pending_digest_windows(
     """The windows due on the user's digest channels, as ``{(since, until): [channel, ...]}``.
 
     A channel is due when the latest scheduled cutoff has passed after the cutoff of the last
-    digest it received. Its window ends at the latest cutoff and starts at its last cutoff
-    (at most ``MAX_CATCH_UP`` back), or a day before if it never received a digest.
+    digest it received. Its window ends at the latest cutoff and starts at its last cutoff, at
+    most ``MAX_CATCH_UP`` back.
+
+    A channel seen for the first time gets the latest cutoff that has passed as its starting
+    point, without a digest, so that its first digest is the one at the next ``digest_at``
+    (not one for a window that ended before the option was added).
     """
     c = cache if local_cache is None else local_cache
     now = datetime.now() if now is None else now
     until = latest_cutoff(user_config.digest_at, now).timestamp()
     windows: Dict[Tuple[float, float], List[str]] = {}
     for name in digest_channels(user_config, notifications):
-        last = c.get(digest_key(user_config.name, name))
-        if isinstance(last, (int, float)) and last >= until:
+        key = digest_key(user_config.name, name)
+        last = c.get(key)
+        if not isinstance(last, (int, float)):
+            c.set(key, until, tag=CacheType.DIGEST.value)
             continue
-        since = (
-            max(float(last), until - MAX_CATCH_UP)
-            if isinstance(last, (int, float))
-            else until - DIGEST_PERIOD
-        )
-        windows.setdefault((since, until), []).append(name)
+        if last >= until:
+            continue
+        windows.setdefault((max(float(last), until - MAX_CATCH_UP), until), []).append(name)
     return windows
 
 
