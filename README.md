@@ -88,6 +88,8 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ![Web UI](docs/webui_screenshot.png)
 
+_The web UI of aimm running in Docker (see [Run with Docker](#run-with-docker)). The **Browser** button in the header, shown only in Docker, opens aimm's browser in a new tab, so you can complete Facebook's login checks such as a CAPTCHA._
+
 🌎 **Location Support**
 
 - Multi-city search
@@ -199,6 +201,10 @@ AIMM: All done. Enjoy the hunt!
 Your configuration is saved, but nothing is searching yet: run `aimm run` to start monitoring (a
 monitor that is already running picks up the change on its own).
 ```
+
+The same assistant is built into the web UI: type an optional section in the **Configure** pane
+and click **Start Chat**. The conversation is the same as in the terminal; the editor shows each
+change as soon as it is saved, and **End Chat** ends the conversation.
 
 ### Run the Monitor
 
