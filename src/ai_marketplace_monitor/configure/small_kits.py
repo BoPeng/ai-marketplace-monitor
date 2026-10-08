@@ -146,6 +146,13 @@ MONITOR_GUIDES: Tuple[FieldGuide, ...] = (
         "`false`",
         "on",
     ),
+    FieldGuide(
+        "evaluation_history_days",
+        "only to keep the web UI's Listings history (each evaluated listing and why it was "
+        "notified, rejected or excluded) for other than 30 days",
+        "a whole number of days, e.g. `14`",
+        "30 days",
+    ),
 )
 
 

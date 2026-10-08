@@ -711,7 +711,11 @@ html, body {
   align-items: center;
   flex-wrap: wrap;
 }
-.level-chips, .kind-chips { display: flex; gap: 4px; }
+.level-chips, .view-switch { display: flex; gap: 4px; }
+.view-switch { padding-right: 10px; border-right: 1px solid var(--border); }
+/* on a narrow pane the controls wrap below the Logs | Listings switch */
+.toolbar-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: 1 1 260px; min-width: 0; }
+.toolbar-group[hidden], .logs[hidden], .listings[hidden] { display: none; }
 .logs-toolbar select {
   background: var(--bg-elev-2);
   border: 1px solid var(--border);
@@ -730,6 +734,7 @@ html, body {
   cursor: pointer;
 }
 .chip.active { color: var(--text); border-color: var(--accent); }
+.chip:disabled { opacity: 0.5; cursor: default; }
 .chip.has-badge {
   position: relative;
   border-color: var(--err);
@@ -751,7 +756,7 @@ html, body {
   border-radius: 7px;
   padding: 0 3px;
 }
-#log-filter {
+.text-filter {
   flex: 1;
   min-width: 120px;
   background: var(--bg-elev-2);
@@ -818,6 +823,108 @@ html, body {
 .log-detail a { color: var(--accent); }
 .log-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
 .log-detail dt { color: var(--text-dim); }
+
+/* -------- Listings view -------- */
+.listings {
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+  container-type: inline-size;
+}
+.eval-row {
+  display: grid;
+  grid-template-columns: 112px minmax(50px, 0.7fr) minmax(0, 2.4fr) minmax(48px, 0.6fr) 44px 112px;
+  grid-template-areas: "time item title price rating stage";
+  gap: 8px;
+  padding: 5px 12px;
+  align-items: start;
+  border-bottom: 1px solid var(--border);
+}
+.eval-row:hover:not(.eval-head) { background: var(--bg-elev-2); }
+.eval-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+.eval-head > :nth-child(1) { grid-area: time; }
+.eval-head > :nth-child(2) { grid-area: item; }
+.eval-head > :nth-child(3) { grid-area: title; }
+.eval-head > :nth-child(4) { grid-area: price; }
+.eval-head > :nth-child(5) { grid-area: rating; }
+.eval-head > :nth-child(6) { grid-area: stage; }
+.eval-sort {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eval-sort:hover { color: var(--text); }
+.eval-time { grid-area: time; color: var(--text-dim); font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+.eval-item { grid-area: item; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eval-title { grid-area: title; min-width: 0; }
+.eval-title a { color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+.eval-title a:hover { color: var(--accent); text-decoration: underline; }
+.eval-reason {
+  display: block;
+  color: var(--text-dim);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eval-price { grid-area: price; font-family: var(--mono); font-size: 11px; }
+.eval-rating {
+  grid-area: rating;
+  justify-self: start;
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.eval-rating.none { color: var(--text-dim); border-color: transparent; }
+.eval-rating.r1, .eval-rating.r2 { color: var(--err); border-color: rgba(248, 113, 113, 0.4); }
+.eval-rating.r3 { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
+.eval-rating.r4, .eval-rating.r5 { color: var(--ok); border-color: rgba(74, 222, 128, 0.4); }
+.eval-stage {
+  grid-area: stage;
+  justify-self: start;
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: help;
+}
+.eval-stage.stage-notified { color: var(--ok); border-color: rgba(74, 222, 128, 0.4); }
+.eval-stage.stage-rejected { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
+.eval-stage.stage-excluded { color: var(--text-dim); }
+.eval-empty { padding: 16px 12px; color: var(--text-dim); }
+
+/* A narrow pane shows each listing as a card. */
+@container (max-width: 560px) {
+  .eval-head { display: none; }
+  .eval-row {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "stage rating price time"
+      "title title title title"
+      "item item item item";
+    gap: 3px 8px;
+    padding: 8px 12px;
+  }
+  .eval-price { justify-self: start; }
+  .eval-reason { white-space: normal; }
+}
 
 .footer {
   display: flex;

@@ -13,6 +13,7 @@ from currency_converter import CurrencyConverter  # type: ignore
 from rich.pretty import pretty_repr
 
 from .control import control
+from .evaluations import EXCLUDED, EvaluationRecord, record_evaluation
 from .listing import Listing
 from .marketplace import (
     Fallback,
@@ -639,8 +640,7 @@ class FacebookMarketplace(Marketplace):
                     counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
                     found[listing.post_url.split("?")[0]] = True
                     # filter by title and location; skip keyword filtering since we do not have description yet.
-                    if not self.check_listing(listing, item_config, description_available=False):
-                        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
+                    if self._exclude(listing, item_config, description_available=False):
                         continue
                     try:
                         details, from_cache = self.get_listing_details(
@@ -681,10 +681,8 @@ class FacebookMarketplace(Marketplace):
                             f"""{hilight("[Error]", "fail")} Failed to extract description for {hilight(listing.title)} at {listing.post_url}. Keyword filtering will only apply to title."""
                         )
 
-                    if self.check_listing(listing, item_config):
+                    if not self._exclude(listing, item_config):
                         yield listing
-                    else:
-                        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
 
     def get_listing_details(
         self: "FacebookMarketplace",
@@ -730,16 +728,25 @@ class FacebookMarketplace(Marketplace):
         item_config: FacebookItemConfig,
         description_available: bool = True,
     ) -> bool:
+        return self.exclusion_reason(item, item_config, description_available) is None
+
+    def exclusion_reason(
+        self: "FacebookMarketplace",
+        item: Listing,
+        item_config: FacebookItemConfig,
+        description_available: bool = True,
+    ) -> str | None:
+        """Why the listing is excluded before the AI sees it, or None if it is not."""
         # get antikeywords from both item_config or config
         antikeywords = item_config.antikeywords
-        if antikeywords and (
-            is_substring(antikeywords, item.title + " " + item.description, logger=self.logger)
-        ):
+        text = item.title + " " + item.description
+        if antikeywords and (is_substring(antikeywords, text, logger=self.logger)):
             if self.logger:
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {", ".join(antikeywords)}"""
                 )
-            return False
+            matched = [x for x in antikeywords if is_substring(x, text)] or antikeywords
+            return f"excluded keyword: {', '.join(matched)}"
 
         # if the return description does not contain any of the search keywords
         keywords = item_config.keywords
@@ -754,7 +761,7 @@ class FacebookMarketplace(Marketplace):
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title and description."""
                 )
-            return False
+            return f"missing required keywords: {', '.join(keywords)}"
 
         # get locations from either marketplace config or item config
         allowed_locations = resolve_option("seller_locations", item_config, self.config) or []
@@ -765,7 +772,7 @@ class FacebookMarketplace(Marketplace):
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
                 )
-            return False
+            return f"out of area: {item.location}"
 
         # get exclude_sellers from both item_config or config
         exclude_sellers = resolve_option("exclude_sellers", item_config, self.config) or []
@@ -778,8 +785,26 @@ class FacebookMarketplace(Marketplace):
                 self.logger.info(
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
                 )
-            return False
+            return f"banned seller: {item.seller}"
 
+        return None
+
+    def _exclude(
+        self: "FacebookMarketplace",
+        listing: Listing,
+        item_config: FacebookItemConfig,
+        description_available: bool = True,
+    ) -> bool:
+        """Check the listing; record and count it if it is excluded."""
+        reason = self.exclusion_reason(listing, item_config, description_available)
+        if reason is None:
+            return False
+        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
+        record_evaluation(
+            EvaluationRecord.from_listing(
+                listing, item=item_config.name, stage=EXCLUDED, reason=reason
+            )
+        )
         return True
 
 

@@ -8,6 +8,7 @@ from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
 from .email_notify import EmailNotificationConfig
+from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
 from .marketplace import TItemConfig
 from .notification import NotificationConfig, NotificationStatus
@@ -191,6 +192,17 @@ class User:
             self.config, listings, ratings, statuses, force=force, logger=self.logger
         ):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
-            for listing, ns in zip(listings, statuses):
+            for listing, rating, ns in zip(listings, ratings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:
                     self.to_cache(listing, local_cache=local_cache)
+                    rated = rating.comment != AIResponse.NOT_EVALUATED
+                    record_evaluation(
+                        EvaluationRecord.from_listing(
+                            listing,
+                            item=item_config.name,
+                            stage=NOTIFIED,
+                            rating=rating.score if rated else None,
+                            ai_comment=rating.comment if rated else "",
+                        ),
+                        local_cache=local_cache,
+                    )

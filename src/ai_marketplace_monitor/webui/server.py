@@ -45,6 +45,7 @@ from ..configure.flow import (
 )
 from ..configure.ui import JsonSetupUI, SetupClosedError
 from ..control import control
+from ..evaluations import SORT_KEYS, STAGES, filter_evaluations, iter_evaluations
 from ..update_check import current_notice, self_update_status, start_self_update
 from ..utils import cache
 from .auth import (
@@ -60,6 +61,7 @@ from .auth import (
 )
 from .config_api import ConfigFileService
 from .config_auth import extract_credentials
+from .evaluations_export import MAX_LIMIT, iter_evaluations_csv
 from .found_export import iter_found_csv, iter_found_rows
 from .log_handler import LogBroadcastHandler
 
@@ -662,6 +664,88 @@ def create_app(
         filename = f"found-items-{time.strftime('%Y%m%d-%H%M%S')}.csv"
         return StreamingResponse(
             iter_found_csv(iter_found_rows(cache)),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    def check_stage(stage: str | None) -> str | None:
+        stage = stage or None
+        if stage is not None and stage not in STAGES:
+            raise HTTPException(
+                status_code=400, detail=f"stage must be one of {', '.join(STAGES)}"
+            )
+        return stage
+
+    def check_sort(sort: str, order: str) -> bool:
+        """Validate the sort key and return whether the order is descending."""
+        if sort not in SORT_KEYS:
+            raise HTTPException(
+                status_code=400, detail=f"sort must be one of {', '.join(SORT_KEYS)}"
+            )
+        if order not in ("desc", "asc"):
+            raise HTTPException(status_code=400, detail="order must be desc or asc")
+        return order == "desc"
+
+    # Sync defs, like the CSV export above: the cache scan runs in a threadpool.
+    @app.get("/api/evaluations")
+    def get_evaluations(
+        item: str | None = None,
+        stage: str | None = None,
+        since: float | None = None,
+        min_rating: int | None = None,
+        q: str | None = None,
+        sort: str = "time",
+        order: str = "desc",
+        limit: int = 500,
+        _: str = Depends(require_session),
+    ) -> Dict[str, Any]:
+        stage = check_stage(stage)
+        descending = check_sort(sort, order)
+        records = list(iter_evaluations(local_cache=cache))
+        # sorted before the limit, so "highest rated" means across all matches
+        matched = filter_evaluations(
+            records,
+            since=since,
+            item=item or None,
+            stage=stage,
+            min_rating=min_rating,
+            text=q,
+            sort=sort,
+            descending=descending,
+        )
+        limit = max(1, min(limit, MAX_LIMIT))
+        return {
+            "records": [r.to_dict() for r in matched[:limit]],
+            "total": len(matched),
+            "items": sorted({r.item for r in records}),
+        }
+
+    @app.get("/api/evaluations.csv")
+    def export_evaluations_csv(
+        item: str | None = None,
+        stage: str | None = None,
+        since: float | None = None,
+        min_rating: int | None = None,
+        q: str | None = None,
+        sort: str = "time",
+        order: str = "desc",
+        _: str = Depends(require_session),
+    ) -> StreamingResponse:
+        stage = check_stage(stage)
+        descending = check_sort(sort, order)
+        matched = filter_evaluations(
+            iter_evaluations(local_cache=cache),
+            since=since,
+            item=item or None,
+            stage=stage,
+            min_rating=min_rating,
+            text=q,
+            sort=sort,
+            descending=descending,
+        )
+        filename = f"evaluations-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+        return StreamingResponse(
+            iter_evaluations_csv(matched),
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
