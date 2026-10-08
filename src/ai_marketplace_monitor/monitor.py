@@ -337,6 +337,7 @@ class MarketplaceMonitor:
                 marketplace = marketplace_class(
                     marketplace_config.name, self.browser, self.keyboard_monitor, self.logger
                 )
+                marketplace.headless = bool(self.headless)
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
             # Configure might have been changed
@@ -621,6 +622,7 @@ class MarketplaceMonitor:
                     marketplace = marketplace_class(
                         marketplace_config.name, None, None, self.logger
                     )
+                    marketplace.headless = bool(self.headless)
                     self.active_marketplaces[marketplace_config.name] = marketplace
 
                 # Configure might have been changed

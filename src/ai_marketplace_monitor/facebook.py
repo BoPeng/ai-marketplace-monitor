@@ -422,11 +422,8 @@ class FacebookMarketplace(Marketplace):
         """
         if self.logged_in():
             return
-        message = (
-            f"""{hilight("[Login]", "fail")} Waiting for the Facebook login to finish. If Facebook """
-            "asks for a CAPTCHA or a security code, complete it in the browser (the Browser tab of "
-            "the web UI in Docker). Searches start once you are logged in."
-        )
+        control.login_hint = self.login_hint()
+        message = f"""{hilight("[Login]", "fail")} {control.login_hint}"""
         if self.logger:
             self.logger.warning(message, extra=aimm_event("credentials_wait", status="waiting"))
         control.waiting_for_login = True
@@ -448,6 +445,27 @@ class FacebookMarketplace(Marketplace):
                 f"""{hilight("[Login]", "succ")} Logged in to Facebook.""",
                 extra=aimm_event("credentials_wait", status="found"),
             )
+
+    def login_hint(self: "FacebookMarketplace") -> str:
+        """Where the user finishes logging in: it depends on where aimm runs."""
+        waiting = (
+            "Waiting for you to finish logging in to Facebook: aimm entered your username and "
+            "password, and Facebook may ask for a CAPTCHA or a security code. "
+        )
+        if os.environ.get("AIMM_DOCKER") == "1":
+            return (
+                waiting + "Click Open browser in the web UI (or Browser in its header) and "
+                "complete it there. Searches start once you are logged in."
+            )
+        if self.headless:
+            return (
+                waiting + "aimm runs its browser hidden (--headless), so you cannot complete it: "
+                "stop aimm and start it without --headless."
+            )
+        return (
+            waiting + "Complete it in the browser window aimm opened. Searches start once you "
+            "are logged in."
+        )
 
     def recover_login(self: "FacebookMarketplace") -> bool:
         """After a page failed: if Facebook logged aimm out, wait for the login; True to retry."""

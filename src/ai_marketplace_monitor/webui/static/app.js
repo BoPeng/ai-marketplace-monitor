@@ -551,13 +551,30 @@
     btn.setAttribute("aria-label", paused ? "Resume searches" : "Pause searches");
   };
 
+  // While aimm waits for the Facebook login, say where to finish it; in Docker the
+  // browser is only reachable through noVNC, so link straight to it.
+  const renderLoginBanner = () => {
+    const banner = $("#login-banner");
+    if (!banner) return;
+    const waiting = !!(state.monitor && state.monitor.waiting_for_login);
+    banner.hidden = !waiting;
+    if (!waiting) return;
+    $("#login-banner-text").textContent = state.monitor.login_hint || "Waiting for the Facebook login.";
+    const open = $("#login-banner-open");
+    open.hidden = !state.vncEnabled;
+    if (state.vncEnabled) open.href = buildVncUrl();
+  };
+
   const refreshMonitorState = async () => {
     try {
       const res = await fetch("/api/status", { credentials: "same-origin" });
       if (!res.ok) return;
-      state.monitor = (await res.json()).monitor || null;
+      const status = await res.json();
+      state.monitor = status.monitor || null;
+      state.vncEnabled = !!status.vnc_enabled;
       renderPauseButton();
       renderMonitorStatus();
+      renderLoginBanner();
     } catch (_) {}
   };
 
@@ -575,7 +592,11 @@
       const res = await api(resume ? "/api/monitor/resume" : "/api/monitor/pause", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || res.statusText);
-      state.monitor = { paused: data.paused, waiting_for_login: data.waiting_for_login };
+      state.monitor = {
+        paused: data.paused,
+        waiting_for_login: data.waiting_for_login,
+        login_hint: data.login_hint,
+      };
       renderPauseButton();
       renderMonitorStatus();
       setEditorStatus(

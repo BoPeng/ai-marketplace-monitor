@@ -86,6 +86,36 @@ def test_wait_for_login_waits_until_facebook_has_logged_in(
     assert len(reminders) >= 2 and "CAPTCHA" in reminders[0]
 
 
+@pytest.mark.parametrize(
+    "docker, headless, where",
+    [
+        ("1", False, "Click Open browser in the web UI"),
+        (None, False, "in the browser window aimm opened"),
+        (None, True, "start it without --headless"),
+    ],
+)
+def test_the_login_hint_says_where_to_finish_logging_in(
+    monkeypatch: pytest.MonkeyPatch, docker: str | None, headless: bool, where: str
+) -> None:
+    if docker:
+        monkeypatch.setenv("AIMM_DOCKER", docker)
+    else:
+        monkeypatch.delenv("AIMM_DOCKER", raising=False)
+    hints: List[str] = []
+
+    class HintPage(FakePage):
+        def wait_for_timeout(self, ms: float) -> None:
+            hints.append(control.status()["login_hint"])
+            super().wait_for_timeout(ms)
+
+    page = HintPage(polls_to_login=2)
+    marketplace = _marketplace(page)
+    marketplace.headless = headless
+    marketplace.wait_for_login()
+    assert where in hints[0] and "CAPTCHA" in hints[0]
+    assert control.status()["login_hint"] == ""  # only while waiting
+
+
 def test_a_logged_in_page_does_not_wait() -> None:
     page = FakePage(url=MARKETPLACE_URL)
     page.context.logged_in = True
@@ -243,7 +273,7 @@ def test_web_ui_pause_and_resume(tmp_path: Path) -> None:
         )
     )
     monitor = client.get("/api/status").json()["monitor"]
-    assert monitor == {"paused": False, "waiting_for_login": False}
+    assert monitor == {"paused": False, "waiting_for_login": False, "login_hint": ""}
     assert client.post("/api/monitor/pause").json()["paused"] is True
     assert control.is_paused()
     assert client.get("/api/status").json()["monitor"]["paused"] is True

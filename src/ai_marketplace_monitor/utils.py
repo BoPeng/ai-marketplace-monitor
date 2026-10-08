@@ -5,12 +5,14 @@ import logging
 import os
 import random
 import re
+import shutil
+import sqlite3
 import time
 from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, TypeVar, cast
 
 import parsedatetime  # type: ignore
 import requests  # type: ignore
@@ -59,7 +61,67 @@ logging.getLogger("watchdog").setLevel(logging.WARNING)
 amm_home = Path.home() / ".ai-marketplace-monitor"
 amm_home.mkdir(parents=True, exist_ok=True)
 
-cache = Cache(amm_home)
+
+class CacheCorruptedError(RuntimeError):
+    """The cache database cannot be read."""
+
+
+class BrokenCache:
+    """Stands in for a cache whose database cannot be read.
+
+    aimm opens the cache when it is imported, so a corrupted ``cache.db`` (e.g. written by two
+    machines at once through a Docker bind mount) used to stop every command, including the one
+    that clears it. With this, aimm starts, and using the cache says how to fix it.
+    """
+
+    def __init__(self: "BrokenCache", directory: Path, error: Exception) -> None:
+        self.directory = str(directory)
+        self.error = error
+
+    def __getattr__(self: "BrokenCache", name: str) -> Any:
+        """Any use of the cache reports how to clear it."""
+        raise CacheCorruptedError(cache_corrupted_message(Path(self.directory), self.error))
+
+    def close(self: "BrokenCache") -> None:
+        pass
+
+
+def cache_corrupted_message(directory: Path, error: Exception) -> str:
+    return (
+        f"The aimm cache {directory / 'cache.db'} cannot be read ({error}). Clear it with "
+        "`aimm admin --clear-cache all` (in Docker: `docker exec aimm aimm admin --clear-cache "
+        "all`), then start aimm again."
+    )
+
+
+def open_cache(directory: Path) -> Cache:
+    try:
+        return Cache(directory)
+    except sqlite3.DatabaseError as e:
+        return cast(Cache, BrokenCache(directory, e))
+
+
+def is_cache_broken(c: Any) -> bool:
+    return isinstance(c, BrokenCache)
+
+
+def remove_cache_files(directory: Path) -> List[Path]:
+    """Delete diskcache's files: the database and the folders it keeps large values in."""
+    removed = []
+    for name in ("cache.db", "cache.db-wal", "cache.db-shm"):
+        path = directory / name
+        if path.exists():
+            path.unlink()
+            removed.append(path)
+    for path in directory.iterdir():
+        # diskcache stores large values under two-hex-digit folders (e.g. "3f/a1/....val")
+        if path.is_dir() and re.fullmatch(r"[0-9a-f]{2}", path.name):
+            shutil.rmtree(path)
+            removed.append(path)
+    return removed
+
+
+cache = open_cache(amm_home)
 
 
 TConfigType = TypeVar("TConfigType", bound="BaseConfig")

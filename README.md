@@ -33,6 +33,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
+- **Guided Facebook login**: aimm types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
 - **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
 - **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models and 100+ notification channels. See [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
@@ -116,8 +117,17 @@ export OPENAI_API_KEY='your_openai_key'
 # or: export ANTHROPIC_API_KEY='your_anthropic_key'
 # or: export UNITYSVC_API_KEY='your_unitysvc_key'
 
+# aimm searches only while logged in to Facebook
+export FACEBOOK_USERNAME='you@example.com'
+export FACEBOOK_PASSWORD='your_facebook_password'
+
 aimm configure
 ```
+
+aimm reads your Facebook username and password from `FACEBOOK_USERNAME` and
+`FACEBOOK_PASSWORD` (or from `username` and `password` in
+`[marketplace.facebook]`). They are required: aimm does not search without
+logging in.
 
 `aimm configure` checks or creates the AI setup first, then asks what you want to
 configure: marketplace searches, items to watch, notifications, regions,
@@ -194,7 +204,20 @@ monitor that is already running picks up the change on its own).
 aimm
 ```
 
-The program will open a browser, search Facebook Marketplace, and notify you of matching items. A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
+What happens next:
+
+1. aimm opens a browser window, goes to Facebook, and types your username and
+   password.
+2. If Facebook asks for a CAPTCHA or a security code, complete it in that
+   window. aimm waits as long as it takes (the web UI shows a "waiting for
+   Facebook login" banner) and reminds you in the log every few minutes.
+3. Once you are logged in, aimm searches Facebook Marketplace and notifies you
+   of matching items. If Facebook logs it out later, it waits for you the same
+   way.
+
+A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). Its **⏸** button pauses searches and **▶** resumes them. `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
+
+With `--headless`, the browser window is hidden, so you cannot complete a CAPTCHA: start aimm without it whenever Facebook asks you to verify the login.
 
 ### Run with Docker
 
@@ -217,27 +240,27 @@ the `-e` flags above.
 
 After the container starts:
 
-1. Open [http://localhost:8467](http://localhost:8467).
-2. Sign in to the aimm web UI with your Facebook username and password. These
-   are the same values you passed as `FACEBOOK_USERNAME` and
-   `FACEBOOK_PASSWORD`; when Docker exposes the web UI, they also protect the
-   in-container browser from outside access.
-3. If Facebook asks for a login, CAPTCHA, or other interactive check, click
-   **Browser** in the web UI header to open the live Chromium session in a new
-   tab and complete the prompt there. aimm waits (the status shows "waiting for
-   Facebook login") and starts searching once you are logged in. The **⏸**
-   button in the header pauses searches whenever you need the browser to
-   yourself; **▶** resumes them.
-4. Once the prompt is handled, you can close the Browser/noVNC tab. The monitor
-   keeps running in Docker, so you do not need to keep a Playwright browser
-   window open on your desktop.
+1. Open [http://localhost:8467](http://localhost:8467) and sign in to the aimm
+   web UI with your Facebook username and password, the same values you passed
+   as `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. When Docker exposes the web
+   UI, they also protect the in-container browser from outside access.
+2. Meanwhile, aimm logs in to Facebook in its own browser inside the container
+   and types your username and password. If Facebook asks for a CAPTCHA or a
+   security code, a yellow banner appears at the top of the web UI: click
+   **Open browser** to see that browser in a new tab, and complete the check
+   there. (The **Browser** button in the header opens the same view at any
+   time.)
+3. aimm waits as long as it takes and starts searching once you are logged in.
+   You can then close the browser tab; the monitor keeps running in Docker.
+   The **⏸** button in the header pauses searches whenever you need the
+   browser to yourself; **▶** resumes them.
 
 If the page does not load, check `docker logs aimm`. The web UI requires
 credentials when it is exposed from Docker; make sure `FACEBOOK_USERNAME` and
 `FACEBOOK_PASSWORD` contain only the intended login values before starting the
 container.
 
-Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch back and forth freely.
+Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch between them (one at a time; see below).
 
 When a new release is out, the web UI shows an **Update** button next to the version. It installs the release inside the container and restarts aimm, and the page reloads when it is back. The update lives in the container: it survives `docker restart`, but recreating the container from an older image brings back the old version (the button then offers the update again).
 
@@ -249,6 +272,8 @@ docker rm -f aimm
 ```
 
 then run the `docker run` command above again. Your config, cache, and logs live in the mounted directory, so nothing is lost. The web UI header shows the running version, as does `docker exec aimm ai-marketplace-monitor --version`.
+
+While the container is running, run other aimm commands inside it, e.g. `docker exec -it aimm aimm check <listing>`, not on the host: aimm's cache is an SQLite database, and an aimm on the host and one in the container writing it through the shared folder at the same time can damage it. If that happens, aimm stops with "cannot be read"; clear the cache with `docker exec aimm aimm admin --clear-cache all` and restart the container.
 
 To build the image yourself instead of pulling: `docker build -t aimm .` from a checkout of this repo.
 

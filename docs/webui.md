@@ -12,6 +12,9 @@ The web UI provides:
 - **Configure Chat** that uses the same AI-assisted configuration tools as `aimm configure`
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level, item, AI score, and text search
+- **Version** of the running aimm in the header; in Docker, an **Update** button next to it installs a newer release in the container and restarts aimm
+- **⏸ / ▶** button in the header: ⏸ pauses searches after the current listing, and ▶ resumes them and searches all items right away
+- **Login banner** while aimm waits for you to finish logging in to Facebook (a CAPTCHA or a security code). It says where to complete it; in Docker, its **Open browser** button (like **Browser** in the header) opens aimm's browser in a new tab
 - **Export CSV** button in the header downloads all found (notified) listings — link, price, rating, and details — as a CSV file
 - **Auto-validation** of your config as you type
 
