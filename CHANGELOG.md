@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- A Docker Compose installation guide ([docs/docker-installation.md](docs/docker-installation.md)): a `docker-compose.yml` with credentials in `.env`, the first run, running behind a reverse proxy such as Traefik, updating and troubleshooting. The README's Docker section links to it.
+
+### Changed
+- The config file created on first run uses UnitySVC: `[ai.unitysvc]` with the `balanced` model rates listings, and `[user.me]` receives UnitySVC email with photos (`[notification.unitysvc_email]`) and UnitySVC phone/chat messages (`[notification.unitysvc]`), plus a daily digest at 08:00. `[marketplace.facebook]` logs in with the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables, so with Docker only `FACEBOOK_USERNAME`, `FACEBOOK_PASSWORD` and `UNITYSVC_API_KEY` need to be set.
+
+### Fixed
+- The web UI read `username = "${FACEBOOK_USERNAME}"` and `password = "${FACEBOOK_PASSWORD}"` as literal text: when exposed (as in Docker), its login was `${FACEBOOK_USERNAME}` / `${FACEBOOK_PASSWORD}` instead of your Facebook credentials, and the startup banner showed `user: ${FACEBOOK_USERNAME}`. It now reads the variables, as the Facebook login does; an unset variable falls back to `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD`.
+- A user receiving more than one notification no longer logs "Overriding ... for user" warnings for channel defaults (retries, rate limits, message format) that have the same value.
+
 ## [0.10.9] - 2026-10-08
 
 ### Added

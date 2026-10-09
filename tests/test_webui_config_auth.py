@@ -126,3 +126,39 @@ def test_extract_no_config_no_env(tmp_path: Path) -> None:
         got = extract_credentials([p])
     assert got.username is None
     assert got.password is None
+
+
+# ----------------------------------------------------------------------
+# extract_credentials — ${VAR} references in the config
+# ----------------------------------------------------------------------
+
+
+def test_extract_resolves_env_references(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Username = "${FACEBOOK_USERNAME}" is the variable's value, not the literal text."""
+    p = _write(
+        tmp_path,
+        '[marketplace.facebook]\nusername = "${FB_USER}"\npassword = "${FB_PASS}"\n',
+    )
+    monkeypatch.setenv("FB_USER", "me@example.com")
+    monkeypatch.setenv("FB_PASS", "secret")
+    got = extract_credentials([p])
+    assert got.username == "me@example.com"
+    assert got.password == "secret"
+
+
+def test_extract_unset_reference_falls_back_to_env_vars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unset ${VAR} is no value: never the literal text as the login."""
+    p = _write(
+        tmp_path,
+        '[marketplace.facebook]\nusername = "${UNSET_USER}"\npassword = "${UNSET_PASS}"\n',
+    )
+    monkeypatch.delenv("UNSET_USER", raising=False)
+    monkeypatch.delenv("UNSET_PASS", raising=False)
+    assert extract_credentials([p]).username is None
+    monkeypatch.setenv("FACEBOOK_USERNAME", "envuser")
+    monkeypatch.setenv("FACEBOOK_PASSWORD", "envpass")
+    got = extract_credentials([p])
+    assert got.username == "envuser"
+    assert got.password == "envpass"

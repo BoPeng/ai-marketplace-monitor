@@ -54,3 +54,34 @@ def test_parse_error_message_kept(tmp_path: Path) -> None:
     bad.write_text("[item\n")
     with pytest.raises(ValueError, match="Error parsing config file"):
         load_config_dicts([bad])
+
+
+def test_default_template_is_a_working_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The first-run config works once the environment variables are set (as in Docker)."""
+    import logging
+    from unittest.mock import MagicMock
+
+    from ai_marketplace_monitor.commands.common import DEFAULT_CONFIG_TEMPLATE
+
+    monkeypatch.setenv("FACEBOOK_USERNAME", "me@example.com")
+    monkeypatch.setenv("FACEBOOK_PASSWORD", "secret")
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_key")
+    path = tmp_path / "config.toml"
+    path.write_text(DEFAULT_CONFIG_TEMPLATE, encoding="utf-8")
+    logger = MagicMock(spec=logging.Logger)
+    cfg = Config([path], logger)
+
+    facebook = cfg.marketplace["facebook"]
+    assert (facebook.username, facebook.password) == ("me@example.com", "secret")
+    assert cfg.ai["unitysvc"].api_key == "svcpass_key"
+    assert cfg.ai["unitysvc"].model == "balanced"
+    me = cfg.user["me"]
+    assert me.notify_with == ["unitysvc_email", "unitysvc"]
+    assert me.smtp_server == "smtp.svcpass.com"
+    assert me.smtp_password == "svcpass_key"
+    assert me.unitysvc_api_key == "svcpass_key"
+    assert me.digest_at == "08:00"
+    # channel defaults shared by both notifications are not reported as overrides
+    logger.warning.assert_not_called()

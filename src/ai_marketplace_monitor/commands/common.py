@@ -20,15 +20,19 @@ DEFAULT_CONFIG_TEMPLATE = """\
 # Created automatically on first run. Edit in the web UI (or any
 # editor) and save — the monitor picks up changes within a second.
 #
-# The web UI requires no password on localhost (127.0.0.1). To expose
-# it on a network interface (--webui-host), set username and password
-# below or via FACEBOOK_USERNAME / FACEBOOK_PASSWORD env vars.
+# aimm reads these environment variables (in Docker, pass them to the
+# container, e.g. in the environment of a docker-compose.yml):
+#
+#   FACEBOOK_USERNAME, FACEBOOK_PASSWORD  your Facebook login. They also
+#       protect the web UI when it is exposed on a network (--webui-host),
+#       as in Docker. On localhost (127.0.0.1) the web UI needs no password.
+#   UNITYSVC_API_KEY  one key from https://unitysvc.com for the AI that
+#       rates listings and for the email and phone/chat notifications.
 #
 # See https://ai-marketplace-monitor.readthedocs.io/ for a full reference.
 
 [marketplace.facebook]
-username = "${FACEBOOK_USERNAME}"
-password = "${FACEBOOK_PASSWORD}"
+# Logs in with FACEBOOK_USERNAME and FACEBOOK_PASSWORD.
 search_city = "houston"
 
 [item.example]
@@ -37,9 +41,27 @@ search_phrases = "gopro hero"
 # min_price = 50
 # max_price = 300
 
+[ai.unitysvc]
+# Rates each listing, including its main photo.
+api_key = "${UNITYSVC_API_KEY}"
+model = "balanced"
+
+[notification.unitysvc_email]
+# Full email with photos, sent to the address registered with UnitySVC.
+smtp_server = "smtp.svcpass.com"
+smtp_username = "smtp-to-mailbox"
+smtp_password = "${UNITYSVC_API_KEY}"
+with_description = true
+
+[notification.unitysvc]
+# Short messages to the UnitySVC inbox and the destination saved in
+# UnitySVC (Discord, Slack, SMS, phone push, ...).
+unitysvc_api_key = "${UNITYSVC_API_KEY}"
+
 [user.me]
-# One of these notification channels is required.
-# pushbullet_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+notify_with = ["unitysvc_email", "unitysvc"]
+# Daily digest of searches, matches and rejected listings (local time).
+digest_at = "08:00"
 """
 
 

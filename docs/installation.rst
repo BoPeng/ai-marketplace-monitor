@@ -35,6 +35,12 @@ Linux Installation (using pipx)
 .. include:: linux-installation.md
    :parser: myst_parser.sphinx_
 
+Docker Compose
+--------------
+
+.. include:: docker-installation.md
+   :parser: myst_parser.sphinx_
+
 Development Installation
 ------------------------
 

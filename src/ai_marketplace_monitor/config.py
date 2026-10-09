@@ -342,7 +342,8 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                 for key, value in notification_config.__dict__.items():
                     # name is the notification name and should not override username
                     if key not in ("type", "name", "request") and value is not None:
-                        if getattr(config, key) is not None:
+                        # defaults shared by every channel (retries, rate limits) are no conflict
+                        if getattr(config, key) not in (None, value):
                             if logger:
                                 logger.warning(
                                     f"Overriding {hilight(key)} for user {config.name} with value {value} from notification {hilight(notification_name)}."
