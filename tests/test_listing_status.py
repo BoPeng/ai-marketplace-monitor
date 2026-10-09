@@ -39,6 +39,12 @@ def eval_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Cach
         ("Sold  \u00a0· 2018 Honda accord EX Sedan 4D", SOLD, "2018 Honda accord EX Sedan 4D"),
         ("Sold  · 2018 Honda accord EX Sedan 4D", SOLD, "2018 Honda accord EX Sedan 4D"),
         ("Pending · iPad Air", PENDING, "iPad Air"),
+        # the h1 text of a pending listing on Facebook (2004231520294090, October 2026)
+        (
+            "Pending\u00a0 · Oval solid wood frame mirror 43x30",
+            PENDING,
+            "Oval solid wood frame mirror 43x30",
+        ),
         ("iPad Air", AVAILABLE, "iPad Air"),
         ("Sold out iPad case", AVAILABLE, "Sold out iPad case"),
     ],
