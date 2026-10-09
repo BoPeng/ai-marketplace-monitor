@@ -1355,7 +1355,7 @@
       { key: "search_interval", label: "Search interval", type: "text", group: "Schedule", advanced: true, column: "right",
         help: "Duration, e.g. '30m', '1h'. Default: 30 min." },
       { key: "max_search_interval", label: "Max search interval", type: "text", advanced: true, column: "right",
-        help: "Upper bound for random interval jitter." },
+        help: "Upper bound for random interval jitter. Default: 150% of search interval." },
       { key: "start_at", label: "Start at", type: "text", advanced: true, column: "right",
         help: "Comma-separated time patterns: 'HH:MM', '*:MM', '*:*:SS'." },
     ],

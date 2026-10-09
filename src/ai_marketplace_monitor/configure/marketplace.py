@@ -172,15 +172,17 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "search_interval",
-        "how often to search",
+        "how often to search; a search_interval of X searches every X to 1.5X "
+        "(random) unless max_search_interval is also set",
         'duration, e.g. `"30m"`, `"1h"`, `"1h 30m"`, `"1d"`',
-        "aimm's default interval",
+        "30m (so every 30 to 45 minutes)",
     ),
     FieldGuide(
         "max_search_interval",
-        "with search_interval, makes the interval random between the two",
+        "upper bound of the random interval; set it equal to search_interval "
+        "for a fixed interval",
         'duration, e.g. `"2h"`',
-        "fixed interval",
+        "1.5 x search_interval",
     ),
     FieldGuide(
         "start_at",
