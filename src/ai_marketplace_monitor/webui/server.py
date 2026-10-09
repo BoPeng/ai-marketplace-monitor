@@ -139,15 +139,32 @@ class WebUIConfig:
     log_handler: LogBroadcastHandler | None = None
 
 
+# AIMM_WEBUI_AUTH: who signs users in to an exposed web UI
+AUTH_PASSWORD = "password"  # aimm, with the marketplace credentials (default)
+AUTH_PROXY = "proxy"  # a reverse proxy in front of aimm; aimm asks for no password
+AUTH_MODES = (AUTH_PASSWORD, AUTH_PROXY)
+
+
+def webui_auth_mode() -> str:
+    """The AIMM_WEBUI_AUTH setting; raises ValueError for an unknown value."""
+    mode = os.environ.get("AIMM_WEBUI_AUTH", "").strip().lower() or AUTH_PASSWORD
+    if mode not in AUTH_MODES:
+        raise ValueError(
+            f"AIMM_WEBUI_AUTH={mode!r} is not supported; use {' or '.join(AUTH_MODES)}."
+        )
+    return mode
+
+
 @dataclass
 class StartupInfo:
     """Information about the running server, shown in the startup banner."""
 
     urls: List[str]
-    username: str | None  # None in open mode
+    username: str | None  # None in open and proxy mode
     host: str
     port: int
     exposed: bool
+    proxy_auth: bool = False
 
 
 class AuthState:
@@ -162,6 +179,10 @@ class AuthState:
     def __init__(self) -> None:
         self.auth: AuthConfig | None = None
         self.exposed: bool = False
+        # AIMM_WEBUI_AUTH=proxy: a reverse proxy signs users in, so an exposed web UI asks
+        # for no password. Sessions and CSRF tokens are still required: proxy credentials
+        # (cookies, cached basic auth) are sent with cross-site requests too.
+        self.proxy_auth: bool = False
 
 
 def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
@@ -175,8 +196,9 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
     exposed = config.host not in ("127.0.0.1", "localhost", "::1")
     state = AuthState()
     state.exposed = exposed
+    state.proxy_auth = exposed and webui_auth_mode() == AUTH_PROXY
 
-    if exposed:
+    if exposed and not state.proxy_auth:
         extracted = extract_credentials(config.config_files)
         if extracted.username and extracted.password:
             state.auth = AuthConfig(
@@ -192,6 +214,7 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
         host=config.host,
         port=config.port,
         exposed=exposed,
+        proxy_auth=state.proxy_auth,
     )
     return state, info
 
@@ -259,8 +282,12 @@ def create_app(
     rate_limiter = RateLimiter()
 
     def is_open() -> bool:
-        """True when running on loopback — no password required."""
+        """True when running on loopback — no password, session or CSRF token required."""
         return not state.exposed
+
+    def no_password() -> bool:
+        """True when signing in needs no password: on loopback, or behind a proxy."""
+        return is_open() or state.proxy_auth
 
     def require_session(
         request: Request,
@@ -310,7 +337,8 @@ def create_app(
     async def auth_info() -> Dict[str, Any]:
         """Return auth mode info for the frontend login screen."""
         return {
-            "open": is_open(),
+            # the frontend signs in without asking for a password
+            "open": no_password(),
             "username_hint": state.auth.username if state.auth else None,
         }
 
@@ -321,11 +349,12 @@ def create_app(
         username: str = Form(""),
         password: str = Form(""),
     ) -> Dict[str, Any]:
-        # Loopback — always open, no password needed.
-        if is_open():
-            token, csrf = sessions.issue("anonymous")
+        # Loopback, or behind a reverse proxy that signs users in: no password needed.
+        if no_password():
+            username = "anonymous" if is_open() else "proxy"
+            token, csrf = sessions.issue(username)
             _set_session_cookies(response, token, csrf)
-            return {"username": "anonymous", "csrf": csrf}
+            return {"username": username, "csrf": csrf}
 
         # Exposed — credentials required.
         client_ip = request.client.host if request.client else "unknown"
@@ -357,8 +386,10 @@ def create_app(
             "version": __version__,
             "config_files": [f.__dict__ for f in files],
             "urls": _enumerate_urls(config.host, config.port),
-            "auth_mode": "open" if is_open() else "authenticated",
-            "open": is_open(),
+            "auth_mode": (
+                "open" if is_open() else "proxy" if state.proxy_auth else "authenticated"
+            ),
+            "open": no_password(),  # nothing to log out of
             "vnc_enabled": os.environ.get("AIMM_ENABLE_VNC") == "1"
             and Path(os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")).is_dir(),
             "update": current_notice(),  # a newer release, if the update check found one
@@ -975,14 +1006,21 @@ def start_webui(
         raise ValueError("WebUIConfig.log_handler is required")
     state, info = _resolve_auth(config)
 
+    if state.proxy_auth:
+        (logger or logging.getLogger("monitor")).warning(
+            f"""{hilight("[WebUI]", "fail")} AIMM_WEBUI_AUTH=proxy: the web UI asks for no"""
+            f" password. Anyone who reaches port {config.port} directly controls aimm and"
+            " sees its browser, so make it reachable only through your reverse proxy."
+        )
     # --webui-host requires credentials. Refuse to expose without auth.
-    if state.exposed and state.auth is None:
+    elif state.exposed and state.auth is None:
         raise RuntimeError(
             f"--webui-host {config.host} requires authentication. "
             "Set username/password in a [marketplace.*] config section "
             "or set FACEBOOK_USERNAME and FACEBOOK_PASSWORD environment "
             "variables. Omit --webui-host to run on 127.0.0.1 without "
-            "a password."
+            "a password, or set AIMM_WEBUI_AUTH=proxy if a reverse proxy "
+            "signs users in."
         )
 
     config_service = ConfigFileService(config.config_files, logger=logger)

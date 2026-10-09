@@ -90,6 +90,12 @@ The override removes the published port and adds the Traefik labels. Change its 
 
 Anyone who can reach the URL sees the aimm sign-in page, which is protected only by your Facebook credentials. You can also put the site behind your proxy's own authentication (for example a forward-auth middleware).
 
+### Let the reverse proxy sign you in
+
+If your reverse proxy or container manager already signs users in (Authelia, Authentik, a forward-auth or basic-auth middleware, Cloudflare Access, the login of a NAS or app platform), set `AIMM_WEBUI_AUTH=proxy` in `.env` (or `-e AIMM_WEBUI_AUTH=proxy` with `docker run`). The web UI then opens without asking for the Facebook username and password, so you sign in only once. aimm still logs in to Facebook with them, so keep `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` set.
+
+With this setting, anyone who reaches port 8467 without going through the proxy controls aimm and sees its browser, which is logged in to your Facebook account. Make the port reachable only through the proxy: do not publish it (the Traefik override above removes it), and keep the container on a network that only the proxy can reach. aimm logs a warning when it starts in this mode. The web UI still protects itself against requests from other websites, so a page you visit cannot change aimm's settings through your proxy's sign-in.
+
 ## Update
 
 When a new release is out, the web UI header shows **⬆ aimm X available**, which opens Settings with an **Update** button. It installs the release inside the running container and restarts aimm; the page reloads when it is back. The update lives in the container: it survives a restart, but recreating the container from an older image brings back the old version, and the button offers the update again. The button is there only when aimm runs as the image's own user, ID 1000; with another `PUID`, or `--user`, update the image instead.
