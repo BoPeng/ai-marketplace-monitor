@@ -11,7 +11,8 @@ repos:
       - id: check-json
       - id: check-yaml
         # Compose's `!reset` tag is not plain YAML; `docker compose config` validates this file
-        exclude: ^docker-compose/docker-compose\.traefik\.yml$
+        # TrueNAS app templates are Jinja that renders to JSON, not YAML
+        exclude: ^(docker-compose/docker-compose\.traefik\.yml|deploy/truenas/.*/templates/docker-compose\.yaml)$
       - id: debug-statements
       - id: check-merge-conflict
       - id: pretty-format-json

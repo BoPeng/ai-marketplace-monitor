@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "$schema": "https://schemas.runtipi.io/v2/dynamic-compose.json",
+  "services": [
+    {
+      "name": "ai-marketplace-monitor",
+      "image": "ghcr.io/bopeng/ai-marketplace-monitor:0.10.10",
+      "isMain": true,
+      "internalPort": 8467,
+      "environment": [
+        {
+          "key": "TZ",
+          "value": "${TZ}"
+        },
+        {
+          "key": "FACEBOOK_USERNAME",
+          "value": "${AIMM_FACEBOOK_USERNAME}"
+        },
+        {
+          "key": "FACEBOOK_PASSWORD",
+          "value": "${AIMM_FACEBOOK_PASSWORD}"
+        },
+        {
+          "key": "UNITYSVC_API_KEY",
+          "value": "${AIMM_UNITYSVC_API_KEY}"
+        }
+      ],
+      "volumes": [
+        {
+          "hostPath": "${APP_DATA_DIR}/data",
+          "containerPath": "/data"
+        }
+      ]
+    }
+  ]
+}

@@ -25,10 +25,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Mirror to Docker Hub, where Synology and QNAP container managers search, once the
+      # repository variable DOCKERHUB_USERNAME and the secret DOCKERHUB_TOKEN are set
+      - if: vars.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/ai-marketplace-monitor
+          images: |
+            ghcr.io/${{ github.repository_owner }}/ai-marketplace-monitor
+            name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/ai-marketplace-monitor,enable=${{ vars.DOCKERHUB_USERNAME != '' }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

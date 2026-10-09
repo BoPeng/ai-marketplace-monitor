@@ -1,0 +1,64 @@
+{
+  "minVersion": "0.9.13",
+  "cosmos-installer": {
+    "form": [
+      {
+        "name": "FACEBOOK_USERNAME",
+        "label": "Facebook username: the account aimm logs in with. Also signs you in to the web UI.",
+        "initialValue": "",
+        "type": "text"
+      },
+      {
+        "name": "FACEBOOK_PASSWORD",
+        "label": "Facebook password. Also signs you in to the web UI.",
+        "initialValue": "",
+        "type": "password"
+      },
+      {
+        "name": "UNITYSVC_API_KEY",
+        "label": "UnitySVC API key, for the default configuration (https://unitysvc.com). Leave empty if you configure other providers.",
+        "initialValue": "",
+        "type": "password"
+      }
+    ]
+  },
+  "services": {
+    "{ServiceName}": {
+      "image": "ghcr.io/bopeng/ai-marketplace-monitor:latest",
+      "container_name": "{ServiceName}",
+      "restart": "unless-stopped",
+      "environment": [
+        "FACEBOOK_USERNAME={Context.FACEBOOK_USERNAME}",
+        "FACEBOOK_PASSWORD={Context.FACEBOOK_PASSWORD}",
+        "UNITYSVC_API_KEY={Context.UNITYSVC_API_KEY}"
+      ],
+      "labels": {
+        "cosmos-force-network-secured": "true",
+        "cosmos-auto-update": "true",
+        "cosmos-icon": "https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/docs/icon.png"
+      },
+      "volumes": [
+        {
+          "source": "{ServiceName}-data",
+          "target": "/data",
+          "type": "volume"
+        }
+      ],
+      "routes": [
+        {
+          "name": "{ServiceName}",
+          "description": "Expose {ServiceName} to the web",
+          "useHost": true,
+          "target": "http://{ServiceName}:8467",
+          "mode": "SERVAPP",
+          "Timeout": 14400000,
+          "ThrottlePerMinute": 12000,
+          "BlockCommonBots": true,
+          "SmartShield": {
+            "Enabled": true
+          }
+        }
+      ]
+    }
+  }
+}

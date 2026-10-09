@@ -57,6 +57,19 @@ docker compose up -d
 docker compose logs -f aimm
 ```
 
+## NAS and container managers
+
+On Unraid, CasaOS, ZimaOS, Umbrel, Runtipi, TrueNAS SCALE, Cosmos or Portainer, install aimm from the templates in the repository's [`deploy/`](https://github.com/BoPeng/ai-marketplace-monitor/tree/main/deploy) folder, which also say how to install each one before it is listed in that platform's app store.
+
+On **Synology** (Container Manager, DSM 7.2 or later) and **QNAP** (Container Station), create a project from the Docker Compose files above:
+
+1. In File Station, create a folder for aimm, for example `docker/aimm` on Synology or `Container/aimm` on QNAP, with a `data` folder in it. Put `docker-compose.yml` and your filled-in `.env` (from `.env.example`) in it.
+2. Find the IDs of the user that should own the files (on Synology, `id <user>` over SSH; the first user is usually `1026`, group `100`) and set them as `PUID` and `PGID` in `.env`.
+3. Synology: **Container Manager › Project › Create**, choose the folder, and select **Use existing docker-compose.yml**. QNAP: **Container Station › Applications › Create**, and paste `docker-compose.yml`; enter the variables of `.env` in its environment settings if it does not read the file.
+4. Open `http://<NAS address>:8467` and continue with First run below.
+
+The image, `ghcr.io/bopeng/ai-marketplace-monitor`, runs on amd64 and arm64 NAS models. It is on GitHub's registry, so the image search of Container Manager or Container Station does not list it; the project files above name it directly.
+
 ## First run
 
 On first start, aimm creates `config.toml` in the mounted directory (`data/config.toml` with Docker Compose) unless one is there already. The default configuration:
@@ -108,7 +121,7 @@ aimm still logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`,
 
 Container managers:
 
-- **Umbrel** puts its own login in front of apps, but does not tell the app who signed in, and aimm cannot check it. Keep `password`, or turn off Umbrel's login for aimm (`PROXY_AUTH_ADD: "false"`).
+- **Umbrel** puts its own login in front of apps, but does not tell aimm who signed in. The template in `deploy/umbrel/` keeps Umbrel authentication enabled and uses `AIMM_WEBUI_AUTH=proxy`; configure the Facebook credentials in aimm's web config editor. Direct access from another container on Umbrel's network bypasses that login, so this setup relies on Umbrel's network isolation. Do not disable Umbrel authentication when using `proxy` mode.
 - **CasaOS** signs you in to its dashboard, not to the apps, which are published on the host's ports. Keep `password`.
 
 ## Update

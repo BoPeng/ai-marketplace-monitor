@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>AI Marketplace Monitor watches Facebook Marketplace, rates listings with AI, and sends notifications about matching deals. This repository maintains the Docker template and application. See the project documentation for setup and GitHub issues for support.</Profile>
+  <Icon>https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/docs/icon.png</Icon>
+  <WebPage>https://github.com/BoPeng/ai-marketplace-monitor</WebPage>
+</CommunityApplications>
