@@ -225,6 +225,8 @@ aimm always shows its browser, because Facebook may ask you to complete a CAPTCH
 
 A prebuilt Linux image is published to GitHub Container Registry. It bundles Python, Playwright Chromium, a virtual display (Xvfb), and an embedded noVNC client so you can solve Facebook CAPTCHAs / interactive logins from the web UI — useful on macOS, headless servers, or NAS boxes.
 
+To run it with Docker Compose, which keeps your credentials in a `.env` file and can run aimm behind a reverse proxy such as Traefik, see the [Docker Compose installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker-compose) ([source](docs/docker-installation.md)).
+
 ```bash
 docker run -d --name aimm \
   -p 8467:8467 \

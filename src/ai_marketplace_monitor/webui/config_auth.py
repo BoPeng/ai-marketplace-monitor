@@ -5,7 +5,8 @@ Two modes:
 1. A ``[marketplace.*]`` section has ``username`` and ``password`` set,
    or the ``FACEBOOK_USERNAME`` / ``FACEBOOK_PASSWORD`` environment
    variables are present → the web UI gates access behind those
-   credentials.
+   credentials. A ``${VAR}`` value is read from the environment, as the
+   monitor does when it logs in to the marketplace.
 
 2. Nothing set → **open mode**. The web UI runs without authentication
    but only on loopback (127.0.0.1).  ``--webui-host`` is disallowed
@@ -19,6 +20,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
+
+from ..utils import is_env_reference
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -57,13 +60,27 @@ def _deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
             dst[key] = value
 
 
+def _resolve(value: Any) -> str | None:
+    """A config value, with a ``${VAR}`` reference read from the environment.
+
+    An unset variable counts as no value, so the environment fallback applies.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if is_env_reference(value):
+        return os.environ.get(value[2:-1]) or None
+    return value
+
+
 def extract_credentials(config_files: List[Path]) -> ExtractedCredentials:
     """Return marketplace credentials from the config, or (None, None).
 
     Checks all ``[marketplace.*]`` sections and returns the first one
     that has both ``username`` and ``password`` set.  If nothing is
     found in the config files, falls back to the ``FACEBOOK_USERNAME``
-    and ``FACEBOOK_PASSWORD`` environment variables.
+    and ``FACEBOOK_PASSWORD`` environment variables. ``${VAR}`` values
+    such as ``username = "${FACEBOOK_USERNAME}"`` are read from the
+    environment, never used as the literal text.
     """
     merged = _parse_toml(config_files)
     marketplaces = merged.get("marketplace")
@@ -71,9 +88,9 @@ def extract_credentials(config_files: List[Path]) -> ExtractedCredentials:
         for section in marketplaces.values():
             if not isinstance(section, dict):
                 continue
-            username = section.get("username")
-            password = section.get("password")
-            if isinstance(username, str) and isinstance(password, str) and username and password:
+            username = _resolve(section.get("username"))
+            password = _resolve(section.get("password"))
+            if username and password:
                 return ExtractedCredentials(username=username, password=password)
 
     # Fallback: well-known environment variables (Facebook only for now).
