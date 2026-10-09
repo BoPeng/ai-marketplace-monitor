@@ -26,12 +26,10 @@ dependencies: []
 repo: https://github.com/BoPeng/ai-marketplace-monitor
 support: https://github.com/BoPeng/ai-marketplace-monitor/issues
 port: 8467
-gallery:
-  - 1.jpg
+gallery: []
 path: ""
 defaultUsername: ""
 defaultPassword: ""
-releaseNotes: >
-  First release on Umbrel. See https://github.com/BoPeng/ai-marketplace-monitor/releases/tag/v0.10.10
+releaseNotes: ""
 submitter: Bo Peng
 submission: ""

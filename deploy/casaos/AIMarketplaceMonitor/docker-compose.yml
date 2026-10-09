@@ -54,13 +54,15 @@ services:
             en_US: config.toml, the cache and the logs
 
 x-casaos:
+  id: io.github.bopeng.ai-marketplace-monitor
+  version: "0.10.10"
   architectures:
     - amd64
     - arm64
   main: ai-marketplace-monitor
   author: BoPeng
   developer: BoPeng
-  category: Utilities
+  category: AI
   description:
     en_US: |
       AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.
@@ -77,7 +79,7 @@ x-casaos:
   tips:
     before_install:
       en_US: |
-        After installing, open the app's Settings and set FACEBOOK_USERNAME and FACEBOOK_PASSWORD (and UNITYSVC_API_KEY for the default configuration). The web UI asks for the same Facebook username and password.
+        Before installing, set FACEBOOK_USERNAME and FACEBOOK_PASSWORD in the installation settings (and UNITYSVC_API_KEY for the default configuration). If they are empty, the web UI will not start; edit the installed app's settings and restart it. The web UI asks for the same Facebook username and password.
   title:
     en_US: AI Marketplace Monitor
   index: /

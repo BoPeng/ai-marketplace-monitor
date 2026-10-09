@@ -121,7 +121,7 @@ aimm still logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`,
 
 Container managers:
 
-- **Umbrel** puts its own login in front of apps, but does not tell the app who signed in, and aimm cannot check it. Keep `password`, or turn off Umbrel's login for aimm (`PROXY_AUTH_ADD: "false"`).
+- **Umbrel** puts its own login in front of apps, but does not tell aimm who signed in. The template in `deploy/umbrel/` keeps Umbrel authentication enabled and uses `AIMM_WEBUI_AUTH=proxy`; configure the Facebook credentials in aimm's web config editor. Direct access from another container on Umbrel's network bypasses that login, so this setup relies on Umbrel's network isolation. Do not disable Umbrel authentication when using `proxy` mode.
 - **CasaOS** signs you in to its dashboard, not to the apps, which are published on the host's ports. Keep `password`.
 
 ## Update
