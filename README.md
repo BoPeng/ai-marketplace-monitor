@@ -225,9 +225,7 @@ aimm always shows its browser, because Facebook may ask you to complete a CAPTCH
 
 ### Run with Docker
 
-A prebuilt Linux image is published to GitHub Container Registry. It bundles Python, Playwright Chromium, a virtual display (Xvfb), and an embedded noVNC client so you can solve Facebook CAPTCHAs / interactive logins from the web UI — useful on macOS, headless servers, or NAS boxes.
-
-To run it with Docker Compose, which keeps your credentials in a `.env` file and can run aimm behind a reverse proxy such as Traefik, see the [Docker Compose installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker-compose) ([source](docs/docker-installation.md)).
+A prebuilt image on GitHub Container Registry runs aimm on a server, a NAS or macOS. It has a virtual display, and the web UI shows you its browser when Facebook asks for a CAPTCHA or a security code.
 
 ```bash
 docker run -d --name aimm \
@@ -239,50 +237,9 @@ docker run -d --name aimm \
   ghcr.io/bopeng/ai-marketplace-monitor:latest
 ```
 
-`FACEBOOK_USERNAME`, `FACEBOOK_PASSWORD`, and `UNITYSVC_API_KEY` (if
-applicable) are environment variables defined locally, referenced from
-`$HOME/.ai-marketplace-monitor/config.toml`, and passed to the container by
-the `-e` flags above.
+Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
-After the container starts:
-
-1. Open [http://localhost:8467](http://localhost:8467) and sign in to the aimm
-   web UI with your Facebook username and password, the same values you passed
-   as `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. When Docker exposes the web
-   UI, they also protect the in-container browser from outside access.
-2. Meanwhile, aimm logs in to Facebook in its own browser inside the container
-   and types your username and password. If Facebook asks for a CAPTCHA or a
-   security code, a yellow banner appears at the top of the web UI: click
-   **Open browser** to see that browser in a new tab, and complete the check
-   there. (The **Browser** button in the header opens the same view at any
-   time.)
-3. aimm waits as long as it takes and starts searching once you are logged in.
-   You can then close the browser tab; the monitor keeps running in Docker.
-   Config changes you save are picked up on their own. The **⏸** button in
-   the header stops the monitor only when you need the browser to yourself;
-   **▶** starts it again.
-
-If the page does not load, check `docker logs aimm`. The web UI requires
-credentials when it is exposed from Docker; make sure `FACEBOOK_USERNAME` and
-`FACEBOOK_PASSWORD` contain only the intended login values before starting the
-container.
-
-Mounting `~/.ai-marketplace-monitor` shares your existing config, cache, and logs between the host install and the container — so you can switch between them (one at a time; see below).
-
-When a new release is out, the web UI header shows **⬆ aimm X available**, which opens Settings with an **Update** button. It installs the release inside the container and restarts aimm, and the page reloads when it is back. The update lives in the container: it survives `docker restart`, but recreating the container from an older image brings back the old version (the button then offers the update again).
-
-To update the image itself, pull it and recreate the container — `docker restart` keeps running the old image:
-
-```bash
-docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest
-docker rm -f aimm
-```
-
-then run the `docker run` command above again. Your config, cache, and logs live in the mounted directory, so nothing is lost. The web UI header shows the running version, as does `docker exec aimm ai-marketplace-monitor --version`.
-
-While the container is running, run other aimm commands inside it, e.g. `docker exec -it aimm aimm check <listing>`, not on the host: aimm's cache is an SQLite database, and an aimm on the host and one in the container writing it through the shared folder at the same time can damage it. If that happens, aimm stops with "cannot be read"; clear the cache with `docker exec aimm aimm admin --clear-cache all` and restart the container. To check your notifications, use **Send test** in Settings or `docker exec aimm aimm admin --test-notification`.
-
-To build the image yourself instead of pulling: `docker build -t aimm .` from a checkout of this repo.
+See the [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) for Docker Compose with a `.env` file, running behind a reverse proxy, updates, and running aimm commands in the container.
 
 ## 💡 Example Usage
 
