@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
 import pytest
+import schedule
 from fastapi.testclient import TestClient
 
 from ai_marketplace_monitor import facebook
+from ai_marketplace_monitor import monitor as monitor_module
 from ai_marketplace_monitor.control import control
 from ai_marketplace_monitor.facebook import FacebookMarketplace, FacebookMarketplaceConfig
 from ai_marketplace_monitor.monitor import MarketplaceMonitor
@@ -48,9 +50,11 @@ class FakePage:
 @pytest.fixture(autouse=True)
 def fresh_control() -> Iterator[None]:
     control.resume()
+    control.consume_stop_request()
     control.waiting_for_login = False
     yield
     control.resume()
+    control.consume_stop_request()
     control.waiting_for_login = False
 
 
@@ -239,30 +243,103 @@ def test_login_wait_time_is_deprecated(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any("login_wait_time is deprecated and ignored" in w for w in warnings)
 
 
-def test_monitor_waits_while_paused() -> None:
+VALID_CONFIG = """
+[marketplace.facebook]
+username = "user@example.com"
+password = "test-password"
+search_city = "houston"
+
+[item.ipad]
+search_phrases = "ipad"
+
+[user.me]
+pushbullet_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+"""
+
+
+def _stopped_monitor() -> MarketplaceMonitor:
+    """A monitor with a scheduled job and a loaded config, as between two searches."""
     monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)
     monitor.logger = None
+    monitor.keyboard_monitor = None
+    monitor.config_hash = "loaded"
+    schedule.clear()
+    schedule.every(10).minutes.do(lambda: None)
+    return monitor
+
+
+def test_web_ui_pause_stops_the_monitor_until_started() -> None:
+    monitor = _stopped_monitor()
     control.pause()
     resumed: List[bool] = []
 
     def resume_soon() -> None:
-        resumed.append(True)
+        # stopped: no job is left, and the config is reloaded on restart
+        resumed.append(not schedule.get_jobs() and monitor.config_hash is None)
         control.resume()
 
     threading.Timer(0.2, resume_soon).start()
-    monitor.wait_while_paused()
+    assert monitor.handle_stop() is True
     assert resumed == [True] and not control.is_paused()
 
 
-def test_web_ui_pause_and_resume(tmp_path: Path) -> None:
+def test_not_paused_keeps_the_monitor_running() -> None:
+    monitor = _stopped_monitor()
+    assert monitor.handle_stop() is False
+    assert schedule.get_jobs() and monitor.config_hash == "loaded"
+    schedule.clear()
+
+
+class FakeKeyboard:
+    def __init__(self, confirmed: bool) -> None:
+        self.paused = True
+        self.confirmed = confirmed
+
+    def is_paused(self) -> bool:
+        return self.paused
+
+    def confirm(self) -> bool:
+        self.paused = False
+        return self.confirmed
+
+
+def test_keyboard_pause_without_interactive_session_resumes() -> None:
+    monitor = _stopped_monitor()
+    monitor.keyboard_monitor = FakeKeyboard(confirmed=False)  # type: ignore[assignment]
+    assert monitor.handle_stop() is False
+    assert schedule.get_jobs() and monitor.config_hash == "loaded"  # resumes where it was
+    schedule.clear()
+
+
+def test_interactive_session_stops_and_restarts_the_monitor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor = _stopped_monitor()
+    monitor.keyboard_monitor = FakeKeyboard(confirmed=True)  # type: ignore[assignment]
+    answers = iter(["https://www.facebook.com/marketplace/item/1", "exit"])
+    jobs_during_session: List[int] = []
+    checked: List[str] = []
+
+    def check_items(items: List[str], for_item: Any = None) -> None:
+        jobs_during_session.append(len(schedule.get_jobs()))
+        checked.extend(items)
+        monitor.config_hash = "loaded"  # checking an item loads the config
+
+    monkeypatch.setattr(monitor_module.Prompt, "ask", lambda *a, **k: next(answers))
+    monkeypatch.setattr(monitor, "check_items", check_items)
+    assert monitor.handle_stop() is True
+    assert checked == ["https://www.facebook.com/marketplace/item/1"]
+    assert jobs_during_session == [0]  # stopped while checking
+    assert not schedule.get_jobs() and monitor.config_hash is None
+
+
+def _web_ui(cfg: Path) -> TestClient:
     from ai_marketplace_monitor.webui.config_api import ConfigFileService
     from ai_marketplace_monitor.webui.log_handler import LogBroadcastHandler
     from ai_marketplace_monitor.webui.server import AuthState, WebUIConfig, create_app
 
-    cfg = tmp_path / "config.toml"
-    cfg.write_text("[marketplace.facebook]\nsearch_city = 'dallas'\n", encoding="utf-8")
     handler = LogBroadcastHandler()
-    client = TestClient(
+    return TestClient(
         create_app(
             WebUIConfig(config_files=[cfg], log_handler=handler),
             AuthState(),
@@ -270,12 +347,44 @@ def test_web_ui_pause_and_resume(tmp_path: Path) -> None:
             handler,
         )
     )
+
+
+def test_web_ui_pause_and_resume(tmp_path: Path) -> None:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(VALID_CONFIG, encoding="utf-8")
+    client = _web_ui(cfg)
     monitor = client.get("/api/status").json()["monitor"]
     assert monitor == {"paused": False, "waiting_for_login": False, "login_hint": ""}
+    os.utime(cfg, (1, 1))
     assert client.post("/api/monitor/pause").json()["paused"] is True
     assert control.is_paused()
+    assert cfg.stat().st_mtime > 1  # touched: a sleeping monitor wakes up and stops now
     assert client.get("/api/status").json()["monitor"]["paused"] is True
-    os.utime(cfg, (1, 1))
     assert client.post("/api/monitor/resume").json()["paused"] is False
     assert not control.is_paused()
-    assert cfg.stat().st_mtime > 1  # touched: the monitor wakes up and searches now
+
+
+def test_web_ui_does_not_start_with_an_invalid_config(tmp_path: Path) -> None:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(VALID_CONFIG, encoding="utf-8")
+    client = _web_ui(cfg)
+    assert client.post("/api/monitor/pause").json()["paused"] is True
+    cfg.write_text(VALID_CONFIG + "\n[item.broken\n", encoding="utf-8")  # edited by hand
+    res = client.post("/api/monitor/resume")
+    assert res.status_code == 400
+    data = res.json()
+    assert data["ok"] is False and data["paused"] is True
+    assert "configuration is invalid" in data["error"]
+    assert control.is_paused()  # still stopped
+    cfg.write_text(VALID_CONFIG, encoding="utf-8")
+    assert client.post("/api/monitor/resume").json()["paused"] is False
+
+
+def test_start_before_stop_is_acknowledged_still_rebuilds_jobs() -> None:
+    monitor = _stopped_monitor()
+    control.pause()
+    control.resume()  # the current listing has not finished yet
+    assert monitor.handle_stop() is True
+    assert not schedule.get_jobs()
+    assert monitor.config_hash is None
+    assert monitor.handle_stop() is False  # the request is consumed once

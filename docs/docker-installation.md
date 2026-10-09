@@ -1,4 +1,4 @@
-The Docker image runs aimm on a server, a NAS or any machine without a screen. It bundles Python, Playwright Chromium, a virtual display and a noVNC client, so you can complete Facebook's CAPTCHA or security code from the web UI. With Docker Compose, the settings live in two files that you keep next to each other: `docker-compose.yml` and `.env`.
+The Docker image runs aimm on a server, a NAS or any machine without a screen. It bundles Python, Playwright Chromium, a virtual display and a noVNC client, so you can complete Facebook's CAPTCHA or security code from the web UI. You can start it with a single `docker run` command, or with Docker Compose, which keeps your settings in two files next to each other: `docker-compose.yml` and `.env`.
 
 ## Prerequisites
 
@@ -6,7 +6,27 @@ The Docker image runs aimm on a server, a NAS or any machine without a screen. I
 - A Facebook account for aimm to log in with
 - A [UnitySVC](https://unitysvc.com) API key. The default configuration uses it both for the AI that rates listings and for email and phone/chat notifications. You can switch to other providers later.
 
-## Set up
+## Quick start with docker run
+
+If aimm is already installed on this machine, or you prefer to keep your credentials in environment variables, run:
+
+```bash
+docker run -d --name aimm \
+  -p 8467:8467 \
+  -v "$HOME/.ai-marketplace-monitor:/root/.ai-marketplace-monitor" \
+  -e FACEBOOK_USERNAME -e FACEBOOK_PASSWORD \
+  -e UNITYSVC_API_KEY \
+  --restart unless-stopped \
+  ghcr.io/bopeng/ai-marketplace-monitor:latest
+```
+
+The `-e` flags pass `FACEBOOK_USERNAME`, `FACEBOOK_PASSWORD` and `UNITYSVC_API_KEY` (if you use UnitySVC) from your shell to the container; `config.toml` refers to them as `${FACEBOOK_USERNAME}` and so on. Make sure they contain only the intended values: when Docker exposes the web UI, the Facebook username and password also protect it and its browser view.
+
+Mounting `~/.ai-marketplace-monitor` shares your existing config, cache and logs between an aimm installed on the host and the container, so you can switch between them, one at a time (see Troubleshooting below). Continue with First run below; in the commands there, use `docker exec aimm ...` instead of `docker compose exec aimm ...`, and `docker logs aimm` to see the log.
+
+To build the image yourself instead of pulling it, run `docker build -t aimm .` in a checkout of the repository.
+
+## Set up with Docker Compose
 
 Create a directory for aimm, for example `~/aimm`, and add a `.env` file with your credentials:
 
@@ -51,7 +71,7 @@ docker compose logs -f aimm
 
 ## First run
 
-On first start, aimm creates `data/config.toml`. The default configuration:
+On first start, aimm creates `config.toml` in the mounted directory (`data/config.toml` with Docker Compose) unless one is there already. The default configuration:
 
 - logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`, and searches around Houston (`search_city`)
 - rates listings with UnitySVC AI (`[ai.unitysvc]`, model `balanced`, which also reads listing photos)
@@ -64,7 +84,7 @@ The settings that hold secrets name environment variables, such as `api_key = "$
 Then:
 
 1. Open [http://localhost:8467](http://localhost:8467) (or `http://<server>:8467`) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. Because Docker exposes the web UI on the network, aimm requires these credentials for the web UI and for its browser view.
-2. Change `search_city` and replace `[item.example]` with what you are looking for. Edit them in the web UI's editor, or have the **Configure** chat set them up for you. aimm picks up a saved change within a second.
+2. Change `search_city` and replace `[item.example]` with what you are looking for. Edit them in the web UI's editor, or have the **Configure** chat set them up for you. aimm picks up a saved change on its own; there is no need to restart it.
 3. aimm types your Facebook username and password into its browser. If Facebook asks for a CAPTCHA or a security code, a banner appears in the web UI: click **Open browser** and complete the check there. Searches start once you are logged in.
 4. To check your notifications, use **Send test** in Settings, or run `docker compose exec aimm aimm admin --test-notification`.
 
@@ -103,17 +123,27 @@ Anyone who can reach the URL sees the aimm sign-in page, which is protected only
 
 ## Update
 
-When a new release is out, the web UI header shows **⬆ aimm X available**. Its **Update** button installs the release inside the running container. To update the image itself:
+When a new release is out, the web UI header shows **⬆ aimm X available**, which opens Settings with an **Update** button. It installs the release inside the running container and restarts aimm; the page reloads when it is back. The update lives in the container: it survives a restart, but recreating the container from an older image brings back the old version, and the button offers the update again.
+
+To update the image itself, pull it and recreate the container. Restarting the container keeps running the old image. With Docker Compose:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-Your config, cache and logs are kept in `./data`.
+With `docker run`:
+
+```bash
+docker pull ghcr.io/bopeng/ai-marketplace-monitor:latest
+docker rm -f aimm
+```
+
+and run the `docker run` command again. Your config, cache and logs are kept in the mounted directory. The web UI header shows the running version, as does `docker exec aimm aimm --version`.
 
 ## Troubleshooting
 
 - **The web UI says the credentials are wrong**: sign in with the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. Check that the container received them with `docker compose exec aimm printenv FACEBOOK_USERNAME`. If you changed `.env`, run `docker compose up -d` to recreate the container; `docker compose restart` keeps the old environment.
 - **"Environment variable ... is not set" or "UnitySVC requires a string api_key"**: a `${VAR}` in `config.toml` names a variable that is not in the container's `environment`. Add it to `.env` and to `docker-compose.yml`, then run `docker compose up -d`.
-- **Run aimm commands in the container**, for example `docker compose exec aimm aimm check <listing>`, not with an aimm installed on the host. Both would write the same cache database through `./data` and could damage it. If the cache is damaged, run `docker compose exec aimm aimm admin --clear-cache all` and restart the container.
+- **The web UI does not load**: check the log with `docker compose logs aimm` (or `docker logs aimm`).
+- **Run aimm commands in the container**, for example `docker compose exec aimm aimm check <listing>`, not with an aimm installed on the host. aimm's cache is an SQLite database, and the two would write it through the mounted directory at the same time and could damage it. If aimm stops with "cannot be read", run `docker compose exec aimm aimm admin --clear-cache all` and restart the container.

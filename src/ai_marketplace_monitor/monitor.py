@@ -131,8 +131,9 @@ class MarketplaceMonitor:
         )
 
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
-        """Load the AI agent."""
+        """Load the AI agents, replacing those of a previous config."""
         assert self.config is not None
+        self.ai_agents = []
         for ai_config in (self.config.ai or {}).values():
             if ai_config.enabled is False:
                 continue
@@ -455,30 +456,49 @@ class MarketplaceMonitor:
                 self.config.user[user_name], self.config.notification, logger=self.logger
             )
 
-    def wait_while_paused(self: "MarketplaceMonitor") -> None:
-        """Hold searches while the web UI has paused the monitor."""
-        if not control.is_paused():
-            return
-        if self.logger:
+    def stop_jobs(self: "MarketplaceMonitor") -> None:
+        """Clear all scheduled jobs and make the next ``schedule_jobs`` reload the config."""
+        schedule.clear()
+        self.config_hash = None
+
+    def wait_while_paused(self: "MarketplaceMonitor") -> bool:
+        """Stop the monitor while the web UI has paused it; True if it was stopped."""
+        if not control.consume_stop_request():
+            return False
+        self.stop_jobs()
+        # not if Start was clicked before the monitor got here: it restarts right away
+        if control.is_paused() and self.logger:
             self.logger.info(
-                f"""{hilight("[Pause]", "info")} Searches are paused. Click Resume in the web UI to continue."""
+                f"""{hilight("[Pause]", "info")} Monitor stopped. Click ▶ in the web UI to start it again with the current configuration."""
             )
         while not control.wait_until_resumed(60):
             pass
         if self.logger:
-            self.logger.info(f"""{hilight("[Pause]", "succ")} Searches resumed.""")
+            self.logger.info(
+                f"""{hilight("[Pause]", "succ")} Restarting the monitor with the current configuration."""
+            )
+        return True
 
-    def handle_pause(self: "MarketplaceMonitor") -> None:
-        """Handle interruption signal."""
-        self.wait_while_paused()
+    def handle_stop(self: "MarketplaceMonitor") -> bool:
+        """Stop the monitor if the web UI or the keyboard asks for it; True if it was stopped.
+
+        A pause from the web UI, or an interactive session entered from the keyboard,
+        stops the monitor: the scheduled jobs are cleared and True is returned, and the
+        caller restarts the monitor, which reloads the config and searches all items now.
+        A keyboard pause without the interactive session only resumes, returning False.
+        The browser, and so the Facebook login, is kept either way.
+        """
+        if self.wait_while_paused():
+            return True
         if self.keyboard_monitor is None or not self.keyboard_monitor.is_paused():
-            return
+            return False
 
         rich.print(counter)
         if not self.keyboard_monitor.confirm():
-            return
+            return False
 
-        # now we should go to an interactive session
+        # now we should go to an interactive session, with the monitor stopped
+        self.stop_jobs()
         while True:
             while True:
                 url = (
@@ -508,6 +528,12 @@ class MarketplaceMonitor:
             except Exception as e:
                 if self.logger:
                     self.logger.debug(f"Failed to check item {url}: {e}")
+        self.stop_jobs()  # checking items loaded the config: reload it on restart
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Pause]", "succ")} Restarting the monitor with the current configuration."""
+            )
+        return True
 
     def start_monitor(self: "MarketplaceMonitor") -> None:
         """Main function to monitor the marketplace."""
@@ -529,7 +555,7 @@ class MarketplaceMonitor:
         #
         assert self.browser is not None
         while True:
-            self.handle_pause()
+            self.handle_stop()
             self.schedule_jobs()
             if not schedule.get_jobs():
                 # this actually should not happen because at least one item is required for the configuration file
@@ -537,7 +563,8 @@ class MarketplaceMonitor:
                     self.logger.error(
                         "No search job is defined. Please add search items to your config file."
                     )
-                self.handle_pause()
+                if self.handle_stop():
+                    continue
                 if doze(60, self.config_files, self.keyboard_monitor) == SleepStatus.BY_KEYBOARD:
                     self.keyboard_monitor.set_paused(True)
                 continue
@@ -546,7 +573,8 @@ class MarketplaceMonitor:
             # configuration file has been changed, if so, clear all jobs and restart
             for job in schedule.get_jobs():
                 job.run()
-                self.handle_pause()
+                if self.handle_stop():
+                    break
                 # if configuration file has been changed, clear all scheduled jobs and restart
                 new_file_hash = calculate_file_hash(self.config_files)
                 assert self.config_hash is not None
@@ -615,7 +643,8 @@ class MarketplaceMonitor:
                 elif res == SleepStatus.BY_KEYBOARD:
                     self.keyboard_monitor.set_paused(True)
 
-                self.handle_pause()
+                if self.handle_stop():
+                    break
                 schedule.run_pending()
 
     def stop_monitor(self: "MarketplaceMonitor") -> None:

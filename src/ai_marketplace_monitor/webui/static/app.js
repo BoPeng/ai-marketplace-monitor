@@ -652,8 +652,8 @@
       chip.title = "Finish logging in (CAPTCHA or security code) in the Browser tab. Searches start once you are logged in.";
     } else if (state.monitor && state.monitor.paused) {
       chip.className = "status-chip status-warn";
-      chip.textContent = "● monitor: paused";
-      chip.title = "Searches are paused. Click Resume to continue.";
+      chip.textContent = "● monitor: stopped";
+      chip.title = "The monitor is stopped. Click ▶ to start it again with the current configuration.";
     } else if (!state.lastActivity) {
       chip.className = "status-chip status-warn";
       chip.textContent = "● monitor: connected";
@@ -690,14 +690,17 @@
   setInterval(renderMonitorStatus, 1000);
 
   // Paused, or waiting for the Facebook login: state the log stream does not carry.
-  // One button: ⏸ pauses searches; while paused, ▶ resumes and searches all items now.
+  // One button: ⏸ stops the monitor; while stopped, ▶ starts it again, which reloads the
+  // configuration and searches all items now.
   const renderPauseButton = () => {
     const btn = $("#run-btn");
     if (!btn || !state.monitor) return;
     const paused = state.monitor.paused;
     btn.textContent = paused ? "▶" : "⏸";
-    btn.title = paused ? "Resume and search all items now" : "Pause searches after the current listing";
-    btn.setAttribute("aria-label", paused ? "Resume searches" : "Pause searches");
+    btn.title = paused
+      ? "Start the monitor: reload the configuration and search all items now"
+      : "Stop the monitor after the current listing";
+    btn.setAttribute("aria-label", paused ? "Start the monitor" : "Stop the monitor");
   };
 
   // While aimm waits for the Facebook login, say where to finish it; in Docker the
@@ -740,7 +743,7 @@
     try {
       const res = await api(resume ? "/api/monitor/resume" : "/api/monitor/pause", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || res.statusText);
+      if (!res.ok) throw new Error(data.error || data.detail || res.statusText);
       state.monitor = {
         paused: data.paused,
         waiting_for_login: data.waiting_for_login,
@@ -750,8 +753,8 @@
       renderMonitorStatus();
       setEditorStatus(
         resume
-          ? "▶ Resumed: searching all items now…"
-          : "⏸ Pausing: searches stop after the current listing.",
+          ? "▶ Started: reloading the configuration and searching all items now…"
+          : "⏸ Stopping: the monitor stops after the current listing.",
         "ok"
       );
     } catch (err) {
