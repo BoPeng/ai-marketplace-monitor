@@ -10,7 +10,6 @@ from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 import requests  # type: ignore
 from diskcache import Cache  # type: ignore
 from PIL import Image
-from rich.pretty import pretty_repr
 
 from .listing import Listing
 from .marketplace import TItemConfig, TMarketplaceConfig, resolve_option
@@ -229,6 +228,23 @@ def fetch_listing_image(
     return ListingImage("image/jpeg", base64.b64encode(buffer.getvalue()).decode("ascii"))
 
 
+def token_usage(response: Any) -> str:
+    """Summarize the token usage of an OpenAI or Anthropic response, if reported."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return ""
+    # OpenAI-compatible APIs use prompt/completion, Anthropic uses input/output
+    sent = getattr(usage, "prompt_tokens", None)
+    if sent is None:
+        sent = getattr(usage, "input_tokens", None)
+    received = getattr(usage, "completion_tokens", None)
+    if received is None:
+        received = getattr(usage, "output_tokens", None)
+    if not isinstance(sent, int) or not isinstance(received, int):
+        return ""
+    return f" ({sent} input / {received} output tokens)"
+
+
 class AIBackend(Generic[TAIConfig]):
     # longest side of the listing photo this backend sends
     image_max_side: ClassVar[int] = IMAGE_MAX_SIDE
@@ -426,11 +442,13 @@ class OpenAIBackend(AIBackend):
                 f"{self.config.name} failed to evaluate {listing.title} after {retries} retries"
             ) from last_error
 
-        # check if the response is yes
-        if self.logger:
-            self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
-
         answer = response.choices[0].message.content or ""
+        # log the answer only: the full response object repeats every field
+        # and includes the model's reasoning, flooding the logs
+        if self.logger:
+            self.logger.debug(
+                f"""{hilight("[AI-Response]", "info")} {answer}{token_usage(response)}"""
+            )
         if (
             answer is None
             or not answer.strip()
@@ -595,10 +613,11 @@ class AnthropicBackend(AIBackend):
                 self.client = None
                 time.sleep(5)
 
-        if self.logger:
-            self.logger.debug(f"""{hilight("[AI-Response]", "info")} {pretty_repr(response)}""")
-
         answer = response.content[0].text if response.content else ""
+        if self.logger:
+            self.logger.debug(
+                f"""{hilight("[AI-Response]", "info")} {answer}{token_usage(response)}"""
+            )
         if (
             answer is None
             or not answer.strip()

@@ -1,5 +1,6 @@
 import base64
 import io
+import logging
 from types import SimpleNamespace
 from typing import Tuple
 from unittest.mock import MagicMock
@@ -20,6 +21,7 @@ from ai_marketplace_monitor.ai import (
     OpenAIBackend,
     OpenAIConfig,
     fetch_listing_image,
+    token_usage,
 )
 from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 from ai_marketplace_monitor.listing import Listing
@@ -282,3 +284,50 @@ def test_openai_evaluate_falls_back_to_text_when_image_rejected(
     assert create.call_count == 2
     assert isinstance(create.call_args_list[0].kwargs["messages"][1]["content"], list)
     assert isinstance(create.call_args_list[1].kwargs["messages"][1]["content"], str)
+
+
+def test_openai_response_log_is_compact(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    suffix = uuid4().hex
+    listing.id = f"openai-log-test-{suffix}"
+    listing.title = f"OpenAI log test {suffix}"
+    listing.image = ""
+    item_config.name = f"test-{suffix}"
+    logger = logging.getLogger(f"aimm.test.ai-log-{suffix}")
+    ai = OpenAIBackend(
+        OpenAIConfig(name=f"openai-log-test-{suffix}", api_key="test", max_retries=1),
+        logger=logger,
+    )
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content="Rating 2: Price too high.",
+                    reasoning_content="Let me evaluate this listing step by step",
+                )
+            )
+        ],
+        usage=SimpleNamespace(prompt_tokens=120, completion_tokens=30),
+    )
+    create = MagicMock(return_value=response)
+    ai.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    with caplog.at_level(logging.DEBUG, logger=logger.name):
+        ai.evaluate(listing, item_config, marketplace_config)
+
+    logged = [r.getMessage() for r in caplog.records if "[AI-Response]" in r.getMessage()]
+    assert len(logged) == 1
+    assert "Rating 2: Price too high. (120 input / 30 output tokens)" in logged[0]
+    assert "reasoning" not in logged[0]
+    assert "\n" not in logged[0]
+
+
+def test_token_usage_formats() -> None:
+    anthropic = SimpleNamespace(usage=SimpleNamespace(input_tokens=10, output_tokens=5))
+    assert token_usage(anthropic) == " (10 input / 5 output tokens)"
+    assert token_usage(SimpleNamespace()) == ""
+    assert token_usage(SimpleNamespace(usage=SimpleNamespace(prompt_tokens=10))) == ""

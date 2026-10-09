@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from pathlib import Path
 from typing import Any, Callable, Dict
+
+import pytest
 
 from ai_marketplace_monitor.webui.log_handler import (
     LogBroadcastHandler,
@@ -165,3 +168,16 @@ def test_full_queue_drops_oldest() -> None:
         assert got == ["b", "c"]
 
     _run_fanout_test(emitter, checker, maxsize=2)
+
+
+@pytest.mark.parametrize(("verbose", "level"), [(None, logging.INFO), (True, logging.DEBUG)])
+def test_webui_log_level_follows_verbose(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, verbose: bool | None, level: int
+) -> None:
+    from ai_marketplace_monitor.commands import common
+
+    monkeypatch.setattr(common, "amm_home", tmp_path)
+    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: None)
+    _, handler = common.setup_logging(verbose, webui=True)
+    assert handler is not None
+    assert handler.level == level

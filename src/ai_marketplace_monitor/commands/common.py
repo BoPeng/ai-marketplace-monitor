@@ -101,7 +101,9 @@ def setup_logging(
         from ..webui.log_handler import LogBroadcastHandler
 
         log_broadcast_handler = LogBroadcastHandler(capacity=webui_log_retention)
-        log_broadcast_handler.setLevel(logging.DEBUG)
+        # match the terminal: debug records would otherwise flood the Logs tab
+        # and evict useful history from the bounded ring buffer
+        log_broadcast_handler.setLevel(logging.DEBUG if verbose else logging.INFO)
         log_handlers.append(log_broadcast_handler)
 
     logging.basicConfig(
