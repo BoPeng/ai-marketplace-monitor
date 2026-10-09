@@ -1,0 +1,18 @@
+{
+  "name": "AI Marketplace Monitor",
+  "longDescription": "<p>AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.</p><p>Sign in to the web UI with the Facebook username and password you enter when installing. If Facebook asks for a CAPTCHA or a security code, click Open browser in the web UI and complete it there. The default configuration uses one <a href=\"https://unitysvc.com\">UnitySVC</a> API key for the AI that rates listings and for email and phone notifications.</p>",
+  "description": "Find Facebook Marketplace deals with AI.",
+  "tags": [
+    "facebook marketplace",
+    "deals",
+    "ai",
+    "notifications",
+    "self-hosted"
+  ],
+  "repository": "https://github.com/BoPeng/ai-marketplace-monitor",
+  "image": "https://github.com/BoPeng/ai-marketplace-monitor/pkgs/container/ai-marketplace-monitor",
+  "supported_architectures": [
+    "amd64",
+    "arm64"
+  ]
+}

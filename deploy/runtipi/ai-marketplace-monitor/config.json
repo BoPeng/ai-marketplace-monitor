@@ -1,0 +1,47 @@
+{
+  "$schema": "../app-info-schema.json",
+  "name": "AI Marketplace Monitor",
+  "available": true,
+  "exposable": true,
+  "dynamic_config": true,
+  "port": 8467,
+  "id": "ai-marketplace-monitor",
+  "tipi_version": 1,
+  "version": "0.10.10",
+  "categories": [
+    "automation"
+  ],
+  "description": "Watch Facebook Marketplace for the items you want, rate each new listing with AI, and get notified of good deals.",
+  "short_desc": "Find Facebook Marketplace deals with AI.",
+  "author": "BoPeng",
+  "source": "https://github.com/BoPeng/ai-marketplace-monitor",
+  "form_fields": [
+    {
+      "type": "text",
+      "label": "Facebook username",
+      "hint": "The Facebook account aimm logs in with. Also signs you in to the web UI.",
+      "required": true,
+      "env_variable": "AIMM_FACEBOOK_USERNAME"
+    },
+    {
+      "type": "password",
+      "label": "Facebook password",
+      "hint": "Password of that Facebook account. Also signs you in to the web UI.",
+      "required": true,
+      "env_variable": "AIMM_FACEBOOK_PASSWORD"
+    },
+    {
+      "type": "password",
+      "label": "UnitySVC API key",
+      "hint": "For the default configuration: the AI that rates listings, and email and phone notifications (https://unitysvc.com). Leave empty if you configure other providers.",
+      "required": false,
+      "env_variable": "AIMM_UNITYSVC_API_KEY"
+    }
+  ],
+  "supported_architectures": [
+    "arm64",
+    "amd64"
+  ],
+  "created_at": 1791566272207,
+  "updated_at": 1791566272207
+}
