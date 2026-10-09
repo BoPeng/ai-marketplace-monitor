@@ -70,25 +70,15 @@
       <section class="chat-pane">
         <div class="chat-toolbar">
           <span class="pane-title">Configure</span>
-          <input id="chat-section" list="chat-section-options" type="text" placeholder="section (optional)" title="Configure one section, e.g. item.ipad; leave empty to choose in the chat" autocomplete="off" />
-          <datalist id="chat-section-options">
-            <option value="ai"></option>
-            <option value="marketplace"></option>
-            <option value="item"></option>
-            <option value="notification"></option>
-            <option value="user"></option>
-            <option value="region"></option>
-            <option value="translation"></option>
-            <option value="monitor"></option>
-          </datalist>
-          <button id="chat-toggle" class="toolbar-btn" title="Start a chat with the configuration assistant">Start Chat</button>
+          <span id="chat-scope" class="chat-scope"></span>
+          <button id="chat-end" class="toolbar-btn" title="End the chat; changes already saved stay saved" hidden>End chat</button>
         </div>
-        <div id="chat-messages" class="chat-messages"></div>
-        <div id="chat-options" class="chat-options"></div>
-        <form id="chat-form" class="chat-form">
-          <input id="chat-input" type="text" placeholder="Reply…" autocomplete="off" disabled />
-          <button id="chat-send" class="toolbar-btn" disabled>Send</button>
+        <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+        <form id="chat-form" class="chat-form" hidden>
+          <textarea id="chat-input" rows="1" placeholder="Message the assistant…" aria-label="Message the assistant"></textarea>
+          <button id="chat-send" class="toolbar-btn" type="submit" title="Send (Enter); Shift+Enter for a new line">Send</button>
         </form>
+        <div id="chat-hint" class="chat-hint" hidden>Pick an option above.</div>
       </section>
 
       <section class="logs-pane">
