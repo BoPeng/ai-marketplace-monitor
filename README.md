@@ -237,6 +237,8 @@ docker run -d --name aimm \
   ghcr.io/bopeng/ai-marketplace-monitor:latest
 ```
 
+`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there. In the default configuration, that one key covers any AI engine (OpenAI, Anthropic and more, as UnitySVC platform services or with your own provider keys saved in UnitySVC) and email and phone notifications; see [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
+
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
 See the [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) for Docker Compose with a `.env` file (the files are in [`docker-compose/`](docker-compose/)), running behind a reverse proxy, updates, and running aimm commands in the container.
