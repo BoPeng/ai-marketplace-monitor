@@ -97,6 +97,8 @@ class ItemDigest:
     updates: List[DigestListing] = field(default_factory=list)
     # number of excluded listings by reason
     excluded: Dict[str, int] = field(default_factory=dict)
+    # a short AI-written summary of the item's day (see digest_summary.py), "" if none
+    summary: str = ""
 
     @property
     def n_excluded(self: "ItemDigest") -> int:
