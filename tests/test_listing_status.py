@@ -2,7 +2,7 @@
 
 import time
 from pathlib import Path
-from typing import Iterator, List
+from typing import Any, Iterator, List
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,10 +10,12 @@ from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor import evaluations
 from ai_marketplace_monitor import facebook as fb
+from ai_marketplace_monitor import monitor as mon
 from ai_marketplace_monitor.evaluations import (
     AVAILABLE,
     NOTIFIED,
     PENDING,
+    REJECTED,
     SOLD,
     EvaluationRecord,
     iter_evaluations,
@@ -113,3 +115,58 @@ def test_check_status_reads_each_page(eval_cache: Cache, monkeypatch: pytest.Mon
 def test_check_status_without_a_browser_page_opens_nothing() -> None:
     mp = fb.FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
     assert mp.check_status([_record("1")]) == 0
+
+
+DAY = 24 * 60 * 60
+NOW = 1_800_000_000.0
+
+
+def _at(listing_id: str, when: float, **kwargs: Any) -> EvaluationRecord:
+    record = _record(listing_id, kwargs.pop("stage", NOTIFIED))
+    record.time = when
+    for name, value in kwargs.items():
+        setattr(record, name, value)
+    return record
+
+
+def test_status_candidates() -> None:
+    records = [
+        _at("new", NOW - 3600),
+        _at("old", NOW - 8 * DAY),  # notified more than 7 days ago
+        _at("rejected", NOW - 3600, stage=REJECTED),
+        _at("fresh", NOW - 3600, checked=NOW - 3600),  # checked in the last 20 hours
+        _at("sold", NOW - 3600, state=SOLD),
+        _at("stale", NOW - 2 * DAY, checked=NOW - DAY),
+    ]
+    assert [r.id for r in mon.status_candidates(records, NOW)["facebook"]] == ["new", "stale"]
+
+
+def test_status_candidates_are_capped_per_item() -> None:
+    records = [_at(str(i), NOW - i * 60) for i in range(15)]
+    records += [_at(f"c{i}", NOW - i * 60, item="car") for i in range(3)]
+    picked = mon.status_candidates(records, NOW)["facebook"]
+    assert len(picked) == mon.STATUS_MAX_PER_ITEM + 3
+    assert [r.id for r in picked if r.item == "bike"] == [str(i) for i in range(10)]
+
+
+def test_refresh_listing_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.logger = None
+    marketplace = MagicMock()
+    marketplace.check_status.return_value = 1
+    monkeypatch.setattr(mon.MarketplaceMonitor, "active_marketplaces", {"facebook": marketplace})
+    monkeypatch.setattr(mon, "iter_evaluations", lambda **kwargs: [_at("1", NOW - 60)])
+    monkeypatch.setattr(mon.time, "time", lambda: NOW)
+    monitor.refresh_listing_status()
+    (records,), _ = marketplace.check_status.call_args
+    assert [r.id for r in records] == ["1"]
+
+
+def test_refresh_listing_status_skipped_while_paused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.logger = None
+    marketplace = MagicMock()
+    monkeypatch.setattr(mon.MarketplaceMonitor, "active_marketplaces", {"facebook": marketplace})
+    monkeypatch.setattr(mon.control, "is_paused", lambda: True)
+    monitor.refresh_listing_status()
+    marketplace.check_status.assert_not_called()
