@@ -30,7 +30,12 @@ if [ "$(id -u)" = 0 ]; then
     if [ "$(id -u aimm)" != "$PUID" ]; then
         usermod -o -u "$PUID" aimm
     fi
-    chown aimm:aimm /home/aimm
+    # a container started without CAP_CHOWN (e.g. cap_drop: ALL) cannot do this; aimm then
+    # uses a home folder in /tmp
+    home=/home/aimm
+    if ! chown aimm:aimm "$home"; then
+        home=/tmp/aimm-home
+    fi
 
     # images up to 0.10.10 kept the data in /root/.ai-marketplace-monitor; use a folder still
     # mounted there unless /data is mounted too
@@ -45,15 +50,34 @@ if [ "$(id -u)" = 0 ]; then
     # The directory may already belong to this user while files from the old root-run
     # image do not. Inspect contents too, and only chown entries that need migration.
     # Do not follow symlinks into files outside the data directory.
-    echo "aimm: checking data folder ownership for user $PUID:$PGID"
-    if ! find "$DATA/" \( ! -uid "$PUID" -o ! -gid "$PGID" \) \
-        -exec chown -h "$PUID:$PGID" {} +; then
-        echo "aimm: cannot migrate ownership of $DATA; fix its permissions on the host." >&2
-        exit 1
+    if [ -n "$(find "$DATA/" \( ! -uid "$PUID" -o ! -gid "$PGID" \) -print -quit)" ]; then
+        echo "aimm: giving the data folder to user $PUID:$PGID"
+        if ! find "$DATA/" \( ! -uid "$PUID" -o ! -gid "$PGID" \) \
+            -exec chown -h "$PUID:$PGID" {} +; then
+            # NFS with root_squash, SMB and some NAS shares refuse chown but may still let
+            # aimm write; stop only if it cannot
+            if [ -n "$(setpriv --reuid=aimm --regid=aimm --init-groups \
+                find "$DATA/" ! -writable -print -quit 2>/dev/null || echo unreadable)" ]; then
+                echo "aimm: user $PUID:$PGID cannot write everything in $DATA, and its owner" \
+                    "cannot be changed here. Fix its permissions on the host." >&2
+                exit 1
+            fi
+            echo "aimm: could not change the owner of some files in $DATA;" \
+                "continuing because user $PUID:$PGID can write them." >&2
+        fi
     fi
-    # supervisord sends aimm's output to the container log by opening /dev/fd/1 and /dev/fd/2
-    chown aimm:aimm "/proc/$$/fd/1" "/proc/$$/fd/2" || true
-    exec setpriv --reuid=aimm --regid=aimm --init-groups env HOME=/home/aimm "$@"
+    # supervisord sends aimm's output to the container log by opening /dev/fd/1 and /dev/fd/2,
+    # which must belong to aimm. Without CAP_CHOWN, send the output through a pipe that aimm
+    # creates (tini -g passes stop signals on to supervisord behind it).
+    if chown aimm:aimm "/proc/$$/fd/1" "/proc/$$/fd/2"; then
+        run='mkdir -p "$HOME" && exec "$@"'
+    else
+        # on stop, only supervisord acts; the shell and cat wait for it to finish
+        run='mkdir -p "$HOME" && trap : TERM INT && "$@" 2>&1 | (trap "" TERM INT; exec cat)'
+    fi
+    # tini runs as aimm too: without CAP_KILL, root cannot signal aimm's processes
+    exec setpriv --reuid=aimm --regid=aimm --init-groups env HOME="$home" \
+        /usr/bin/tini -g -- sh -c "$run" aimm-entrypoint "$@"
 fi
 
 # without root, /data cannot be pointed at the old location
@@ -72,4 +96,4 @@ if [ ! -w "$HOME" ]; then
     export HOME=/tmp/aimm-home
     mkdir -p "$HOME"
 fi
-exec "$@"
+exec /usr/bin/tini -g -- "$@"

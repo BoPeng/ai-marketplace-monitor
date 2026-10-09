@@ -113,3 +113,64 @@ def test_entrypoint_rejects_the_old_mount_without_root() -> None:
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "Mount it at /data" in result.stderr
+
+
+def _run_without_chown(setup: str, command: str) -> subprocess.CompletedProcess:
+    """Run `setup` as root, then the entrypoint, in a container that cannot chown."""
+    image = os.environ.get("AIMM_DOCKER_TEST_IMAGE")
+    if not image:
+        pytest.skip("set AIMM_DOCKER_TEST_IMAGE to run Docker entrypoint tests")
+    entrypoint = Path(__file__).resolve().parents[1] / "docker" / "entrypoint.sh"
+    return subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            # like NFS with root_squash: root cannot change owners
+            "--cap-drop",
+            "CHOWN",
+            "-v",
+            f"{entrypoint}:/test-entrypoint:ro",
+            "--entrypoint",
+            "/bin/sh",
+            image,
+            "-c",
+            f"set -eu\n{setup}\n/test-entrypoint /bin/sh -c '{command}'",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+def test_entrypoint_continues_when_chown_fails_but_data_is_writable() -> None:
+    result = _run_without_chown(
+        "mkdir -p /data/cache && printf x > /data/config.toml\n"
+        "chown -R root:root /data 2>/dev/null || true\n"
+        "chmod -R a+rwX /data",
+        'test -w /data/config.toml && test "$HOME" = /tmp/aimm-home && test -d "$HOME"'
+        " && printf success",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "success" in result.stdout
+    assert "continuing because user 1000:1000 can write them" in result.stderr
+
+
+def test_entrypoint_stops_when_chown_fails_and_data_is_not_writable() -> None:
+    result = _run_without_chown(
+        "printf x > /data/config.toml && chmod 644 /data/config.toml\n"
+        "chown root:root /data /data/config.toml 2>/dev/null || true",
+        "printf success",
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "cannot write everything in /data" in result.stderr
+    assert "success" not in result.stdout
+
+
+def test_entrypoint_runs_with_only_setuid_and_setgid() -> None:
+    """cap_drop: ALL plus SETUID/SETGID: no chown of the home folder or the log pipes."""
+    result = _run_entrypoint("--cap-drop", "ALL", "--cap-add", "SETUID", "--cap-add", "SETGID")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "success" in result.stdout

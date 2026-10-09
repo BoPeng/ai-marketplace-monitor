@@ -115,5 +115,6 @@ EXPOSE 8467
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${AIMM_WEBUI_PORT}/api/health" || exit 1
 
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/aimm-entrypoint"]
+# The entrypoint starts tini (as PID 1) once it no longer needs root
+ENTRYPOINT ["/usr/local/bin/aimm-entrypoint"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/aimm/supervisord.conf", "-n"]
