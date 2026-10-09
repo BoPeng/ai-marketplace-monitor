@@ -34,10 +34,14 @@ if [ "$(id -u)" = 0 ]; then
         ln -s "$LEGACY" "$DATA"
     fi
 
-    # only when needed: a large data folder on a NAS takes a while to walk
-    if [ "$(stat -c %u:%g "$DATA/")" != "$PUID:$PGID" ]; then
-        echo "aimm: giving the data folder to user $PUID:$PGID"
-        chown -R "$PUID:$PGID" "$DATA/" || echo "aimm: could not change the owner of $DATA" >&2
+    # The directory may already belong to this user while files from the old root-run
+    # image do not. Inspect contents too, and only chown entries that need migration.
+    # Do not follow symlinks into files outside the data directory.
+    echo "aimm: checking data folder ownership for user $PUID:$PGID"
+    if ! find "$DATA/" \( ! -uid "$PUID" -o ! -gid "$PGID" \) \
+        -exec chown -h "$PUID:$PGID" {} +; then
+        echo "aimm: cannot migrate ownership of $DATA; fix its permissions on the host." >&2
+        exit 1
     fi
     # supervisord sends aimm's output to the container log by opening /dev/fd/1 and /dev/fd/2
     chown aimm:aimm "/proc/$$/fd/1" "/proc/$$/fd/2" || true
