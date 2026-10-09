@@ -11,8 +11,10 @@
 # that user the PUID/PGID you ask for (default 1000:1000, e.g. -e PUID="$(id -u)"
 # -e PGID="$(id -g)" on a Linux host) and the data folder, /data (see docker/entrypoint.sh).
 #
-# Build:
-#   docker build -t aimm .
+# Build from the root of the repository, which is the build context:
+#   docker build -f docker/Dockerfile -t aimm .
+#
+# To run aimm with Docker Compose, see docker-compose/.
 #
 # Run (mount a host folder for config, cache and logs):
 #   docker run --rm -it \

@@ -1,0 +1,22 @@
+# Serve aimm over HTTPS through Traefik, on a Docker network named `proxy`.
+#
+# Save this file as docker-compose.override.yml next to docker-compose.yml, set AIMM_DOMAIN in
+# .env, and run `docker compose up -d`; Compose merges the two files. Port 8467 is then
+# reachable only through Traefik. Change the entrypoint and certresolver names to your
+# Traefik's. Needs Docker Compose 2.24 or later (for `!reset`).
+
+services:
+  aimm:
+    ports: !reset []
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.aimm.rule=Host(`${AIMM_DOMAIN:?set AIMM_DOMAIN in .env}`)"
+      - "traefik.http.routers.aimm.entrypoints=websecure"
+      - "traefik.http.routers.aimm.tls.certresolver=letsencrypt"
+      - "traefik.http.services.aimm.loadbalancer.server.port=8467"
+
+networks:
+  proxy:
+    external: true
