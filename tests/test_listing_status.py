@@ -207,3 +207,55 @@ def test_refresh_listing_status_skipped_while_paused(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(mon.control, "is_paused", lambda: True)
     monitor.refresh_listing_status()
     marketplace.check_status.assert_not_called()
+
+
+def test_check_status_stamps_changes_at_the_digest_cutoff(
+    eval_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record_evaluation(_record("1"), local_cache=eval_cache)
+    mp = _status_marketplace(
+        monkeypatch,
+        {"https://www.facebook.com/marketplace/item/1/": _page_listing("Sold · Bike", "$100")},
+    )
+    cutoff = time.time() - 5  # the digest's cutoff passed a few seconds ago
+    assert mp.check_status([_record("1")], as_of=cutoff) == 1
+    (saved,) = iter_evaluations(local_cache=eval_cache)
+    # the sale counts in the digest being sent, which ends at the cutoff
+    assert saved.state == SOLD and saved.state_changed == cutoff
+    assert saved.checked > cutoff
+
+
+def test_refresh_listing_status_passes_the_cutoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.logger = None
+    marketplace = MagicMock()
+    marketplace.check_status.return_value = 0
+    monkeypatch.setattr(mon.MarketplaceMonitor, "active_marketplaces", {"facebook": marketplace})
+    monkeypatch.setattr(mon, "iter_evaluations", lambda **kwargs: [_at("1", NOW - 60)])
+    monkeypatch.setattr(mon.time, "time", lambda: NOW)
+    monitor.refresh_listing_status(as_of=NOW - 30)
+    assert marketplace.check_status.call_args.kwargs == {"as_of": NOW - 30}
+
+
+def test_send_digest_checks_status_as_of_the_cutoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.logger = None
+    user = SimpleNamespace(digest_at="08:00")
+    monitor.ai_agents = []
+    monitor.config = SimpleNamespace(  # type: ignore[assignment]
+        user={"me": user}, notification={}, item={}
+    )
+    checked: List[Any] = []
+    monkeypatch.setattr(monitor, "refresh_listing_status", lambda as_of: checked.append(as_of))
+    monkeypatch.setattr(mon, "send_due_digest", lambda *args, **kwargs: True)
+
+    monkeypatch.setattr(mon, "pending_digest_channels", lambda *args: [])
+    monitor.send_digest("me")
+    assert checked == []  # nothing due: no pages opened
+
+    monkeypatch.setattr(mon, "pending_digest_channels", lambda *args: ["email"])
+    monitor.send_digest("me")
+    assert checked == [mon.latest_cutoff("08:00", datetime.now()).timestamp()]

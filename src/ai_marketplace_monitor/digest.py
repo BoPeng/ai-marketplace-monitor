@@ -190,12 +190,16 @@ def _digest_listing(record: EvaluationRecord) -> DigestListing:
 
 
 def _is_update(record: EvaluationRecord, since: float, until: float) -> bool:
-    """An earlier notified listing that sold, went pending or changed price in the window."""
+    """An earlier notified listing that sold, went pending or changed price in the window.
+
+    The window's start is excluded: a change dated at a cutoff (by the status check before
+    that digest) belongs to the digest ending there, not to the next one.
+    """
     if record.stage != NOTIFIED or record.time >= since:
         return False
-    if record.state in (SOLD, PENDING) and since <= record.state_changed <= until:
+    if record.state in (SOLD, PENDING) and since < record.state_changed <= until:
         return True
-    return bool(record.previous_price) and since <= record.price_changed <= until
+    return bool(record.previous_price) and since < record.price_changed <= until
 
 
 def build_digest(

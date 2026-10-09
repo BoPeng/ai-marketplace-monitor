@@ -627,8 +627,12 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def search(self: "Marketplace", item: TItemConfig) -> Generator[Listing, None, None]:
         raise NotImplementedError("Search method must be implemented by subclasses.")
 
-    def check_status(self: "Marketplace", records: List["EvaluationRecord"]) -> int:
+    def check_status(
+        self: "Marketplace", records: List["EvaluationRecord"], as_of: float | None = None
+    ) -> int:
         """Open the pages of these listings to update their status; the number read.
+
+        A change found after ``as_of`` (a digest cutoff) is dated at it.
 
         Marketplaces that cannot tell whether a listing sold read none.
         """

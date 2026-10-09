@@ -1,5 +1,6 @@
 import sys
 import time
+from datetime import datetime
 from logging import Logger
 from pathlib import Path
 from typing import ClassVar, Dict, Iterable, List
@@ -21,7 +22,7 @@ from .config import (
     supported_marketplaces,
 )
 from .control import control
-from .digest import pending_digest_channels, send_due_digest
+from .digest import latest_cutoff, pending_digest_channels, send_due_digest
 from .evaluations import (
     NOTIFIED,
     REJECTED,
@@ -482,8 +483,8 @@ class MarketplaceMonitor:
                 self.send_digest, user_config.name
             ).tag(f"{DIGEST_TAG}{user_config.name}")
 
-    def refresh_listing_status(self: "MarketplaceMonitor") -> None:
-        """Check whether recently notified listings sold, for the digest.
+    def refresh_listing_status(self: "MarketplaceMonitor", as_of: float | None = None) -> None:
+        """Check whether recently notified listings sold, for the digest with cutoff ``as_of``.
 
         Best effort: nothing is checked while the monitor is paused, and a failure only
         means the digest uses the status known so far.
@@ -497,7 +498,7 @@ class MarketplaceMonitor:
                 marketplace = self.active_marketplaces.get(name)
                 if marketplace is None:
                     continue
-                read = marketplace.check_status(records)
+                read = marketplace.check_status(records, as_of=as_of)
                 if read and self.logger:
                     self.logger.info(
                         f"""{hilight("[Status]", "succ")} Checked {read} notified {name} listing(s) for the digest."""
@@ -519,7 +520,9 @@ class MarketplaceMonitor:
         if user_config.digest_at and pending_digest_channels(
             user_config, self.config.notification
         ):
-            self.refresh_listing_status()
+            # the check runs just after the cutoff; its findings belong to this digest
+            cutoff = latest_cutoff(user_config.digest_at, datetime.now()).timestamp()
+            self.refresh_listing_status(as_of=cutoff)
         send_due_digest(
             user_config,
             self.config.notification,

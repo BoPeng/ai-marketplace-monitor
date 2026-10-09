@@ -872,3 +872,13 @@ def test_phone_summary_is_escaped() -> None:
     assert "\\*x\\* \\[y\\]" in dg.render_phone_digest(digest, "markdown")
     _, html_message = dg.render_email_digest(digest)
     assert "<b>bad</b>" not in html_message
+
+
+def test_update_at_the_cutoff_is_in_this_digest_only() -> None:
+    # found sold by the check right before this digest, stamped at its cutoff
+    earlier = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3")
+    earlier.state, earlier.state_changed = "sold", NOW
+    today = dg.build_digest([earlier], COUNTERS, SINCE, NOW)
+    tomorrow = dg.build_digest([earlier], COUNTERS, NOW, NOW + dg.DIGEST_PERIOD)
+    assert len(today.total.updates) == 1
+    assert tomorrow.total.updates == []

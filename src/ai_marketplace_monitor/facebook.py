@@ -816,8 +816,13 @@ class FacebookMarketplace(Marketplace):
 
         return None
 
-    def check_status(self: "FacebookMarketplace", records: List[EvaluationRecord]) -> int:
+    def check_status(
+        self: "FacebookMarketplace", records: List[EvaluationRecord], as_of: float | None = None
+    ) -> int:
         """Open each listing's page and record whether it is sold, pending or available.
+
+        ``as_of`` is the cutoff of the digest the check is for: a change found after it is
+        dated at the cutoff, so that it is reported in that digest rather than the next one.
 
         Nothing is opened before the browser has a page (no search has run yet). A page
         that cannot be read leaves the record as it was.
@@ -860,7 +865,7 @@ class FacebookMarketplace(Marketplace):
                 record.item,
                 state=state,
                 checked=now,
-                now=now,
+                now=now if as_of is None else min(now, as_of),
             )
             read += 1
             if self.logger:
