@@ -778,13 +778,6 @@ def test_unchanged_reduced_listing_is_not_an_update(temp_cache: Cache) -> None:
     assert digest.total.updates == []
 
 
-def test_user_digest_summary_option() -> None:
-    assert user().digest_summary is None
-    assert user(digest_summary=False).digest_summary is False
-    with pytest.raises(ValueError, match="digest_summary"):
-        user(digest_summary="no")
-
-
 def test_send_due_digest_with_summaries(sent: Sent, temp_cache: Cache) -> None:
     asked: List[str] = []
 
@@ -797,19 +790,6 @@ def test_send_due_digest_with_summaries(sent: Sent, temp_cache: Cache) -> None:
     assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache, summarize=summarize)
     # records() has "ipad" listings in the window ending at DAY1; one AI call for it
     assert asked == ["ipad"]
-
-
-def test_no_summaries_when_the_user_turns_them_off(sent: Sent, temp_cache: Cache) -> None:
-    asked: List[str] = []
-
-    def summarize(item: str, prompt: str) -> str:
-        asked.append(item)
-        return "x"
-
-    config = user(digest_summary=False)
-    add_digest(config, temp_cache, DAY1.replace(hour=7))
-    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache, summarize=summarize)
-    assert asked == []
 
 
 def summarized_digest() -> dg.Digest:

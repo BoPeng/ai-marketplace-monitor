@@ -108,7 +108,7 @@ def test_every_notification_field_has_a_role(cls: type) -> None:
         for f in fields(cls)
         if f.name not in _BASE
         and not f.name.startswith("_")
-        and f.name not in ("notify_with", "remind", "digest_at", "digest_with", "digest_summary")
+        and f.name not in ("notify_with", "remind", "digest_at", "digest_with")
         and "role" not in f.metadata
     ]
     assert roleless == []

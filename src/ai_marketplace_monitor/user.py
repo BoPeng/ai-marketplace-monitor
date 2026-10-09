@@ -45,8 +45,6 @@ class UserConfig(
     digest_at: str | None = None
     # notification sections that receive the digest, like notify_with; None for all of them
     digest_with: List[str] | None = None
-    # an AI-written summary of each item at the top of its digest section; false for none
-    digest_summary: bool | None = None
 
     def handle_remind(self: "UserConfig") -> None:
         if self.remind is None:
@@ -110,10 +108,6 @@ class UserConfig(
             raise ValueError(
                 f"User {hilight(self.name)} digest_with must be a list of notification section names."
             )
-
-    def handle_digest_summary(self: "UserConfig") -> None:
-        if self.digest_summary is not None and not isinstance(self.digest_summary, bool):
-            raise ValueError(f"User {hilight(self.name)} digest_summary must be true or false.")
 
     def handle_notify_with(self: "UserConfig") -> None:
         if self.notify_with is None:

@@ -695,7 +695,7 @@ def send_due_digest(
     The job runs at ``digest_at`` and whenever the jobs are scheduled (start, config change),
     so a restart does not send a digest twice, a digest missed while aimm was not running is
     sent on the next start, and a channel that failed is tried again with the same window.
-    With ``summarize``, each item gets an AI summary unless the user set ``digest_summary = false``.
+    With ``summarize`` (given when an AI service is configured), each item gets an AI summary.
     """
     if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
         return False
@@ -712,7 +712,7 @@ def send_due_digest(
     failed: List[str] = []
     for (since, until), names in windows.items():
         digest = compose_digest(since, until, local_cache=local_cache)
-        if summarize is not None and user_config.digest_summary is not False:
+        if summarize is not None:
             from .digest_summary import add_summaries
 
             add_summaries(digest, summarize, item_configs, logger=logger, local_cache=local_cache)
