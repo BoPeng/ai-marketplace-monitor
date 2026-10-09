@@ -7,15 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.10] - 2026-10-09
+
 ### Added
-- A Docker Compose installation guide ([docs/docker-installation.md](docs/docker-installation.md)): a `docker-compose.yml` with credentials in `.env`, the first run, running behind a reverse proxy such as Traefik, updating and troubleshooting. The README's Docker section links to it.
+- Docker Compose files in [`docker-compose/`](docker-compose/): `docker-compose.yml`, used as is, reads every setting from `.env` (credentials, API keys, `TZ`, `PUID`/`PGID`, `AIMM_PORT`); `.env.example` is its template; and `docker-compose.traefik.yml`, saved as `docker-compose.override.yml`, serves aimm through Traefik. The [Docker installation guide](docs/docker-installation.md) covers `docker run` and Docker Compose, the first run, a reverse proxy, updates and troubleshooting, and explains what one UnitySVC key covers.
+- The Docker image reports its health: `GET /api/health` answers without signing in, and the image's `HEALTHCHECK` uses it, so `docker ps` and NAS app managers show the container as `healthy` or `unhealthy`.
+- The image carries OCI labels (title, description, source, documentation, license), and `docs/icon.png` is a square app icon, for app stores such as Unraid, CasaOS, Umbrel and TrueNAS.
 
 ### Changed
+- The Docker image runs aimm as an unprivileged `aimm` user instead of root. `PUID` and `PGID` (default `1000`) give that user your IDs so that files in the data folder stay yours; the container also runs as a fixed user (`--user`), with `cap_drop: ALL` plus `SETUID`/`SETGID`, and on shares that refuse `chown` but are writable (NFS `root_squash`, SMB). `docker exec aimm aimm ...` runs as the same user. `PUID`/`PGID` of 0 are refused.
+- The Docker data folder is `/data` (new `AIMM_HOME` variable). A folder still mounted at `/root/.ai-marketplace-monitor` keeps working, and the log asks you to mount it at `/data` instead; on the first start the folder is given to `PUID:PGID`.
+- The web UI's **Update** button appears only when aimm can update its own installation (the image's own user); otherwise update by pulling the image.
+- The Dockerfile moved to `docker/Dockerfile`; build with `docker build -f docker/Dockerfile -t aimm .` from the repository root.
+- The web UI's ⏸ now stops the monitor and ▶ starts it again: the config is reloaded and all items are searched right away, so changes saved while stopped take effect. ▶ refuses to start while the config on disk is invalid. Entering the CLI interactive session also stops the monitor, and leaving it restarts it. The browser, and so the Facebook login, is kept.
 - The config file created on first run uses UnitySVC: `[ai.unitysvc]` with the `balanced` model rates listings, and `[user.me]` receives UnitySVC email with photos (`[notification.unitysvc_email]`) and UnitySVC phone/chat messages (`[notification.unitysvc]`), plus a daily digest at 08:00. `[marketplace.facebook]` logs in with the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables, so with Docker only `FACEBOOK_USERNAME`, `FACEBOOK_PASSWORD` and `UNITYSVC_API_KEY` need to be set.
 
 ### Fixed
 - The web UI read `username = "${FACEBOOK_USERNAME}"` and `password = "${FACEBOOK_PASSWORD}"` as literal text: when exposed (as in Docker), its login was `${FACEBOOK_USERNAME}` / `${FACEBOOK_PASSWORD}` instead of your Facebook credentials, and the startup banner showed `user: ${FACEBOOK_USERNAME}`. It now reads the variables, as the Facebook login does; an unset variable falls back to `FACEBOOK_USERNAME` / `FACEBOOK_PASSWORD`.
 - A user receiving more than one notification no longer logs "Overriding ... for user" warnings for channel defaults (retries, rate limits, message format) that have the same value.
+- AI agents are replaced, not duplicated, when the config is reloaded.
+
+### Security
+- In the Docker image, the VNC server listens on `127.0.0.1` only; the browser view is reachable only through the signed-in web UI.
 
 ## [0.10.9] - 2026-10-08
 
@@ -355,7 +368,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.9...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.10...HEAD
+[0.10.10]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.9...v0.10.10
 [0.10.9]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.8...v0.10.9
 [0.10.8]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.7...v0.10.8
 [0.10.7]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.6...v0.10.7
