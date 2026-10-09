@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>ai-marketplace-monitor</Name>
+  <Repository>ghcr.io/bopeng/ai-marketplace-monitor:latest</Repository>
+  <Registry>https://github.com/BoPeng/ai-marketplace-monitor/pkgs/container/ai-marketplace-monitor</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Shell>sh</Shell>
+  <Support>https://github.com/BoPeng/ai-marketplace-monitor/issues</Support>
+  <Project>https://github.com/BoPeng/ai-marketplace-monitor</Project>
+  <ReadMe>https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/docker-installation.md</ReadMe>
+  <Overview>AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.&#xD;
+&#xD;
+Open the web UI and sign in with your Facebook username and password. aimm logs in to Facebook in its own browser; if Facebook asks for a CAPTCHA or a security code, click Open browser in the web UI and complete it there. Then describe what you are looking for in the Configure chat, or edit config.toml in the web UI.&#xD;
+&#xD;
+The default configuration uses one UnitySVC API key (https://unitysvc.com) both for the AI that rates listings (OpenAI, Anthropic and other engines) and for email and phone notifications. You can configure other providers instead; add their API keys as variables (e.g. OPENAI_API_KEY) and refer to them in config.toml as ${OPENAI_API_KEY}.</Overview>
+  <Category>Productivity: Tools:Utilities</Category>
+  <WebUI>http://[IP]:[PORT:8467]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/unraid/ai-marketplace-monitor.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/docs/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <Requires>A Facebook account for aimm to log in with. For the default configuration, a UnitySVC account and API key (https://unitysvc.com).</Requires>
+  <Config Name="Web UI" Target="8467" Default="8467" Mode="tcp" Description="Port of the web UI." Type="Port" Display="always" Required="true" Mask="false">8467</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/ai-marketplace-monitor" Mode="rw" Description="config.toml, the cache and the logs." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai-marketplace-monitor</Config>
+  <Config Name="Facebook username" Target="FACEBOOK_USERNAME" Default="" Mode="" Description="The Facebook account aimm logs in with. Also signs you in to the web UI." Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Facebook password" Target="FACEBOOK_PASSWORD" Default="" Mode="" Description="Password of that Facebook account. Also signs you in to the web UI." Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="UnitySVC API key" Target="UNITYSVC_API_KEY" Default="" Mode="" Description="For the default configuration: the AI that rates listings, and email and phone notifications. Sign up at https://unitysvc.com and create an API key. Leave empty if you configure other providers." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Web UI sign-in" Target="AIMM_WEBUI_AUTH" Default="password|authelia|authentik|cloudflare|proxy" Mode="" Description="password: sign in with the Facebook username and password. Behind a reverse proxy that signs users in, choose it and set its variables (see the Docker installation guide)." Type="Variable" Display="advanced" Required="false" Mask="false">password</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID that owns the files in the data folder." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID that owns the files in the data folder." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+</Container>

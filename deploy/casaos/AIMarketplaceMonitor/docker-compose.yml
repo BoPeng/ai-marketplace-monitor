@@ -1,0 +1,85 @@
+name: ai-marketplace-monitor
+services:
+  ai-marketplace-monitor:
+    image: ghcr.io/bopeng/ai-marketplace-monitor:0.10.10
+    container_name: ai-marketplace-monitor
+    deploy:
+      resources:
+        reservations:
+          memory: 512M
+    environment:
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+      FACEBOOK_USERNAME: ""
+      FACEBOOK_PASSWORD: ""
+      UNITYSVC_API_KEY: ""
+    network_mode: bridge
+    ports:
+      - target: 8467
+        published: "8467"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/data
+        target: /data
+    x-casaos:
+      envs:
+        - container: FACEBOOK_USERNAME
+          description:
+            en_US: The Facebook account aimm logs in with. Also signs you in to the web UI.
+        - container: FACEBOOK_PASSWORD
+          description:
+            en_US: Password of that Facebook account. Also signs you in to the web UI.
+        - container: UNITYSVC_API_KEY
+          description:
+            en_US: For the default configuration, a UnitySVC API key (https://unitysvc.com) for the AI that rates listings and for email and phone notifications.
+        - container: PUID
+          description:
+            en_US: User ID that owns the files in the data folder
+        - container: PGID
+          description:
+            en_US: Group ID that owns the files in the data folder
+        - container: TZ
+          description:
+            en_US: Time zone, for the daily digest
+      ports:
+        - container: "8467"
+          description:
+            en_US: Web UI port
+      volumes:
+        - container: /data
+          description:
+            en_US: config.toml, the cache and the logs
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: ai-marketplace-monitor
+  author: BoPeng
+  developer: BoPeng
+  category: Utilities
+  description:
+    en_US: |
+      AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.
+
+      aimm logs in to Facebook in its own browser. If Facebook asks for a CAPTCHA or a security code, click Open browser in the web UI and complete it there. Describe what you are looking for in the Configure chat, or edit config.toml in the web UI.
+
+      The default configuration uses one UnitySVC API key (https://unitysvc.com) both for the AI that rates listings (OpenAI, Anthropic and other engines) and for email and phone notifications. You can configure other providers instead.
+  tagline:
+    en_US: Find Facebook Marketplace deals with AI
+  icon: https://cdn.jsdelivr.net/gh/BoPeng/ai-marketplace-monitor@main/docs/icon.png
+  thumbnail: https://cdn.jsdelivr.net/gh/BoPeng/ai-marketplace-monitor@main/docs/webui_screenshot.png
+  screenshot_link:
+    - https://cdn.jsdelivr.net/gh/BoPeng/ai-marketplace-monitor@main/docs/webui_screenshot.png
+  tips:
+    before_install:
+      en_US: |
+        After installing, open the app's Settings and set FACEBOOK_USERNAME and FACEBOOK_PASSWORD (and UNITYSVC_API_KEY for the default configuration). The web UI asks for the same Facebook username and password.
+  title:
+    en_US: AI Marketplace Monitor
+  index: /
+  port_map: "8467"
+  scheme: http
