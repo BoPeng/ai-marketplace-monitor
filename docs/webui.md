@@ -41,7 +41,7 @@ The web UI is available at [http://127.0.0.1:8467](http://127.0.0.1:8467). A sta
 
 On localhost, **no password is required**. Open the URL in your browser and start editing.
 
-**Saved changes take effect on their own.** When you save the config, the running monitor reloads it after the current search and searches all items with the new configuration; there is no need to stop and start it. Save refuses to write a configuration that does not validate, so the monitor never loads a broken config from the web UI.
+**Saved changes take effect on their own.** When you save the config, the running monitor reloads it after the current search and searches all items with the new configuration; there is no need to stop and start it. **Save** in the config editor checks the whole configuration and refuses to write it if it does not load. The Configure Chat checks the sections it writes, not the whole configuration. **▶** also refuses to start the monitor while the configuration is invalid.
 
 ## Configure Chat
 

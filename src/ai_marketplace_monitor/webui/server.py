@@ -392,7 +392,8 @@ def create_app(
                 config_service.editable_path.read_text(encoding="utf-8")
             )
         except OSError as e:
-            ok, error = False, str(e)
+            logging.getLogger("monitor").error(f"[Pause] Cannot read the config: {e}")
+            ok, error = False, "the configuration file cannot be read; see the log"
         if not ok:
             return JSONResponse(  # type: ignore[return-value]
                 status_code=400,
