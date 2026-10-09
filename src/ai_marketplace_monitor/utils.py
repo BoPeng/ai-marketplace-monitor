@@ -58,8 +58,8 @@ from watchdog.observers import Observer
 # never feed back into the application log.
 logging.getLogger("watchdog").setLevel(logging.WARNING)
 
-# home directory for all settings and caches
-amm_home = Path.home() / ".ai-marketplace-monitor"
+# home directory for all settings and caches; the Docker image sets AIMM_HOME to /data
+amm_home = Path(os.environ.get("AIMM_HOME") or Path.home() / ".ai-marketplace-monitor")
 amm_home.mkdir(parents=True, exist_ok=True)
 
 

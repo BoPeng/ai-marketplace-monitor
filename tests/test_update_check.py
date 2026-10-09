@@ -283,6 +283,22 @@ def test_self_update_needs_docker_a_release_and_no_update_running(
     assert update_check.self_update_status()["available"] is False
 
 
+def test_self_update_needs_a_writable_installation(
+    installer: List[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A container run as another user (e.g. a custom PUID) is updated with a new image."""
+    import os
+
+    monkeypatch.setattr(os, "access", lambda path, mode: False)
+    assert update_check.can_restart() is True
+    assert update_check.can_self_update() is False
+    assert update_check.self_update_status()["available"] is False
+    with pytest.raises(RuntimeError, match="aimm user"):
+        update_check.start_self_update(None)
+    assert "where you installed it" in update_check.upgrade_note()
+    assert "click Update" not in update_check.upgrade_note()
+
+
 def test_run_reports_the_end_of_a_failed_command() -> None:
     script = "print('resolving'); print('no matching distribution'); raise SystemExit(3)"
     with pytest.raises(RuntimeError, match="exited with 3:\nresolving\nno matching distribution"):

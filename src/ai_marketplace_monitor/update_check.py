@@ -9,7 +9,8 @@ development builds. Turn it off with ``check_updates = false`` in ``[monitor]`` 
 In the Docker image, the web UI can also install the new release in place (``start_self_update``):
 pip installs it inside the container, then aimm exits and supervisord starts the new version.
 The update lives in the container, so it survives ``docker restart`` but not recreating the
-container from an older image; the update check then offers it again.
+container from an older image; the update check then offers it again. When aimm runs as a user
+that cannot write its own installation (e.g. a custom ``PUID``), the update comes from a new image.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import re
 import signal
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import threading
 from dataclasses import asdict, dataclass
@@ -85,12 +87,14 @@ def upgrade_command() -> str:
 
 def upgrade_note() -> str:
     """What to do besides running the upgrade command."""
-    if os.environ.get("AIMM_DOCKER") == "1":
+    if os.environ.get("AIMM_DOCKER") != "1":
+        return ""
+    if can_self_update():
         return (
             "Then run your `docker run` command again, or click Update next to the version in the"
             " web UI to update this container"
         )
-    return ""
+    return "Then run your `docker run` command again, or update the app where you installed it"
 
 
 def enabled(check_updates: bool | None) -> bool:
@@ -144,9 +148,18 @@ RESTART_GRACE = 60  # seconds to clean up before aimm exits anyway
 INSTALL_TIMEOUT = 15 * 60  # seconds for each install command
 
 
-def can_self_update() -> bool:
+def can_restart() -> bool:
     """Only the Docker image restarts aimm (with supervisord) after it exits."""
     return os.environ.get("AIMM_DOCKER") == "1"
+
+
+def can_self_update() -> bool:
+    """Whether the web UI can install a release: in the Docker image, as its ``aimm`` user.
+
+    That user owns aimm's installation; running the container as another user leaves updates
+    to a new image.
+    """
+    return can_restart() and os.access(sysconfig.get_paths()["purelib"], os.W_OK)
 
 
 def self_update_status() -> Dict[str, Any]:
@@ -161,7 +174,9 @@ def start_self_update(logger: Logger | None) -> str:
     """
     global _self_update
     if not can_self_update():
-        raise RuntimeError("aimm can update itself only in the Docker image.")
+        raise RuntimeError(
+            "aimm can update itself only in the Docker image, running as its aimm user."
+        )
     notice = _notice
     if notice is None:
         raise RuntimeError("No newer release is available.")
@@ -263,7 +278,7 @@ def _run(command: List[str], logger: Logger | None, timeout: float = INSTALL_TIM
 
 def restart_later(logger: Logger | None, delay: float = 1.0) -> None:
     """Restart aimm in the Docker image after ``delay`` seconds (time to answer the request)."""
-    if not can_self_update():
+    if not can_restart():
         raise RuntimeError("aimm can restart itself only in the Docker image.")
     if logger:
         logger.info(f"""{hilight("[Restart]", "info")} Restarting aimm...""")

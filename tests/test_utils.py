@@ -92,3 +92,25 @@ def test_convert_to_seconds_is_not_affected_by_a_clock_tick(
     monkeypatch.setattr(utils.time, "localtime", ticking_localtime)
     assert convert_to_seconds("1d") == 86400
     assert convert_to_seconds("1h 30m") == 5400
+
+
+def test_aimm_home_overrides_the_data_directory(tmp_path: Any) -> None:
+    """The Docker image keeps config, cache and logs in /data through AIMM_HOME."""
+    import os
+    import subprocess
+    import sys
+
+    data = tmp_path / "data"
+    out = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from ai_marketplace_monitor.utils import amm_home; print(amm_home)",
+        ],
+        env={**os.environ, "AIMM_HOME": str(data)},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert out.stdout.strip() == str(data)
+    assert data.is_dir()

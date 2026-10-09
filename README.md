@@ -230,7 +230,7 @@ A prebuilt image on GitHub Container Registry runs aimm on a server, a NAS or ma
 ```bash
 docker run -d --name aimm \
   -p 8467:8467 \
-  -v "$HOME/.ai-marketplace-monitor:/root/.ai-marketplace-monitor" \
+  -v "$HOME/.ai-marketplace-monitor:/data" \
   -e FACEBOOK_USERNAME -e FACEBOOK_PASSWORD \
   -e UNITYSVC_API_KEY \
   --restart unless-stopped \

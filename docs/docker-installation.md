@@ -13,7 +13,7 @@ If aimm is already installed on this machine, or you prefer to keep your credent
 ```bash
 docker run -d --name aimm \
   -p 8467:8467 \
-  -v "$HOME/.ai-marketplace-monitor:/root/.ai-marketplace-monitor" \
+  -v "$HOME/.ai-marketplace-monitor:/data" \
   -e FACEBOOK_USERNAME -e FACEBOOK_PASSWORD \
   -e UNITYSVC_API_KEY \
   --restart unless-stopped \
@@ -22,7 +22,7 @@ docker run -d --name aimm \
 
 The `-e` flags pass `FACEBOOK_USERNAME`, `FACEBOOK_PASSWORD` and `UNITYSVC_API_KEY` (if you use UnitySVC) from your shell to the container; `config.toml` refers to them as `${FACEBOOK_USERNAME}` and so on. Make sure they contain only the intended values: when Docker exposes the web UI, the Facebook username and password also protect it and its browser view.
 
-Mounting `~/.ai-marketplace-monitor` shares your existing config, cache and logs between an aimm installed on the host and the container, so you can switch between them, one at a time (see Troubleshooting below). Continue with First run below; in the commands there, use `docker exec aimm ...` instead of `docker compose exec aimm ...`, and `docker logs aimm` to see the log.
+Mounting `~/.ai-marketplace-monitor` at `/data` shares your existing config, cache and logs between an aimm installed on the host and the container, so you can switch between them, one at a time (see Troubleshooting below). aimm runs in the container as an unprivileged user with ID 1000. On a Linux host where your user ID is not 1000 (see `id -u`), add `-e PUID="$(id -u)" -e PGID="$(id -g)"` so that the files in the folder stay yours; Docker Desktop on macOS and Windows does not need it. If you created the container with the folder mounted at `/root/.ai-marketplace-monitor`, as older versions of this guide said, it still works, and the log asks you to mount it at `/data` instead. Continue with First run below; in the commands there, use `docker exec aimm ...` instead of `docker compose exec aimm ...`, and `docker logs aimm` to see the log.
 
 To build the image yourself instead of pulling it, run `docker build -t aimm .` in a checkout of the repository.
 
@@ -57,12 +57,18 @@ services:
       - FACEBOOK_USERNAME=${FACEBOOK_USERNAME}
       - FACEBOOK_PASSWORD=${FACEBOOK_PASSWORD}
       - UNITYSVC_API_KEY=${UNITYSVC_API_KEY}
+      # - PUID=1000  # on a Linux host, your `id -u` and `id -g`, so that ./data stays yours
+      # - PGID=1000
     volumes:
       # config.toml, cache and logs
-      - ./data:/root/.ai-marketplace-monitor
+      - ./data:/data
 ```
 
-Docker Compose reads `.env` from the same directory and fills in the `${...}` values in `environment`. Then start aimm:
+Docker Compose reads `.env` from the same directory and fills in the `${...}` values in `environment`.
+
+aimm runs in the container as an unprivileged user with ID 1000 and keeps everything in `/data`. When it starts, it gives `./data` to that user. On a Linux host where your user ID is not 1000 (see `id -u`), uncomment `PUID` and `PGID` and set them to your user and group IDs, so that the files in `./data` stay yours. Docker Desktop on macOS and Windows does not need them. If your platform starts containers as a fixed user instead (`user:` in Compose), give `./data` to that user.
+
+Then start aimm:
 
 ```bash
 docker compose up -d
@@ -104,7 +110,7 @@ services:
       - FACEBOOK_PASSWORD=${FACEBOOK_PASSWORD}
       - UNITYSVC_API_KEY=${UNITYSVC_API_KEY}
     volumes:
-      - ./data:/root/.ai-marketplace-monitor
+      - ./data:/data
     networks:
       - proxy
     labels:
@@ -123,7 +129,7 @@ Anyone who can reach the URL sees the aimm sign-in page, which is protected only
 
 ## Update
 
-When a new release is out, the web UI header shows **⬆ aimm X available**, which opens Settings with an **Update** button. It installs the release inside the running container and restarts aimm; the page reloads when it is back. The update lives in the container: it survives a restart, but recreating the container from an older image brings back the old version, and the button offers the update again.
+When a new release is out, the web UI header shows **⬆ aimm X available**, which opens Settings with an **Update** button. It installs the release inside the running container and restarts aimm; the page reloads when it is back. The update lives in the container: it survives a restart, but recreating the container from an older image brings back the old version, and the button offers the update again. The button is there only when aimm runs as the image's own user, ID 1000; with another `PUID`, or `--user`, update the image instead.
 
 To update the image itself, pull it and recreate the container. Restarting the container keeps running the old image. With Docker Compose:
 
@@ -146,4 +152,6 @@ and run the `docker run` command again. Your config, cache and logs are kept in 
 - **The web UI says the credentials are wrong**: sign in with the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. Check that the container received them with `docker compose exec aimm printenv FACEBOOK_USERNAME`. If you changed `.env`, run `docker compose up -d` to recreate the container; `docker compose restart` keeps the old environment.
 - **"Environment variable ... is not set" or "UnitySVC requires a string api_key"**: a `${VAR}` in `config.toml` names a variable that is not in the container's `environment`. Add it to `.env` and to `docker-compose.yml`, then run `docker compose up -d`.
 - **The web UI does not load**: check the log with `docker compose logs aimm` (or `docker logs aimm`).
+- **The container shows as `unhealthy`**: the web UI does not answer. See the log; the image checks `http://127.0.0.1:8467/api/health` inside the container every 30 seconds.
+- **"cannot write the data folder /data"**: the container was started as a user (`user:`) that does not own the mounted folder. Give it to that user (`sudo chown -R <uid>:<gid> data`), or remove `user:` and set `PUID` and `PGID` instead.
 - **Run aimm commands in the container**, for example `docker compose exec aimm aimm check <listing>`, not with an aimm installed on the host. aimm's cache is an SQLite database, and the two would write it through the mounted directory at the same time and could damage it. If aimm stops with "cannot be read", run `docker compose exec aimm aimm admin --clear-cache all` and restart the container.

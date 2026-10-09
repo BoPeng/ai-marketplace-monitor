@@ -50,7 +50,7 @@ from ..control import control
 from ..evaluations import SORT_KEYS, STAGES, filter_evaluations, iter_evaluations
 from ..notification import NotificationConfig
 from ..update_check import (
-    can_self_update,
+    can_restart,
     current_notice,
     restart_later,
     self_update_status,
@@ -301,6 +301,11 @@ def create_app(
     # Routes
     # ------------------------------------------------------------------
 
+    @app.get("/api/health")
+    async def health() -> Dict[str, Any]:
+        """For Docker's HEALTHCHECK and app stores: the web UI is up. Needs no session."""
+        return {"ok": True}
+
     @app.get("/api/auth/info")
     async def auth_info() -> Dict[str, Any]:
         """Return auth mode info for the frontend login screen."""
@@ -519,7 +524,7 @@ def create_app(
         )
         restart = None
         if result.removed:
-            if can_self_update():
+            if can_restart():
                 restart_later(logger)
                 restart = "restarting"
             else:

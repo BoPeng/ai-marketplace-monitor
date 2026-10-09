@@ -302,6 +302,13 @@ def test_web_counts_and_clears_the_cache(temp_cache: Cache, config_path: Path) -
     assert list(temp_cache.iterkeys()) == []
 
 
+def test_health_needs_no_session(config_path: Path) -> None:
+    """Docker's HEALTHCHECK calls it without signing in; everything else stays protected."""
+    client = make_client(config_path, exposed=True)
+    assert client.get("/api/health").json() == {"ok": True}
+    assert client.get("/api/status").status_code == 401
+
+
 @pytest.fixture
 def corrupted(tmp_path: Path) -> Path:
     directory = tmp_path / "broken"
