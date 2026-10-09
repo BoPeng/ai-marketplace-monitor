@@ -478,8 +478,8 @@ class MarketplaceMonitor:
             )
         return True
 
-    def handle_pause(self: "MarketplaceMonitor") -> bool:
-        """Handle a pause from the web UI or the keyboard.
+    def handle_stop(self: "MarketplaceMonitor") -> bool:
+        """Stop the monitor if the web UI or the keyboard asks for it; True if it was stopped.
 
         A pause from the web UI, or an interactive session entered from the keyboard,
         stops the monitor: the scheduled jobs are cleared and True is returned, and the
@@ -554,7 +554,7 @@ class MarketplaceMonitor:
         #
         assert self.browser is not None
         while True:
-            self.handle_pause()
+            self.handle_stop()
             self.schedule_jobs()
             if not schedule.get_jobs():
                 # this actually should not happen because at least one item is required for the configuration file
@@ -562,7 +562,7 @@ class MarketplaceMonitor:
                     self.logger.error(
                         "No search job is defined. Please add search items to your config file."
                     )
-                if self.handle_pause():
+                if self.handle_stop():
                     continue
                 if doze(60, self.config_files, self.keyboard_monitor) == SleepStatus.BY_KEYBOARD:
                     self.keyboard_monitor.set_paused(True)
@@ -572,7 +572,7 @@ class MarketplaceMonitor:
             # configuration file has been changed, if so, clear all jobs and restart
             for job in schedule.get_jobs():
                 job.run()
-                if self.handle_pause():
+                if self.handle_stop():
                     break
                 # if configuration file has been changed, clear all scheduled jobs and restart
                 new_file_hash = calculate_file_hash(self.config_files)
@@ -642,7 +642,7 @@ class MarketplaceMonitor:
                 elif res == SleepStatus.BY_KEYBOARD:
                     self.keyboard_monitor.set_paused(True)
 
-                if self.handle_pause():
+                if self.handle_stop():
                     break
                 schedule.run_pending()
 

@@ -277,13 +277,13 @@ def test_web_ui_pause_stops_the_monitor_until_started() -> None:
         control.resume()
 
     threading.Timer(0.2, resume_soon).start()
-    assert monitor.handle_pause() is True
+    assert monitor.handle_stop() is True
     assert resumed == [True] and not control.is_paused()
 
 
 def test_not_paused_keeps_the_monitor_running() -> None:
     monitor = _stopped_monitor()
-    assert monitor.handle_pause() is False
+    assert monitor.handle_stop() is False
     assert schedule.get_jobs() and monitor.config_hash == "loaded"
     schedule.clear()
 
@@ -304,7 +304,7 @@ class FakeKeyboard:
 def test_keyboard_pause_without_interactive_session_resumes() -> None:
     monitor = _stopped_monitor()
     monitor.keyboard_monitor = FakeKeyboard(confirmed=False)  # type: ignore[assignment]
-    assert monitor.handle_pause() is False
+    assert monitor.handle_stop() is False
     assert schedule.get_jobs() and monitor.config_hash == "loaded"  # resumes where it was
     schedule.clear()
 
@@ -325,7 +325,7 @@ def test_interactive_session_stops_and_restarts_the_monitor(
 
     monkeypatch.setattr(monitor_module.Prompt, "ask", lambda *a, **k: next(answers))
     monkeypatch.setattr(monitor, "check_items", check_items)
-    assert monitor.handle_pause() is True
+    assert monitor.handle_stop() is True
     assert checked == ["https://www.facebook.com/marketplace/item/1"]
     assert jobs_during_session == [0]  # stopped while checking
     assert not schedule.get_jobs() and monitor.config_hash is None
