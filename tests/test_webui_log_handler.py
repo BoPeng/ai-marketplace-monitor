@@ -170,14 +170,42 @@ def test_full_queue_drops_oldest() -> None:
     _run_fanout_test(emitter, checker, maxsize=2)
 
 
-@pytest.mark.parametrize(("verbose", "level"), [(None, logging.INFO), (True, logging.DEBUG)])
-def test_webui_log_level_follows_verbose(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, verbose: bool | None, level: int
+@pytest.mark.parametrize(
+    ("verbose", "env", "level"),
+    [
+        (None, None, logging.INFO),
+        (True, None, logging.DEBUG),
+        (None, "debug", logging.DEBUG),
+        (None, "WARNING", logging.WARNING),
+        (None, "loud", logging.INFO),
+        # --verbose wins over the environment
+        (True, "ERROR", logging.DEBUG),
+    ],
+)
+def test_webui_log_level_follows_verbose_and_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    verbose: bool | None,
+    env: str | None,
+    level: int,
 ) -> None:
     from ai_marketplace_monitor.commands import common
 
+    if env is None:
+        monkeypatch.delenv("AIMM_LOG_LEVEL", raising=False)
+    else:
+        monkeypatch.setenv("AIMM_LOG_LEVEL", env)
     monkeypatch.setattr(common, "amm_home", tmp_path)
     monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: None)
     _, handler = common.setup_logging(verbose, webui=True)
     assert handler is not None
     assert handler.level == level
+
+
+def test_bad_log_level_warns(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ai_marketplace_monitor.commands.common import log_level
+
+    monkeypatch.setenv("AIMM_LOG_LEVEL", "loud")
+    level, warning = log_level(None)
+    assert level == logging.INFO
+    assert warning is not None and "AIMM_LOG_LEVEL=LOUD" in warning
