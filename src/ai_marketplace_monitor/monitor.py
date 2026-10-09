@@ -463,7 +463,7 @@ class MarketplaceMonitor:
 
     def wait_while_paused(self: "MarketplaceMonitor") -> bool:
         """Stop the monitor while the web UI has paused it; True if it was stopped."""
-        if not control.is_paused():
+        if not control.consume_stop_request():
             return False
         self.stop_jobs()
         if self.logger:

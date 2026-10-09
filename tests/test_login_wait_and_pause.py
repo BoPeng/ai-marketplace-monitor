@@ -50,9 +50,12 @@ class FakePage:
 @pytest.fixture(autouse=True)
 def fresh_control() -> Iterator[None]:
     control.resume()
+    control.consume_stop_request()
     control.waiting_for_login = False
     yield
     control.resume()
+    control.consume_stop_request()
+    control.consume_stop_request()
     control.waiting_for_login = False
 
 
@@ -376,3 +379,13 @@ def test_web_ui_does_not_start_with_an_invalid_config(tmp_path: Path) -> None:
     assert control.is_paused()  # still stopped
     cfg.write_text(VALID_CONFIG, encoding="utf-8")
     assert client.post("/api/monitor/resume").json()["paused"] is False
+
+
+def test_start_before_stop_is_acknowledged_still_rebuilds_jobs() -> None:
+    monitor = _stopped_monitor()
+    control.pause()
+    control.resume()  # the current listing has not finished yet
+    assert monitor.handle_stop() is True
+    assert not schedule.get_jobs()
+    assert monitor.config_hash is None
+    assert monitor.handle_stop() is False  # the request is consumed once
