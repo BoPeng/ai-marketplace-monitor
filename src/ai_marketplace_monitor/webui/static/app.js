@@ -370,14 +370,18 @@
   const FOLD_CHARS = 500;
   const foldMessage = (message) => {
     const lines = message.split("\n");
+    let text = message;
+    const hidden = [];
     if (lines.length > FOLD_LINES) {
-      const hidden = lines.length - FOLD_LINES + 1;
-      return { text: lines.slice(0, FOLD_LINES - 1).join("\n"), more: `${hidden} more lines` };
+      text = lines.slice(0, FOLD_LINES - 1).join("\n");
+      hidden.push(`${lines.length - FOLD_LINES + 1} more lines`);
     }
-    if (message.length > FOLD_CHARS) {
-      return { text: message.slice(0, FOLD_CHARS), more: `${message.length - FOLD_CHARS} more characters` };
+    // Apply both limits: the retained lines can themselves be very long.
+    if (text.length > FOLD_CHARS) {
+      hidden.push(`${text.length - FOLD_CHARS} more characters`);
+      text = text.slice(0, FOLD_CHARS);
     }
-    return { text: message, more: "" };
+    return { text, more: hidden.join(" and ") };
   };
 
   const renderLogs = () => {
