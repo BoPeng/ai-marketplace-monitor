@@ -406,9 +406,10 @@ class MarketplaceMonitor:
                             or 30 * 60,
                             1,
                         )
+                        # without an explicit maximum, jitter scales with the interval
                         max_search_interval = max(
                             resolve_option("max_search_interval", item_config, marketplace_config)
-                            or 60 * 60,
+                            or int(search_interval * 1.5),
                             search_interval,
                         )
                         if self.logger:
@@ -618,9 +619,21 @@ class MarketplaceMonitor:
                         if tag.startswith(DIGEST_TAG)
                         else f"search {hilight(tag)}"
                     )
+                    # search jobs run every `interval` to `latest` seconds; say so,
+                    # so a delay longer than search_interval is not a surprise
+                    interval_note = ""
+                    if next_job.unit == "seconds" and not tag.startswith(DIGEST_TAG):
+                        interval_note = (
+                            f" (search_interval {humanize.naturaldelta(next_job.interval)}"
+                            + (
+                                f", max_search_interval {humanize.naturaldelta(next_job.latest)})"
+                                if next_job.latest and next_job.latest != next_job.interval
+                                else ")"
+                            )
+                        )
                     if self.logger:
                         self.logger.info(
-                            f"""{hilight("[Schedule]", "info")} Next job to {task} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}"""
+                            f"""{hilight("[Schedule]", "info")} Next job to {task} scheduled to run in {humanize.naturaldelta(idle_seconds)} at {next_job.next_run.strftime("%Y-%m-%d %H:%M:%S")}{interval_note}"""
                         )
 
                 # sleep at most 1 hr, and print updated "next job" message

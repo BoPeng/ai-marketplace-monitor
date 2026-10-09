@@ -61,8 +61,10 @@ for this user, for example condition and pickup versus shipping for furniture or
 
 ### Schedule
 
-How often to search (`search_interval`, optionally `max_search_interval` for a random interval) or
-fixed times (`start_at`). Leave unset unless the user cares; aimm's default is fine for most.
+How often to search (`search_interval`) or fixed times (`start_at`). Leave unset unless the user
+cares; aimm's default is fine for most. When setting `search_interval = X`, tell the user the
+actual interval is random between X and 1.5X unless they also set `max_search_interval` (set it
+equal to `search_interval` for a fixed interval, or higher for more jitter).
 
 ### Updating an existing section
 
