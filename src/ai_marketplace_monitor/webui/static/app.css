@@ -886,7 +886,8 @@ html, body {
 .level-INFO .log-level { color: var(--info); }
 .level-WARNING .log-level { color: var(--warn); }
 .level-ERROR .log-level, .level-CRITICAL .log-level { color: var(--err); }
-.log-row .log-msg { white-space: pre-wrap; overflow-wrap: break-word; }
+.log-row .log-msg { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-row .log-more { color: var(--text-dim); font-style: italic; margin-left: 4px; white-space: nowrap; }
 .kind-badge {
   display: inline-block;
   font-size: 9px;

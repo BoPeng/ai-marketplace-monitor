@@ -363,6 +363,27 @@
     return `<div class="log-detail">${lines.join("")}</div>`;
   };
 
+  // Long messages (AI prompts, dumped objects) are folded to a short
+  // preview until the row is expanded; the text filter still searches
+  // the full message.
+  const FOLD_LINES = 3;
+  const FOLD_CHARS = 500;
+  const foldMessage = (message) => {
+    const lines = message.split("\n");
+    let text = message;
+    const hidden = [];
+    if (lines.length > FOLD_LINES) {
+      text = lines.slice(0, FOLD_LINES - 1).join("\n");
+      hidden.push(`${lines.length - FOLD_LINES + 1} more lines`);
+    }
+    // Apply both limits: the retained lines can themselves be very long.
+    if (text.length > FOLD_CHARS) {
+      hidden.push(`${text.length - FOLD_CHARS} more characters`);
+      text = text.slice(0, FOLD_CHARS);
+    }
+    return { text, more: hidden.join(" and ") };
+  };
+
   const renderLogs = () => {
     if (state.view !== "logs") return;
     const container = $("#logs");
@@ -379,7 +400,11 @@
           `<div class="log-row level-${esc(r.level)}${expanded ? " expanded" : ""}" data-id="${r.id}">` +
           `<span class="log-time">${esc(r.iso_time)}</span>` +
           `<span class="log-level">${esc(r.level)}</span>` +
-          `<span class="log-msg">${badge}${esc(r.message)}</span>` +
+          (() => {
+            const { text, more } = expanded ? { text: r.message, more: "" } : foldMessage(r.message);
+            const hint = more ? `<span class="log-more">… ${esc(more)}</span>` : "";
+            return `<span class="log-msg">${badge}${esc(text)}${hint}</span>`;
+          })() +
           (expanded ? renderDetail(r) : "") +
           `</div>`
         );

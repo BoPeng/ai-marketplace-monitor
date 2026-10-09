@@ -1,6 +1,7 @@
 """Shared helpers for CLI command implementations."""
 
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -79,16 +80,38 @@ def seed_default_config(path: Path, logger: logging.Logger) -> None:
         )
 
 
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+def log_level(verbose: bool | None) -> tuple[int, str | None]:
+    """The level of the terminal and web UI logs, and a warning for a bad AIMM_LOG_LEVEL.
+
+    ``--verbose`` means DEBUG; otherwise AIMM_LOG_LEVEL (e.g. set in Docker) picks the
+    level, and INFO is the default.
+    """
+    if verbose:
+        return logging.DEBUG, None
+    name = os.environ.get("AIMM_LOG_LEVEL", "").strip().upper()
+    if not name:
+        return logging.INFO, None
+    if name not in LOG_LEVELS:
+        return logging.INFO, (
+            f"AIMM_LOG_LEVEL={name} is not one of {', '.join(LOG_LEVELS)}; using INFO."
+        )
+    return logging.getLevelName(name), None
+
+
 def setup_logging(
     verbose: bool | None, *, webui: bool, webui_log_retention: int = 2000
 ) -> tuple[logging.Logger, Any | None]:
+    level, level_warning = log_level(verbose)
     log_broadcast_handler = None
     log_handlers: list[logging.Handler] = [
         RichHandler(
             markup=True,
             rich_tracebacks=True,
-            show_path=False if verbose is None else verbose,
-            level="DEBUG" if verbose else "INFO",
+            show_path=level == logging.DEBUG,
+            level=level,
         ),
         RotatingFileHandler(
             amm_home / "ai-marketplace-monitor.log",
@@ -101,7 +124,9 @@ def setup_logging(
         from ..webui.log_handler import LogBroadcastHandler
 
         log_broadcast_handler = LogBroadcastHandler(capacity=webui_log_retention)
-        log_broadcast_handler.setLevel(logging.DEBUG)
+        # match the terminal: debug records would otherwise flood the Logs tab
+        # and evict useful history from the bounded ring buffer
+        log_broadcast_handler.setLevel(level)
         log_handlers.append(log_broadcast_handler)
 
     logging.basicConfig(
@@ -124,6 +149,8 @@ def setup_logging(
     logger.info(
         f"""{hilight("[VERSION]", "info")} AI Marketplace Monitor, version {hilight(__version__, "name")}"""
     )
+    if level_warning:
+        logger.warning(f"""{hilight("[Logging]", "fail")} {level_warning}""")
     return logger, log_broadcast_handler
 
 
