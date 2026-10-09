@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import logging
 import mimetypes
 import os
@@ -20,7 +21,7 @@ import time
 import warnings
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List
 from urllib.parse import urlparse
 
 import uvicorn
@@ -37,6 +38,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from .. import __version__
 from ..configure.flow import (
@@ -81,6 +83,7 @@ from .config_auth import extract_credentials
 from .evaluations_export import MAX_LIMIT, iter_evaluations_csv
 from .found_export import iter_found_csv, iter_found_rows
 from .log_handler import LogBroadcastHandler
+from .proxy_auth import AUTH_PROXY, ProxyAuth, ProxyAuthError, webui_auth_mode
 
 # Ensure the vendored toml-edit-js WASM bundle is served with the right
 # Content-Type. Python's mimetypes module learned .wasm in 3.10 but
@@ -144,10 +147,13 @@ class StartupInfo:
     """Information about the running server, shown in the startup banner."""
 
     urls: List[str]
-    username: str | None  # None in open mode
+    username: str | None  # None in open and proxy mode
     host: str
     port: int
     exposed: bool
+    proxy_auth: bool = False  # a reverse proxy signs users in (AIMM_WEBUI_AUTH)
+    proxy_check: str = ""  # what each request must carry, for the banner
+    proxy_verified: bool = False  # requests cannot pass by going around the proxy
 
 
 class AuthState:
@@ -162,6 +168,15 @@ class AuthState:
     def __init__(self) -> None:
         self.auth: AuthConfig | None = None
         self.exposed: bool = False
+        # AIMM_WEBUI_AUTH other than password: a reverse proxy signs users in, so an exposed
+        # web UI asks for no password but checks what the proxy adds on every request.
+        # Sessions and CSRF tokens are still required: proxy credentials (cookies, cached
+        # basic auth) are sent with cross-site requests too.
+        self.proxy: ProxyAuth | None = None
+
+    @property
+    def proxy_auth(self) -> bool:
+        return self.proxy is not None
 
 
 def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
@@ -175,8 +190,12 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
     exposed = config.host not in ("127.0.0.1", "localhost", "::1")
     state = AuthState()
     state.exposed = exposed
-
+    # an unsupported value is an error even on loopback, where no proxy check applies
+    webui_auth_mode()
     if exposed:
+        state.proxy = ProxyAuth.from_environment()
+
+    if exposed and not state.proxy_auth:
         extracted = extract_credentials(config.config_files)
         if extracted.username and extracted.password:
             state.auth = AuthConfig(
@@ -192,6 +211,9 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
         host=config.host,
         port=config.port,
         exposed=exposed,
+        proxy_auth=state.proxy_auth,
+        proxy_check=state.proxy.describe() if state.proxy else "",
+        proxy_verified=bool(state.proxy and state.proxy.verified),
     )
     return state, info
 
@@ -259,8 +281,19 @@ def create_app(
     rate_limiter = RateLimiter()
 
     def is_open() -> bool:
-        """True when running on loopback — no password required."""
+        """True when running on loopback — no password, session or CSRF token required."""
         return not state.exposed
+
+    def no_password() -> bool:
+        """True when signing in needs no password: on loopback, or behind a proxy."""
+        return is_open() or state.proxy_auth
+
+    def proxy_user(headers: Any) -> str | None:
+        """The user the reverse proxy signed in; None when no proxy signs users in.
+
+        Raises ProxyAuthError when the request did not come through the proxy's sign-in.
+        """
+        return state.proxy.identify(headers) if state.proxy is not None else None
 
     def require_session(
         request: Request,
@@ -268,12 +301,17 @@ def create_app(
     ) -> str:
         if is_open():
             return "anonymous"
+        # every request, not only signing in: ending the proxy session ends access to aimm
+        try:
+            user = proxy_user(request.headers)
+        except ProxyAuthError as e:
+            raise HTTPException(status_code=401, detail=str(e)) from e
         if session is None:
             raise HTTPException(status_code=401, detail="Not authenticated")
         username = sessions.validate(session)
         if username is None:
             raise HTTPException(status_code=401, detail="Session expired")
-        return username
+        return user or username
 
     def require_csrf(
         request: Request,
@@ -285,17 +323,59 @@ def create_app(
         if not header or not csrf_cookie or not secrets.compare_digest(header, csrf_cookie):
             raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
-    def websocket_rejection_code(websocket: WebSocket) -> int | None:
+    def websocket_check(websocket: WebSocket) -> tuple[int | None, float | None]:
+        """A close code to reject the handshake with (or None), and when access expires.
+
+        Access expires with the reverse proxy's signed token, which is checked only here.
+        """
         if not _origin_matches_host(
             websocket.headers.get("origin"), websocket.headers.get("host")
         ):
-            return 4403
+            return 4403, None
         if is_open():
-            return None
+            return None, None
+        expires_at = None
+        if state.proxy is not None:
+            try:
+                expires_at = state.proxy.verify(websocket.headers).expires_at
+            except ProxyAuthError:
+                return 4401, None
         session = websocket.cookies.get(SESSION_COOKIE)
         if session and sessions.validate(session) is not None:
-            return None
-        return 4401
+            return None, expires_at
+        return 4401, None
+
+    def guarded_websocket(
+        handler: Callable[..., Awaitable[None]]
+    ) -> Callable[..., Awaitable[None]]:
+        """Check the handshake, and end the connection when the proxy's token expires.
+
+        Without this, a VNC or Configure connection opened with a token would keep control of
+        the browser and the config after the token expires, while new requests are refused.
+        """
+
+        @functools.wraps(handler)
+        async def endpoint(websocket: WebSocket, **kwargs: Any) -> None:
+            # Require a same-origin browser handshake; when exposed, also require a valid
+            # session cookie (and the proxy's sign-in). Off the event loop: checking a token
+            # may fetch the signing keys.
+            code, expires_at = await run_in_threadpool(websocket_check, websocket)
+            if code is not None:
+                await websocket.close(code=code)
+                return
+            if expires_at is None:
+                await handler(websocket, **kwargs)
+                return
+            task = asyncio.ensure_future(handler(websocket, **kwargs))
+            try:
+                await asyncio.wait_for(asyncio.shield(task), max(0.0, expires_at - time.time()))
+            except asyncio.TimeoutError:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                with contextlib.suppress(Exception):
+                    await websocket.close(code=4401, reason="sign-in expired")
+
+        return endpoint
 
     # ------------------------------------------------------------------
     # Routes
@@ -307,25 +387,37 @@ def create_app(
         return {"ok": True}
 
     @app.get("/api/auth/info")
-    async def auth_info() -> Dict[str, Any]:
+    def auth_info(request: Request) -> Dict[str, Any]:
         """Return auth mode info for the frontend login screen."""
+        proxy_error = None
+        try:
+            proxy_user(request.headers)
+        except ProxyAuthError as e:
+            proxy_error = str(e)  # shown instead of a sign-in form that cannot help
         return {
-            "open": is_open(),
+            # the frontend signs in without asking for a password
+            "open": no_password(),
             "username_hint": state.auth.username if state.auth else None,
+            "proxy_error": proxy_error,
         }
 
     @app.post("/api/login")
-    async def login(
+    def login(
         request: Request,
         response: Response,
         username: str = Form(""),
         password: str = Form(""),
     ) -> Dict[str, Any]:
-        # Loopback — always open, no password needed.
-        if is_open():
-            token, csrf = sessions.issue("anonymous")
+        # Loopback, or behind a reverse proxy that signs users in: no password needed.
+        if no_password():
+            try:
+                user = proxy_user(request.headers)
+            except ProxyAuthError as e:
+                raise HTTPException(status_code=401, detail=str(e)) from e
+            username = user or "anonymous"
+            token, csrf = sessions.issue(username)
             _set_session_cookies(response, token, csrf)
-            return {"username": "anonymous", "csrf": csrf}
+            return {"username": username, "csrf": csrf}
 
         # Exposed — credentials required.
         client_ip = request.client.host if request.client else "unknown"
@@ -351,14 +443,24 @@ def create_app(
         return {"ok": True}
 
     @app.get("/api/status")
-    async def status(_: str = Depends(require_session)) -> Dict[str, Any]:
+    async def status(user: str = Depends(require_session)) -> Dict[str, Any]:
         files = config_service.list_files()
         return {
             "version": __version__,
             "config_files": [f.__dict__ for f in files],
             "urls": _enumerate_urls(config.host, config.port),
-            "auth_mode": "open" if is_open() else "authenticated",
-            "open": is_open(),
+            "auth_mode": (
+                "open"
+                if is_open()
+                else state.proxy.mode if state.proxy is not None else "authenticated"
+            ),
+            "open": no_password(),  # nothing to log out of
+            # who is signed in; bare proxy mode does not know
+            "user": (
+                None
+                if is_open() or (state.proxy is not None and state.proxy.mode == AUTH_PROXY)
+                else user
+            ),
             "vnc_enabled": os.environ.get("AIMM_ENABLE_VNC") == "1"
             and Path(os.environ.get("AIMM_NOVNC_DIR", "/usr/share/novnc")).is_dir(),
             "update": current_notice(),  # a newer release, if the update check found one
@@ -641,13 +743,8 @@ def create_app(
         }
 
     @app.websocket("/ws/stream")
+    @guarded_websocket
     async def ws_stream(websocket: WebSocket) -> None:
-        # Require a same-origin browser handshake; when exposed, also require
-        # a valid session cookie.
-        rejection_code = websocket_rejection_code(websocket)
-        if rejection_code is not None:
-            await websocket.close(code=rejection_code)
-            return
 
         await websocket.accept()
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=1000)
@@ -666,13 +763,9 @@ def create_app(
             log_handler.unsubscribe(queue)
 
     @app.websocket("/ws/configure")
+    @guarded_websocket
     async def ws_configure(websocket: WebSocket, section: str | None = None) -> None:
         """Run the AI-assisted configuration UI over a JSON WebSocket."""
-        rejection_code = websocket_rejection_code(websocket)
-        if rejection_code is not None:
-            await websocket.close(code=rejection_code)
-            return
-
         await websocket.accept()
         config_paths = list(config.config_files)
         ended_by_user: List[bool] = []  # End Chat: report "ended", however the flow returns
@@ -752,11 +845,8 @@ def create_app(
         app.mount("/vnc", StaticFiles(directory=novnc_dir, html=True), name="vnc")
 
         @app.websocket("/ws/vnc")
+        @guarded_websocket
         async def ws_vnc(websocket: WebSocket) -> None:
-            rejection_code = websocket_rejection_code(websocket)
-            if rejection_code is not None:
-                await websocket.close(code=rejection_code)
-                return
             await websocket.accept(
                 subprotocol=_select_vnc_subprotocol(
                     websocket.headers.get("sec-websocket-protocol")
@@ -975,14 +1065,26 @@ def start_webui(
         raise ValueError("WebUIConfig.log_handler is required")
     state, info = _resolve_auth(config)
 
+    if state.proxy is not None:
+        log = logger or logging.getLogger("monitor")
+        if state.proxy.verified:
+            log.info(f"""{hilight("[WebUI]", "info")} {state.proxy.describe()}.""")
+        else:
+            log.warning(
+                f"""{hilight("[WebUI]", "fail")} {state.proxy.describe()}, which anyone who"""
+                f" reaches port {config.port} directly can send: they would control aimm and"
+                " see its browser. Make the port reachable only through your reverse proxy,"
+                " or set AIMM_WEBUI_PROXY_SECRET."
+            )
     # --webui-host requires credentials. Refuse to expose without auth.
-    if state.exposed and state.auth is None:
+    elif state.exposed and state.auth is None:
         raise RuntimeError(
             f"--webui-host {config.host} requires authentication. "
             "Set username/password in a [marketplace.*] config section "
             "or set FACEBOOK_USERNAME and FACEBOOK_PASSWORD environment "
             "variables. Omit --webui-host to run on 127.0.0.1 without "
-            "a password."
+            "a password, or set AIMM_WEBUI_AUTH (proxy, authelia, authentik "
+            "or cloudflare) if a reverse proxy signs users in."
         )
 
     config_service = ConfigFileService(config.config_files, logger=logger)
