@@ -217,7 +217,9 @@ What happens next:
    of matching items. If Facebook logs it out later, it waits for you the same
    way.
 
-A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). Its **⏸** button stops the monitor and **▶** starts it again with the current configuration. `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
+A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
+
+**You never need to restart aimm to change your configuration.** Save the config file, in the web UI, with `aimm configure` or in any editor, and the running monitor picks up the change on its own: after the current search it reloads the configuration and searches all items with it. The **⏸** button in the web UI stops the monitor only when you need its browser to yourself, and **▶** starts it again.
 
 aimm always shows its browser, because Facebook may ask you to complete a CAPTCHA or a security code. To run aimm on a server, a NAS or another machine without a screen, use the [Docker image](#run-with-docker): it has a virtual display, and the web UI shows you its browser when you need it.
 
@@ -256,8 +258,9 @@ After the container starts:
    time.)
 3. aimm waits as long as it takes and starts searching once you are logged in.
    You can then close the browser tab; the monitor keeps running in Docker.
-   The **⏸** button in the header stops the monitor whenever you need the
-   browser to yourself; **▶** starts it again with the current configuration.
+   Config changes you save are picked up on their own. The **⏸** button in
+   the header stops the monitor only when you need the browser to yourself;
+   **▶** starts it again.
 
 If the page does not load, check `docker logs aimm`. The web UI requires
 credentials when it is exposed from Docker; make sure `FACEBOOK_USERNAME` and
