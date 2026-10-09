@@ -72,6 +72,16 @@
     // Fetch the auth mode so we can decide between login form and open mode.
     try {
       const info = await (await fetch("/api/auth/info", { credentials: "same-origin" })).json();
+      if (info.proxy_error) {
+        // a reverse proxy signs users in, and this request did not come through it: a
+        // password form cannot help, so say what is missing
+        const subtitle = $("#login-subtitle");
+        subtitle.textContent = `${info.proxy_error} Open aimm through your reverse proxy.`;
+        subtitle.hidden = false;
+        // the form's CSS sets display, which would override the hidden attribute
+        $("#login-form").querySelectorAll("label, #login-submit").forEach((el) => { el.style.display = "none"; });
+        return;
+      }
       if (info.open) {
         // Open mode — no credentials configured, auto-login as anonymous.
         const res = await fetch("/api/login", {
@@ -2087,6 +2097,15 @@
       // there is nothing to log out of on 127.0.0.1
       const logoutRow = document.getElementById("logout-row");
       if (logoutRow) logoutRow.hidden = !!status.open;
+      // the user signed in by aimm or, behind a reverse proxy, by the proxy
+      const signedIn = document.getElementById("signed-in-row");
+      if (signedIn) {
+        const proxied = status.open && status.user;
+        signedIn.hidden = !status.user;
+        $("#signed-in-text").textContent = status.user
+          ? `Signed in as ${status.user}${proxied ? ` by your reverse proxy (${status.auth_mode})` : ""}.`
+          : "";
+      }
       const badge = document.getElementById("update-badge");
       if (badge) {
         badge.hidden = !state.update;

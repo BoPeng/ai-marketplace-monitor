@@ -16,9 +16,10 @@ services:
       - "traefik.http.routers.aimm.entrypoints=websecure"
       - "traefik.http.routers.aimm.tls.certresolver=letsencrypt"
       - "traefik.http.services.aimm.loadbalancer.server.port=8467"
-      # To let Traefik sign users in (e.g. a forward-auth middleware for Authelia or
-      # Authentik), add it here and set AIMM_WEBUI_AUTH=proxy in .env:
-      # - "traefik.http.routers.aimm.middlewares=authelia@docker"
+      # To let Traefik sign users in, add your forward-auth middleware and set AIMM_WEBUI_AUTH
+      # in .env (authelia or authentik). For authelia, also send AIMM_WEBUI_PROXY_SECRET:
+      # - "traefik.http.routers.aimm.middlewares=authelia@docker,aimm-secret"
+      # - "traefik.http.middlewares.aimm-secret.headers.customrequestheaders.X-Aimm-Proxy-Secret=${AIMM_WEBUI_PROXY_SECRET}"
 
 networks:
   proxy:

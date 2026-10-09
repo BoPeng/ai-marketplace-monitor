@@ -45,6 +45,7 @@ dependencies = [
   "python-multipart>=0.0.9",
   "tomlkit>=0.13",
   "mirascope[openai,anthropic]>=2.5,<3",
+  "PyJWT[crypto]>=2.8",
 ]
 
 [project.urls]

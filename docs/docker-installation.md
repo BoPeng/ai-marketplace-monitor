@@ -92,9 +92,24 @@ Anyone who can reach the URL sees the aimm sign-in page, which is protected only
 
 ### Let the reverse proxy sign you in
 
-If your reverse proxy or container manager already signs users in (Authelia, Authentik, a forward-auth or basic-auth middleware, Cloudflare Access, the login of a NAS or app platform), set `AIMM_WEBUI_AUTH=proxy` in `.env` (or `-e AIMM_WEBUI_AUTH=proxy` with `docker run`). The web UI then opens without asking for the Facebook username and password, so you sign in only once. aimm still logs in to Facebook with them, so keep `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` set.
+If your reverse proxy already signs users in, aimm does not need to ask for the Facebook username and password as well. Set `AIMM_WEBUI_AUTH` in `.env` (or with `-e` for `docker run`) to the proxy that signs you in. aimm then checks, on every request, what that proxy adds once you are signed in, so a request that goes around the proxy is refused:
 
-With this setting, anyone who reaches port 8467 without going through the proxy controls aimm and sees its browser, which is logged in to your Facebook account. Make the port reachable only through the proxy: do not publish it (the Traefik override above removes it), and keep the container on a network that only the proxy can reach. aimm logs a warning when it starts in this mode. The web UI still protects itself against requests from other websites, so a page you visit cannot change aimm's settings through your proxy's sign-in.
+| `AIMM_WEBUI_AUTH` | Each request must carry | Settings |
+| --- | --- | --- |
+| `password` (default) | aimm's own sign-in, with the Facebook username and password | |
+| `authentik` | the signed token in `X-Authentik-Jwt` from Authentik's proxy outpost | `AIMM_WEBUI_JWKS_URL`: the provider's JWKS URL, e.g. `https://auth.example.com/application/o/aimm/jwks/`. Optional `AIMM_WEBUI_JWT_AUDIENCE`: the provider's client ID |
+| `cloudflare` | the signed token in `Cf-Access-Jwt-Assertion` from Cloudflare Access | `AIMM_WEBUI_CF_TEAM`: your team name (`<team>.cloudflareaccess.com`). `AIMM_WEBUI_JWT_AUDIENCE`: the application's AUD tag |
+| `authelia` | the `Remote-User` header from Authelia's forward auth | Optional `AIMM_WEBUI_USER_HEADER` for another header, e.g. the one a basic-auth middleware sets |
+| `proxy` | nothing | |
+
+`authentik` and `cloudflare` verify a token that the identity provider signs, so a forged request is refused even if it reaches aimm's port directly. `authelia` and `proxy` cannot tell your proxy from anyone else who reaches the port. For them, also set `AIMM_WEBUI_PROXY_SECRET` to a long random value (for example from `openssl rand -hex 32`), and have the proxy add it to every request as the `X-Aimm-Proxy-Secret` header, for example with Traefik's `headers` middleware (`customRequestHeaders`), nginx's `proxy_set_header` or Caddy's `header_up`. Without the secret, aimm logs a warning, and you must make sure that port 8467 is reachable only through the proxy: anyone who reaches it directly controls aimm and sees its browser, which is logged in to your Facebook account.
+
+aimm still logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`, so keep them set. The web UI keeps protecting itself against requests from other websites, so a page you visit cannot use your proxy sign-in to change aimm's settings. Settings shows who the proxy signed in.
+
+Container managers:
+
+- **Umbrel** puts its own login in front of apps, but does not tell the app who signed in, and aimm cannot check it. Keep `password`, or turn off Umbrel's login for aimm (`PROXY_AUTH_ADD: "false"`).
+- **CasaOS** signs you in to its dashboard, not to the apps, which are published on the host's ports. Keep `password`.
 
 ## Update
 

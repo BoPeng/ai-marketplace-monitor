@@ -136,11 +136,14 @@ def print_webui_banner(info: Any) -> None:
     text.append("\n")
 
     if info.exposed and getattr(info, "proxy_auth", False):
-        text.append("No password: your reverse proxy signs users in (AIMM_WEBUI_AUTH=proxy).\n")
-        text.append(
-            "\n⚠  Make this port reachable only through the reverse proxy.\n",
-            style="bold red",
-        )
+        text.append("No password: your reverse proxy signs users in.\n")
+        text.append(f"{info.proxy_check}.\n", style="dim")
+        if not info.proxy_verified:
+            text.append(
+                "\n⚠  Anyone who reaches this port directly gets in: make it reachable only\n"
+                "   through the reverse proxy, or set AIMM_WEBUI_PROXY_SECRET.\n",
+                style="bold red",
+            )
     elif info.exposed:
         text.append("user:     ", style="dim")
         text.append(f"{info.username}\n")
