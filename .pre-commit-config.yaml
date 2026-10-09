@@ -10,6 +10,8 @@ repos:
       - id: check-toml
       - id: check-json
       - id: check-yaml
+        # Compose's `!reset` tag is not plain YAML; `docker compose config` validates this file
+        exclude: ^docker-compose/docker-compose\.traefik\.yml$
       - id: debug-statements
       - id: check-merge-conflict
       - id: pretty-format-json
