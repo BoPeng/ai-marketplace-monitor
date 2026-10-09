@@ -18,11 +18,17 @@ from ai_marketplace_monitor.ai import AIResponse
 from ai_marketplace_monitor.evaluations import (
     EXCLUDED,
     NOTIFIED,
+    PENDING,
     REJECTED,
+    SOLD,
+    UNKNOWN,
     EvaluationRecord,
+    apply_price,
     filter_evaluations,
     iter_evaluations,
     record_evaluation,
+    record_seen,
+    update_evaluation,
 )
 from ai_marketplace_monitor.facebook import (
     FacebookItemConfig,
@@ -193,6 +199,97 @@ def test_api_applies_history_cutoff(
     record_evaluation(_record("old", when=now - 3 * 86400), local_cache=eval_cache)
     rows = list(csv.DictReader(io.StringIO(client.get("/api/evaluations.csv").text)))
     assert [r["url"] for r in rows] == ["https://www.facebook.com/marketplace/item/new/"]
+
+
+def test_old_records_load_with_status_defaults() -> None:
+    value = _record().to_dict()
+    for key in (
+        "last_seen",
+        "previous_price",
+        "price_changed",
+        "state",
+        "state_changed",
+        "checked",
+    ):
+        del value[key]
+    record = EvaluationRecord.from_dict(value)
+    assert (record.state, record.previous_price, record.last_seen) == (UNKNOWN, "", 0.0)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "price", "previous"),
+    [
+        ("$100", "$80", "$80", "$100"),  # a changed price
+        ("$100", "$80 | $100", "$80 | $100", "$100"),  # the card shows the drop
+        ("", "$80 | $100", "$80 | $100", "$100"),  # first sighting of a reduced listing
+        ("$100", "$100", "$100", ""),  # unchanged
+    ],
+)
+def test_apply_price(old: str, new: str, price: str, previous: str) -> None:
+    record = _record(price=old) if old else _record(price="")
+    apply_price(record, new, 1000.0)
+    assert (record.price, record.previous_price) == (price, previous)
+    assert record.price_changed == (1000.0 if previous else 0.0)
+
+
+# decisions must fall inside the history, so the tests count from now
+T = time.time()
+
+
+def test_record_seen_updates_status_but_not_the_decision(eval_cache: Cache) -> None:
+    record_evaluation(_record(stage=NOTIFIED, rating=5, when=T + 100), local_cache=eval_cache)
+    record_seen("facebook", "1", "bike", "$80", now=T + 500, local_cache=eval_cache)
+    (saved,) = _all(eval_cache)
+    assert (saved.time, saved.stage, saved.rating) == (T + 100, NOTIFIED, 5)
+    assert (saved.last_seen, saved.price, saved.previous_price) == (T + 500, "$80", "$100")
+
+
+def test_record_seen_ignores_listings_without_a_record(eval_cache: Cache) -> None:
+    record_seen("facebook", "1", "bike", "$80", now=T + 500, local_cache=eval_cache)
+    assert _all(eval_cache) == []
+
+
+def test_update_evaluation_sets_state_and_its_time(eval_cache: Cache) -> None:
+    record_evaluation(_record(stage=NOTIFIED, when=T + 100), local_cache=eval_cache)
+    update_evaluation(
+        "facebook",
+        "1",
+        "bike",
+        state=PENDING,
+        checked=T + 200,
+        now=T + 200,
+        local_cache=eval_cache,
+    )
+    update_evaluation(
+        "facebook",
+        "1",
+        "bike",
+        state=PENDING,
+        checked=T + 300,
+        now=T + 300,
+        local_cache=eval_cache,
+    )
+    (saved,) = _all(eval_cache)
+    assert (saved.state, saved.state_changed, saved.checked, saved.time) == (
+        PENDING,
+        T + 200,
+        T + 300,
+        T + 100,
+    )
+    assert update_evaluation("facebook", "2", "bike", state=SOLD, local_cache=eval_cache) is None
+
+
+def test_record_evaluation_keeps_the_status(eval_cache: Cache) -> None:
+    record_evaluation(_record(stage=REJECTED, when=T + 100), local_cache=eval_cache)
+    update_evaluation(
+        "facebook", "1", "bike", state=SOLD, checked=T + 150, now=T + 150, local_cache=eval_cache
+    )
+    # decided again on the next search, at a lower price
+    record_evaluation(_record(stage=REJECTED, when=T + 200, price="$90"), local_cache=eval_cache)
+    (saved,) = _all(eval_cache)
+    assert (saved.time, saved.state, saved.checked) == (T + 200, SOLD, T + 150)
+    assert (saved.price, saved.previous_price) == ("$90", "$100")
+    assert saved.last_seen == T + 200
 
 
 def test_filter_evaluations_sort() -> None:
