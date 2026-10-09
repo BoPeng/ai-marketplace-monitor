@@ -137,7 +137,7 @@ One or more `user.username` sections can be defined in the configuration. The `u
 | ------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `notify_with` | Optional    | String/List | Specifies one or more notification methods to be used for this user. If left unspecified, all available notification methods will be used.                   |
 | `remind`      | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
-| `digest_at`   | Optional    | String      | Local time (`HH:MM`, e.g. `"08:00"`, like `start_at`) at which the user receives a daily digest of the last 24 hours. By default, no digest is sent. |
+| `digest_at`   | Optional    | String      | Local time (`HH:MM`, e.g. `"08:00"`, like `start_at`) at which the user receives a daily digest of the last 24 hours. The digest uses AI tokens: one short AI call per item with new activity, to summarize it. By default, no digest is sent. |
 | `digest_with` | Optional    | String/List | Notification sections that send the digest, like `notify_with`; they must be among the notifications the user receives. By default, all of them. |
 
 Note that
