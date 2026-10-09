@@ -84,7 +84,8 @@ RUN groupadd -g 1000 aimm \
     && useradd -u 1000 -g aimm -m -d /home/aimm -s /bin/sh aimm \
     && mkdir -p /app /opt/aimm /opt/ms-playwright /data \
     && chown aimm:aimm /app /opt/aimm /opt/ms-playwright /data \
-    && mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+    && mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix \
+    && chmod 755 /root  # so that the entrypoint sees an old mount when started with --user
 
 WORKDIR /app
 

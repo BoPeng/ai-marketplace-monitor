@@ -16,6 +16,14 @@ LEGACY=/root/.ai-marketplace-monitor
 if [ "$(id -u)" = 0 ]; then
     PUID=${PUID:-1000}
     PGID=${PGID:-1000}
+    # numbers other than 0, which would make the `aimm` user root
+    for id in "$PUID" "$PGID"; do
+        case "$id" in '' | *[!0-9]*) id=0 ;; esac
+        if [ "$id" -eq 0 ]; then
+            echo "aimm: PUID and PGID must be user and group IDs other than 0 (got $PUID:$PGID)." >&2
+            exit 1
+        fi
+    done
     if [ "$(id -g aimm)" != "$PGID" ]; then
         groupmod -o -g "$PGID" aimm
     fi
@@ -48,6 +56,12 @@ if [ "$(id -u)" = 0 ]; then
     exec setpriv --reuid=aimm --regid=aimm --init-groups env HOME=/home/aimm "$@"
 fi
 
+# without root, /data cannot be pointed at the old location
+if [ -d "$LEGACY" ] && ! mountpoint -q "$DATA"; then
+    echo "aimm: the data folder is mounted at $LEGACY, which works only when the container" \
+        "starts as root. Mount it at $DATA instead." >&2
+    exit 1
+fi
 if [ ! -w "$DATA/" ]; then
     echo "aimm: user $(id -u):$(id -g) cannot write the data folder $DATA." \
         "Give it to this user on the host (chown -R $(id -u):$(id -g) <folder>)," \
