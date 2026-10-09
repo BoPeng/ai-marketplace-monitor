@@ -542,9 +542,13 @@ class MarketplaceMonitor:
                 names = item_config.ai
             else:
                 names = resolve_option("ai", item_config, marketplace_config)
-        for agent in self.ai_agents:
-            if names is not None and agent.config.name not in names:
-                continue
+        # the item's own order of AI services, else the order of the [ai.*] sections
+        agents = (
+            self.ai_agents
+            if names is None
+            else [a for name in names for a in self.ai_agents if a.config.name == name]
+        )
+        for agent in agents:
             try:
                 return agent.summarize(prompt)
             except KeyboardInterrupt:

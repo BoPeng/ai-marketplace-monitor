@@ -2,7 +2,7 @@ import base64
 import io
 import logging
 from types import SimpleNamespace
-from typing import Tuple
+from typing import Any, Tuple
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -333,13 +333,20 @@ def test_token_usage_formats() -> None:
     assert token_usage(SimpleNamespace(usage=SimpleNamespace(prompt_tokens=10))) == ""
 
 
+def sdk_client(**attrs: Any) -> SimpleNamespace:
+    """A fake SDK client; ``with_options`` returns the same client."""
+    client = SimpleNamespace(**attrs)
+    client.with_options = MagicMock(return_value=client)
+    return client
+
+
 def test_openai_summarize() -> None:
     ai = OpenAIBackend(OpenAIConfig(name="openai-summary", api_key="test", model="gpt-4o"))
     response = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="  The iPad Air looks good.  "))]
     )
     create = MagicMock(return_value=response)
-    ai.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    ai.client = sdk_client(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
 
     assert ai.summarize("Summarize this") == "The iPad Air looks good."
     kwargs = create.call_args.kwargs
@@ -347,26 +354,30 @@ def test_openai_summarize() -> None:
     assert kwargs["messages"][0] == {"role": "system", "content": ai_module.SUMMARY_SYSTEM}
     assert kwargs["messages"][1] == {"role": "user", "content": "Summarize this"}
     assert kwargs["timeout"] == ai_module.SUMMARY_TIMEOUT
+    # aimm's own tries are the whole budget: no hidden retries by the SDK
+    ai.client.with_options.assert_called_with(max_retries=0)
 
 
 def test_anthropic_summarize() -> None:
     ai = AnthropicBackend(AnthropicConfig(name="claude-summary", api_key="test"))
     response = SimpleNamespace(content=[SimpleNamespace(text="Nothing stands out.")])
     create = MagicMock(return_value=response)
-    ai.client = SimpleNamespace(messages=SimpleNamespace(create=create))
+    ai.client = sdk_client(messages=SimpleNamespace(create=create))
 
     assert ai.summarize("Summarize this") == "Nothing stands out."
     kwargs = create.call_args.kwargs
     assert kwargs["system"] == ai_module.SUMMARY_SYSTEM
     assert kwargs["messages"] == [{"role": "user", "content": "Summarize this"}]
     assert kwargs["timeout"] == ai_module.SUMMARY_TIMEOUT
+    # aimm's own tries are the whole budget: no hidden retries by the SDK
+    ai.client.with_options.assert_called_with(max_retries=0)
 
 
 def test_summarize_gives_up_after_a_few_tries(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ai_module.time, "sleep", lambda s: None)
     ai = OpenAIBackend(OpenAIConfig(name="openai-down", api_key="test", max_retries=10))
     create = MagicMock(side_effect=RuntimeError("503"))
-    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    client = sdk_client(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
 
     with pytest.raises(RuntimeError, match="openai-down"):
@@ -378,6 +389,6 @@ def test_summarize_rejects_an_empty_answer() -> None:
     ai = OpenAIBackend(OpenAIConfig(name="openai-empty", api_key="test"))
     response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=""))])
     create = MagicMock(return_value=response)
-    ai.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    ai.client = sdk_client(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     with pytest.raises(RuntimeError, match="empty"):
         ai.summarize("Summarize this")

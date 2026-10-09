@@ -932,3 +932,19 @@ def test_phone_quiet_line_is_escaped() -> None:
     assert "<b>bike</b>" not in message and "&lt;b&gt;bike" in message
     _, html_message = dg.render_email_digest(digest)
     assert "<b>bike</b>" not in html_message
+
+
+def test_phone_digest_shows_listings_of_an_item_without_a_summary() -> None:
+    # the AI failed for "ipad", while the quiet "gopro" got its fixed summary
+    notified = rec(NOW - 100, "ipad", "notified", listing_id="1", rating=5, title="iPad Air")
+    earlier = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="2", title="Bike")
+    earlier.state, earlier.state_changed = "sold", NOW - 60
+    digest = dg.build_digest([notified, earlier], COUNTERS, SINCE, NOW)
+    gopro, ipad = digest.items
+    gopro.summary = "Nothing new in the last 24 hours (10 searches)."
+    assert ipad.summary == ""
+
+    message = dg.render_phone_digest(digest)
+    assert "iPad Air" in message  # its match
+    assert "Bike" in message and "Sold" in message  # and its update are still there
+    assert len(message) <= dg.PHONE_MAX_LENGTH

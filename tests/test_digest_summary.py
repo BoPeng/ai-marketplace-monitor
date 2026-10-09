@@ -204,3 +204,22 @@ def test_add_summaries_stops_asking_after_an_exception(local_cache: Cache) -> No
     assert calls == ["ipad"]
     logger.debug.assert_called()
     logger.warning.assert_called_once()
+
+
+def test_monitor_summarize_item_follows_the_item_ai_order() -> None:
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.logger = None
+    first, second = MagicMock(), MagicMock()
+    first.config.name, second.config.name = "first", "second"
+    first.summarize.return_value = "From first."
+    second.summarize.return_value = "From second."
+    monitor.ai_agents = [first, second]  # the order of the [ai.*] sections
+    item = FacebookItemConfig(
+        name="ipad", search_phrases=["ipad"], ai=["second", "first"], marketplace="facebook"
+    )
+    market = FacebookMarketplaceConfig(name="facebook", search_city=["houston"])
+    monitor.config = SimpleNamespace(  # type: ignore[assignment]
+        item={"ipad": item}, marketplace={"facebook": market}
+    )
+    assert monitor.summarize_item("ipad", "prompt") == "From second."
+    first.summarize.assert_not_called()

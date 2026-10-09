@@ -406,7 +406,18 @@ def _phone_summaries(digest: Digest, f: _Format, totals: str) -> str:
     # (lines, number of items they cover)
     blocks: List[Tuple[List[str], int]] = []
     for item in active:
-        block = [f.bold(item.name) + f.text(": " + (item.summary or _counts(item)))]
+        if not item.summary:
+            # the AI could not summarize it: its counts, matches and updates instead
+            block = [f.bold(item.name) + f.text(": " + _counts(item))]
+            block.extend(
+                _listings(f, "Matches", item.notified, PHONE_ENTRIES, False, PHONE_TITLE_LENGTH)
+            )
+            block.extend(
+                _listings(f, "Updates", item.updates, PHONE_ENTRIES, False, PHONE_TITLE_LENGTH)
+            )
+            blocks.append((block, 1))
+            continue
+        block = [f.bold(item.name) + f.text(": " + item.summary)]
         best = _best_bet(item)
         if best is not None:
             title = _shorten(best.title, PHONE_TITLE_LENGTH)

@@ -414,7 +414,8 @@ class OpenAIBackend(AIBackend):
 
     def summarize(self: "OpenAIBackend", prompt: str) -> str:
         def ask() -> str:
-            response = self.client.chat.completions.create(
+            # no SDK retries: SUMMARY_RETRIES is the whole budget
+            response = self.client.with_options(max_retries=0).chat.completions.create(
                 model=self.config.model or self.default_model,
                 messages=[
                     {"role": "system", "content": SUMMARY_SYSTEM},
@@ -616,7 +617,8 @@ class AnthropicBackend(AIBackend):
 
     def summarize(self: "AnthropicBackend", prompt: str) -> str:
         def ask() -> str:
-            response = self.client.messages.create(
+            # no SDK retries: SUMMARY_RETRIES is the whole budget
+            response = self.client.with_options(max_retries=0).messages.create(
                 model=self.config.model or self.default_model,
                 max_tokens=300,
                 system=SUMMARY_SYSTEM,
