@@ -1,0 +1,25 @@
+# AI Marketplace Monitor with Docker Compose.
+#
+# Keep this file next to a `.env` file (copy .env.example and fill it in), then run
+#   docker compose up -d
+# and open http://localhost:8467. Settings and secrets go in .env, so this file needs no edits.
+# Guide: https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker-compose
+
+name: aimm
+
+services:
+  aimm:
+    image: ghcr.io/bopeng/ai-marketplace-monitor:latest
+    # To build the image from a checkout of the repository instead of pulling it:
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
+    container_name: aimm
+    restart: unless-stopped
+    # every variable in .env reaches aimm: credentials, API keys, TZ, PUID and PGID
+    env_file: .env
+    ports:
+      - "${AIMM_PORT:-8467}:8467"
+    volumes:
+      # config.toml, cache and logs
+      - ./data:/data
