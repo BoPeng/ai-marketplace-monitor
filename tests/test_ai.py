@@ -331,3 +331,51 @@ def test_token_usage_formats() -> None:
     assert token_usage(anthropic) == " (10 input / 5 output tokens)"
     assert token_usage(SimpleNamespace()) == ""
     assert token_usage(SimpleNamespace(usage=SimpleNamespace(prompt_tokens=10))) == ""
+
+
+def test_openai_summarize() -> None:
+    ai = OpenAIBackend(OpenAIConfig(name="openai-summary", api_key="test", model="gpt-4o"))
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="  The iPad Air looks good.  "))]
+    )
+    create = MagicMock(return_value=response)
+    ai.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    assert ai.summarize("Summarize this") == "The iPad Air looks good."
+    kwargs = create.call_args.kwargs
+    assert kwargs["model"] == "gpt-4o"
+    assert kwargs["messages"][0] == {"role": "system", "content": ai_module.SUMMARY_SYSTEM}
+    assert kwargs["messages"][1] == {"role": "user", "content": "Summarize this"}
+
+
+def test_anthropic_summarize() -> None:
+    ai = AnthropicBackend(AnthropicConfig(name="claude-summary", api_key="test"))
+    response = SimpleNamespace(content=[SimpleNamespace(text="Nothing stands out.")])
+    create = MagicMock(return_value=response)
+    ai.client = SimpleNamespace(messages=SimpleNamespace(create=create))
+
+    assert ai.summarize("Summarize this") == "Nothing stands out."
+    kwargs = create.call_args.kwargs
+    assert kwargs["system"] == ai_module.SUMMARY_SYSTEM
+    assert kwargs["messages"] == [{"role": "user", "content": "Summarize this"}]
+
+
+def test_summarize_gives_up_after_a_few_tries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_module.time, "sleep", lambda s: None)
+    ai = OpenAIBackend(OpenAIConfig(name="openai-down", api_key="test", max_retries=10))
+    create = MagicMock(side_effect=RuntimeError("503"))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    with pytest.raises(RuntimeError, match="openai-down"):
+        ai.summarize("Summarize this")
+    assert create.call_count == ai_module.SUMMARY_RETRIES
+
+
+def test_summarize_rejects_an_empty_answer() -> None:
+    ai = OpenAIBackend(OpenAIConfig(name="openai-empty", api_key="test"))
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=""))])
+    create = MagicMock(return_value=response)
+    ai.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    with pytest.raises(RuntimeError, match="empty"):
+        ai.summarize("Summarize this")
