@@ -55,7 +55,6 @@ def fresh_control() -> Iterator[None]:
     yield
     control.resume()
     control.consume_stop_request()
-    control.consume_stop_request()
     control.waiting_for_login = False
 
 

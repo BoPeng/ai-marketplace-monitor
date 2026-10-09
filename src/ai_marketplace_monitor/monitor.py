@@ -466,7 +466,8 @@ class MarketplaceMonitor:
         if not control.consume_stop_request():
             return False
         self.stop_jobs()
-        if self.logger:
+        # not if Start was clicked before the monitor got here: it restarts right away
+        if control.is_paused() and self.logger:
             self.logger.info(
                 f"""{hilight("[Pause]", "info")} Monitor stopped. Click ▶ in the web UI to start it again with the current configuration."""
             )
