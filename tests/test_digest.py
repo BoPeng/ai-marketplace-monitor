@@ -21,6 +21,7 @@ from ai_marketplace_monitor.evaluations import (
     EvaluationRecord,
     iter_evaluations,
     record_evaluation,
+    record_seen,
     set_history_days,
 )
 from ai_marketplace_monitor.monitor import DIGEST_TAG, MarketplaceMonitor
@@ -762,3 +763,13 @@ def test_compose_digest_reads_earlier_records_for_updates(temp_cache: Cache) -> 
     record_evaluation(record, local_cache=temp_cache)
     digest = dg.compose_digest(SINCE, NOW, local_cache=temp_cache)
     assert [u.state for u in digest.total.updates] == ["sold"]
+
+
+def test_unchanged_reduced_listing_is_not_an_update(temp_cache: Cache) -> None:
+    record = rec(
+        NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3", price="$80 | $100"
+    )
+    record_evaluation(record, local_cache=temp_cache)
+    record_seen("facebook", "3", "ipad", "$80 | $100", now=NOW - 60, local_cache=temp_cache)
+    digest = dg.compose_digest(SINCE, NOW, local_cache=temp_cache)
+    assert digest.total.updates == []

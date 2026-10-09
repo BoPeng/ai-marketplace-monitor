@@ -2,7 +2,7 @@
 
 import time
 from pathlib import Path
-from typing import Any, Iterator, List
+from typing import Any, Dict, Iterator, List
 from unittest.mock import MagicMock
 
 import pytest
@@ -108,8 +108,39 @@ def test_check_status_reads_each_page(eval_cache: Cache, monkeypatch: pytest.Mon
     assert len(visited) == 3
     saved = {r.id: r for r in iter_evaluations(local_cache=eval_cache)}
     assert (saved["1"].state, saved["2"].state, saved["3"].state) == (SOLD, AVAILABLE, "unknown")
-    assert (saved["2"].price, saved["2"].previous_price) == ("$80", "$100")
+    assert (saved["2"].price, saved["2"].previous_price) == ("$100", "")
     assert saved["1"].checked > 0 and saved["3"].checked == 0
+
+
+def _status_marketplace(monkeypatch: pytest.MonkeyPatch, pages: Dict[str, Any]) -> Any:
+    mp = fb.FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
+    mp.page = MagicMock()
+    monkeypatch.setattr(mp, "goto_url", lambda url: None)
+    monkeypatch.setattr(fb, "parse_listing", lambda page, url, *a, **k: pages.get(url))
+    monkeypatch.setattr(mp, "recover_login", lambda: False)
+    return mp
+
+
+def test_check_status_paces_every_page_opened(
+    eval_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mp = _status_marketplace(monkeypatch, {})  # no page can be read
+    sleeps: List[float] = []
+    monkeypatch.setattr(fb.time, "sleep", lambda s: sleeps.append(s))
+    assert mp.check_status([_record(i) for i in ("1", "2", "3")]) == 0
+    assert sleeps == [fb.STATUS_CHECK_DELAY] * 2
+
+
+def test_check_status_stops_when_the_keyboard_monitor_pauses(
+    eval_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mp = _status_marketplace(monkeypatch, {})
+    mp.keyboard_monitor = MagicMock()
+    mp.keyboard_monitor.is_paused.return_value = True
+    visited: List[str] = []
+    monkeypatch.setattr(mp, "goto_url", lambda url: visited.append(url))
+    assert mp.check_status([_record("1")]) == 0
+    assert visited == []
 
 
 def test_check_status_without_a_browser_page_opens_nothing() -> None:

@@ -130,9 +130,8 @@ def apply_price(record: EvaluationRecord, price: str, now: float) -> None:
         record.previous_price = before
         record.price_changed = now
     elif "|" in price and not record.previous_price:
-        # the card shows the old price too: a drop aimm did not see happen
+        # the card shows the old price too: a drop aimm did not see happen, so no change time
         record.previous_price = price.split("|", 1)[1].strip()
-        record.price_changed = now
     record.price = price
 
 
@@ -223,6 +222,10 @@ def record_evaluation(record: EvaluationRecord, *, local_cache: Cache | None = N
             for name in ("previous_price", "price_changed", "state", "state_changed", "checked"):
                 setattr(record, name, getattr(old, name))
             new_price, record.price = record.price, old.price
+            apply_price(record, new_price, record.time)
+        else:
+            # a first sighting: learn the previous price of a reduced listing, no change seen
+            new_price, record.price = record.price, ""
             apply_price(record, new_price, record.time)
         record.last_seen = max(record.last_seen, record.time)
         _save(c, record)

@@ -217,19 +217,35 @@ def test_old_records_load_with_status_defaults() -> None:
 
 
 @pytest.mark.parametrize(
-    ("old", "new", "price", "previous"),
+    ("old", "new", "price", "previous", "changed"),
     [
-        ("$100", "$80", "$80", "$100"),  # a changed price
-        ("$100", "$80 | $100", "$80 | $100", "$100"),  # the card shows the drop
-        ("", "$80 | $100", "$80 | $100", "$100"),  # first sighting of a reduced listing
-        ("$100", "$100", "$100", ""),  # unchanged
+        ("$100", "$80", "$80", "$100", True),  # a changed price
+        ("$100", "$80 | $100", "$80 | $100", "$100", True),  # the card shows a new, lower price
+        ("", "$80 | $100", "$80 | $100", "$100", False),  # first sighting: no drop seen
+        ("$80 | $100", "$80 | $100", "$80 | $100", "$100", False),  # same reduced card
+        ("$80", "$80 | $100", "$80 | $100", "$100", False),  # old price learned, not a change
+        ("$100", "$100", "$100", "", False),  # unchanged
+        ("$100", "", "$100", "", False),  # no price on the card
     ],
 )
-def test_apply_price(old: str, new: str, price: str, previous: str) -> None:
+def test_apply_price(old: str, new: str, price: str, previous: str, changed: bool) -> None:
     record = _record(price=old) if old else _record(price="")
     apply_price(record, new, 1000.0)
     assert (record.price, record.previous_price) == (price, previous)
-    assert record.price_changed == (1000.0 if previous else 0.0)
+    assert record.price_changed == (1000.0 if changed else 0.0)
+
+
+def test_new_reduced_listing_knows_its_previous_price(eval_cache: Cache) -> None:
+    record_evaluation(_record(price="$80 | $100", when=T), local_cache=eval_cache)
+    (saved,) = _all(eval_cache)
+    assert (saved.price, saved.previous_price, saved.price_changed) == ("$80 | $100", "$100", 0.0)
+
+
+def test_unchanged_reduced_price_is_not_a_change(eval_cache: Cache) -> None:
+    record_evaluation(_record(price="$80 | $100", stage=NOTIFIED, when=T), local_cache=eval_cache)
+    record_seen("facebook", "1", "bike", "$80 | $100", now=T + 500, local_cache=eval_cache)
+    (saved,) = _all(eval_cache)
+    assert (saved.previous_price, saved.price_changed) == ("$100", 0.0)
 
 
 # decisions must fall inside the history, so the tests count from now

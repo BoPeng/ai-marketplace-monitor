@@ -825,11 +825,15 @@ class FacebookMarketplace(Marketplace):
         if self.page is None:
             return 0
         read = 0
+        opened = 0
         for record in records:
-            if control.is_paused():
+            if control.is_paused() or (
+                self.keyboard_monitor is not None and self.keyboard_monitor.is_paused()
+            ):
                 break
-            if read:
+            if opened:
                 time.sleep(STATUS_CHECK_DELAY)
+            opened += 1
             try:
                 self.goto_url(record.url)
                 details = parse_listing(self.page, record.url, self.translator, self.logger)
@@ -855,7 +859,6 @@ class FacebookMarketplace(Marketplace):
                 record.id,
                 record.item,
                 state=state,
-                price=details.price,
                 checked=now,
                 now=now,
             )
