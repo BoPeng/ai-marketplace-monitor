@@ -366,23 +366,43 @@ def create_app(
         _: str = Depends(require_session),
         __: None = Depends(require_csrf),
     ) -> Dict[str, Any]:
-        """Stop searching after the current listing, until resumed (not kept across restarts)."""
+        """Stop the monitor after the current listing, until started again (not kept across restarts)."""
         if not control.is_paused():
             control.pause()
             logging.getLogger("monitor").info(
-                "[Pause] Pausing from the web UI: searches stop after the current listing."
+                "[Pause] Stopping from the web UI: the monitor stops after the current listing."
             )
+            # wake the monitor if it is sleeping until the next search, so it stops now
+            with contextlib.suppress(OSError):
+                config_service.editable_path.touch()
         return {"ok": True, **control.status()}
 
-    @app.post("/api/monitor/resume")
+    @app.post("/api/monitor/resume", response_model=None)
     async def resume_monitor(
         _: str = Depends(require_session),
         __: None = Depends(require_csrf),
     ) -> Dict[str, Any]:
-        """Resume, and search all items now (touching the config wakes the monitor)."""
+        """Start the monitor again: it reloads the config and searches all items now.
+
+        The monitor stays stopped if the config on disk is invalid, so it does not start
+        into a loop waiting for the config to be fixed.
+        """
+        try:
+            ok, error = config_service.validate(
+                config_service.editable_path.read_text(encoding="utf-8")
+            )
+        except OSError as e:
+            ok, error = False, str(e)
+        if not ok:
+            return JSONResponse(  # type: ignore[return-value]
+                status_code=400,
+                content={
+                    "ok": False,
+                    "error": f"The configuration is invalid, fix it before starting: {error}",
+                    **control.status(),
+                },
+            )
         control.resume()
-        with contextlib.suppress(OSError):
-            config_service.editable_path.touch()
         return {"ok": True, **control.status()}
 
     @app.post("/api/update")

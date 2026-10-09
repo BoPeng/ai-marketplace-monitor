@@ -72,9 +72,12 @@ Interactive Mode
 
 While the monitor is running, you can:
 
-- Press ``Esc`` to view current statistics
-- Enter interactive mode to check individual URLs
-- Type ``exit`` to leave interactive mode
+- Press ``Esc`` to pause searches after the current listing and view current statistics.
+  If you do not enter interactive mode, the monitor resumes where it left off.
+- Enter interactive mode to check individual URLs in the same browser session, so you do not
+  have to log in again. The monitor is stopped while you are in interactive mode.
+- Type ``exit`` to leave interactive mode. The monitor restarts: it reloads the configuration
+  and searches all items right away, the same as **▶** in the web UI.
 
 * This feature requires the installation of `pynput` package, which can be installed separately or through
 
