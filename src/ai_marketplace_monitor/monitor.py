@@ -520,7 +520,38 @@ class MarketplaceMonitor:
             user_config, self.config.notification
         ):
             self.refresh_listing_status()
-        send_due_digest(user_config, self.config.notification, logger=self.logger)
+        send_due_digest(
+            user_config,
+            self.config.notification,
+            logger=self.logger,
+            summarize=self.summarize_item if self.ai_agents else None,
+            item_configs=self.config.item,
+        )
+
+    def summarize_item(self: "MarketplaceMonitor", item_name: str, prompt: str) -> str | None:
+        """An AI summary for the digest, from the item's AI services in order; None if none can."""
+        assert self.config is not None
+        item_config = self.config.item.get(item_name)
+        names = None
+        if item_config is not None:
+            marketplace_config = self.config.marketplace.get(item_config.marketplace or "")
+            if marketplace_config is None:
+                names = item_config.ai
+            else:
+                names = resolve_option("ai", item_config, marketplace_config)
+        for agent in self.ai_agents:
+            if names is not None and agent.config.name not in names:
+                continue
+            try:
+                return agent.summarize(prompt)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[AI]", "fail")} {agent.config.name} could not summarize {item_name} for the digest: {e}"""
+                    )
+        return None
 
     def stop_jobs(self: "MarketplaceMonitor") -> None:
         """Clear all scheduled jobs and make the next ``schedule_jobs`` reload the config."""

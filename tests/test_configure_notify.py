@@ -55,6 +55,7 @@ def test_user_guides_cover_recipients() -> None:
         "remind",
         "digest_at",
         "digest_with",
+        "digest_summary",
         "enabled",
     }
     assert sorted(g.name for g in USER_GUIDES) == sorted(expected)

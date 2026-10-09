@@ -4,12 +4,15 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterator, List, Tuple
+from unittest.mock import MagicMock
 
 import pytest
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor import digest as dg
 from ai_marketplace_monitor import digest_summary as ds
+from ai_marketplace_monitor import monitor as mon
+from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 
 UNTIL = datetime(2026, 10, 8, 8, 0).timestamp()
 SINCE = UNTIL - dg.DIGEST_PERIOD
@@ -122,3 +125,26 @@ def test_long_answers_are_cut(local_cache: Cache) -> None:
     ds.add_summaries(digest, lambda item, prompt: "word " * 200, local_cache=local_cache)
     summary = digest.items[0].summary
     assert len(summary) <= ds.SUMMARY_MAX_CHARS and summary.endswith("…")
+
+
+def test_monitor_summarize_item_tries_the_item_ai_services_in_order() -> None:
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.logger = None
+    down, up, other = MagicMock(), MagicMock(), MagicMock()
+    down.config.name, up.config.name, other.config.name = "down", "up", "other"
+    down.summarize.side_effect = RuntimeError("503")
+    up.summarize.return_value = "Fine."
+    other.summarize.return_value = "Other."
+    monitor.ai_agents = [other, down, up]
+    item = FacebookItemConfig(
+        name="ipad", search_phrases=["ipad"], ai=["down", "up"], marketplace="facebook"
+    )
+    market = FacebookMarketplaceConfig(name="facebook", search_city=["houston"])
+    monitor.config = SimpleNamespace(  # type: ignore[assignment]
+        item={"ipad": item}, marketplace={"facebook": market}
+    )
+
+    assert monitor.summarize_item("ipad", "prompt") == "Fine."
+    other.summarize.assert_not_called()
+    # an item no longer in the config: any AI service
+    assert monitor.summarize_item("removed", "prompt") == "Other."

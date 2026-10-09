@@ -139,6 +139,7 @@ One or more `user.username` sections can be defined in the configuration. The `u
 | `remind`      | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
 | `digest_at`   | Optional    | String      | Local time (`HH:MM`, e.g. `"08:00"`, like `start_at`) at which the user receives a daily digest of the last 24 hours. By default, no digest is sent. |
 | `digest_with` | Optional    | String/List | Notification sections that send the digest, like `notify_with`; they must be among the notifications the user receives. By default, all of them. |
+| `digest_summary` | Optional | Boolean | An AI-written summary of each item at the top of its digest section: what looks promising, what sold or dropped in price, and the best bet. One short AI call per item per day, with the item's AI services; an item with nothing new gets "Nothing new …" without one. Set to `false` to turn it off. |
 
 Note that
 

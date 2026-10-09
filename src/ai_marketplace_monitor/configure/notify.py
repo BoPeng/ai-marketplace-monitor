@@ -185,6 +185,13 @@ USER_GUIDES: Tuple[FieldGuide, ...] = (
         'list of notification names, e.g. `["gmail"]`',
         "every notification the user receives",
     ),
+    FieldGuide(
+        "digest_summary",
+        "an AI-written summary of each item in the digest (what looks promising, what sold, "
+        "the best bet), one short AI call per item per day",
+        "`false` to turn it off",
+        "on",
+    ),
     FieldGuide("enabled", "only to stop notifying this user", "`false`", "on"),
 )
 

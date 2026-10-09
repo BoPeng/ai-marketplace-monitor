@@ -700,12 +700,13 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
     calls: List[str] = []
     monkeypatch.setattr(
         "ai_marketplace_monitor.monitor.send_due_digest",
-        lambda config, notifications, logger=None: calls.append(config.name),
+        lambda config, notifications, **kwargs: calls.append(config.name),
     )
     users = {"me": user(), "other": UserConfig(name="other")}
     monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)
     monitor.logger = None
-    monitor.config = types.SimpleNamespace(user=users, notification={})  # type: ignore[assignment]
+    monitor.ai_agents = []
+    monitor.config = types.SimpleNamespace(user=users, notification={}, item={})  # type: ignore[assignment]
     schedule.clear()
     try:
         monitor.schedule_digests()
@@ -773,3 +774,37 @@ def test_unchanged_reduced_listing_is_not_an_update(temp_cache: Cache) -> None:
     record_seen("facebook", "3", "ipad", "$80 | $100", now=NOW - 60, local_cache=temp_cache)
     digest = dg.compose_digest(SINCE, NOW, local_cache=temp_cache)
     assert digest.total.updates == []
+
+
+def test_user_digest_summary_option() -> None:
+    assert user().digest_summary is None
+    assert user(digest_summary=False).digest_summary is False
+    with pytest.raises(ValueError, match="digest_summary"):
+        user(digest_summary="no")
+
+
+def test_send_due_digest_with_summaries(sent: Sent, temp_cache: Cache) -> None:
+    asked: List[str] = []
+
+    def summarize(item: str, prompt: str) -> str:
+        asked.append(item)
+        return "Looks good."
+
+    config = user()
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache, summarize=summarize)
+    # records() has "ipad" listings in the window ending at DAY1; one AI call for it
+    assert asked == ["ipad"]
+
+
+def test_no_summaries_when_the_user_turns_them_off(sent: Sent, temp_cache: Cache) -> None:
+    asked: List[str] = []
+
+    def summarize(item: str, prompt: str) -> str:
+        asked.append(item)
+        return "x"
+
+    config = user(digest_summary=False)
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache, summarize=summarize)
+    assert asked == []

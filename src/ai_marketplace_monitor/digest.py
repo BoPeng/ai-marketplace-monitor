@@ -54,6 +54,7 @@ from .evaluations import (
 from .utils import CacheType, CounterItem, cache, counter, hilight
 
 if TYPE_CHECKING:
+    from .digest_summary import Summarizer
     from .notification import NotificationConfig
 
 DIGEST_PERIOD = 24 * 60 * 60
@@ -609,12 +610,15 @@ def send_due_digest(
     logger: Logger | None = None,
     now: datetime | None = None,
     local_cache: Cache | None = None,
+    summarize: "Summarizer | None" = None,
+    item_configs: Mapping[str, Any] | None = None,
 ) -> bool:
     """Send the user's digest to the channels it is due on; whether it was sent to any.
 
     The job runs at ``digest_at`` and whenever the jobs are scheduled (start, config change),
     so a restart does not send a digest twice, a digest missed while aimm was not running is
     sent on the next start, and a channel that failed is tried again with the same window.
+    With ``summarize``, each item gets an AI summary unless the user set ``digest_summary = false``.
     """
     if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
         return False
@@ -631,6 +635,10 @@ def send_due_digest(
     failed: List[str] = []
     for (since, until), names in windows.items():
         digest = compose_digest(since, until, local_cache=local_cache)
+        if summarize is not None and user_config.digest_summary is not False:
+            from .digest_summary import add_summaries
+
+            add_summaries(digest, summarize, item_configs, logger=logger, local_cache=local_cache)
         results = send_digest(user_config, digest, notifications, logger=logger, channels=names)
         for name, sent in results.items():
             if sent:
