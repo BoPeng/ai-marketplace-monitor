@@ -7,7 +7,10 @@ on every request, what the proxy adds once it has signed the user in:
 - ``authelia``: a user header (``Remote-User``, or ``AIMM_WEBUI_USER_HEADER``). Not signed:
   anyone who reaches the port directly can send it, unless ``AIMM_WEBUI_PROXY_SECRET`` is set.
 - ``authentik``: the signed JWT in ``X-Authentik-Jwt``, verified with the keys at
-  ``AIMM_WEBUI_JWKS_URL`` (never the URL the request names) and ``AIMM_WEBUI_JWT_AUDIENCE``.
+  ``AIMM_WEBUI_JWKS_URL`` (never the URL the request names), for aimm's application only:
+  its audience (``AIMM_WEBUI_JWT_AUDIENCE``, the provider's client ID) and issuer (derived
+  from the JWKS URL, or ``AIMM_WEBUI_JWT_ISSUER``). Applications can share a signing key, so
+  without these a token issued for another application would let its holder in.
 - ``cloudflare``: the signed JWT in ``Cf-Access-Jwt-Assertion``, verified with the keys of
   Cloudflare Access team ``AIMM_WEBUI_CF_TEAM`` and the application's ``AIMM_WEBUI_JWT_AUDIENCE``.
 
@@ -20,7 +23,7 @@ from __future__ import annotations
 import os
 import secrets
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, NamedTuple
 
 AUTH_PASSWORD = "password"
 AUTH_PROXY = "proxy"
@@ -38,6 +41,13 @@ JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256",
 
 class ProxyAuthError(Exception):
     """The request did not come through the reverse proxy's sign-in."""
+
+
+class Identity(NamedTuple):
+    """Who the reverse proxy signed in, and until when its proof is valid."""
+
+    user: str
+    expires_at: float | None = None  # a JWT's exp; None when the proxy's proof does not expire
 
 
 def webui_auth_mode(environ: Mapping[str, str] | None = None) -> str:
@@ -87,7 +97,18 @@ class ProxyAuth:
         elif mode == AUTH_AUTHENTIK:
             auth.jwt_header = AUTHENTIK_JWT_HEADER
             auth.jwks_url = required("AIMM_WEBUI_JWKS_URL")
-            auth.audience = setting("AIMM_WEBUI_JWT_AUDIENCE")
+            auth.audience = required("AIMM_WEBUI_JWT_AUDIENCE")
+            # https://auth.example.com/application/o/<slug>/jwks/ is the key set of the
+            # provider whose tokens name https://auth.example.com/application/o/<slug>/
+            issuer = setting("AIMM_WEBUI_JWT_ISSUER")
+            if issuer is None and auth.jwks_url.rstrip("/").endswith("/jwks"):
+                issuer = auth.jwks_url.rstrip("/")[: -len("jwks")]
+            if issuer is None:
+                raise ValueError(
+                    f"AIMM_WEBUI_AUTH={mode} needs AIMM_WEBUI_JWT_ISSUER: it cannot be derived"
+                    f" from AIMM_WEBUI_JWKS_URL={auth.jwks_url}."
+                )
+            auth.issuer = issuer
         elif mode == AUTH_CLOUDFLARE:
             team = required("AIMM_WEBUI_CF_TEAM").removeprefix("https://").rstrip("/")
             if "." not in team:
@@ -116,6 +137,10 @@ class ProxyAuth:
 
     def identify(self, headers: Mapping[str, str]) -> str:
         """The signed-in user the proxy vouches for; raises ProxyAuthError otherwise."""
+        return self.verify(headers).user
+
+    def verify(self, headers: Mapping[str, str]) -> Identity:
+        """The signed-in user and until when; raises ProxyAuthError otherwise."""
         if self.secret is not None:
             sent = headers.get(SECRET_HEADER) or ""
             if not secrets.compare_digest(sent.encode(), self.secret.encode()):
@@ -131,10 +156,10 @@ class ProxyAuth:
                 raise ProxyAuthError(
                     f"Not signed in through {self.mode}: the {self.user_header} header is missing."
                 )
-            return user
-        return "proxy"
+            return Identity(user)
+        return Identity("proxy")
 
-    def _verify_jwt(self, token: str | None) -> str:
+    def _verify_jwt(self, token: str | None) -> Identity:
         import jwt  # only needed in the JWT modes
 
         if not token:
@@ -152,7 +177,8 @@ class ProxyAuth:
                 algorithms=JWT_ALGORITHMS,
                 audience=self.audience,
                 issuer=self.issuer,
-                options={"require": ["exp"], "verify_aud": self.audience is not None},
+                # for aimm's application only: a key can sign tokens for several
+                options={"require": ["exp", "aud", "iss"]},
                 leeway=30,
             )
         except jwt.PyJWKClientConnectionError as e:
@@ -161,5 +187,5 @@ class ProxyAuth:
             raise ProxyAuthError(f"The {self.jwt_header} token is not valid: {e}") from e
         for claim in ("preferred_username", "email", "sub"):
             if claims.get(claim):
-                return str(claims[claim])
+                return Identity(str(claims[claim]), float(claims["exp"]))
         raise ProxyAuthError(f"The {self.jwt_header} token does not name a user.")

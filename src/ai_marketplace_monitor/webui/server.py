@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import logging
 import mimetypes
 import os
@@ -20,7 +21,7 @@ import time
 import warnings
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List
 from urllib.parse import urlparse
 
 import uvicorn
@@ -82,7 +83,7 @@ from .config_auth import extract_credentials
 from .evaluations_export import MAX_LIMIT, iter_evaluations_csv
 from .found_export import iter_found_csv, iter_found_rows
 from .log_handler import LogBroadcastHandler
-from .proxy_auth import AUTH_PROXY, ProxyAuth, ProxyAuthError
+from .proxy_auth import AUTH_PROXY, ProxyAuth, ProxyAuthError, webui_auth_mode
 
 # Ensure the vendored toml-edit-js WASM bundle is served with the right
 # Content-Type. Python's mimetypes module learned .wasm in 3.10 but
@@ -189,6 +190,8 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
     exposed = config.host not in ("127.0.0.1", "localhost", "::1")
     state = AuthState()
     state.exposed = exposed
+    # an unsupported value is an error even on loopback, where no proxy check applies
+    webui_auth_mode()
     if exposed:
         state.proxy = ProxyAuth.from_environment()
 
@@ -320,21 +323,59 @@ def create_app(
         if not header or not csrf_cookie or not secrets.compare_digest(header, csrf_cookie):
             raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
-    def websocket_rejection_code(websocket: WebSocket) -> int | None:
+    def websocket_check(websocket: WebSocket) -> tuple[int | None, float | None]:
+        """A close code to reject the handshake with (or None), and when access expires.
+
+        Access expires with the reverse proxy's signed token, which is checked only here.
+        """
         if not _origin_matches_host(
             websocket.headers.get("origin"), websocket.headers.get("host")
         ):
-            return 4403
+            return 4403, None
         if is_open():
-            return None
-        try:
-            proxy_user(websocket.headers)
-        except ProxyAuthError:
-            return 4401
+            return None, None
+        expires_at = None
+        if state.proxy is not None:
+            try:
+                expires_at = state.proxy.verify(websocket.headers).expires_at
+            except ProxyAuthError:
+                return 4401, None
         session = websocket.cookies.get(SESSION_COOKIE)
         if session and sessions.validate(session) is not None:
-            return None
-        return 4401
+            return None, expires_at
+        return 4401, None
+
+    def guarded_websocket(
+        handler: Callable[..., Awaitable[None]]
+    ) -> Callable[..., Awaitable[None]]:
+        """Check the handshake, and end the connection when the proxy's token expires.
+
+        Without this, a VNC or Configure connection opened with a token would keep control of
+        the browser and the config after the token expires, while new requests are refused.
+        """
+
+        @functools.wraps(handler)
+        async def endpoint(websocket: WebSocket, **kwargs: Any) -> None:
+            # Require a same-origin browser handshake; when exposed, also require a valid
+            # session cookie (and the proxy's sign-in). Off the event loop: checking a token
+            # may fetch the signing keys.
+            code, expires_at = await run_in_threadpool(websocket_check, websocket)
+            if code is not None:
+                await websocket.close(code=code)
+                return
+            if expires_at is None:
+                await handler(websocket, **kwargs)
+                return
+            task = asyncio.ensure_future(handler(websocket, **kwargs))
+            try:
+                await asyncio.wait_for(asyncio.shield(task), max(0.0, expires_at - time.time()))
+            except asyncio.TimeoutError:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                with contextlib.suppress(Exception):
+                    await websocket.close(code=4401, reason="sign-in expired")
+
+        return endpoint
 
     # ------------------------------------------------------------------
     # Routes
@@ -702,13 +743,8 @@ def create_app(
         }
 
     @app.websocket("/ws/stream")
+    @guarded_websocket
     async def ws_stream(websocket: WebSocket) -> None:
-        # Require a same-origin browser handshake; when exposed, also require
-        # a valid session cookie.
-        rejection_code = await run_in_threadpool(websocket_rejection_code, websocket)
-        if rejection_code is not None:
-            await websocket.close(code=rejection_code)
-            return
 
         await websocket.accept()
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=1000)
@@ -727,13 +763,9 @@ def create_app(
             log_handler.unsubscribe(queue)
 
     @app.websocket("/ws/configure")
+    @guarded_websocket
     async def ws_configure(websocket: WebSocket, section: str | None = None) -> None:
         """Run the AI-assisted configuration UI over a JSON WebSocket."""
-        rejection_code = await run_in_threadpool(websocket_rejection_code, websocket)
-        if rejection_code is not None:
-            await websocket.close(code=rejection_code)
-            return
-
         await websocket.accept()
         config_paths = list(config.config_files)
         ended_by_user: List[bool] = []  # End Chat: report "ended", however the flow returns
@@ -813,11 +845,8 @@ def create_app(
         app.mount("/vnc", StaticFiles(directory=novnc_dir, html=True), name="vnc")
 
         @app.websocket("/ws/vnc")
+        @guarded_websocket
         async def ws_vnc(websocket: WebSocket) -> None:
-            rejection_code = await run_in_threadpool(websocket_rejection_code, websocket)
-            if rejection_code is not None:
-                await websocket.close(code=rejection_code)
-                return
             await websocket.accept(
                 subprotocol=_select_vnc_subprotocol(
                     websocket.headers.get("sec-websocket-protocol")

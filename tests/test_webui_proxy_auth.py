@@ -31,6 +31,8 @@ from ai_marketplace_monitor.webui.server import (
 )
 
 ORIGIN = {"origin": "http://testserver"}
+AUDIENCE = "aimm-client"
+ISSUER = "https://auth.example.com/application/o/aimm/"
 EXPOSED = "0.0.0.0"  # noqa: S104 - the web UI as Docker runs it
 
 
@@ -82,7 +84,14 @@ class Keys:
         return jwt.PyJWK.from_dict({**public, "alg": "RS256", "kid": "k1"})
 
     def token(self, **claims: Any) -> str:
-        payload: Dict[str, Any] = {"exp": int(time.time()) + 300, **claims}
+        """A token for aimm's Authentik application unless the claims say otherwise."""
+        payload: Dict[str, Any] = {
+            "exp": int(time.time()) + 300,
+            "aud": AUDIENCE,
+            "iss": ISSUER,
+            **claims,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
         return jwt.encode(payload, self.private, algorithm="RS256", headers={"kid": "k1"})
 
 
@@ -91,12 +100,13 @@ def keys() -> Keys:
     return Keys()
 
 
-def authentik(keys: Keys, audience: str | None = "aimm-client") -> ProxyAuth:
+def authentik(keys: Keys) -> ProxyAuth:
     return ProxyAuth(
         mode="authentik",
         jwt_header="X-Authentik-Jwt",
-        jwks_url="https://auth.example.com/application/o/aimm/jwks/",
-        audience=audience,
+        jwks_url=ISSUER + "jwks/",
+        audience=AUDIENCE,
+        issuer=ISSUER,
         jwks_client=keys,
     )
 
@@ -141,12 +151,39 @@ def test_settings_of_each_mode() -> None:
     assert cf.jwks_url == "https://myteam.cloudflareaccess.com/cdn-cgi/access/certs"
     assert cf.issuer == "https://myteam.cloudflareaccess.com"
     assert cf.jwt_header == "Cf-Access-Jwt-Assertion"
+    ak = ProxyAuth.from_environment(
+        {
+            "AIMM_WEBUI_AUTH": "authentik",
+            "AIMM_WEBUI_JWKS_URL": ISSUER + "jwks/",
+            "AIMM_WEBUI_JWT_AUDIENCE": AUDIENCE,
+        }
+    )
+    assert ak is not None and ak.issuer == ISSUER and ak.audience == AUDIENCE
+    custom_issuer = ProxyAuth.from_environment(
+        {
+            "AIMM_WEBUI_AUTH": "authentik",
+            "AIMM_WEBUI_JWKS_URL": "https://auth.example.com/keys.json",
+            "AIMM_WEBUI_JWT_AUDIENCE": AUDIENCE,
+            "AIMM_WEBUI_JWT_ISSUER": "https://auth.example.com/",
+        }
+    )
+    assert custom_issuer is not None and custom_issuer.issuer == "https://auth.example.com/"
 
 
 @pytest.mark.parametrize(
     "environ, missing",
     [
         ({"AIMM_WEBUI_AUTH": "authentik"}, "AIMM_WEBUI_JWKS_URL"),
+        # tokens of every application signed with the same key would let their holders in
+        ({"AIMM_WEBUI_AUTH": "authentik", "AIMM_WEBUI_JWKS_URL": ISSUER + "jwks/"}, "AUDIENCE"),
+        (
+            {
+                "AIMM_WEBUI_AUTH": "authentik",
+                "AIMM_WEBUI_JWKS_URL": "https://auth.example.com/keys.json",
+                "AIMM_WEBUI_JWT_AUDIENCE": AUDIENCE,
+            },
+            "AIMM_WEBUI_JWT_ISSUER",
+        ),
         ({"AIMM_WEBUI_AUTH": "cloudflare", "AIMM_WEBUI_JWT_AUDIENCE": "a"}, "AIMM_WEBUI_CF_TEAM"),
         ({"AIMM_WEBUI_AUTH": "cloudflare", "AIMM_WEBUI_CF_TEAM": "t"}, "AIMM_WEBUI_JWT_AUDIENCE"),
     ],
@@ -182,9 +219,12 @@ def test_proxy_secret_is_checked_in_every_mode() -> None:
 
 def test_a_signed_jwt_names_the_user(keys: Keys) -> None:
     auth = authentik(keys)
-    token = keys.token(aud="aimm-client", preferred_username="alice", email="a@example.com")
-    assert auth.identify({"X-Authentik-Jwt": token}) == "alice"
-    assert auth.identify({"X-Authentik-Jwt": keys.token(aud="aimm-client", email="b@x")}) == "b@x"
+    token = keys.token(preferred_username="alice", email="a@example.com")
+    identity = auth.verify({"X-Authentik-Jwt": token})
+    assert identity.user == "alice" and identity.expires_at is not None
+    assert auth.identify({"X-Authentik-Jwt": keys.token(email="b@x")}) == "b@x"
+    # the header modes have nothing that expires
+    assert ProxyAuth(mode="proxy").verify({}).expires_at is None
 
 
 def _hs256_token() -> str:
@@ -198,11 +238,18 @@ def _hs256_token() -> str:
     [
         (lambda k: None, "header is missing"),
         (lambda k: "not-a-jwt", "not valid"),
-        (lambda k: k.token(aud="aimm-client", sub="a", exp=int(time.time()) - 3600), "expired"),
-        (lambda k: k.token(aud="another-app", sub="a"), "not valid"),
-        (lambda k: Keys().token(aud="aimm-client", sub="a"), "not valid"),  # someone else's key
+        (lambda k: k.token(sub="a", exp=int(time.time()) - 3600), "expired"),
+        # issued for another application signed with the same key
+        (lambda k: k.token(sub="a", aud="another-app"), "not valid"),
+        (
+            lambda k: k.token(sub="a", iss="https://auth.example.com/application/o/other/"),
+            "not valid",
+        ),
+        (lambda k: k.token(sub="a", aud=None), "not valid"),
+        (lambda k: k.token(sub="a", iss=None), "not valid"),
+        (lambda k: Keys().token(sub="a"), "not valid"),  # someone else's key
         (lambda k: _hs256_token(), "not valid"),
-        (lambda k: k.token(aud="aimm-client"), "does not name a user"),
+        (lambda k: k.token(), "does not name a user"),
     ],
 )
 def test_invalid_jwts_are_rejected(keys: Keys, make_token: Any, reason: str) -> None:
@@ -319,11 +366,34 @@ def test_websockets_check_the_proxy_origin_and_session(config_path: Path) -> Non
 
 def test_authentik_mode_signs_in_the_user_of_the_jwt(config_path: Path, keys: Keys) -> None:
     client = client_for(config_path, authentik(keys))
-    token = {"X-Authentik-Jwt": keys.token(aud="aimm-client", preferred_username="alice")}
+    token = {"X-Authentik-Jwt": keys.token(preferred_username="alice")}
     assert client.post("/api/login", headers=token).json()["username"] == "alice"
     assert client.get("/api/status", headers=token).json()["user"] == "alice"
-    forged = {"X-Authentik-Jwt": Keys().token(aud="aimm-client", preferred_username="mallory")}
+    forged = {"X-Authentik-Jwt": Keys().token(preferred_username="mallory")}
     assert client.get("/api/status", headers=forged).status_code == 401
+    other_app = {"X-Authentik-Jwt": keys.token(preferred_username="bob", aud="another-app")}
+    assert client.get("/api/status", headers=other_app).status_code == 401
+
+
+def test_websocket_ends_when_the_token_expires(config_path: Path, keys: Keys) -> None:
+    """An open connection must not outlive the proxy's token: it controls the browser."""
+    client = client_for(config_path, authentik(keys))
+    login = {"X-Authentik-Jwt": keys.token(preferred_username="alice")}
+    client.post("/api/login", headers=login)
+    expiring = {
+        "X-Authentik-Jwt": keys.token(preferred_username="alice", exp=int(time.time()) + 2)
+    }
+    started = time.time()
+    with client.websocket_connect("/ws/stream", headers={**expiring, **ORIGIN}) as ws:
+        assert ws.receive_json()["type"] == "hello"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            while True:
+                ws.receive_json()
+    assert closed.value.code == 4401
+    assert 1 <= time.time() - started < 10
+    # a connection whose token outlives it is not cut short
+    with client.websocket_connect("/ws/stream", headers={**login, **ORIGIN}) as ws:
+        assert ws.receive_json()["type"] == "hello"
 
 
 def test_banner_shows_the_check(capsys: pytest.CaptureFixture) -> None:
