@@ -42,13 +42,23 @@ from typing import (
 
 from diskcache import Cache  # type: ignore
 
-from .evaluations import EXCLUDED, NOTIFIED, REJECTED, EvaluationRecord, iter_evaluations
+from .evaluations import (
+    EXCLUDED,
+    NOTIFIED,
+    PENDING,
+    REJECTED,
+    SOLD,
+    EvaluationRecord,
+    iter_evaluations,
+)
 from .utils import CacheType, CounterItem, cache, counter, hilight
 
 if TYPE_CHECKING:
     from .notification import NotificationConfig
 
 DIGEST_PERIOD = 24 * 60 * 60
+# earlier notified listings whose status changed in the window are listed as updates
+UPDATE_LOOKBACK = 7 * DIGEST_PERIOD
 # a catch-up digest goes back at most this far (the minute counters are kept 8 days)
 MAX_CATCH_UP = 7 * DIGEST_PERIOD
 # a window this much longer than a day (e.g. across a daylight saving change) is still a day
@@ -74,6 +84,8 @@ class DigestListing:
     time: float
     rating: int | None = None
     comment: str = ""
+    # "sold", "pending" or ""
+    state: str = ""
 
 
 @dataclass
@@ -82,6 +94,7 @@ class ItemDigest:
     searches: int = 0
     notified: List[DigestListing] = field(default_factory=list)
     rejected: List[DigestListing] = field(default_factory=list)
+    updates: List[DigestListing] = field(default_factory=list)
     # number of excluded listings by reason
     excluded: Dict[str, int] = field(default_factory=dict)
 
@@ -153,6 +166,32 @@ def _by_rating(listing: DigestListing) -> Tuple[int, float]:
     return (-(listing.rating if listing.rating is not None else -1), -listing.time)
 
 
+def _digest_listing(record: EvaluationRecord) -> DigestListing:
+    price = _price(record.price)
+    if record.previous_price and "|" not in record.price and record.price:
+        price = f"{record.price} (was {record.previous_price})"
+    return DigestListing(
+        title=record.title,
+        price=price,
+        url=record.url.split("?")[0],
+        location=record.location,
+        item=record.item,
+        time=record.time,
+        rating=record.rating,
+        comment=_shorten(record.ai_comment or record.reason or ""),
+        state=record.state if record.state in (SOLD, PENDING) else "",
+    )
+
+
+def _is_update(record: EvaluationRecord, since: float, until: float) -> bool:
+    """An earlier notified listing that sold, went pending or changed price in the window."""
+    if record.stage != NOTIFIED or record.time >= since:
+        return False
+    if record.state in (SOLD, PENDING) and since <= record.state_changed <= until:
+        return True
+    return bool(record.previous_price) and since <= record.price_changed <= until
+
+
 def build_digest(
     records: Iterable[EvaluationRecord],
     counters: Mapping[str, Mapping[str, int]],
@@ -165,10 +204,14 @@ def build_digest(
     decision of a listing, so a listing still on the market is evaluated, and listed, again in
     the next digest: the digest reports listings evaluated in the period, not new listings.
     Exclusions are grouped by the kind of reason (``"out of area: Austin, TX"`` counts as
-    ``"out of area"``).
+    ``"out of area"``). Earlier notified listings (up to UPDATE_LOOKBACK) whose state or price
+    changed in the window are listed as updates.
     """
     latest: Dict[Tuple[str, str, str], EvaluationRecord] = {}
+    updates: List[EvaluationRecord] = []
     for record in records:
+        if _is_update(record, since, until):
+            updates.append(record)
         if not since <= record.time <= until:
             continue
         key = (record.item, record.marketplace, record.id)
@@ -193,32 +236,29 @@ def build_digest(
             reason = record.reason.split(":")[0].strip() or "other"
             digest.excluded[reason] = digest.excluded.get(reason, 0) + 1
             continue
-        listing = DigestListing(
-            title=record.title,
-            price=_price(record.price),
-            url=record.url.split("?")[0],
-            location=record.location,
-            item=record.item,
-            time=record.time,
-            rating=record.rating,
-            comment=_shorten(record.ai_comment or record.reason or ""),
-        )
+        listing = _digest_listing(record)
         if record.stage == NOTIFIED:
             digest.notified.append(listing)
         elif record.stage == REJECTED:
             digest.rejected.append(listing)
 
+    for record in updates:
+        item_digest(record.item).updates.append(_digest_listing(record))
+
     total = ItemDigest(name="Total")
     for digest in items.values():
         digest.notified.sort(key=_by_rating)
         digest.rejected.sort(key=_by_rating)
+        digest.updates.sort(key=_by_rating)
         total.searches += digest.searches
         total.notified.extend(digest.notified)
         total.rejected.extend(digest.rejected)
+        total.updates.extend(digest.updates)
         for reason, n in digest.excluded.items():
             total.excluded[reason] = total.excluded.get(reason, 0) + n
     total.notified.sort(key=_by_rating)
     total.rejected.sort(key=_by_rating)
+    total.updates.sort(key=_by_rating)
     return Digest(
         since=since,
         until=until,
@@ -244,7 +284,7 @@ def compose_digest(
     until = time.time() if until is None else until
     since = until - DIGEST_PERIOD if since is None else since
     return build_digest(
-        load_evaluations(since, local_cache=local_cache),
+        load_evaluations(since - UPDATE_LOOKBACK, local_cache=local_cache),
         counter.since(since, until, local_cache=local_cache),
         since,
         until,
@@ -282,13 +322,15 @@ class _Format:
         title = _shorten(listing.title, title_length) if title_length else listing.title
         price = f", {listing.price}" if listing.price else ""
         comment = f": {listing.comment}" if with_comment and listing.comment else ""
+        state = f" · {listing.state.capitalize()}" if listing.state else ""
         if self.fmt == "html":
             link = f'<a href="{html.escape(listing.url)}">{html.escape(title)}</a>'
             comment = f"<i>{self.text(comment)}</i>" if comment else ""
-            return f"• {rating}{link}{self.text(price)}{comment}"
+            tag = f" · <b>{listing.state.capitalize()}</b>" if listing.state else ""
+            return f"• {rating}{link}{self.text(price)}{tag}{comment}"
         if self.fmt == "markdown":
-            return f"- {rating}[{self.text(title)}]({listing.url}){self.text(price + comment)}"
-        line = f"- {rating}{title}{price}{comment}"
+            return f"- {rating}[{self.text(title)}]({listing.url}){self.text(price + state + comment)}"
+        line = f"- {rating}{title}{price}{state}{comment}"
         return line if with_comment else f"{line}\n  {listing.url}"
 
 
@@ -343,6 +385,7 @@ def _phone_digest(digest: Digest, f: _Format) -> str:
         )
     else:
         lines.append(f.text(_no_matches(digest)))
+    lines.extend(_listings(f, "Updates", total.updates, PHONE_ENTRIES, False, PHONE_TITLE_LENGTH))
     return f.newline.join(lines)
 
 
@@ -373,6 +416,7 @@ def _email_text(digest: Digest) -> str:
     for item in digest.items:
         lines = [item.name, _counts(item)]
         lines.extend(_listings(f, "Notified", item.notified, MAX_ENTRIES, False))
+        lines.extend(_listings(f, "Updates", item.updates, MAX_ENTRIES, False))
         lines.extend(_listings(f, "Rejected by AI", item.rejected, MAX_ENTRIES, True))
         sections.append(lines)
     return "\n\n".join("\n".join(lines) for lines in sections)

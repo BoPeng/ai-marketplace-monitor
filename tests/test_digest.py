@@ -722,3 +722,43 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
         assert jobs[0].at_time.strftime("%H:%M") == "20:30"
     finally:
         schedule.clear()
+
+
+def test_digest_listing_status() -> None:
+    sold = rec(NOW - 100, "gopro", "notified", listing_id="1", rating=5)
+    sold.state, sold.state_changed = "sold", NOW - 50
+    cheaper = rec(NOW - 200, "gopro", "rejected", listing_id="2", rating=2, price="$150")
+    cheaper.previous_price, cheaper.price_changed = "$200", NOW - 300
+    # notified 3 days ago, then sold and reduced in this window: updates
+    earlier = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3", rating=4)
+    earlier.state, earlier.state_changed = "pending", NOW - 60
+    reduced = rec(NOW - 2 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="4", price="$90")
+    reduced.previous_price, reduced.price_changed = "$120", NOW - 60
+    # changed before this window: not an update
+    stale = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="5")
+    stale.state, stale.state_changed = "sold", SINCE - 60
+
+    digest = dg.build_digest([sold, cheaper, earlier, reduced, stale], COUNTERS, SINCE, NOW)
+    gopro, ipad = digest.items
+    assert gopro.notified[0].state == "sold"
+    assert gopro.rejected[0].price == "$150 (was $200)"
+    assert [(u.title, u.state, u.price) for u in ipad.updates] == [
+        ("GoPro Hero 11", "pending", "$200"),
+        ("GoPro Hero 11", "", "$90 (was $120)"),
+    ]
+    assert len(digest.total.updates) == 2
+    assert ipad.evaluated == 0  # updates are not evaluations
+
+    text, html_message = dg.render_email_digest(digest)
+    assert "Updates (2)" in text and "· Pending" in text and "· Sold" in text
+    assert "Updates (2)" in html_message and "Sold" in html_message
+    phone = dg.render_phone_digest(digest)
+    assert "· Sold" in phone and "Updates (2)" in phone
+
+
+def test_compose_digest_reads_earlier_records_for_updates(temp_cache: Cache) -> None:
+    record = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3")
+    record.state, record.state_changed = "sold", NOW - 60
+    record_evaluation(record, local_cache=temp_cache)
+    digest = dg.compose_digest(SINCE, NOW, local_cache=temp_cache)
+    assert [u.state for u in digest.total.updates] == ["sold"]
