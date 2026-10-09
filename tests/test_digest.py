@@ -133,8 +133,8 @@ def test_email_lists_are_capped() -> None:
         for i in range(30)
     ]
     text, html = dg.render_email_digest(dg.build_digest(many, {}, SINCE, NOW))
-    assert text.count("\n- [1] ") == dg.MAX_ENTRIES
-    assert "…and 10 more" in text and "…and 10 more" in html
+    assert text.count("\n- [1] ") == dg.MAX_REJECTED
+    assert "…and 25 more" in text and "…and 25 more" in html
 
 
 def test_email_digest() -> None:
@@ -146,7 +146,9 @@ def test_email_digest() -> None:
     assert "- [3] Hero 9, $200" in text
     assert "Daily digest" in html
     assert ".listing-table" in html  # the listing email styles
-    assert "Listings evaluated" in html and "By item" in html  # summary and per-item tables
+    assert (
+        "Listings evaluated" in html and "By item" not in html
+    )  # summary table, no per-item table
     assert "Rejected by AI (2)" in html
     assert 'href="https://www.facebook.com/marketplace/item/1/"' in html
     # titles are escaped
@@ -348,7 +350,7 @@ def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
     )
     text, html = dg.render_email_digest(digest)
     assert "excluded keyword 2, out of area 1" in text
-    assert "By item" in html and html.count("<h2") == 4  # digest, by item, gopro, ipad
+    assert "By item" not in html and html.count("<h2") == 3  # digest, gopro, ipad
 
     # records older than evaluation_history_days are ignored (and removed)
     set_history_days(5 * HOUR / (24 * HOUR))
@@ -808,3 +810,65 @@ def test_no_summaries_when_the_user_turns_them_off(sent: Sent, temp_cache: Cache
     add_digest(config, temp_cache, DAY1.replace(hour=7))
     assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache, summarize=summarize)
     assert asked == []
+
+
+def summarized_digest() -> dg.Digest:
+    digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
+    gopro, ipad = digest.items
+    gopro.summary = "The Hero 11 looks promising; best bet is the Hero 11."
+    ipad.summary = "Nothing stands out."
+    return digest
+
+
+def test_phone_digest_with_summaries() -> None:
+    digest = summarized_digest()
+    message = dg.render_phone_digest(digest)
+    lines = message.split("\n")
+    assert lines[0].startswith("Last 24 h:")
+    assert lines[1] == "gopro: The Hero 11 looks promising; best bet is the Hero 11."
+    assert lines[2] == "https://www.facebook.com/marketplace/item/1/"
+    assert "ipad: Nothing stands out." in lines
+    assert "Top matches" not in message
+
+
+def test_phone_digest_drops_items_that_do_not_fit() -> None:
+    digest = summarized_digest()
+    for item in digest.items:
+        item.summary = "x" * 600
+    digest.more_where = " in the email digest"
+    message = dg.render_phone_digest(digest)
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+    assert message.endswith("…and 1 more item in the email digest")
+
+
+def test_phone_digest_without_summaries_is_unchanged() -> None:
+    digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
+    assert "Top matches" in dg.render_phone_digest(digest)
+
+
+def test_email_digest_per_item_with_summary() -> None:
+    digest = summarized_digest()
+    text, html_message = dg.render_email_digest(digest)
+    gopro_at = text.index("gopro")
+    assert text.index("The Hero 11 looks promising") > gopro_at
+    assert text.index("The Hero 11 looks promising") < text.index("Notified (1)")
+    assert "By item" not in html_message
+    assert "The Hero 11 looks promising" in html_message
+
+
+def test_email_rejected_list_is_short() -> None:
+    many = [rec(NOW - i, "gopro", "rejected", listing_id=str(100 + i), rating=2) for i in range(8)]
+    digest = dg.build_digest(many, COUNTERS, SINCE, NOW)
+    text, html_message = dg.render_email_digest(digest)
+    assert "Rejected by AI (8)" in text and "…and 3 more" in text
+    assert "…and 3 more" in html_message
+
+
+def test_phone_summary_is_escaped() -> None:
+    digest = summarized_digest()
+    digest.items[0].summary = "<b>bad</b> *x* [y]"
+    assert "<b>bad</b>" not in dg.render_phone_digest(digest, "html")
+    assert "&lt;b&gt;bad" in dg.render_phone_digest(digest, "html")
+    assert "\\*x\\* \\[y\\]" in dg.render_phone_digest(digest, "markdown")
+    _, html_message = dg.render_email_digest(digest)
+    assert "<b>bad</b>" not in html_message

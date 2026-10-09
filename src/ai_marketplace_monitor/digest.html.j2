@@ -7,8 +7,8 @@
     {% include "email_style.html.j2" %}
 </head>
 <body>
-    {% macro listing_rows(listings, with_comment) %}
-    {% for listing in listings[:max_entries] %}
+    {% macro listing_rows(listings, with_comment, limit) %}
+    {% for listing in listings[:limit] %}
     <tr>
         <td style="padding: 8px 12px;">
             {% if listing.rating is not none %}<span class="status-tag {{ 'status-new' if not with_comment else 'status-sent' }}">{{ listing.rating }}</span>{% endif %}
@@ -21,8 +21,8 @@
         </td>
     </tr>
     {% endfor %}
-    {% if listings|length > max_entries %}
-    <tr><td style="padding: 8px 12px; color: #666666;">…and {{ listings|length - max_entries }} more</td></tr>
+    {% if listings|length > limit %}
+    <tr><td style="padding: 8px 12px; color: #666666;">…and {{ listings|length - limit }} more</td></tr>
     {% endif %}
     {% endmacro %}
     <div class="wrapper">
@@ -63,44 +63,28 @@
                     </p>
                     {% endif %}
 
-                    <!-- Per item -->
-                    {% if digest.items %}
-                    <h2 style="margin-top: 30px;">By item</h2>
-                    <table class="listing-table" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
-                        <tr style="color: #333333; font-weight: bold;">
-                            <td>Item</td><td>Searches</td><td>Evaluated</td><td>Notified</td><td>Rejected</td><td>Excluded</td>
-                        </tr>
-                        {% for item in digest.items %}
-                        <tr>
-                            <td>{{ item.name }}</td>
-                            <td>{{ "{:,}".format(item.searches) }}</td>
-                            <td>{{ "{:,}".format(item.evaluated) }}</td>
-                            <td>{{ "{:,}".format(item.notified|length) }}</td>
-                            <td>{{ "{:,}".format(item.rejected|length) }}</td>
-                            <td>{{ "{:,}".format(item.n_excluded) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </table>
-                    {% endif %}
-
-                    {% for item in digest.items if item.notified or item.rejected or item.updates %}
+                    {% for item in digest.items %}
                     <h2 style="margin-top: 30px;">{{ item.name }}</h2>
+                    <p style="color: #666666; font-size: 14px; margin-top: 0;">{{ "{:,}".format(item.searches) }} searches, {{ "{:,}".format(item.evaluated) }} evaluated, {{ "{:,}".format(item.notified|length) }} notified, {{ "{:,}".format(item.rejected|length) }} rejected by AI, {{ "{:,}".format(item.n_excluded) }} excluded</p>
+                    {% if item.summary %}
+                    <p style="font-size: 15px; background: #F4F7F9; border-left: 3px solid #2C5364; padding: 10px 12px;">{{ item.summary }}</p>
+                    {% endif %}
                     {% if item.notified %}
                     <h3 style="color: #2C5364; font-size: 16px; margin: 0;">Notified ({{ item.notified|length }})</h3>
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
-                        {{ listing_rows(item.notified, false) }}
+                        {{ listing_rows(item.notified, false, max_entries) }}
                     </table>
                     {% endif %}
                     {% if item.updates %}
                     <h3 style="color: #2C5364; font-size: 16px; margin: 0;">Updates ({{ item.updates|length }})</h3>
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
-                        {{ listing_rows(item.updates, false) }}
+                        {{ listing_rows(item.updates, false, max_entries) }}
                     </table>
                     {% endif %}
                     {% if item.rejected %}
                     <h3 style="color: #2C5364; font-size: 16px; margin: 0;">Rejected by AI ({{ item.rejected|length }})</h3>
                     <table class="listing-table" cellpadding="0" cellspacing="0" border="0">
-                        {{ listing_rows(item.rejected, true) }}
+                        {{ listing_rows(item.rejected, true, max_rejected) }}
                     </table>
                     {% endif %}
                     {% endfor %}

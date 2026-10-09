@@ -66,11 +66,12 @@ MAX_CATCH_UP = 7 * DIGEST_PERIOD
 WINDOW_SLACK = 60 * 60
 # entries listed per section of the email digest; the rest are summarized as "and N more"
 MAX_ENTRIES = 20
+# rejected listings per item in the email digest
+MAX_REJECTED = 5
 # matches listed by the phone digest
 PHONE_ENTRIES = 3
-# the phone digest fits the tightest push channel (Pushover takes 1024 characters, and
-# UnitySVC can forward to SMS-like destinations)
-PHONE_MAX_LENGTH = 700
+# the phone digest fits the tightest push channel (Pushover takes 1024 characters)
+PHONE_MAX_LENGTH = 1000
 PHONE_TITLE_LENGTH = 60
 MAX_COMMENT_LENGTH = 80
 
@@ -117,6 +118,8 @@ class Digest:
     until: float
     total: ItemDigest
     items: List[ItemDigest] = field(default_factory=list)
+    # where the items left out of a phone digest are, e.g. " in the email digest"
+    more_where: str = ""
 
     @property
     def title(self: "Digest") -> str:
@@ -373,6 +376,35 @@ def _listings(
     return lines
 
 
+def _best_bet(item: ItemDigest) -> DigestListing | None:
+    return next((x for x in item.notified if x.state != SOLD), None)
+
+
+def _phone_summaries(digest: Digest, f: _Format, totals: str) -> str:
+    lines = [totals]
+    blocks = []
+    for item in digest.items:
+        block = [f.bold(item.name) + f.text(": " + (item.summary or _counts(item)))]
+        best = _best_bet(item)
+        if best is not None:
+            if f.fmt == "html":
+                block.append(f'<a href="{html.escape(best.url)}">{html.escape(best.title)}</a>')
+            elif f.fmt == "markdown":
+                block.append(f"[{f.text(best.title)}]({best.url})")
+            else:
+                block.append(best.url)
+        blocks.append(block)
+    for n, block in enumerate(blocks):
+        left = len(blocks) - n - 1
+        more = [f.text(f"…and {_count(left, 'more item')}{digest.more_where}")] if left else []
+        if len(f.newline.join(lines + block + more)) > PHONE_MAX_LENGTH:
+            rest = len(blocks) - n
+            lines.append(f.text(f"…and {_count(rest, 'more item')}{digest.more_where}"))
+            break
+        lines.extend(block)
+    return f.newline.join(lines)
+
+
 def _phone_digest(digest: Digest, f: _Format) -> str:
     total = digest.total
     totals = (
@@ -381,6 +413,8 @@ def _phone_digest(digest: Digest, f: _Format) -> str:
         f"{total.evaluated:,} listings evaluated, {len(total.notified):,} notified, "
         f"{len(total.rejected):,} rejected by AI, {total.n_excluded:,} excluded"
     )
+    if any(item.summary for item in digest.items):
+        return _phone_summaries(digest, f, f.text(totals))
     lines = [f.text(totals)]
     if total.notified:
         lines.extend(
@@ -418,9 +452,11 @@ def _email_text(digest: Digest) -> str:
         sections[0].append(_no_matches(digest))
     for item in digest.items:
         lines = [item.name, _counts(item)]
+        if item.summary:
+            lines.append(item.summary)
         lines.extend(_listings(f, "Notified", item.notified, MAX_ENTRIES, False))
         lines.extend(_listings(f, "Updates", item.updates, MAX_ENTRIES, False))
-        lines.extend(_listings(f, "Rejected by AI", item.rejected, MAX_ENTRIES, True))
+        lines.extend(_listings(f, "Rejected by AI", item.rejected, MAX_REJECTED, True))
         sections.append(lines)
     return "\n\n".join("\n".join(lines) for lines in sections)
 
@@ -432,7 +468,10 @@ def render_email_digest(digest: Digest) -> Tuple[str, str]:
     env = Environment(loader=FileSystemLoader(Path(__file__).parent), autoescape=True)
     template = env.get_template("digest.html.j2")
     html_message = template.render(
-        digest=digest, no_matches=_no_matches(digest), max_entries=MAX_ENTRIES
+        digest=digest,
+        no_matches=_no_matches(digest),
+        max_entries=MAX_ENTRIES,
+        max_rejected=MAX_REJECTED,
     )
     return _email_text(digest), html_message
 
@@ -531,7 +570,14 @@ def send_digest(
     ``channels`` limits it to some of them (names as ``digest_channels`` returns them).
     """
     results: Dict[str, bool] = {}
-    for name, channel in digest_channels(user_config, notifications).items():
+    user_channels = digest_channels(user_config, notifications)
+    email_class = channel_classes()["email"]
+    digest.more_where = (
+        " in the email digest"
+        if any(isinstance(ch, email_class) for ch in user_channels.values())
+        else ""
+    )
+    for name, channel in user_channels.items():
         if channels is not None and name not in channels:
             continue
         try:
