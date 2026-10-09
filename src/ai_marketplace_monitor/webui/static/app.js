@@ -832,82 +832,217 @@
   // ---------------------------------------------------------------
   // Configure chat — JSON SetupUI over WebSocket
   // ---------------------------------------------------------------
+  //
+  // Before a chat, the pane shows a welcome card with the section picker and
+  // a Start button; the composer appears only while a chat runs. A free-text
+  // prompt of just "You" (the terminal's label for the user's turn) hands the
+  // turn to the user without a bubble. Choice and yes/no buttons render inside
+  // the question's bubble, and a typing indicator shows while aimm works.
 
-  // One button: "Start Chat" opens a configuration chat, "End Chat" ends it.
-  const setChatControls = (active, waiting = false) => {
-    state.chatActive = active;
-    const toggle = $("#chat-toggle");
-    toggle.disabled = false;
-    toggle.textContent = active ? "End Chat" : "Start Chat";
-    toggle.title = active
-      ? "End the chat; changes already saved stay saved"
-      : "Start a chat with the configuration assistant";
-    $("#chat-input").disabled = !active || waiting;
-    $("#chat-send").disabled = !active || waiting;
+  const CHAT_SECTIONS = [
+    "ai", "marketplace", "item", "notification", "user", "region", "translation", "monitor",
+  ];
+  const USER_TURN_PROMPT = "You";
+  const COMPOSER_MAX_HEIGHT = 160; // px, about 8 lines
+
+  const chatScrollToEnd = () => {
+    const container = $("#chat-messages");
+    container.scrollTop = container.scrollHeight;
   };
 
-  const appendChatMessage = (role, text, kind = "info") => {
-    const container = $("#chat-messages");
+  // A small, escape-first Markdown subset: paragraphs, "-"/"*"/"1." lists,
+  // **bold** and `code`. Enough for aimm's summaries; anything else stays text.
+  const renderInlineMarkdown = (text) =>
+    esc(text)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  const renderMarkdown = (text) => {
+    // group consecutive lines into paragraphs, bullet lists and numbered lists
+    const blocks = [];
+    let current = null;
+    const LIST_ITEM = { ul: /^\s*[-*]\s+/, ol: /^\s*\d+[.)]\s+/ };
+    String(text)
+      .split("\n")
+      .forEach((line) => {
+        if (!line.trim()) {
+          current = null;
+          return;
+        }
+        const tag = LIST_ITEM.ul.test(line) ? "ul" : LIST_ITEM.ol.test(line) ? "ol" : "p";
+        const content = tag === "p" ? line.replace(/^#+\s+/, "") : line.replace(LIST_ITEM[tag], "");
+        if (!current || current.tag !== tag) {
+          current = { tag, lines: [] };
+          blocks.push(current);
+        }
+        current.lines.push(renderInlineMarkdown(content));
+      });
+    return blocks
+      .map(({ tag, lines }) =>
+        tag === "p"
+          ? `<p>${lines.join("<br>")}</p>`
+          : `<${tag}>${lines.map((l) => `<li>${l}</li>`).join("")}</${tag}>`
+      )
+      .join("");
+  };
+
+  const appendChatMessage = (role, text, kind = "info", markdown = false) => {
+    removeChatTyping();
     const row = document.createElement("div");
     row.className = `chat-message chat-${role} chat-${kind}`;
-    row.textContent = text;
-    container.appendChild(row);
-    container.scrollTop = container.scrollHeight;
+    if (markdown) {
+      row.classList.add("chat-markdown");
+      row.innerHTML = renderMarkdown(text);
+    } else {
+      row.textContent = text;
+    }
+    $("#chat-messages").appendChild(row);
+    chatScrollToEnd();
+    return row;
+  };
+
+  const showChatTyping = () => {
+    if ($("#chat-messages .chat-typing")) return;
+    const row = document.createElement("div");
+    row.className = "chat-message chat-assistant chat-typing";
+    row.setAttribute("aria-label", "aimm is working");
+    row.innerHTML = "<span></span><span></span><span></span>";
+    $("#chat-messages").appendChild(row);
+    chatScrollToEnd();
+  };
+  function removeChatTyping() {
+    const typing = $("#chat-messages .chat-typing");
+    if (typing) typing.remove();
+  }
+
+  // The welcome card starts a chat; after a chat it offers a new one.
+  const renderChatWelcome = (again = false) => {
+    const old = $("#chat-messages .chat-welcome");
+    if (old) old.remove();
+    const card = document.createElement("div");
+    card.className = "chat-welcome";
+    card.innerHTML =
+      (again
+        ? ""
+        : `<p>Chat with the configuration assistant to add a search, set up notifications, or change any setting. It edits your config file for you.</p>`) +
+      `<label class="chat-welcome-section">Section ` +
+      `<input id="chat-section" list="chat-section-options" type="text" placeholder="optional, e.g. item.ipad" autocomplete="off" />` +
+      `</label>` +
+      `<datalist id="chat-section-options">${CHAT_SECTIONS.map((s) => `<option value="${s}"></option>`).join("")}</datalist>` +
+      `<button type="button" class="chat-start">${again ? "Start new chat" : "Start chat"}</button>`;
+    card.querySelector(".chat-start").addEventListener("click", startConfigureChat);
+    card.querySelector("#chat-section").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        startConfigureChat();
+      }
+    });
+    $("#chat-messages").appendChild(card);
+    chatScrollToEnd();
+  };
+
+  // Composer: hidden outside a chat, and while a prompt takes buttons only.
+  const resizeChatInput = () => {
+    const input = $("#chat-input");
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+  };
+  const updateChatSend = () => {
+    const prompt = state.chatPrompt;
+    const hasText = $("#chat-input").value.trim() !== "";
+    $("#chat-send").disabled = !prompt || (!hasText && !prompt.allowEmpty);
+  };
+  const setComposer = ({ visible, enabled = false, placeholder = "Message the assistant…", hint = false }) => {
+    $("#chat-form").hidden = !visible;
+    $("#chat-hint").hidden = !hint;
+    const input = $("#chat-input");
+    input.disabled = !enabled;
+    input.placeholder = placeholder;
+    updateChatSend();
+    if (visible && enabled) input.focus();
+  };
+
+  const setChatActive = (active) => {
+    state.chatActive = active;
+    $("#chat-end").hidden = !active;
+    $("#chat-end").disabled = false;
+    if (!active) {
+      $("#chat-scope").textContent = "";
+      setComposer({ visible: false });
+    }
   };
 
   const clearChatPrompt = () => {
     state.chatPrompt = null;
-    $("#chat-options").innerHTML = "";
-    $("#chat-input").value = "";
+    // buttons of an answered (or abandoned) question stay visible but inert
+    $$("#chat-messages .chat-option").forEach((btn) => (btn.disabled = true));
   };
 
-  const sendChatAnswer = (value, label = null) => {
+  const sendChatAnswer = (value, label, chosen = null) => {
     if (!state.chatWs || state.chatWs.readyState !== WebSocket.OPEN) return;
     state.chatWs.send(JSON.stringify({ type: "answer", value }));
-    appendChatMessage("user", label ?? String(value || "(default)"));
+    if (chosen) chosen.classList.add("chosen");
     clearChatPrompt();
-    setChatControls(true, true);
+    appendChatMessage("user", label);
+    const input = $("#chat-input");
+    input.value = "";
+    resizeChatInput();
+    setComposer({ visible: true, enabled: false, placeholder: "aimm is working…" });
+    showChatTyping();
+  };
+
+  const defaultLabel = (msg) => {
+    if (msg.prompt_type === "confirm") return msg.default === false ? "No" : "Yes";
+    if (msg.default === null || msg.default === undefined || msg.default === "") return null;
+    const option = (msg.options || []).find((o) => o.value === msg.default);
+    return option ? option.label || option.value : String(msg.default);
   };
 
   const renderChatPrompt = (msg) => {
-    state.chatPrompt = msg;
-    $("#chat-options").innerHTML = "";
-    appendChatMessage("assistant", msg.prompt, "prompt");
-
+    removeChatTyping();
+    const defLabel = defaultLabel(msg);
+    const userTurn = msg.prompt_type === "text" && msg.prompt === USER_TURN_PROMPT;
+    // an empty answer takes the default, even an empty one ("Press Enter to
+    // try again"); on the user's own turn it would say nothing
+    const allowEmpty = !userTurn && msg.default !== null && msg.default !== undefined;
+    state.chatPrompt = { ...msg, allowEmpty, defaultLabel: defLabel ?? "(Enter)" };
+    let buttons = [];
     if (msg.prompt_type === "choice") {
-      (msg.options || []).forEach((option) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "chat-option";
-        btn.textContent = option.label || option.value;
-        btn.title = option.hint || "";
-        btn.addEventListener("click", () =>
-          sendChatAnswer(option.value, option.label || option.value)
-        );
-        $("#chat-options").appendChild(btn);
-      });
-      if (!msg.allow_text) {
-        setChatControls(true, true);
-        return;
-      }
+      buttons = (msg.options || []).map((o) => ({ value: o.value, label: o.label || o.value, hint: o.hint }));
     } else if (msg.prompt_type === "confirm") {
-      [
-        { value: true, label: "Yes" },
-        { value: false, label: "No" },
-      ].forEach((option) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "chat-option";
-        btn.textContent = option.label;
-        btn.addEventListener("click", () => sendChatAnswer(option.value, option.label));
-        $("#chat-options").appendChild(btn);
-      });
+      buttons = [{ value: true, label: "Yes" }, { value: false, label: "No" }];
     }
 
-    setChatControls(true, false);
-    const input = $("#chat-input");
-    input.placeholder = msg.default ? `Reply… (${msg.default})` : "Reply…";
-    input.focus();
+    if (!userTurn) {
+      const bubble = appendChatMessage("assistant", msg.prompt, "prompt");
+      if (buttons.length) {
+        const options = document.createElement("div");
+        options.className = "chat-options";
+        buttons.forEach((option) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "chat-option";
+          btn.textContent = option.label;
+          if (option.hint) btn.title = option.hint;
+          btn.addEventListener("click", () => sendChatAnswer(option.value, option.label, btn));
+          options.appendChild(btn);
+        });
+        bubble.appendChild(options);
+        chatScrollToEnd();
+      }
+    }
+
+    if (msg.prompt_type === "choice" && !msg.allow_text) {
+      setComposer({ visible: false, hint: true });
+      return;
+    }
+    const placeholder = defLabel
+      ? `Message the assistant… (Enter for “${defLabel}”)`
+      : allowEmpty
+        ? "Press Enter to continue…"
+        : buttons.length
+        ? "Pick an option above, or type an answer…"
+        : "Message the assistant…";
+    setComposer({ visible: true, enabled: true, placeholder });
   };
 
   const reloadConfigAfterChat = async () => {
@@ -918,26 +1053,37 @@
     await loadConfig();
   };
 
-  const startConfigureChat = () => {
-    if (state.chatWs) state.chatWs.close();
+  // the chat is over (finished, ended, or disconnected): offer a new one
+  const finishChat = (text, kind) => {
+    removeChatTyping();
+    if (text) appendChatMessage("system", text, kind);
     clearChatPrompt();
+    setChatActive(false);
+    state.chatWs = null;
+    renderChatWelcome(true);
+  };
+
+  function startConfigureChat() {
+    if (state.chatWs) state.chatWs.close();
+    const sectionInput = $("#chat-section");
+    const section = sectionInput ? sectionInput.value.trim() : "";
+    state.chatPrompt = null;
     $("#chat-messages").innerHTML = "";
-    appendChatMessage("system", "Connecting…", "progress");
-    setChatControls(true, true);
+    setChatActive(true);
+    $("#chat-scope").textContent = section;
+    setComposer({ visible: true, enabled: false, placeholder: "Connecting…" });
+    showChatTyping();
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const section = $("#chat-section").value.trim();
     const suffix = section ? `?section=${encodeURIComponent(section)}` : "";
     const ws = new WebSocket(`${proto}//${location.host}/ws/configure${suffix}`);
     state.chatWs = ws;
 
-    ws.onopen = () => {
-      appendChatMessage("system", "Connected.", "success");
-    };
     ws.onmessage = async (ev) => {
+      if (state.chatWs !== ws) return;
       const msg = JSON.parse(ev.data);
       if (msg.type === "message") {
-        appendChatMessage("assistant", msg.text, msg.kind || "info");
+        appendChatMessage("assistant", msg.text, msg.kind || "info", !!msg.markdown || msg.kind === "assistant");
       } else if (msg.type === "prompt") {
         renderChatPrompt(msg);
       } else if (msg.type === "config_saved") {
@@ -945,36 +1091,28 @@
         await reloadConfigAfterChat();
       } else if (msg.type === "done") {
         const ok = msg.exit_code === 0;
-        appendChatMessage(
-          "system",
-          msg.cancelled ? "Chat ended." : ok ? "Finished." : "Stopped with errors.",
-          ok ? "success" : "error"
-        );
-        clearChatPrompt();
-        setChatControls(false, true);
-        state.chatWs = null;
+        finishChat(msg.cancelled ? "Chat ended." : ok ? "Finished." : "Stopped with errors.", ok ? "success" : "error");
       }
     };
     ws.onclose = () => {
-      if (state.chatActive) {
-        appendChatMessage("system", "Disconnected.", "warning");
-      }
-      clearChatPrompt();
-      setChatControls(false, true);
-      state.chatWs = null;
+      if (state.chatWs !== ws) return;
+      finishChat("Disconnected.", "warning");
     };
     ws.onerror = () => {
+      if (state.chatWs !== ws) return;
       appendChatMessage("system", "Connection error.", "error");
       ws.close();
     };
-  };
+  }
 
   const endConfigureChat = () => {
     const ws = state.chatWs;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "cancel" }));
-      setChatControls(true, true);
-      $("#chat-toggle").disabled = true; // until the server confirms the chat ended
+      $("#chat-end").disabled = true; // until the server confirms the chat ended
+      clearChatPrompt();
+      setComposer({ visible: false });
+      showChatTyping();
       setTimeout(() => {
         if (state.chatWs === ws && ws.readyState === WebSocket.OPEN) {
           ws.close();
@@ -987,16 +1125,27 @@
     }
   };
 
-  wireClick("#chat-toggle", () => {
-    if (state.chatActive) endConfigureChat();
-    else startConfigureChat();
-  });
+  wireClick("#chat-end", endConfigureChat);
   $("#chat-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    if (!state.chatPrompt) return;
-    const value = $("#chat-input").value;
-    sendChatAnswer(value, value || "(default)");
+    const prompt = state.chatPrompt;
+    if (!prompt) return;
+    const value = $("#chat-input").value.trim();
+    if (!value && !prompt.allowEmpty) return;
+    sendChatAnswer(value, value || prompt.defaultLabel);
   });
+  $("#chat-input").addEventListener("keydown", (e) => {
+    // Enter sends, Shift+Enter adds a line; never send mid-IME composition
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      $("#chat-form").requestSubmit();
+    }
+  });
+  $("#chat-input").addEventListener("input", () => {
+    resizeChatInput();
+    updateChatSend();
+  });
+  renderChatWelcome();
 
   // ---------------------------------------------------------------
   // Sections sidebar (AI-assisted edit / delete / add)
