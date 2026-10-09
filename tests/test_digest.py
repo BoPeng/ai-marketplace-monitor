@@ -882,3 +882,73 @@ def test_update_at_the_cutoff_is_in_this_digest_only() -> None:
     tomorrow = dg.build_digest([earlier], COUNTERS, NOW, NOW + dg.DIGEST_PERIOD)
     assert len(today.total.updates) == 1
     assert tomorrow.total.updates == []
+
+
+def quiet_digest() -> dg.Digest:
+    """Gopro and ipad have activity; bike and camera are quiet (listed first and between)."""
+    digest = summarized_digest()
+    bike = dg.ItemDigest(name="bike", searches=3, summary="Nothing new (3 searches).")
+    camera = dg.ItemDigest(name="camera", searches=1, summary="Nothing new (1 search).")
+    digest.items = [bike, digest.items[0], camera, digest.items[1]]
+    return digest
+
+
+QUIET_LINE = "Nothing new in the last 24 hours: bike (3 searches), camera (1 search)."
+
+
+def test_split_quiet() -> None:
+    active, quiet = dg.split_quiet(quiet_digest())
+    assert [x.name for x in active] == ["gopro", "ipad"]
+    assert [x.name for x in quiet] == ["bike", "camera"]
+
+
+def test_email_text_collapses_quiet_items() -> None:
+    text, _ = dg.render_email_digest(quiet_digest())
+    assert text.index("gopro") < text.index("ipad") < text.index(QUIET_LINE)
+    assert text.endswith(QUIET_LINE)
+    assert "bike\n" not in text and "camera\n" not in text
+    assert text.count("Nothing new") == 1
+
+
+def test_email_html_collapses_quiet_items() -> None:
+    _, html_message = dg.render_email_digest(quiet_digest())
+    assert html_message.count(QUIET_LINE) == 1
+    assert '<h2 style="margin-top: 30px;">bike' not in html_message
+    assert html_message.index(">gopro<") < html_message.index(QUIET_LINE)
+    assert "Searches" in html_message  # the totals table stays
+
+
+def test_phone_digest_ends_with_the_quiet_line() -> None:
+    lines = dg.render_phone_digest(quiet_digest()).split("\n")
+    assert lines[-1] == QUIET_LINE
+    assert [x for x in lines if x.startswith("bike")] == []
+    assert lines.index("ipad: Nothing stands out.") < len(lines) - 1
+
+
+def test_phone_digest_counts_quiet_items_as_more_items() -> None:
+    digest = quiet_digest()
+    digest.items[1].summary = "x" * 600
+    digest.items[3].summary = "y" * 300
+    digest.more_where = " in the email digest"
+    message = dg.render_phone_digest(digest)
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+    assert QUIET_LINE not in message
+    # ipad did not fit; the two quiet items it leaves out are counted with it
+    assert message.endswith("…and 3 more items in the email digest")
+
+
+def test_phone_best_bet_title_is_shortened() -> None:
+    digest = summarized_digest()
+    digest.items[0].notified[0].title = "T" * 200
+    message = dg.render_phone_digest(digest, "html")
+    assert "T" * 200 not in message and "T" * 59 + "…" in message
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+
+
+def test_phone_quiet_line_is_escaped() -> None:
+    digest = quiet_digest()
+    digest.items[0].name = "<b>bike</b>"
+    message = dg.render_phone_digest(digest, "html")
+    assert "<b>bike</b>" not in message and "&lt;b&gt;bike" in message
+    _, html_message = dg.render_email_digest(digest)
+    assert "<b>bike</b>" not in html_message

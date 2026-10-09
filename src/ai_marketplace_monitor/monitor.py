@@ -551,7 +551,7 @@ class MarketplaceMonitor:
                 raise
             except Exception as e:
                 if self.logger:
-                    self.logger.warning(
+                    self.logger.debug(
                         f"""{hilight("[AI]", "fail")} {agent.config.name} could not summarize {item_name} for the digest: {e}"""
                     )
         return None

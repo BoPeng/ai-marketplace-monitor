@@ -107,7 +107,7 @@ def test_add_summaries_without_an_answer(local_cache: Cache) -> None:
     digest = make_digest()
     ds.add_summaries(digest, lambda item, prompt: None, local_cache=local_cache)
     assert digest.items[0].summary == ""
-    assert local_cache.get(ds.summary_key("ipad", UNTIL)) is None  # not cached: tried again
+    assert local_cache.get(ds.summary_key("ipad", SINCE, UNTIL)) is None  # not cached: tried again
 
 
 def test_add_summaries_survives_a_failing_summarizer(local_cache: Cache) -> None:
@@ -148,3 +148,59 @@ def test_monitor_summarize_item_tries_the_item_ai_services_in_order() -> None:
     other.summarize.assert_not_called()
     # an item no longer in the config: any AI service
     assert monitor.summarize_item("removed", "prompt") == "Other."
+
+
+def test_summaries_are_cached_per_window(local_cache: Cache) -> None:
+    calls: List[str] = []
+
+    def summarize(item: str, prompt: str) -> str:
+        calls.append(item)
+        return f"Answer {len(calls)}."
+
+    daily = make_digest()
+    catch_up = make_digest()
+    catch_up.since = SINCE - dg.DIGEST_PERIOD  # same end, 48 hours
+    ds.add_summaries(daily, summarize, local_cache=local_cache)
+    ds.add_summaries(catch_up, summarize, local_cache=local_cache)
+    assert calls == ["ipad", "ipad"]
+    assert daily.items[0].summary == "Answer 1."
+    assert catch_up.items[0].summary == "Answer 2."
+
+
+def active_item(name: str) -> dg.ItemDigest:
+    return dg.ItemDigest(name=name, searches=2, notified=[listing(name)])
+
+
+def test_add_summaries_stops_asking_after_the_ai_fails(local_cache: Cache) -> None:
+    calls: List[str] = []
+
+    def summarize(item: str, prompt: str) -> None:
+        calls.append(item)
+        return None
+
+    digest = make_digest()
+    digest.items.insert(1, active_item("bike"))
+    logger = MagicMock()
+    ds.add_summaries(digest, summarize, logger=logger, local_cache=local_cache)
+    assert calls == ["ipad"]
+    assert [i.summary for i in digest.items][:2] == ["", ""]
+    assert digest.items[2].summary.startswith("Nothing new")
+    logger.warning.assert_called_once()
+    message = logger.warning.call_args.args[0]
+    assert "ipad" in message and "bike" in message
+
+
+def test_add_summaries_stops_asking_after_an_exception(local_cache: Cache) -> None:
+    calls: List[str] = []
+
+    def summarize(item: str, prompt: str) -> str:
+        calls.append(item)
+        raise RuntimeError("AI down")
+
+    digest = make_digest()
+    digest.items.insert(1, active_item("bike"))
+    logger = MagicMock()
+    ds.add_summaries(digest, summarize, logger=logger, local_cache=local_cache)
+    assert calls == ["ipad"]
+    logger.debug.assert_called()
+    logger.warning.assert_called_once()

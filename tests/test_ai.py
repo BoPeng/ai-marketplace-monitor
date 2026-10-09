@@ -346,6 +346,7 @@ def test_openai_summarize() -> None:
     assert kwargs["model"] == "gpt-4o"
     assert kwargs["messages"][0] == {"role": "system", "content": ai_module.SUMMARY_SYSTEM}
     assert kwargs["messages"][1] == {"role": "user", "content": "Summarize this"}
+    assert kwargs["timeout"] == ai_module.SUMMARY_TIMEOUT
 
 
 def test_anthropic_summarize() -> None:
@@ -358,6 +359,7 @@ def test_anthropic_summarize() -> None:
     kwargs = create.call_args.kwargs
     assert kwargs["system"] == ai_module.SUMMARY_SYSTEM
     assert kwargs["messages"] == [{"role": "user", "content": "Summarize this"}]
+    assert kwargs["timeout"] == ai_module.SUMMARY_TIMEOUT
 
 
 def test_summarize_gives_up_after_a_few_tries(monkeypatch: pytest.MonkeyPatch) -> None:

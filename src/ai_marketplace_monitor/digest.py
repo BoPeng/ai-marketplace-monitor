@@ -380,29 +380,50 @@ def _listings(
     return lines
 
 
+def is_quiet(item: ItemDigest) -> bool:
+    """An item with no evaluations and no updates in the window."""
+    return not item.evaluated and not item.updates
+
+
+def split_quiet(digest: Digest) -> Tuple[List[ItemDigest], List[ItemDigest]]:
+    """The digest's items with something in the window, and the quiet ones, in their order."""
+    active = [x for x in digest.items if not is_quiet(x)]
+    return active, [x for x in digest.items if is_quiet(x)]
+
+
+def _quiet_line(quiet: List[ItemDigest], digest: Digest) -> str:
+    items = ", ".join(f"{x.name} ({_count(x.searches, 'search')})" for x in quiet)
+    return f"Nothing new {digest.window}: {items}."
+
+
 def _best_bet(item: ItemDigest) -> DigestListing | None:
     return next((x for x in item.notified if x.state != SOLD), None)
 
 
 def _phone_summaries(digest: Digest, f: _Format, totals: str) -> str:
     lines = [totals]
-    blocks = []
-    for item in digest.items:
+    active, quiet = split_quiet(digest)
+    # (lines, number of items they cover)
+    blocks: List[Tuple[List[str], int]] = []
+    for item in active:
         block = [f.bold(item.name) + f.text(": " + (item.summary or _counts(item)))]
         best = _best_bet(item)
         if best is not None:
+            title = _shorten(best.title, PHONE_TITLE_LENGTH)
             if f.fmt == "html":
-                block.append(f'<a href="{html.escape(best.url)}">{html.escape(best.title)}</a>')
+                block.append(f'<a href="{html.escape(best.url)}">{html.escape(title)}</a>')
             elif f.fmt == "markdown":
-                block.append(f"[{f.text(best.title)}]({best.url})")
+                block.append(f"[{f.text(title)}]({best.url})")
             else:
                 block.append(best.url)
-        blocks.append(block)
-    for n, block in enumerate(blocks):
-        left = len(blocks) - n - 1
+        blocks.append((block, 1))
+    if quiet:
+        blocks.append(([f.text(_quiet_line(quiet, digest))], len(quiet)))
+    for n, (block, _) in enumerate(blocks):
+        left = sum(size for _, size in blocks[n + 1 :])
         more = [f.text(f"…and {_count(left, 'more item')}{digest.more_where}")] if left else []
         if len(f.newline.join(lines + block + more)) > PHONE_MAX_LENGTH:
-            rest = len(blocks) - n
+            rest = left + blocks[n][1]
             lines.append(f.text(f"…and {_count(rest, 'more item')}{digest.more_where}"))
             break
         lines.extend(block)
@@ -454,7 +475,8 @@ def _email_text(digest: Digest) -> str:
     ]
     if not digest.total.notified:
         sections[0].append(_no_matches(digest))
-    for item in digest.items:
+    active, quiet = split_quiet(digest)
+    for item in active:
         lines = [item.name, _counts(item)]
         if item.summary:
             lines.append(item.summary)
@@ -462,6 +484,8 @@ def _email_text(digest: Digest) -> str:
         lines.extend(_listings(f, "Updates", item.updates, MAX_ENTRIES, False))
         lines.extend(_listings(f, "Rejected by AI", item.rejected, MAX_REJECTED, True))
         sections.append(lines)
+    if quiet:
+        sections.append([_quiet_line(quiet, digest)])
     return "\n\n".join("\n".join(lines) for lines in sections)
 
 
@@ -471,8 +495,11 @@ def render_email_digest(digest: Digest) -> Tuple[str, str]:
 
     env = Environment(loader=FileSystemLoader(Path(__file__).parent), autoescape=True)
     template = env.get_template("digest.html.j2")
+    active, quiet = split_quiet(digest)
     html_message = template.render(
         digest=digest,
+        items=active,
+        quiet_line=_quiet_line(quiet, digest) if quiet else "",
         no_matches=_no_matches(digest),
         max_entries=MAX_ENTRIES,
         max_rejected=MAX_REJECTED,

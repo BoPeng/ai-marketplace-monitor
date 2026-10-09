@@ -63,7 +63,7 @@
                     </p>
                     {% endif %}
 
-                    {% for item in digest.items %}
+                    {% for item in items %}
                     <h2 style="margin-top: 30px;">{{ item.name }}</h2>
                     <p style="color: #666666; font-size: 14px; margin-top: 0;">{{ "{:,}".format(item.searches) }} searches, {{ "{:,}".format(item.evaluated) }} evaluated, {{ "{:,}".format(item.notified|length) }} notified, {{ "{:,}".format(item.rejected|length) }} rejected by AI, {{ "{:,}".format(item.n_excluded) }} excluded</p>
                     {% if item.summary %}
@@ -88,6 +88,9 @@
                     </table>
                     {% endif %}
                     {% endfor %}
+                    {% if quiet_line %}
+                    <p style="color: #666666; font-size: 14px; margin-top: 30px;">{{ quiet_line }}</p>
+                    {% endif %}
                 </td>
             </tr>
         </table>

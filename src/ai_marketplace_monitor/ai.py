@@ -217,6 +217,8 @@ SUMMARY_SYSTEM = (
     "Be brief, concrete and plain: no markdown, no links, no greetings."
 )
 SUMMARY_RETRIES = 2
+# seconds a single summary request may take, so that an AI outage cannot hold up the digest
+SUMMARY_TIMEOUT = 60
 
 
 def fetch_listing_image(
@@ -419,6 +421,7 @@ class OpenAIBackend(AIBackend):
                     {"role": "user", "content": prompt},
                 ],
                 stream=False,
+                timeout=SUMMARY_TIMEOUT,
             )
             return response.choices[0].message.content or ""
 
@@ -618,6 +621,7 @@ class AnthropicBackend(AIBackend):
                 max_tokens=300,
                 system=SUMMARY_SYSTEM,
                 messages=[{"role": "user", "content": prompt}],
+                timeout=SUMMARY_TIMEOUT,
             )
             return response.content[0].text if response.content else ""
 
