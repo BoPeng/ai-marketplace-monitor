@@ -4,7 +4,7 @@ The Docker image runs aimm on a server, a NAS or any machine without a screen. I
 
 - [Docker Engine](https://docs.docker.com/engine/install/) with the Compose plugin (`docker compose version` prints a version)
 - A Facebook account for aimm to log in with
-- A [UnitySVC](https://unitysvc.com) account and an API key (`svcpass_...`), for `UNITYSVC_API_KEY`. Sign up at [unitysvc.com](https://unitysvc.com) and create an API key in your account.
+- For the default configuration, a [UnitySVC](https://unitysvc.com) account and an API key (`svcpass_...`), for `UNITYSVC_API_KEY`. Sign up at [unitysvc.com](https://unitysvc.com) and create an API key in your account. If you configure other providers directly instead (see below), you do not need them.
 
 ### Why a UnitySVC key
 
