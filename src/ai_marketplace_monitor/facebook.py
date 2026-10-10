@@ -181,13 +181,8 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     delivery_method: List[str] | None = option(Fallback.TRUTHY)
     category: str | None = option(Fallback.TRUTHY)
     sort_by: str | None = option(Fallback.TRUTHY)
-    # seller information: whether to open seller profiles, and a minimal seller rating
-    seller_profile: bool | None = option(Fallback.NOT_NONE)
+    # skip sellers rated below this by enough buyers; sellers without ratings are kept
     seller_min_rating: float | None = option(Fallback.NOT_NONE)
-
-    def handle_seller_profile(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.seller_profile is not None and not isinstance(self.seller_profile, bool):
-            raise ValueError(f"Item {hilight(self.name)} seller_profile must be true or false.")
 
     def handle_seller_min_rating(self: "FacebookMarketItemCommonConfig") -> None:
         value = self.seller_min_rating
@@ -736,7 +731,9 @@ class FacebookMarketplace(Marketplace):
 
                     if not self._exclude(listing, item_config):
                         self.add_seller_info(listing, item_config)
-                        yield listing
+                        # the cached or profile rating may exclude the seller (seller_min_rating)
+                        if not self._exclude(listing, item_config):
+                            yield listing
 
     def get_listing_details(
         self: "FacebookMarketplace",
@@ -788,10 +785,7 @@ class FacebookMarketplace(Marketplace):
             return
         seller = Seller.from_cache(listing.seller_id) or Seller(id=listing.seller_id)
         seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
-        if (
-            resolve_option("seller_profile", item_config, self.config) is not False
-            and not seller.profile_checked
-        ):
+        if not seller.profile_checked:
             try:
                 assert self.page is not None
                 self.goto_url(f"https://www.facebook.com/marketplace/profile/{seller.id}/")

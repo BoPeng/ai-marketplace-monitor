@@ -47,11 +47,13 @@ class Seller:
     profile_checked: bool = False
 
     def update(self: "Seller", other: "Seller") -> None:
-        """Take the values ``other`` knows."""
+        """Take the values ``other`` knows; 0 is known (e.g. no listings sold)."""
         for f in fields(self):
             value = getattr(other, f.name)
-            if value not in (None, "", False, []):
-                setattr(self, f.name, value)
+            # not `value in (None, "", False, [])`: 0 == False would drop a count of 0
+            if value is None or value is False or value == "" or value == []:
+                continue
+            setattr(self, f.name, value)
 
     def summary(self: "Seller") -> str:
         """The seller in a sentence, for the AI and for notifications."""

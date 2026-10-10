@@ -376,16 +376,14 @@ From the listing page, aimm reads the seller's name, the year they joined Facebo
 
 along with possible warning signs (a new account, a low rating, a dealer-like number of listings, few or no sales, a single listing on a new account) and the reviews, which may mention no-shows or sellers who stopped answering. It lowers its rating for an unreliable seller and explains its concerns in its comment. Notifications show the warning signs as a ``Seller warning`` line.
 
-Two options adjust this, in a ``marketplace`` or an ``item`` section:
+To skip low-rated sellers altogether, set ``seller_min_rating`` in a ``marketplace`` or an ``item`` section:
 
 .. code-block:: toml
 
-    # skip sellers rated below 4 out of 5 (by at least 3 buyers)
+    # skip sellers rated below 4 out of 5 by at least 3 buyers
     seller_min_rating = 4
-    # do not open seller profiles (one extra page per seller and week)
-    seller_profile = false
 
-Sellers without ratings are never skipped by ``seller_min_rating``. ``exclude_sellers`` still excludes sellers by name. Seller information needs aimm to be logged in to Facebook, which shows no seller details otherwise.
+Sellers without ratings are not skipped: most Marketplace sellers have none, and having no ratings says little on its own. The AI still sees "no ratings" in the summary, next to the account's age, listings, sales and reviews, and weighs it with them. ``exclude_sellers`` still excludes sellers by name. Seller information needs aimm to be logged in to Facebook, which shows no seller details otherwise.
 
 Advanced Keyword-Based Filters
 ==============================

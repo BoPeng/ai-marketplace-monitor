@@ -243,6 +243,14 @@ def test_a_later_reading_completes_an_earlier_one() -> None:
     assert (seller.joined_year, seller.active_listings, seller.rating) == (2020, 4, 4.9)
 
 
+def test_a_count_of_zero_is_kept() -> None:
+    """0 == False in Python: a profile with nothing sold must still say so."""
+    seller = Seller(id="1", joined_year=2015)
+    seller.update(Seller(id="1", active_listings=8, sold_listings=0, profile_checked=True))
+    assert seller.sold_listings == 0
+    assert seller_warnings(seller, year=2026) == ["8 active listings but none sold"]
+
+
 def _listing(**kwargs: Any) -> Listing:
     values: dict[str, Any] = {
         "marketplace": "facebook",
@@ -345,11 +353,6 @@ def test_seller_min_rating_must_be_0_to_5(value: Any) -> None:
         _item_config(seller_min_rating=value)
 
 
-def test_seller_profile_must_be_true_or_false() -> None:
-    with pytest.raises(ValueError, match="seller_profile"):
-        _item_config(seller_profile="yes")
-
-
 def test_seller_information_is_completed_from_the_profile_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -388,7 +391,34 @@ def test_seller_information_is_completed_from_the_profile_once(
     assert opened == ["9"] and again.seller_info["seller"]["active_listings"] == 1
 
 
-def test_seller_profiles_can_be_turned_off(
+def test_a_profile_rating_can_exclude_the_seller(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rating known only from the profile (or the cache) is checked after enrichment."""
+    import ai_marketplace_monitor.seller as seller_module
+    from ai_marketplace_monitor import facebook
+
+    local = Cache(str(tmp_path))
+    monkeypatch.setattr(seller_module, "cache", local)
+    monkeypatch.setattr(facebook.time, "sleep", lambda s: None)
+
+    class FakeProfile:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def parse(self, seller_id: str) -> Seller:
+            return Seller(id=seller_id, rating=2.5, rating_count=12, profile_checked=True)
+
+    monkeypatch.setattr(facebook, "FacebookSellerProfilePage", FakeProfile)
+    mp = _marketplace(local, seller_min_rating=4)
+    listing = _listing(seller_id="9", seller_info={"seller": {"id": "9", "joined_year": 2015}})
+    item = _item_config()
+    assert mp.exclusion_reason(listing, item) is None  # the listing page showed no rating
+    mp.add_seller_info(listing, item)
+    assert mp.exclusion_reason(listing, item) == "seller rated 2.5 out of 5"
+
+
+def test_a_failed_profile_keeps_what_the_listing_showed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import ai_marketplace_monitor.seller as seller_module
@@ -396,10 +426,16 @@ def test_seller_profiles_can_be_turned_off(
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(seller_module, "cache", local)
-    monkeypatch.setattr(
-        facebook, "FacebookSellerProfilePage", lambda *a: pytest.fail("profile opened")
-    )
-    mp = _marketplace(local, seller_profile=False)
+
+    class BrokenProfile:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def parse(self, seller_id: str) -> Seller:
+            raise ValueError("No seller profile found")
+
+    monkeypatch.setattr(facebook, "FacebookSellerProfilePage", BrokenProfile)
+    mp = _marketplace(local)
     listing = _listing(seller_id="9", seller_info={"seller": {"id": "9", "joined_year": 2015}})
     mp.add_seller_info(listing, _item_config())
     assert listing.seller_info["summary"] == "joined Facebook in 2015, no ratings"
