@@ -19,7 +19,15 @@ An intelligent tool that monitors Facebook Marketplace listings using AI to help
 
 **📚 [Read the Full Documentation](https://ai-marketplace-monitor.readthedocs.io/)**
 
-![Search In Action](docs/search_in_action.png)
+aimm runs in a terminal or in its web UI, which starts with it:
+
+**Command line**: each search, the listings it skips or excludes, and the AI's verdict on each new listing
+
+![aimm searching in a terminal](docs/search_in_action.png)
+
+**Web UI**: the config editor, the Configure chat that sets aimm up for you, and the listings aimm evaluated with their AI ratings; it also shows the live log and aimm's browser when Facebook asks for a check (see [Web UI](docs/webui.md))
+
+![The aimm web UI](docs/webui_screenshot.png)
 
 Example notification from PushBullet:
 
@@ -83,8 +91,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - A **Listings** table of every listing aimm evaluated, with its AI rating and why it was notified, rejected, or excluded
 - Add, edit, and delete config sections from your browser
 - No password required on localhost
-
-![Web UI](docs/webui_screenshot.png)
 
 🌎 **Location Support**
 
