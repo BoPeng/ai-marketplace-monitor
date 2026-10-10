@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import threading
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List
 from urllib.parse import parse_qs
 
 import pytest
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
 from ai_marketplace_monitor.configure import tools as tools_module
 from ai_marketplace_monitor.configure.tools import ToolExecutor
@@ -225,3 +231,109 @@ def test_the_request_is_a_form_post() -> None:
     fields = fake.posts[0]
     assert set(fields) >= {"lsd", "doc_id", "variables", "fb_api_req_friendly_name"}
     assert parse_qs(f"doc_id={fields['doc_id']}")["doc_id"] == ["9660140454040174"]
+
+
+# --- whole conversations: the user names a place, aimm saves its code
+def _converse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    steps: List[Any],
+    answers: List[str],
+    fake: Any = None,
+) -> Any:
+    from ai_marketplace_monitor.configure.agent import run_agent
+    from tests.configure_util import FakeModel
+
+    if fake is not None:
+        monkeypatch.setattr(tools_module, "FacebookLocations", lambda: FacebookLocations(fake))
+
+    async def scenario() -> Any:
+        ws = await make_ws(tmp_path, ONE_ITEM, answers)
+        executor = ToolExecutor(ws, only={("marketplace", "facebook")})
+        executor.guides_read.add("marketplace")
+        model = FakeModel(steps).bind(executor.tools_for_model(), lambda: executor.done)
+        outcome = await run_agent(executor, model, "system", "opening")
+        return outcome, model, (tmp_path / "config.toml").read_text(encoding="utf-8")
+
+    return _run(scenario)
+
+
+def _save_los_angeles(code: str, name: str) -> List[Any]:
+    return [
+        [
+            (
+                "section_update",
+                {
+                    "section_type": "marketplace",
+                    "name": "facebook",
+                    "values": {"search_city": [code], "city_name": [name], "radius": [40]},
+                    "request": "Search Los Angeles, Texas.",
+                },
+            ),
+            ("save", {"message": f"Searching {name}."}),
+        ],
+        [("finish", {"message": "Done."})],
+    ]
+
+
+def test_los_angeles_tx_is_saved_with_its_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The user names the city and state: aimm looks it up and saves Facebook's code."""
+    from ai_marketplace_monitor.configure.tools import Outcome
+
+    outcome, model, written = _converse(
+        tmp_path,
+        monkeypatch,
+        [
+            [("ask_user", {"message": "Where should I search, and how far around it?"})],
+            [("find_city", {"place": "Los Angeles, TX"})],
+            *_save_los_angeles("113623475314526", "Los Angeles Subdivision, Texas"),
+        ],
+        ["Los Angeles, TX, within 40 miles", "yes"],
+        FakeFacebook(),
+    )
+    found = model.results("find_city")[0]
+    assert found["places"][0] == {
+        "name": "Los Angeles Subdivision, Texas",
+        "detail": "City",
+        "search_city": "113623475314526",
+    }
+    assert outcome is Outcome.SAVED
+    marketplace = tomllib.loads(written)["marketplace"]["facebook"]
+    assert marketplace["search_city"] in ("113623475314526", ["113623475314526"]), written
+    assert marketplace["city_name"] in (
+        "Los Angeles Subdivision, Texas",
+        ["Los Angeles Subdivision, Texas"],
+    )
+
+
+def test_a_city_without_its_state_is_asked_about_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ "Los Angeles" alone could be in California or Texas: the chat asks for the state."""
+    outcome, model, written = _converse(
+        tmp_path,
+        monkeypatch,
+        [
+            [("ask_user", {"message": "Where should I search?"})],
+            [("ask_user", {"message": "Which state is Los Angeles in?"})],
+            [("find_city", {"place": "Los Angeles, Texas"})],
+            *_save_los_angeles("113623475314526", "Los Angeles Subdivision, Texas"),
+        ],
+        ["Los Angeles", "Texas, within 40 miles", "yes"],
+        FakeFacebook(),
+    )
+    assert model.results("find_city")[0]["places"][0]["search_city"] == "113623475314526"
+    marketplace = tomllib.loads(written)["marketplace"]["facebook"]
+    assert marketplace["search_city"] in ("113623475314526", ["113623475314526"]), written
+
+
+@pytest.mark.skipif(
+    not __import__("os").environ.get("AIMM_LIVE_FACEBOOK"),
+    reason="set AIMM_LIVE_FACEBOOK=1 to ask the real Facebook",
+)
+def test_los_angeles_texas_on_the_real_facebook() -> None:
+    codes = {p.name: p.code for p in FacebookLocations().find("Los Angeles, TX")}
+    assert codes["Los Angeles Subdivision, Texas"] == "113623475314526"
+    assert codes["Los Angeles, La Salle County, Texas"] == "487995858630733"

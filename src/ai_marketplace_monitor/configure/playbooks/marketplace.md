@@ -25,9 +25,11 @@ right after `/marketplace/`. It is a name for some large cities (`houston`, `san
 `nyc`) and a numeric location ID for most other places (`111979382146893`). It cannot be worked
 out reliably from a city's name, so never guess it. Instead:
 
-- Ask where to search: a city, neighborhood or ZIP code, and how far around it. Then call
-  `find_city` with the place, spelled correctly (fix obvious typos; "Los Angles" is "Los
-  Angeles"). aimm asks Facebook's location search and returns the matching places, best first,
+- Ask where to search: a city, neighborhood or ZIP code, and how far around it. A city name
+  alone is ambiguous: if the user gave a city without its state (in the US) or country, ask
+  for it before calling `find_city` ("Los Angeles" may be in California or Texas); a ZIP code
+  needs nothing more. Then call `find_city` with the place, spelled correctly (fix obvious
+  typos; "Los Angles" is "Los Angeles"). aimm asks Facebook's location search and returns the matching places, best first,
   each with its name and `search_city` code. If several fit what the user said (a town that
   exists in several states, or two places of that name in a state), ask which; otherwise use
   the first and tell the user which place it is.

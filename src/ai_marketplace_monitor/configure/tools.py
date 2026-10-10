@@ -572,8 +572,9 @@ class ToolExecutor:
                 its `search_city` code.
 
                 Args:
-                    place: a city name, neighborhood or ZIP code, spelled correctly, e.g.
-                        "San Diego, CA", "Los Angeles, Texas" or "77494".
+                    place: a city with its state (US) or country, a neighborhood, or a ZIP
+                        code, spelled correctly, e.g. "San Diego, CA", "Los Angeles, Texas"
+                        or "77494". Ask the user for the state or country if they did not say.
                 """
                 return await self.call("find_city", {"place": place})
 
