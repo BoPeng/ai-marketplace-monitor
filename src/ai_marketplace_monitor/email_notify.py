@@ -192,6 +192,9 @@ class EmailNotificationConfig(NotificationConfig):
                     f"\nAI: {rating.comment}"
                 )
             )
+            warnings = (listing.seller_info or {}).get("warnings") or []
+            if warnings:
+                messages[-1] += f"\nSeller warning: {'; '.join(warnings)}"
         message = "\n\n".join(messages)
         return message
 

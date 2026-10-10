@@ -128,6 +128,19 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
         "any",
     ),
     FieldGuide(
+        "seller_profile",
+        "whether to open each new seller's profile, for their listings, sales and reviews "
+        "(one extra page per seller and week)",
+        "true or false",
+        "true",
+    ),
+    FieldGuide(
+        "seller_min_rating",
+        "skip sellers rated below this by at least 3 buyers",
+        "a number from 0 to 5, e.g. `4`",
+        "none",
+    ),
+    FieldGuide(
         "availability",
         "whether to include listings that are out of stock",
         f"list of {_values(Availability)}.{_TWO_VALUES}",

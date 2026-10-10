@@ -370,6 +370,8 @@ The following options that can specified for both `marketplace` sections and `it
 | `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`. With `search_interval = X`, the actual interval is random between X and 1.5X unless `max_search_interval` is also set. Defaults to `30m`. |
 | `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
 | `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
+| `seller_min_rating`   | Optional          | Number              | Exclude sellers rated below this (0 to 5) by at least 3 buyers. Sellers without ratings are not excluded. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information). |
+| `seller_profile`      | Optional          | Boolean             | Open each new seller's Marketplace profile for their listings, sales and reviews (once a week per seller). Default `true`. |
 | `sort_by`             | Optional          | String              | Order of search results. One of `suggested`, `new`, `price_ascend`, `price_descend`, and `distance_ascend`.                                                 |
 | `start_at`            | Optional          | String/List         | Time to start the search. Overrides `search_interval`.                                                                                                      |
 
@@ -418,6 +420,17 @@ This section currently accept the following values for Facebook Marketplace.
 | `Location is approximate`         | Optional          | String    | The word below listing location.                           |
 | `About this vehicle`              | Optional          | String    | The "About this vehicle" section of an automobile listing. |
 | `Seller's description`            | Optional          | String    | The "Seller's description" of an automobile listing.       |
+| `Joined Facebook in`              | Optional          | String    | Before the year a seller joined Facebook.                  |
+| `Highly rated`                    | Optional          | String    | The badge of highly rated sellers.                         |
+| `out of 5`                        | Optional          | String    | In the label of a seller's star rating, "4.6 out of 5".    |
+| `active listing`                  | Optional          | String    | After the number of a seller's listings.                   |
+| `Inventory availability status`   | Optional          | String    | The listing filter on a seller's profile.                  |
+| `Sold & out of stock`             | Optional          | String    | Its choice of sold listings.                               |
+| `Based on`                        | Optional          | String    | Before a seller's number of ratings.                       |
+| `ratings`                         | Optional          | String    | After it.                                                  |
+| `strengths`                       | Optional          | String    | The heading of what buyers appreciate.                     |
+| `Seller reviews`                  | Optional          | String    | The heading of a seller's reviews.                         |
+| `Like`                            | Optional          | String    | The button after each review.                              |
 
 Note that not all words needs to be translated (the English version will be used if unspecified), and _AI Marketplace Monitor_ may be able to extract information using language-independent methods.
 

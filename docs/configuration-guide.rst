@@ -365,6 +365,28 @@ When AI services are used, the program by default notifies you of listings with 
 
 to also see poor matches, or ``rating = 5`` to see only great deals. Note that all listings after non-AI-based filtering will be returned if no AI service is specified or non-functional.
 
+Seller Information
+------------------
+
+Who sells a listing matters as much as the listing: new accounts, dealers posing as private sellers, sellers with many listings but few sales, single listings at an unrealistic price, and sellers with poor ratings are often unreliable. aimm therefore tells the AI about the seller of each listing it rates, and lets the AI judge whether the seller is legitimate.
+
+From the listing page, aimm reads the seller's name, the year they joined Facebook and, for sellers with ratings, their rating and number of ratings. For listings that pass your other filters, it also opens the seller's Marketplace profile, at most once a week per seller, for the number of active and sold listings, what buyers appreciate, and a few recent reviews. The AI receives a summary such as
+
+    joined Facebook in 2024, no ratings, 20+ active listings, 1 sold listing
+
+along with possible warning signs (a new account, a low rating, a dealer-like number of listings, few or no sales, a single listing on a new account) and the reviews, which may mention no-shows or sellers who stopped answering. It lowers its rating for an unreliable seller and explains its concerns in its comment. Notifications show the warning signs as a ``Seller warning`` line.
+
+Two options adjust this, in a ``marketplace`` or an ``item`` section:
+
+.. code-block:: toml
+
+    # skip sellers rated below 4 out of 5 (by at least 3 buyers)
+    seller_min_rating = 4
+    # do not open seller profiles (one extra page per seller and week)
+    seller_profile = false
+
+Sellers without ratings are never skipped by ``seller_min_rating``. ``exclude_sellers`` still excludes sellers by name. Seller information needs aimm to be logged in to Facebook, which shows no seller details otherwise.
+
 Advanced Keyword-Based Filters
 ==============================
 
