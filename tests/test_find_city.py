@@ -29,6 +29,17 @@ from tests.configure_util import ONE_ITEM, make_ws
 
 # the answers Facebook gave on 2026-10-10 (shortened)
 PLACES = {
+    # a name alone: Los Angeles, Texas is not among Facebook's ten
+    "Los Angeles": [
+        (
+            "Los Angeles",
+            "Los Ángeles, Coahuila de Zaragoza, Mexico · 433 people checked in here",
+            25.5,
+            -103.4,
+        ),
+        ("Los Angeles, California", "City", 34.05, -118.24),
+        ("Los Ángeles, Chile", "City", -37.47, -72.35),
+    ],
     "Los Angeles, Texas": [
         ("Los Angeles Subdivision, Texas", "City", 27.0, -97.9),
         ("Los Angeles, La Salle County, Texas", "City", 28.4, -99.0),
@@ -38,6 +49,9 @@ PLACES = {
     ],
 }
 CODES = {
+    (25.5, -103.4): "torreon",
+    (34.05, -118.24): "la",
+    (-37.47, -72.35): "112677128908746",
     (27.0, -97.9): "113623475314526",
     (28.4, -99.0): "487995858630733",
     (32.72, -117.17): "sandiego",
@@ -190,7 +204,7 @@ def _tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, place: str, fake: Fak
                     "section_type": "marketplace",
                     "name": "facebook",
                     "values": json.dumps(
-                        {"search_city": [code], "city_name": [out["places"][-1]["name"]]}
+                        {"search_city": [code], "city_name": [out["places"][-1]["place"]]}
                     ),
                 },
             )
@@ -207,7 +221,7 @@ def test_find_city_lists_the_places_for_the_user_to_choose(
         "113623475314526",
         "487995858630733",
     ]
-    assert out["places"][1]["name"] == "Los Angeles, La Salle County, Texas"
+    assert out["places"][1]["place"] == "Los Angeles, La Salle County, Texas"
     assert {"113623475314526", "487995858630733"} <= ws.found_city_codes
     assert saved["ok"], saved  # the guard against made-up codes accepts a found code
 
@@ -295,7 +309,7 @@ def test_los_angeles_tx_is_saved_with_its_code(
     )
     found = model.results("find_city")[0]
     assert found["places"][0] == {
-        "name": "Los Angeles Subdivision, Texas",
+        "place": "Los Angeles Subdivision, Texas",
         "detail": "City",
         "search_city": "113623475314526",
     }
@@ -308,25 +322,67 @@ def test_los_angeles_tx_is_saved_with_its_code(
     )
 
 
-def test_a_city_without_its_state_is_asked_about_first(
+def test_a_name_alone_is_confirmed_from_facebooks_places(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ "Los Angeles" alone could be in California or Texas: the chat asks for the state."""
+    """ "Los Angeles" alone: the chat offers Facebook's places, then looks again with the state."""
     outcome, model, written = _converse(
         tmp_path,
         monkeypatch,
         [
             [("ask_user", {"message": "Where should I search?"})],
-            [("ask_user", {"message": "Which state is Los Angeles in?"})],
+            [("find_city", {"place": "Los Angeles"})],
+            [
+                (
+                    "ask_user",
+                    {
+                        "message": "Do you mean Los Angeles, California, Los Angeles in "
+                        "Coahuila, Mexico, or Los Ángeles, Chile?"
+                    },
+                )
+            ],
             [("find_city", {"place": "Los Angeles, Texas"})],
             *_save_los_angeles("113623475314526", "Los Angeles Subdivision, Texas"),
         ],
-        ["Los Angeles", "Texas, within 40 miles", "yes"],
+        ["Los Angeles, within 40 miles", "No, the one in Texas", "yes"],
         FakeFacebook(),
     )
-    assert model.results("find_city")[0]["places"][0]["search_city"] == "113623475314526"
+    offered = model.results("find_city")[0]["places"]
+    assert [p["place"] for p in offered] == [
+        "Los Angeles (Los Ángeles, Coahuila de Zaragoza, Mexico)",
+        "Los Angeles, California",
+        "Los Ángeles, Chile",
+    ]
+    assert model.results("find_city")[1]["places"][0]["search_city"] == "113623475314526"
     marketplace = tomllib.loads(written)["marketplace"]["facebook"]
     assert marketplace["search_city"] in ("113623475314526", ["113623475314526"]), written
+
+
+def test_places_are_labelled_with_their_region() -> None:
+    """Facebook often names a place only "Los Angeles"; the label adds its region."""
+    assert Place("Los Angeles, California", "City", 0, 0).label == "Los Angeles, California"
+    assert (
+        Place(
+            "Los Angeles",
+            "Los Ángeles, Coahuila de Zaragoza, Mexico · 433 people checked in here",
+            0,
+            0,
+        ).label
+        == "Los Angeles (Los Ángeles, Coahuila de Zaragoza, Mexico)"
+    )
+    # a street first: the region is the last part with a comma
+    assert (
+        Place(
+            "Los Ángeles (Madrid)",
+            "La Dolorosa, 2 · Los Ángeles, Spain · 9,857 people checked in here",
+            0,
+            0,
+        ).label
+        == "Los Ángeles (Madrid) (Los Ángeles, Spain)"
+    )
+    assert Place(
+        "San Diego, CA 92101", "San Diego, CA · 116 people checked in here", 0, 0
+    ).label == ("San Diego, CA 92101")
 
 
 @pytest.mark.skipif(

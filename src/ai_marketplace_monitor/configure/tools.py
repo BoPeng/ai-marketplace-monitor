@@ -450,12 +450,15 @@ class ToolExecutor:
         return {
             "ok": True,
             "places": [
-                {"name": p.name, "detail": p.detail, "search_city": p.code} for p in places
+                {"place": p.label, "detail": p.detail, "search_city": p.code} for p in places
             ],
             "note": (
-                "Facebook's matches, best first. Use the one the user means: if more than one "
-                "fits (e.g. two towns of that name in the state), ask. Set search_city to its "
-                "`search_city` and city_name to its `name`. Places with the same `search_city` "
+                "Facebook's matches for what the user typed, best first (at most 10). Confirm "
+                "the place with the user before saving: if one clearly fits, ask whether it is "
+                "right; if several could be meant, offer them by `place` (e.g. Los Angeles, "
+                "California or Los Angeles in Mexico); if the user's place is not listed, call "
+                "find_city again with its state or country added. Then set search_city to its "
+                "`search_city` and city_name to its `place`. Places with the same `search_city` "
                 "are the same Marketplace location."
             ),
         }
@@ -568,13 +571,14 @@ class ToolExecutor:
 
                 aimm asks Facebook Marketplace's location search, as its location dialog does
                 (no browser or Facebook account needed, and nothing is changed). It returns
-                Facebook's matching places, best first, each with its name, a detail line and
-                its `search_city` code.
+                Facebook's matching places, best first (at most 10), each labelled with its
+                region and with its `search_city` code: confirm with the user which one is
+                meant.
 
                 Args:
-                    place: a city with its state (US) or country, a neighborhood, or a ZIP
-                        code, spelled correctly, e.g. "San Diego, CA", "Los Angeles, Texas"
-                        or "77494". Ask the user for the state or country if they did not say.
+                    place: what the user said, spelled correctly: a city (with its state or
+                        country if given), a neighborhood or a ZIP code, e.g. "Los Angeles",
+                        "San Diego, CA" or "77494".
                 """
                 return await self.call("find_city", {"place": place})
 

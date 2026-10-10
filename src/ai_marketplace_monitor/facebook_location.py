@@ -79,6 +79,25 @@ class Place:
     longitude: float
     code: str = ""  # search_city: "houston" or "487995858630733"
 
+    @property
+    def label(self: "Place") -> str:
+        """The place with its region, to tell it apart from others of the same name.
+
+        Facebook often names a place only "Los Angeles" and gives the region in its detail
+        ("Los Ángeles, Coahuila de Zaragoza, Mexico · 433 people checked in here").
+        """
+        # the detail lists a street, the region and how many checked in: the region is the
+        # last part with a comma ("La Dolorosa, 2 · Los Ángeles, Spain · 9,857 people ...")
+        parts = [
+            part.strip()
+            for part in self.detail.split("·")
+            if "," in part and "checked in" not in part
+        ]
+        region = parts[-1] if parts else ""
+        if not region or region in self.name:
+            return self.name
+        return f"{self.name} ({region})"
+
 
 def expand_state(place: str) -> str:
     """ "Houston, TX" -> "Houston, Texas": a US state's abbreviation after a comma or space."""
@@ -187,7 +206,7 @@ class FacebookLocations:
                 f"Facebook's location code answered unexpectedly: {e}"
             ) from e
 
-    def find(self: "FacebookLocations", place: str, limit: int = 5) -> List[Place]:
+    def find(self: "FacebookLocations", place: str, limit: int = 10) -> List[Place]:
         """The places Facebook suggests for ``place``, each with its Marketplace code."""
         found = self.places(place)[:limit]
         for p in found:

@@ -25,14 +25,17 @@ right after `/marketplace/`. It is a name for some large cities (`houston`, `san
 `nyc`) and a numeric location ID for most other places (`111979382146893`). It cannot be worked
 out reliably from a city's name, so never guess it. Instead:
 
-- Ask where to search: a city, neighborhood or ZIP code, and how far around it. A city name
-  alone is ambiguous: if the user gave a city without its state (in the US) or country, ask
-  for it before calling `find_city` ("Los Angeles" may be in California or Texas); a ZIP code
-  needs nothing more. Then call `find_city` with the place, spelled correctly (fix obvious
-  typos; "Los Angles" is "Los Angeles"). aimm asks Facebook's location search and returns the matching places, best first,
-  each with its name and `search_city` code. If several fit what the user said (a town that
-  exists in several states, or two places of that name in a state), ask which; otherwise use
-  the first and tell the user which place it is.
+- Ask where to search: a city, neighborhood or ZIP code, and how far around it. Call
+  `find_city` with what the user said, spelled correctly (fix obvious typos; "Los Angles" is
+  "Los Angeles"). aimm asks Facebook's location search and returns its matching places, best
+  first, each labelled with its region and with its `search_city` code.
+- Confirm the place with the user from that list before saving, in your own words:
+  - one place clearly fits (a ZIP code, or "Houston, TX" → Houston, Texas): ask whether it is
+    right;
+  - several could be meant: offer them, e.g. "Do you mean Los Angeles, California, Los Angeles
+    in Mexico, or Los Ángeles, Chile?" (list the cities, not neighborhoods of the same city);
+  - the user's place is not among them (e.g. Los Angeles, Texas is a small town that a search
+    for "Los Angeles" does not list): call `find_city` again with the state or country added.
 - If `find_city` fails (Facebook's search did not answer), or the user prefers, ask them to
   open Facebook Marketplace in a browser, set the location (and distance) they want, search
   for anything, and paste the URL of the results page.
@@ -46,8 +49,8 @@ out reliably from a city's name, so never guess it. Instead:
   location code: ask for the URL after the location is set. A URL from `m.facebook.com` works
   the same way.
 - Set `search_city` to the code only (never the whole URL), and `city_name` to the place's
-  readable name ("Houston, TX"): `city_name` from `find_city`, or from the user or the page
-  title they mention.
+  readable name ("Houston, TX"): the confirmed place from `find_city`, or from the user or the
+  page title they mention.
 - Ask how far to search if they did not say, and set `radius` to that distance. Do not save a
   new location before the user has answered (a distance, or that Facebook's default is fine).
 - For several cities, repeat for each; `search_city`, `city_name` and `radius` are lists in the
