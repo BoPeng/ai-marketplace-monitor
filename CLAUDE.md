@@ -12,7 +12,9 @@ A release is prepared in a pull request and published from GitHub:
 
 ### Update the app-store templates
 
-The templates in `deploy/` that pin a version are bumped to each release automatically: after the `docker` workflow pushes the image of a `vX.Y.Z` tag, its `bump-deploy` job reads the image's index digest from the registry, runs `python scripts/bump_deploy_versions.py X.Y.Z sha256:<digest>`, checks the result, and commits it to `main` as "Pin the app-store templates to X.Y.Z". The digest is the image's (not the PyPI package's), so it exists only once the image is pushed. Edit Umbrel's `releaseNotes` afterwards if a summary is wanted instead of the link the job writes.
+The templates in `deploy/` that pin a version are bumped to each release automatically: after the `docker` workflow pushes the image of a `vX.Y.Z` tag, its `bump-deploy` job reads the image's index digest from the registry, runs `python scripts/bump_deploy_versions.py X.Y.Z sha256:<digest>`, checks the result, and opens or updates a pull request titled "Pin the app-store templates to X.Y.Z" on `codex/bump-deploy-X.Y.Z`. Merge that PR after its required checks pass. The digest is the image's (not the PyPI package's), so it exists only once the image is pushed. Edit Umbrel's `releaseNotes` afterwards if a summary is wanted instead of the link the job writes.
+
+Configure the repository Actions secret `DEPLOY_PR_TOKEN` before using this job: use a fine-grained personal access token scoped to this repository with **Contents: read/write** and **Pull requests: read/write** permissions. The token owner must be allowed to push a branch and open a PR. The job fails with a setup message if the secret is missing. It deliberately uses this token instead of `GITHUB_TOKEN` so the generated PR triggers the required tests and CodeQL workflows; no branch-protection bypass is needed.
 
 If the job did not run or failed, run it again with **Actions › docker › Run workflow** and a `version` (it then only bumps, without building), or run the script locally. To find the digest by hand:
 
@@ -34,6 +36,6 @@ and use the `Digest:` of the index (not one of the per-platform manifests). The 
 
 The Unraid, Portainer and Cosmos templates use `latest` and need no change.
 
-The `deploy-versions` workflow enforces this on every pull request and push to `main`: `python scripts/check_deploy_versions.py` requires every pin above to name the version in `pyproject.toml` once it is released (the tag `vX.Y.Z` exists), or the latest release while the release PR is open, and checks the Umbrel and TrueNAS digests against the registry. So if the automatic bump did not happen, pull requests fail until it does. Run it locally before pushing; `--offline` skips the registry.
+The `deploy-versions` workflow enforces this on every pull request and push to `main`: `python scripts/check_deploy_versions.py` requires every pin above to name the version in `pyproject.toml` once it is released (the tag `vX.Y.Z` exists), or the latest release while the release PR is open, and checks the Umbrel and TrueNAS digests against the registry. So if the automatic bump did not happen, pull requests fail until the template-update PR is merged. Run it locally before pushing; `--offline` skips the registry.
 
 For a store that already lists aimm, the same bump goes to the store in a pull request to its repository; [#417](https://github.com/BoPeng/ai-marketplace-monitor/issues/417) tracks which stores list it.

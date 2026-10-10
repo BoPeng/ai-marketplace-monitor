@@ -63,8 +63,8 @@ jobs:
           cache-to: type=gha,mode=max
 
   # After the image of a release tag is pushed, pin the app-store templates in deploy/ to it
-  # (version and index digest) and commit them to main; see CLAUDE.md. Commits pushed with
-  # GITHUB_TOKEN start no workflows, so this does not run itself again.
+  # (version and index digest) in a pull request; see CLAUDE.md. DEPLOY_PR_TOKEN
+  # lets the pull request trigger the required checks before it is merged.
   bump-deploy:
     needs: build-and-push
     if: >-
@@ -72,11 +72,12 @@ jobs:
       (startsWith(github.ref, 'refs/tags/v') || inputs.version != '')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
+          persist-credentials: false
           fetch-depth: 0 # the release tags decide which version the templates must pin
 
       - uses: actions/setup-python@v7.0.0
@@ -87,32 +88,44 @@ jobs:
         id: bump
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
+          DEPLOY_PR_TOKEN: ${{ secrets.DEPLOY_PR_TOKEN }}
         run: |
           version="${VERSION#v}"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "$VERSION is not a release version; the templates stay as they are"
             exit 0
           fi
+          if [[ -z "$DEPLOY_PR_TOKEN" ]]; then
+            echo "::error::Set the DEPLOY_PR_TOKEN repository secret to a token with Contents and Pull requests read/write permissions; it is needed to create a PR that triggers CI."
+            exit 1
+          fi
           digest=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_deploy_versions import registry_digest; print(registry_digest(sys.argv[1]))" "$version")
           python scripts/bump_deploy_versions.py "$version" "$digest"
           python scripts/check_deploy_versions.py
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Commit to main
+      - name: Create template-update pull request
         if: steps.bump.outputs.version != ''
+        id: pull-request
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.DEPLOY_PR_TOKEN }}
+          base: main
+          branch: codex/bump-deploy-${{ steps.bump.outputs.version }}
+          add-paths: deploy/
+          delete-branch: true
+          commit-message: "Pin the app-store templates to ${{ steps.bump.outputs.version }}"
+          title: "Pin the app-store templates to ${{ steps.bump.outputs.version }}"
+          body: |
+            Update the CasaOS, Runtipi, Umbrel and TrueNAS templates for [v${{ steps.bump.outputs.version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.bump.outputs.version }}).
+
+            Umbrel and TrueNAS pin the published image index digest `${{ steps.bump.outputs.digest }}`. The bump also updates the store metadata and app revision counters.
+
+            Validation: `python scripts/check_deploy_versions.py` passed against the registry. Merge after the required PR checks pass.
+
+      - name: Report template-update pull request
+        if: steps.pull-request.outputs.pull-request-url != ''
         env:
-          VERSION: ${{ steps.bump.outputs.version }}
-        run: |
-          if git diff --quiet -- deploy; then
-            echo "The templates already pin $VERSION"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy
-          git commit -m "Pin the app-store templates to $VERSION"
-          for _ in 1 2 3; do
-            git push origin HEAD:main && exit 0
-            git pull --rebase origin main
-          done
-          exit 1
+          PR_URL: ${{ steps.pull-request.outputs.pull-request-url }}
+        run: echo "Template-update PR — $PR_URL" >> "$GITHUB_STEP_SUMMARY"
