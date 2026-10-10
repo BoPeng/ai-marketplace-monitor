@@ -449,7 +449,7 @@ Multi-Location and Region Search
 
 `search_city` is the name, sometimes numbers, used by Facebook marketplace to represent a city. To get the value of `search_city` for your region, visit facebook marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
 
-With aimm running, the web UI's **Configure** chat finds it for you: tell it a city, neighborhood or ZIP code (for example ``92101``) and how far to search. aimm types the place into Facebook Marketplace's location dialog in its own browser and reads the code Facebook uses (``sandiego`` for 92101, ``112697245411076`` for Katy, TX), along with the radius Facebook chose. This also sets the location saved on your Facebook account. In ``aimm configure`` in a terminal, where aimm's browser is not running, the chat asks for the URL of a Marketplace search instead.
+The **Configure** chat (in the web UI, or ``aimm configure``) finds it for you: tell it a city, neighborhood or ZIP code (for example ``Houston, TX``, ``Los Angeles, Texas`` or ``92101``). aimm asks Facebook Marketplace's location search, as Facebook's location dialog does, and shows the matching places with their codes (``houston``; ``487995858630733`` for Los Angeles, La Salle County, Texas; ``sandiego`` for 92101). No browser or Facebook account is involved, and nothing is changed on your account.
 
 Multiple Cities
 ---------------

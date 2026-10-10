@@ -12,13 +12,12 @@ async functions with signatures and docstrings for the model adapter.
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
-from ..control import control
+from ..facebook_location import FacebookLocations, LocationLookupError
 from .toolkits import SINGLETONS, Toolkit, location, section_label
 from .ui import SetupClosedError
 from .workspace import ConfigLoadError, SectionKey, Workspace
@@ -103,10 +102,6 @@ class Outcome(Enum):
     UNCHANGED = "unchanged"  # the session ended without writing (nothing to write)
     CANCELLED = "cancelled"  # the user stopped, or unsaved changes were discarded
     FAILED = "failed"  # the config could not be read or written
-
-
-# how long find_city waits for the monitor to get to it (it may be busy searching)
-FIND_CITY_TIMEOUT = 300
 
 
 @dataclass
@@ -428,56 +423,40 @@ class ToolExecutor:
             }
         return await self.ws.toolkits[section_type].send_test(self.ws, name)
 
-    async def find_city(
-        self: "ToolExecutor", place: str, choice: int = 1, radius: int = 0
-    ) -> Dict[str, Any]:
-        """Look a place up in Facebook's location dialog, in the monitor's browser."""
+    async def find_city(self: "ToolExecutor", place: str) -> Dict[str, Any]:
+        """Look a place up in Facebook Marketplace's location search (no browser needed)."""
         if not place.strip():
             return {"ok": False, "errors": ["Give a city name, neighborhood or ZIP code."]}
-        if not control.has_browser():
-            return {
-                "ok": False,
-                "errors": [
-                    "aimm's browser is not available here: the monitor does not run in this "
-                    "process (e.g. `aimm configure` in a terminal). Ask the user for the URL of "
-                    "a Marketplace search instead, as the search_city guide says."
-                ],
-            }
         await self.ws.ui.say(f"Looking up {place} in Facebook Marketplace...")
-        future = control.submit_browser_task(
-            "find_city", place=place, choice=choice, radius=radius or None
-        )
         try:
-            found = await asyncio.to_thread(future.result, FIND_CITY_TIMEOUT)
-        except concurrent.futures.TimeoutError:
-            future.cancel()
+            places = await asyncio.to_thread(FacebookLocations().find, place)
+        except (LocationLookupError, OSError) as e:
             return {
                 "ok": False,
                 "errors": [
-                    "aimm's monitor did not get to the lookup in time: it is busy searching or "
-                    "waiting for the user to log in to Facebook. Try again in a few minutes, or "
-                    "ask the user for the URL of a Marketplace search."
+                    f"Facebook's location search did not answer ({e}). Ask the user for the "
+                    "URL of a Marketplace search instead, as the search_city guide says."
                 ],
             }
-        except Exception as e:
-            return {"ok": False, "errors": [f"Facebook's location dialog failed: {e}"]}
-        code = found.get("search_city")
-        if not code:
+        if not places:
             return {
                 "ok": False,
-                "places": found.get("places") or [],
-                "errors": [f"Facebook suggested no place for {place!r}: try another spelling."],
+                "errors": [
+                    f"Facebook found no place for {place!r}. Check the spelling, or try the full "
+                    "state or country name, or a ZIP code."
+                ],
             }
-        self.ws.found_city_codes.add(str(code))
+        self.ws.found_city_codes |= {p.code for p in places}
         return {
             "ok": True,
-            **found,
+            "places": [
+                {"name": p.name, "detail": p.detail, "search_city": p.code} for p in places
+            ],
             "note": (
-                "Facebook applied this place (and radius) in the user's Marketplace location. "
-                "Tell the user which place was chosen; if `places` lists others and the choice "
-                "may be wrong, ask, and call find_city again with that choice. Then set "
-                "search_city to `search_city`, city_name to `city_name`, and radius to the "
-                "number in `radius`."
+                "Facebook's matches, best first. Use the one the user means: if more than one "
+                "fits (e.g. two towns of that name in the state), ask. Set search_city to its "
+                "`search_city` and city_name to its `name`. Places with the same `search_city` "
+                "are the same Marketplace location."
             ),
         }
 
@@ -584,24 +563,19 @@ class ToolExecutor:
             tools.append(test_notification)
         if any(t in self.ws.toolkits for t in ("marketplace", "item", "region")):
 
-            async def find_city(place: str, choice: int = 1, radius: int = 0) -> Dict[str, Any]:
-                """Find the `search_city` code of a place the user names, through Facebook.
+            async def find_city(place: str) -> Dict[str, Any]:
+                """Find the `search_city` code of a place the user names, from Facebook.
 
-                aimm types `place` into Facebook Marketplace's location dialog in its own
-                browser, applies the `choice`-th place Facebook suggests and returns its
-                code, its name, the places suggested and the radius (Facebook rounds it to one
-                of 1, 2, 5, 10, 20, 40, 60, 80, 100, 250, 500, in miles in the US). This sets
-                the location on the user's Facebook account. Needs aimm's monitor running in
-                this process; otherwise ask for a Marketplace URL.
+                aimm asks Facebook Marketplace's location search, as its location dialog does
+                (no browser or Facebook account needed, and nothing is changed). It returns
+                Facebook's matching places, best first, each with its name, a detail line and
+                its `search_city` code.
 
                 Args:
-                    place: a city name, neighborhood or ZIP code, e.g. "San Diego, CA" or "77494".
-                    choice: which suggested place to apply, from 1 (the first).
-                    radius: the search radius in the unit Facebook shows; 0 keeps the current.
+                    place: a city name, neighborhood or ZIP code, spelled correctly, e.g.
+                        "San Diego, CA", "Los Angeles, Texas" or "77494".
                 """
-                return await self.call(
-                    "find_city", {"place": place, "choice": choice, "radius": radius}
-                )
+                return await self.call("find_city", {"place": place})
 
             tools.append(find_city)
         return tools
@@ -640,11 +614,7 @@ class ToolExecutor:
                     str(args.get("message", "")), bool(args.get("discard_unsaved", False))
                 )
             if name == "find_city":
-                return await self.find_city(
-                    str(args.get("place", "")),
-                    int(args.get("choice") or 1),
-                    int(args.get("radius") or 0),
-                )
+                return await self.find_city(str(args.get("place", "")))
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
             if name == "test_notification":

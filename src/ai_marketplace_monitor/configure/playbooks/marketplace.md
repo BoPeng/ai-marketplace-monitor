@@ -26,15 +26,14 @@ right after `/marketplace/`. It is a name for some large cities (`houston`, `san
 out reliably from a city's name, so never guess it. Instead:
 
 - Ask where to search: a city, neighborhood or ZIP code, and how far around it. Then call
-  `find_city` with that place (and the distance as `radius`). aimm looks it up in Facebook's
-  location dialog and returns the code, the place's name, the places Facebook suggested and the
-  radius Facebook chose (it offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 or 500, in miles in
-  the US). Tell the user which place was chosen; if it may be the wrong one (e.g. a town that
-  exists in several states), ask and call `find_city` again with the right `choice`. Mention
-  that this also sets their Facebook Marketplace location.
-- If `find_city` is not available (aimm's monitor is not running here), or the user prefers,
-  ask them to open Facebook Marketplace in a browser, set the location (and distance) they
-  want, search for anything, and paste the URL of the results page.
+  `find_city` with the place, spelled correctly (fix obvious typos; "Los Angles" is "Los
+  Angeles"). aimm asks Facebook's location search and returns the matching places, best first,
+  each with its name and `search_city` code. If several fit what the user said (a town that
+  exists in several states, or two places of that name in a state), ask which; otherwise use
+  the first and tell the user which place it is.
+- If `find_city` fails (Facebook's search did not answer), or the user prefers, ask them to
+  open Facebook Marketplace in a browser, set the location (and distance) they want, search
+  for anything, and paste the URL of the results page.
 - Extract the code from the pasted URL: the segment after `/marketplace/` and before the next
   `/` or `?`. Ignore `/search`, `/category/...` and query parameters.
   - `https://www.facebook.com/marketplace/houston/search?query=bike` → `houston`

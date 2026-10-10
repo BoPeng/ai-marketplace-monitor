@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
-from typing import TYPE_CHECKING, Any, Dict, Generator, List, Tuple, Type, cast
+from typing import TYPE_CHECKING, Any, Generator, List, Tuple, Type, cast
 from urllib.parse import quote, urlparse
 
 from currency_converter import CurrencyConverter  # type: ignore
@@ -168,14 +168,6 @@ def radius_from_label(label: str) -> int | None:
 def nearest_radius(radius: float, choices: "Tuple[int, ...] | List[int]" = RADIUS_CHOICES) -> int:
     """The choice closest to ``radius``; the larger one on a tie."""
     return min(choices, key=lambda c: (abs(c - radius), -c))
-
-
-def city_code_from_url(url: str) -> str | None:
-    """The location code in a Marketplace URL: ``/marketplace/<code>/...``."""
-    match = re.search(r"/marketplace/([^/?#]+)", url or "")
-    if not match or match.group(1) in ("item", "profile", "search", "category", "you"):
-        return None
-    return match.group(1)
 
 
 def _clean_facebook_description(text: str) -> str:
@@ -583,44 +575,6 @@ class FacebookMarketplace(Marketplace):
             dialog.close()
             return False
 
-    def find_city(
-        self: "FacebookMarketplace", place: str, choice: int = 1, radius: int | None = None
-    ) -> Dict[str, Any]:
-        """Find the Marketplace code of a city, neighborhood or ZIP code in the location dialog.
-
-        Facebook's location dialog searches places and, once one is applied, shows the search
-        under ``/marketplace/<code>/``: a name such as ``sandiego``, or a number for smaller
-        places. The applied place (and ``radius``, if given) is saved on the Facebook account.
-        Returns the places Facebook suggested, the chosen one, its code and the radius.
-        """
-        if not self.page:
-            self.login()
-        assert self.page is not None
-        if "/marketplace" not in (self.page.url or ""):
-            self.goto_url("https://www.facebook.com/marketplace/")
-        dialog = FacebookLocationDialog(self.page, self.translator, self.logger)
-        try:
-            dialog.open()
-            places = dialog.search_places(place)
-            if not places:
-                dialog.close()
-                return {"places": [], "chosen": None, "search_city": None}
-            if not 1 <= choice <= len(places):
-                raise ValueError(f"choice must be 1 to {len(places)}")
-            dialog.choose_place(choice)
-            chosen_radius = dialog.choose_radius(radius) if radius else dialog.radius_text()
-            dialog.apply()
-            return {
-                "places": places,
-                "chosen": places[choice - 1],
-                "search_city": city_code_from_url(self.page.url),
-                "city_name": dialog.current_place(),
-                "radius": chosen_radius,
-            }
-        except BaseException:
-            dialog.close()
-            raise
-
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
     ) -> Generator[Listing, None, None]:
@@ -779,8 +733,6 @@ class FacebookMarketplace(Marketplace):
                 # go to each item and get the description
                 # if we have not done that before
                 for listing in found_listings:
-                    # the web UI's Configure chat may be waiting for the browser
-                    control.run_browser_tasks()
                     if listing.post_url.split("?")[0] in found:
                         continue
                     if control.is_paused() or (
@@ -1266,12 +1218,6 @@ class FacebookLocationDialog(WebPage):
     def current_radius(self: "FacebookLocationDialog") -> int | None:
         return radius_from_label(self.current_label())
 
-    def current_place(self: "FacebookLocationDialog") -> str:
-        """The place on the location button: "Houston, Texas"."""
-        label = self.current_label()
-        label = label.split(":", 1)[1] if ":" in label else label
-        return re.sub(r",\s*" + re.escape(self.translator("Within")) + r"\b.*$", "", label).strip()
-
     def open(self: "FacebookLocationDialog") -> None:
         self._button().click(timeout=5000)
         self._dialog().wait_for(timeout=10000)
@@ -1289,11 +1235,6 @@ class FacebookLocationDialog(WebPage):
     def _radius_field(self: "FacebookLocationDialog") -> Any:
         return self._dialog().get_by_role("combobox").filter(has_text=self.translator("Radius"))
 
-    def radius_text(self: "FacebookLocationDialog") -> str:
-        """The radius the dialog shows: "40 miles"."""
-        text = str(self._radius_field().inner_text(timeout=5000) or "")
-        return text.replace(self.translator("Radius"), "").strip()
-
     def choose_radius(self: "FacebookLocationDialog", radius: float) -> str:
         """Choose the radius nearest ``radius``; its text, e.g. "40 miles"."""
         self._radius_field().click(timeout=5000)
@@ -1307,44 +1248,6 @@ class FacebookLocationDialog(WebPage):
         chosen = choices[nearest_radius(radius, sorted(choices))]
         self.page.get_by_role("option", name=chosen, exact=True).click(timeout=5000)
         return chosen
-
-    def search_places(self: "FacebookLocationDialog", place: str) -> List[str]:
-        """Type ``place`` in the location field; the places Facebook suggests."""
-        field = self._dialog().get_by_role("combobox", name=self.translator("Location"))
-        field.click(timeout=5000)
-        field.fill("")
-        field.press_sequentially(place, delay=50)
-        try:
-            self.page.get_by_role("option").first.wait_for(timeout=10000)
-        except KeyboardInterrupt:
-            raise
-        except Exception:
-            return []
-        self.page.wait_for_timeout(1000)  # let the list settle
-        places: List[str] = []
-        for text in self.page.get_by_role("option").all_inner_texts():
-            text = " · ".join(x.strip() for x in text.splitlines() if x.strip())
-            if text and radius_from_label(text) is None and text not in places:
-                places.append(text)
-        return places
-
-    def choose_place(self: "FacebookLocationDialog", choice: int) -> None:
-        """Click the ``choice``-th suggested place (from 1), as a person would."""
-        suggestions = [
-            o
-            for o in self.page.get_by_role("option").all()
-            if radius_from_label(o.inner_text()) is None
-        ]
-        seen: List[str] = []
-        for suggestion in suggestions:
-            text = suggestion.inner_text().strip()
-            if text in seen:
-                continue
-            seen.append(text)
-            if len(seen) == choice:
-                suggestion.click(timeout=5000)
-                return
-        raise ValueError(f"no place number {choice}")
 
     def apply(self: "FacebookLocationDialog") -> None:
         """Apply the dialog; the page reloads with the place and radius."""

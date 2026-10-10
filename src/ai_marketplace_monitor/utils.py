@@ -32,8 +32,6 @@ from pyparsing import (
 from requests.exceptions import RequestException, Timeout  # type: ignore
 from rich.pretty import pretty_repr
 
-from .control import control
-
 if TYPE_CHECKING:
     from playwright.sync_api import ProxySettings
 
@@ -803,7 +801,6 @@ def doze(
         while time.time() - start_time < duration:
             if event_handler.changed:
                 return SleepStatus.BY_FILE_CHANGE
-            control.run_browser_tasks()  # e.g. the web UI's Configure chat finding a city
             time.sleep(1)
             if keyboard_monitor and not keyboard_monitor.is_sleeping():
                 return SleepStatus.BY_KEYBOARD

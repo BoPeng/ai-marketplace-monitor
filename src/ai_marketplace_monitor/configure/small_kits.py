@@ -44,8 +44,6 @@ LABELS: Tuple[str, ...] = (
     "Joined Facebook in",
     "Inventory availability status",
     "Location:",
-    "Location",
-    "Within",
     "Change location",
     "Radius",
     "Apply",
