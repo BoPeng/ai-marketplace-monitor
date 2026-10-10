@@ -175,7 +175,8 @@ USER_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "digest_at",
         "local time of a daily digest of the last 24 hours (searches, matches and rejected "
-        "listings of every item): the full digest by email, a short one on push channels",
+        "listings of every item): the full digest by email, a short one on push channels; "
+        "it uses AI tokens, one short AI call per item with new activity to summarize it",
         '`"08:00"`',
         "no digest",
     ),

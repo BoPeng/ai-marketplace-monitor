@@ -42,24 +42,36 @@ from typing import (
 
 from diskcache import Cache  # type: ignore
 
-from .evaluations import EXCLUDED, NOTIFIED, REJECTED, EvaluationRecord, iter_evaluations
+from .evaluations import (
+    EXCLUDED,
+    NOTIFIED,
+    PENDING,
+    REJECTED,
+    SOLD,
+    EvaluationRecord,
+    iter_evaluations,
+)
 from .utils import CacheType, CounterItem, cache, counter, hilight
 
 if TYPE_CHECKING:
+    from .digest_summary import Summarizer
     from .notification import NotificationConfig
 
 DIGEST_PERIOD = 24 * 60 * 60
+# earlier notified listings whose status changed in the window are listed as updates
+UPDATE_LOOKBACK = 7 * DIGEST_PERIOD
 # a catch-up digest goes back at most this far (the minute counters are kept 8 days)
 MAX_CATCH_UP = 7 * DIGEST_PERIOD
 # a window this much longer than a day (e.g. across a daylight saving change) is still a day
 WINDOW_SLACK = 60 * 60
 # entries listed per section of the email digest; the rest are summarized as "and N more"
 MAX_ENTRIES = 20
+# rejected listings per item in the email digest
+MAX_REJECTED = 5
 # matches listed by the phone digest
 PHONE_ENTRIES = 3
-# the phone digest fits the tightest push channel (Pushover takes 1024 characters, and
-# UnitySVC can forward to SMS-like destinations)
-PHONE_MAX_LENGTH = 700
+# the phone digest fits the tightest push channel (Pushover takes 1024 characters)
+PHONE_MAX_LENGTH = 1000
 PHONE_TITLE_LENGTH = 60
 MAX_COMMENT_LENGTH = 80
 
@@ -74,6 +86,8 @@ class DigestListing:
     time: float
     rating: int | None = None
     comment: str = ""
+    # "sold", "pending" or ""
+    state: str = ""
 
 
 @dataclass
@@ -82,8 +96,11 @@ class ItemDigest:
     searches: int = 0
     notified: List[DigestListing] = field(default_factory=list)
     rejected: List[DigestListing] = field(default_factory=list)
+    updates: List[DigestListing] = field(default_factory=list)
     # number of excluded listings by reason
     excluded: Dict[str, int] = field(default_factory=dict)
+    # a short AI-written summary of the item's day (see digest_summary.py), "" if none
+    summary: str = ""
 
     @property
     def n_excluded(self: "ItemDigest") -> int:
@@ -101,6 +118,8 @@ class Digest:
     until: float
     total: ItemDigest
     items: List[ItemDigest] = field(default_factory=list)
+    # where the items left out of a phone digest are, e.g. " in the email digest"
+    more_where: str = ""
 
     @property
     def title(self: "Digest") -> str:
@@ -153,6 +172,36 @@ def _by_rating(listing: DigestListing) -> Tuple[int, float]:
     return (-(listing.rating if listing.rating is not None else -1), -listing.time)
 
 
+def _digest_listing(record: EvaluationRecord) -> DigestListing:
+    price = _price(record.price)
+    if record.previous_price and "|" not in record.price and record.price:
+        price = f"{record.price} (was {record.previous_price})"
+    return DigestListing(
+        title=record.title,
+        price=price,
+        url=record.url.split("?")[0],
+        location=record.location,
+        item=record.item,
+        time=record.time,
+        rating=record.rating,
+        comment=_shorten(record.ai_comment or record.reason or ""),
+        state=record.state if record.state in (SOLD, PENDING) else "",
+    )
+
+
+def _is_update(record: EvaluationRecord, since: float, until: float) -> bool:
+    """An earlier notified listing that sold, went pending or changed price in the window.
+
+    The window's start is excluded: a change dated at a cutoff (by the status check before
+    that digest) belongs to the digest ending there, not to the next one.
+    """
+    if record.stage != NOTIFIED or record.time >= since:
+        return False
+    if record.state in (SOLD, PENDING) and since < record.state_changed <= until:
+        return True
+    return bool(record.previous_price) and since < record.price_changed <= until
+
+
 def build_digest(
     records: Iterable[EvaluationRecord],
     counters: Mapping[str, Mapping[str, int]],
@@ -165,10 +214,14 @@ def build_digest(
     decision of a listing, so a listing still on the market is evaluated, and listed, again in
     the next digest: the digest reports listings evaluated in the period, not new listings.
     Exclusions are grouped by the kind of reason (``"out of area: Austin, TX"`` counts as
-    ``"out of area"``).
+    ``"out of area"``). Earlier notified listings (up to UPDATE_LOOKBACK) whose state or price
+    changed in the window are listed as updates.
     """
     latest: Dict[Tuple[str, str, str], EvaluationRecord] = {}
+    updates: List[EvaluationRecord] = []
     for record in records:
+        if _is_update(record, since, until):
+            updates.append(record)
         if not since <= record.time <= until:
             continue
         key = (record.item, record.marketplace, record.id)
@@ -193,32 +246,29 @@ def build_digest(
             reason = record.reason.split(":")[0].strip() or "other"
             digest.excluded[reason] = digest.excluded.get(reason, 0) + 1
             continue
-        listing = DigestListing(
-            title=record.title,
-            price=_price(record.price),
-            url=record.url.split("?")[0],
-            location=record.location,
-            item=record.item,
-            time=record.time,
-            rating=record.rating,
-            comment=_shorten(record.ai_comment or record.reason or ""),
-        )
+        listing = _digest_listing(record)
         if record.stage == NOTIFIED:
             digest.notified.append(listing)
         elif record.stage == REJECTED:
             digest.rejected.append(listing)
 
+    for record in updates:
+        item_digest(record.item).updates.append(_digest_listing(record))
+
     total = ItemDigest(name="Total")
     for digest in items.values():
         digest.notified.sort(key=_by_rating)
         digest.rejected.sort(key=_by_rating)
+        digest.updates.sort(key=_by_rating)
         total.searches += digest.searches
         total.notified.extend(digest.notified)
         total.rejected.extend(digest.rejected)
+        total.updates.extend(digest.updates)
         for reason, n in digest.excluded.items():
             total.excluded[reason] = total.excluded.get(reason, 0) + n
     total.notified.sort(key=_by_rating)
     total.rejected.sort(key=_by_rating)
+    total.updates.sort(key=_by_rating)
     return Digest(
         since=since,
         until=until,
@@ -244,7 +294,7 @@ def compose_digest(
     until = time.time() if until is None else until
     since = until - DIGEST_PERIOD if since is None else since
     return build_digest(
-        load_evaluations(since, local_cache=local_cache),
+        load_evaluations(since - UPDATE_LOOKBACK, local_cache=local_cache),
         counter.since(since, until, local_cache=local_cache),
         since,
         until,
@@ -282,13 +332,15 @@ class _Format:
         title = _shorten(listing.title, title_length) if title_length else listing.title
         price = f", {listing.price}" if listing.price else ""
         comment = f": {listing.comment}" if with_comment and listing.comment else ""
+        state = f" · {listing.state.capitalize()}" if listing.state else ""
         if self.fmt == "html":
             link = f'<a href="{html.escape(listing.url)}">{html.escape(title)}</a>'
             comment = f"<i>{self.text(comment)}</i>" if comment else ""
-            return f"• {rating}{link}{self.text(price)}{comment}"
+            tag = f" · <b>{listing.state.capitalize()}</b>" if listing.state else ""
+            return f"• {rating}{link}{self.text(price)}{tag}{comment}"
         if self.fmt == "markdown":
-            return f"- {rating}[{self.text(title)}]({listing.url}){self.text(price + comment)}"
-        line = f"- {rating}{title}{price}{comment}"
+            return f"- {rating}[{self.text(title)}]({listing.url}){self.text(price + state + comment)}"
+        line = f"- {rating}{title}{price}{state}{comment}"
         return line if with_comment else f"{line}\n  {listing.url}"
 
 
@@ -328,6 +380,67 @@ def _listings(
     return lines
 
 
+def is_quiet(item: ItemDigest) -> bool:
+    """An item with no evaluations and no updates in the window."""
+    return not item.evaluated and not item.updates
+
+
+def split_quiet(digest: Digest) -> Tuple[List[ItemDigest], List[ItemDigest]]:
+    """The digest's items with something in the window, and the quiet ones, in their order."""
+    active = [x for x in digest.items if not is_quiet(x)]
+    return active, [x for x in digest.items if is_quiet(x)]
+
+
+def _quiet_line(quiet: List[ItemDigest], digest: Digest) -> str:
+    items = ", ".join(f"{x.name} ({_count(x.searches, 'search')})" for x in quiet)
+    return f"Nothing new {digest.window}: {items}."
+
+
+def _best_bet(item: ItemDigest) -> DigestListing | None:
+    return next((x for x in item.notified if x.state != SOLD), None)
+
+
+def _phone_summaries(digest: Digest, f: _Format, totals: str) -> str:
+    lines = [totals]
+    active, quiet = split_quiet(digest)
+    # (lines, number of items they cover)
+    blocks: List[Tuple[List[str], int]] = []
+    for item in active:
+        if not item.summary:
+            # the AI could not summarize it: its counts, matches and updates instead
+            block = [f.bold(item.name) + f.text(": " + _counts(item))]
+            block.extend(
+                _listings(f, "Matches", item.notified, PHONE_ENTRIES, False, PHONE_TITLE_LENGTH)
+            )
+            block.extend(
+                _listings(f, "Updates", item.updates, PHONE_ENTRIES, False, PHONE_TITLE_LENGTH)
+            )
+            blocks.append((block, 1))
+            continue
+        block = [f.bold(item.name) + f.text(": " + item.summary)]
+        best = _best_bet(item)
+        if best is not None:
+            title = _shorten(best.title, PHONE_TITLE_LENGTH)
+            if f.fmt == "html":
+                block.append(f'<a href="{html.escape(best.url)}">{html.escape(title)}</a>')
+            elif f.fmt == "markdown":
+                block.append(f"[{f.text(title)}]({best.url})")
+            else:
+                block.append(best.url)
+        blocks.append((block, 1))
+    if quiet:
+        blocks.append(([f.text(_quiet_line(quiet, digest))], len(quiet)))
+    for n, (block, _) in enumerate(blocks):
+        left = sum(size for _, size in blocks[n + 1 :])
+        more = [f.text(f"…and {_count(left, 'more item')}{digest.more_where}")] if left else []
+        if len(f.newline.join(lines + block + more)) > PHONE_MAX_LENGTH:
+            rest = left + blocks[n][1]
+            lines.append(f.text(f"…and {_count(rest, 'more item')}{digest.more_where}"))
+            break
+        lines.extend(block)
+    return f.newline.join(lines)
+
+
 def _phone_digest(digest: Digest, f: _Format) -> str:
     total = digest.total
     totals = (
@@ -336,6 +449,8 @@ def _phone_digest(digest: Digest, f: _Format) -> str:
         f"{total.evaluated:,} listings evaluated, {len(total.notified):,} notified, "
         f"{len(total.rejected):,} rejected by AI, {total.n_excluded:,} excluded"
     )
+    if any(item.summary for item in digest.items):
+        return _phone_summaries(digest, f, f.text(totals))
     lines = [f.text(totals)]
     if total.notified:
         lines.extend(
@@ -343,6 +458,7 @@ def _phone_digest(digest: Digest, f: _Format) -> str:
         )
     else:
         lines.append(f.text(_no_matches(digest)))
+    lines.extend(_listings(f, "Updates", total.updates, PHONE_ENTRIES, False, PHONE_TITLE_LENGTH))
     return f.newline.join(lines)
 
 
@@ -370,11 +486,17 @@ def _email_text(digest: Digest) -> str:
     ]
     if not digest.total.notified:
         sections[0].append(_no_matches(digest))
-    for item in digest.items:
+    active, quiet = split_quiet(digest)
+    for item in active:
         lines = [item.name, _counts(item)]
+        if item.summary:
+            lines.append(item.summary)
         lines.extend(_listings(f, "Notified", item.notified, MAX_ENTRIES, False))
-        lines.extend(_listings(f, "Rejected by AI", item.rejected, MAX_ENTRIES, True))
+        lines.extend(_listings(f, "Updates", item.updates, MAX_ENTRIES, False))
+        lines.extend(_listings(f, "Rejected by AI", item.rejected, MAX_REJECTED, True))
         sections.append(lines)
+    if quiet:
+        sections.append([_quiet_line(quiet, digest)])
     return "\n\n".join("\n".join(lines) for lines in sections)
 
 
@@ -384,8 +506,14 @@ def render_email_digest(digest: Digest) -> Tuple[str, str]:
 
     env = Environment(loader=FileSystemLoader(Path(__file__).parent), autoescape=True)
     template = env.get_template("digest.html.j2")
+    active, quiet = split_quiet(digest)
     html_message = template.render(
-        digest=digest, no_matches=_no_matches(digest), max_entries=MAX_ENTRIES
+        digest=digest,
+        items=active,
+        quiet_line=_quiet_line(quiet, digest) if quiet else "",
+        no_matches=_no_matches(digest),
+        max_entries=MAX_ENTRIES,
+        max_rejected=MAX_REJECTED,
     )
     return _email_text(digest), html_message
 
@@ -484,9 +612,16 @@ def send_digest(
     ``channels`` limits it to some of them (names as ``digest_channels`` returns them).
     """
     results: Dict[str, bool] = {}
-    for name, channel in digest_channels(user_config, notifications).items():
-        if channels is not None and name not in channels:
-            continue
+    email_class = channel_classes()["email"]
+    selected = [
+        (name, channel)
+        for name, channel in digest_channels(user_config, notifications).items()
+        if channels is None or name in channels
+    ]
+    # email first: the phone digest points to the email digest only once it has been sent
+    selected.sort(key=lambda x: not isinstance(x[1], email_class))
+    digest.more_where = ""
+    for name, channel in selected:
         try:
             results[name] = channel.send_digest(digest, logger=logger)
         except KeyboardInterrupt:
@@ -497,6 +632,8 @@ def send_digest(
                     f"""{hilight("[Digest]", "fail")} Failed to send the digest to {user_config.name} with {name}: {e}"""
                 )
             results[name] = False
+        if results[name] and isinstance(channel, email_class):
+            digest.more_where = " in the email digest"
     return results
 
 
@@ -563,12 +700,15 @@ def send_due_digest(
     logger: Logger | None = None,
     now: datetime | None = None,
     local_cache: Cache | None = None,
+    summarize: "Summarizer | None" = None,
+    item_configs: Mapping[str, Any] | None = None,
 ) -> bool:
     """Send the user's digest to the channels it is due on; whether it was sent to any.
 
     The job runs at ``digest_at`` and whenever the jobs are scheduled (start, config change),
     so a restart does not send a digest twice, a digest missed while aimm was not running is
     sent on the next start, and a channel that failed is tried again with the same window.
+    With ``summarize`` (given when an AI service is configured), each item gets an AI summary.
     """
     if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
         return False
@@ -585,6 +725,10 @@ def send_due_digest(
     failed: List[str] = []
     for (since, until), names in windows.items():
         digest = compose_digest(since, until, local_cache=local_cache)
+        if summarize is not None:
+            from .digest_summary import add_summaries
+
+            add_summaries(digest, summarize, item_configs, logger=logger, local_cache=local_cache)
         results = send_digest(user_config, digest, notifications, logger=logger, channels=names)
         for name, sent in results.items():
             if sent:

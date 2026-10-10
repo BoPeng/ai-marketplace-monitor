@@ -243,7 +243,10 @@ Cost Considerations
 
 **Usage-Based Costs:**
 - Notification services (PushBullet, SMTP, etc.)
-- AI platforms (OpenAI, DeepSeek, etc.)
+- AI platforms (OpenAI, DeepSeek, etc.). aimm uses AI to configure itself, rate listings and
+  summarize the daily digest. None of these needs a top-tier model: a mid-tier mainstream model
+  is enough, if it reads images when ``use_images`` is on (the default). UnitySVC's ``balanced``
+  tier is such a model.
 
 **Infrastructure:**
 - 24/7 operation requires a PC, server, or cloud hosting

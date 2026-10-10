@@ -13,7 +13,16 @@ from currency_converter import CurrencyConverter  # type: ignore
 from rich.pretty import pretty_repr
 
 from .control import control
-from .evaluations import EXCLUDED, EvaluationRecord, record_evaluation
+from .evaluations import (
+    AVAILABLE,
+    EXCLUDED,
+    PENDING,
+    SOLD,
+    EvaluationRecord,
+    record_evaluation,
+    record_seen,
+    update_evaluation,
+)
 from .listing import Listing
 from .marketplace import (
     Fallback,
@@ -45,6 +54,22 @@ if TYPE_CHECKING:
 LOGIN_PATHS = ("/login", "/checkpoint", "/two_step_verification", "/recover")
 LOGIN_CHECK_EVERY = 5  # seconds
 LOGIN_REMINDER_EVERY = 5 * 60  # seconds
+# seconds between listing pages when checking their status, as between search results
+STATUS_CHECK_DELAY = 5
+
+
+def listing_state(title: str, translator: Translator | None = None) -> Tuple[str, str]:
+    """The state a listing page's title shows, and the title without it.
+
+    Facebook puts "Sold" or "Pending" before the title of such a listing:
+    ``"Sold · 2018 Honda accord"``.
+    """
+    t = translator or Translator()
+    for state, label in ((SOLD, t("Sold")), (PENDING, t("Pending"))):
+        matched = re.match(rf"\s*{re.escape(label)}[\s\xa0]*·\s*(.*)$", title, re.DOTALL)
+        if matched:
+            return state, matched.group(1).strip()
+    return AVAILABLE, title
 
 
 class Condition(Enum):
@@ -639,6 +664,8 @@ class FacebookMarketplace(Marketplace):
                         return
                     counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
                     found[listing.post_url.split("?")[0]] = True
+                    # a listing aimm decided on before: still listed, maybe at a new price
+                    record_seen("facebook", listing.id, item_config.name, listing.price)
                     # filter by title and location; skip keyword filtering since we do not have description yet.
                     if self._exclude(listing, item_config, description_available=False):
                         continue
@@ -788,6 +815,62 @@ class FacebookMarketplace(Marketplace):
             return f"banned seller: {item.seller}"
 
         return None
+
+    def check_status(
+        self: "FacebookMarketplace", records: List[EvaluationRecord], as_of: float | None = None
+    ) -> int:
+        """Open each listing's page and record whether it is sold, pending or available.
+
+        ``as_of`` is the cutoff of the digest the check is for: a change found after it is
+        dated at the cutoff, so that it is reported in that digest rather than the next one.
+
+        Nothing is opened before the browser has a page (no search has run yet). A page
+        that cannot be read leaves the record as it was.
+        """
+        if self.page is None:
+            return 0
+        read = 0
+        opened = 0
+        for record in records:
+            if control.is_paused() or (
+                self.keyboard_monitor is not None and self.keyboard_monitor.is_paused()
+            ):
+                break
+            if opened:
+                time.sleep(STATUS_CHECK_DELAY)
+            opened += 1
+            try:
+                self.goto_url(record.url)
+                details = parse_listing(self.page, record.url, self.translator, self.logger)
+                if details is None and self.recover_login():
+                    self.goto_url(record.url)
+                    details = parse_listing(self.page, record.url, self.translator, self.logger)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if self.logger:
+                    self.logger.debug(f"{hilight('[Status]', 'fail')} {record.url}: {e}")
+                continue
+            if details is None:
+                if self.logger:
+                    self.logger.debug(
+                        f"{hilight('[Status]', 'fail')} Could not read {record.url}; keeping its status."
+                    )
+                continue
+            state, _ = listing_state(details.title, self.translator)
+            now = time.time()
+            update_evaluation(
+                record.marketplace,
+                record.id,
+                record.item,
+                state=state,
+                checked=now,
+                now=now if as_of is None else min(now, as_of),
+            )
+            read += 1
+            if self.logger:
+                self.logger.info(f"""{hilight("[Status]", "info")} {record.title}: {state}""")
+        return read
 
     def _exclude(
         self: "FacebookMarketplace",

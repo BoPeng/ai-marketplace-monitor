@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, ClassVar, Generic, Optional, Type, TypeVar
 
 import requests  # type: ignore
 from diskcache import Cache  # type: ignore
@@ -210,6 +210,16 @@ class ListingImage:
 # longest side of a photo sent to the AI; enough to tell what is for sale, and few tokens
 IMAGE_MAX_SIDE = 800
 
+# the daily digest asks the AI for a short summary of each item; a few quick tries are enough,
+# because a missing summary only leaves it out of the digest
+SUMMARY_SYSTEM = (
+    "You summarize a day of marketplace searches for the person who set them up. "
+    "Be brief, concrete and plain: no markdown, no links, no greetings."
+)
+SUMMARY_RETRIES = 2
+# seconds a single summary request may take, so that an AI outage cannot hold up the digest
+SUMMARY_TIMEOUT = 60
+
 
 def fetch_listing_image(
     url: str, max_side: int = IMAGE_MAX_SIDE, timeout: int = 15
@@ -260,6 +270,32 @@ class AIBackend(Generic[TAIConfig]):
 
     def connect(self: "AIBackend") -> None:
         raise NotImplementedError("Connect method must be implemented by subclasses.")
+
+    def summarize(self: "AIBackend", prompt: str) -> str:
+        """A short free-form answer to ``prompt``, for the daily digest."""
+        raise NotImplementedError("summarize must be implemented by subclasses.")
+
+    def _summarize_with(self: "AIBackend", ask: Callable[[], str]) -> str:
+        """Call ``ask`` up to SUMMARY_RETRIES times; its stripped, non-empty answer."""
+        last_error: Exception | None = None
+        for attempt in range(SUMMARY_RETRIES):
+            if attempt:
+                time.sleep(5)
+            try:
+                self.connect()
+                answer = (ask() or "").strip()
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                last_error = e
+                self.client = None
+                continue
+            if not answer:
+                raise RuntimeError(f"{self.config.name} gave an empty summary")
+            return answer
+        raise RuntimeError(
+            f"{self.config.name} failed to summarize after {SUMMARY_RETRIES} tries"
+        ) from last_error
 
     def listing_image(self: "AIBackend", listing: Listing) -> ListingImage | None:
         """The listing's main photo for the AI, or None if not wanted or not available."""
@@ -375,6 +411,22 @@ class OpenAIBackend(AIBackend):
             )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
+
+    def summarize(self: "OpenAIBackend", prompt: str) -> str:
+        def ask() -> str:
+            # no SDK retries: SUMMARY_RETRIES is the whole budget
+            response = self.client.with_options(max_retries=0).chat.completions.create(
+                model=self.config.model or self.default_model,
+                messages=[
+                    {"role": "system", "content": SUMMARY_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=False,
+                timeout=SUMMARY_TIMEOUT,
+            )
+            return response.choices[0].message.content or ""
+
+        return self._summarize_with(ask)
 
     def evaluate(
         self: "OpenAIBackend",
@@ -562,6 +614,20 @@ class AnthropicBackend(AIBackend):
             )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
+
+    def summarize(self: "AnthropicBackend", prompt: str) -> str:
+        def ask() -> str:
+            # no SDK retries: SUMMARY_RETRIES is the whole budget
+            response = self.client.with_options(max_retries=0).messages.create(
+                model=self.config.model or self.default_model,
+                max_tokens=300,
+                system=SUMMARY_SYSTEM,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=SUMMARY_TIMEOUT,
+            )
+            return response.content[0].text if response.content else ""
+
+        return self._summarize_with(ask)
 
     def evaluate(
         self: "AnthropicBackend",

@@ -4,13 +4,15 @@ Each decision (excluded before the AI, rejected by the AI rating, or notified) i
 cache under ``(evaluations, marketplace, listing_id, item_name)``. A later decision about the same
 listing and item overwrites the earlier one, so the history holds one row per listing and item.
 Records expire after ``[monitor] evaluation_history_days`` (30 days by default).
+Each record also keeps the listing's status (last seen in search results, price changes, sold or
+pending), which later searches and the digest's status check update without changing the decision.
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict, dataclass, fields
+from dataclasses import MISSING, asdict, dataclass, fields
 from typing import Any, Dict, Iterable, Iterator, List
 
 from diskcache import Cache  # type: ignore
@@ -24,6 +26,12 @@ EXCLUDED = "excluded"  # dropped before the AI: keywords, area or seller
 REJECTED = "rejected"  # AI rating below the item's threshold
 NOTIFIED = "notified"  # a notification was sent
 STAGES = (EXCLUDED, REJECTED, NOTIFIED)
+
+# what a listing's page said when aimm last checked it (see refresh in monitor.py)
+AVAILABLE = "available"
+PENDING = "pending"
+SOLD = "sold"
+UNKNOWN = "unknown"
 
 DEFAULT_HISTORY_DAYS = 30
 _history_days: float = DEFAULT_HISTORY_DAYS
@@ -51,6 +59,13 @@ class EvaluationRecord:
     rating: int | None  # AI score 1-5, None if not rated
     ai_comment: str  # "" if not rated
     reason: str  # short human-readable reason ("" for notified)
+    # the listing's status, updated without changing the decision above
+    last_seen: float = 0.0  # last time the listing was in search results
+    previous_price: str = ""  # the price before the latest change, "" if none
+    price_changed: float = 0.0  # when the price last changed
+    state: str = UNKNOWN  # AVAILABLE, PENDING, SOLD or UNKNOWN
+    state_changed: float = 0.0  # when the state last changed
+    checked: float = 0.0  # last time the listing page was opened for its status
 
     @classmethod
     def from_listing(
@@ -83,16 +98,114 @@ class EvaluationRecord:
     @classmethod
     def from_dict(cls: type["EvaluationRecord"], value: Dict[str, Any]) -> "EvaluationRecord":
         """Build a record from a cached dict, tolerating missing or extra keys."""
-        names = {f.name for f in fields(cls)}
+        names = {f.name: f for f in fields(cls)}
         values: Dict[str, Any] = dict.fromkeys(names, "")
+        for name, f in names.items():
+            if f.default is not MISSING:
+                values[name] = f.default
         values.update({k: v for k, v in value.items() if k in names})
         values["time"] = float(values["time"] or 0)
+        for name in ("last_seen", "price_changed", "state_changed", "checked"):
+            values[name] = float(values[name] or 0)
         rating = values["rating"]
         values["rating"] = int(rating) if isinstance(rating, (int, float)) else None
         return cls(**values)
 
     def to_dict(self: "EvaluationRecord") -> Dict[str, Any]:
         return asdict(self)
+
+
+def _first_price(price: str) -> str:
+    """``"$80 | $100"`` (a reduced price, as search results show it) as ``"$80"``."""
+    return price.split("|", 1)[0].strip()
+
+
+def apply_price(record: EvaluationRecord, price: str, now: float) -> None:
+    """Record a listing's current price, remembering the previous one when it changed."""
+    if not price:
+        return
+    current = _first_price(price)
+    before = _first_price(record.price)
+    if before and current != before:
+        record.previous_price = before
+        record.price_changed = now
+    elif "|" in price and not record.previous_price:
+        # the card shows the old price too: a drop aimm did not see happen, so no change time
+        record.previous_price = price.split("|", 1)[1].strip()
+    record.price = price
+
+
+def _key(marketplace: str, listing_id: str, item: str) -> tuple:
+    return (CacheType.EVALUATIONS.value, marketplace, listing_id, item)
+
+
+def _save(c: Cache, record: EvaluationRecord) -> None:
+    c.set(
+        _key(record.marketplace, record.id, record.item),
+        record.to_dict(),
+        expire=_history_days * 24 * 60 * 60,
+        tag=CacheType.EVALUATIONS.value,
+    )
+
+
+def _load(c: Cache, marketplace: str, listing_id: str, item: str) -> EvaluationRecord | None:
+    value = c.get(_key(marketplace, listing_id, item))
+    return EvaluationRecord.from_dict(value) if isinstance(value, dict) else None
+
+
+def update_evaluation(
+    marketplace: str,
+    listing_id: str,
+    item: str,
+    *,
+    now: float | None = None,
+    local_cache: Cache | None = None,
+    **changes: Any,
+) -> EvaluationRecord | None:
+    """Change the status fields of a saved record, keeping its decision; None if there is none.
+
+    ``price`` goes through :func:`apply_price`, and a new ``state`` sets ``state_changed``.
+    Best effort, like :func:`record_evaluation`.
+    """
+    c = cache if local_cache is None else local_cache
+    now = time.time() if now is None else now
+    if is_cache_broken(c):
+        return None
+    try:
+        record = _load(c, marketplace, listing_id, item)
+        if record is None:
+            return None
+        if "price" in changes:
+            apply_price(record, changes.pop("price"), now)
+        state = changes.pop("state", None)
+        if state is not None and state != record.state:
+            record.state = state
+            record.state_changed = now
+        for name, value in changes.items():
+            setattr(record, name, value)
+        _save(c, record)
+        return record
+    except KeyboardInterrupt:
+        raise
+    except Exception:
+        logger.debug("Failed to update the evaluation of %s", listing_id, exc_info=True)
+        return None
+
+
+def record_seen(
+    marketplace: str,
+    listing_id: str,
+    item: str,
+    price: str,
+    *,
+    now: float | None = None,
+    local_cache: Cache | None = None,
+) -> None:
+    """A listing aimm decided on before is in the search results again, at this price."""
+    now = time.time() if now is None else now
+    update_evaluation(
+        marketplace, listing_id, item, price=price, last_seen=now, now=now, local_cache=local_cache
+    )
 
 
 def record_evaluation(record: EvaluationRecord, *, local_cache: Cache | None = None) -> None:
@@ -104,12 +217,18 @@ def record_evaluation(record: EvaluationRecord, *, local_cache: Cache | None = N
     if is_cache_broken(c):
         return
     try:
-        c.set(
-            (CacheType.EVALUATIONS.value, record.marketplace, record.id, record.item),
-            record.to_dict(),
-            expire=_history_days * 24 * 60 * 60,
-            tag=CacheType.EVALUATIONS.value,
-        )
+        old = _load(c, record.marketplace, record.id, record.item)
+        if old is not None:
+            for name in ("previous_price", "price_changed", "state", "state_changed", "checked"):
+                setattr(record, name, getattr(old, name))
+            new_price, record.price = record.price, old.price
+            apply_price(record, new_price, record.time)
+        else:
+            # a first sighting: learn the previous price of a reduced listing, no change seen
+            new_price, record.price = record.price, ""
+            apply_price(record, new_price, record.time)
+        record.last_seen = max(record.last_seen, record.time)
+        _save(c, record)
     except KeyboardInterrupt:
         raise
     except Exception:

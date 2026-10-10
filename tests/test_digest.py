@@ -21,6 +21,7 @@ from ai_marketplace_monitor.evaluations import (
     EvaluationRecord,
     iter_evaluations,
     record_evaluation,
+    record_seen,
     set_history_days,
 )
 from ai_marketplace_monitor.monitor import DIGEST_TAG, MarketplaceMonitor
@@ -132,8 +133,8 @@ def test_email_lists_are_capped() -> None:
         for i in range(30)
     ]
     text, html = dg.render_email_digest(dg.build_digest(many, {}, SINCE, NOW))
-    assert text.count("\n- [1] ") == dg.MAX_ENTRIES
-    assert "…and 10 more" in text and "…and 10 more" in html
+    assert text.count("\n- [1] ") == dg.MAX_REJECTED
+    assert "…and 25 more" in text and "…and 25 more" in html
 
 
 def test_email_digest() -> None:
@@ -145,7 +146,9 @@ def test_email_digest() -> None:
     assert "- [3] Hero 9, $200" in text
     assert "Daily digest" in html
     assert ".listing-table" in html  # the listing email styles
-    assert "Listings evaluated" in html and "By item" in html  # summary and per-item tables
+    assert (
+        "Listings evaluated" in html and "By item" not in html
+    )  # summary table, no per-item table
     assert "Rejected by AI (2)" in html
     assert 'href="https://www.facebook.com/marketplace/item/1/"' in html
     # titles are escaped
@@ -347,7 +350,7 @@ def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
     )
     text, html = dg.render_email_digest(digest)
     assert "excluded keyword 2, out of area 1" in text
-    assert "By item" in html and html.count("<h2") == 4  # digest, by item, gopro, ipad
+    assert "By item" not in html and html.count("<h2") == 3  # digest, gopro, ipad
 
     # records older than evaluation_history_days are ignored (and removed)
     set_history_days(5 * HOUR / (24 * HOUR))
@@ -699,12 +702,13 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
     calls: List[str] = []
     monkeypatch.setattr(
         "ai_marketplace_monitor.monitor.send_due_digest",
-        lambda config, notifications, logger=None: calls.append(config.name),
+        lambda config, notifications, **kwargs: calls.append(config.name),
     )
     users = {"me": user(), "other": UserConfig(name="other")}
     monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)
     monitor.logger = None
-    monitor.config = types.SimpleNamespace(user=users, notification={})  # type: ignore[assignment]
+    monitor.ai_agents = []
+    monitor.config = types.SimpleNamespace(user=users, notification={}, item={})  # type: ignore[assignment]
     schedule.clear()
     try:
         monitor.schedule_digests()
@@ -722,3 +726,242 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
         assert jobs[0].at_time.strftime("%H:%M") == "20:30"
     finally:
         schedule.clear()
+
+
+def test_digest_listing_status() -> None:
+    sold = rec(NOW - 100, "gopro", "notified", listing_id="1", rating=5)
+    sold.state, sold.state_changed = "sold", NOW - 50
+    cheaper = rec(NOW - 200, "gopro", "rejected", listing_id="2", rating=2, price="$150")
+    cheaper.previous_price, cheaper.price_changed = "$200", NOW - 300
+    # notified 3 days ago, then sold and reduced in this window: updates
+    earlier = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3", rating=4)
+    earlier.state, earlier.state_changed = "pending", NOW - 60
+    reduced = rec(NOW - 2 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="4", price="$90")
+    reduced.previous_price, reduced.price_changed = "$120", NOW - 60
+    # changed before this window: not an update
+    stale = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="5")
+    stale.state, stale.state_changed = "sold", SINCE - 60
+
+    digest = dg.build_digest([sold, cheaper, earlier, reduced, stale], COUNTERS, SINCE, NOW)
+    gopro, ipad = digest.items
+    assert gopro.notified[0].state == "sold"
+    assert gopro.rejected[0].price == "$150 (was $200)"
+    assert [(u.title, u.state, u.price) for u in ipad.updates] == [
+        ("GoPro Hero 11", "pending", "$200"),
+        ("GoPro Hero 11", "", "$90 (was $120)"),
+    ]
+    assert len(digest.total.updates) == 2
+    assert ipad.evaluated == 0  # updates are not evaluations
+
+    text, html_message = dg.render_email_digest(digest)
+    assert "Updates (2)" in text and "· Pending" in text and "· Sold" in text
+    assert "Updates (2)" in html_message and "Sold" in html_message
+    phone = dg.render_phone_digest(digest)
+    assert "· Sold" in phone and "Updates (2)" in phone
+
+
+def test_compose_digest_reads_earlier_records_for_updates(temp_cache: Cache) -> None:
+    record = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3")
+    record.state, record.state_changed = "sold", NOW - 60
+    record_evaluation(record, local_cache=temp_cache)
+    digest = dg.compose_digest(SINCE, NOW, local_cache=temp_cache)
+    assert [u.state for u in digest.total.updates] == ["sold"]
+
+
+def test_unchanged_reduced_listing_is_not_an_update(temp_cache: Cache) -> None:
+    record = rec(
+        NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3", price="$80 | $100"
+    )
+    record_evaluation(record, local_cache=temp_cache)
+    record_seen("facebook", "3", "ipad", "$80 | $100", now=NOW - 60, local_cache=temp_cache)
+    digest = dg.compose_digest(SINCE, NOW, local_cache=temp_cache)
+    assert digest.total.updates == []
+
+
+def test_send_due_digest_with_summaries(sent: Sent, temp_cache: Cache) -> None:
+    asked: List[str] = []
+
+    def summarize(item: str, prompt: str) -> str:
+        asked.append(item)
+        return "Looks good."
+
+    config = user()
+    add_digest(config, temp_cache, DAY1.replace(hour=7))
+    assert dg.send_due_digest(config, now=DAY1, local_cache=temp_cache, summarize=summarize)
+    # records() has "ipad" listings in the window ending at DAY1; one AI call for it
+    assert asked == ["ipad"]
+
+
+def summarized_digest() -> dg.Digest:
+    digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
+    gopro, ipad = digest.items
+    gopro.summary = "The Hero 11 looks promising; best bet is the Hero 11."
+    ipad.summary = "Nothing stands out."
+    return digest
+
+
+def test_phone_digest_with_summaries() -> None:
+    digest = summarized_digest()
+    message = dg.render_phone_digest(digest)
+    lines = message.split("\n")
+    assert lines[0].startswith("Last 24 h:")
+    assert lines[1] == "gopro: The Hero 11 looks promising; best bet is the Hero 11."
+    assert lines[2] == "https://www.facebook.com/marketplace/item/1/"
+    assert "ipad: Nothing stands out." in lines
+    assert "Top matches" not in message
+
+
+def test_phone_digest_drops_items_that_do_not_fit() -> None:
+    digest = summarized_digest()
+    for item in digest.items:
+        item.summary = "x" * 600
+    digest.more_where = " in the email digest"
+    message = dg.render_phone_digest(digest)
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+    assert message.endswith("…and 1 more item in the email digest")
+
+
+def test_phone_digest_without_summaries_is_unchanged() -> None:
+    digest = dg.build_digest(records(), COUNTERS, SINCE, NOW)
+    assert "Top matches" in dg.render_phone_digest(digest)
+
+
+def test_email_digest_per_item_with_summary() -> None:
+    digest = summarized_digest()
+    text, html_message = dg.render_email_digest(digest)
+    gopro_at = text.index("gopro")
+    assert text.index("The Hero 11 looks promising") > gopro_at
+    assert text.index("The Hero 11 looks promising") < text.index("Notified (1)")
+    assert "By item" not in html_message
+    assert "The Hero 11 looks promising" in html_message
+
+
+def test_email_rejected_list_is_short() -> None:
+    many = [rec(NOW - i, "gopro", "rejected", listing_id=str(100 + i), rating=2) for i in range(8)]
+    digest = dg.build_digest(many, COUNTERS, SINCE, NOW)
+    text, html_message = dg.render_email_digest(digest)
+    assert "Rejected by AI (8)" in text and "…and 3 more" in text
+    assert "…and 3 more" in html_message
+
+
+def test_phone_summary_is_escaped() -> None:
+    digest = summarized_digest()
+    digest.items[0].summary = "<b>bad</b> *x* [y]"
+    assert "<b>bad</b>" not in dg.render_phone_digest(digest, "html")
+    assert "&lt;b&gt;bad" in dg.render_phone_digest(digest, "html")
+    assert "\\*x\\* \\[y\\]" in dg.render_phone_digest(digest, "markdown")
+    _, html_message = dg.render_email_digest(digest)
+    assert "<b>bad</b>" not in html_message
+
+
+def test_update_at_the_cutoff_is_in_this_digest_only() -> None:
+    # found sold by the check right before this digest, stamped at its cutoff
+    earlier = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="3")
+    earlier.state, earlier.state_changed = "sold", NOW
+    today = dg.build_digest([earlier], COUNTERS, SINCE, NOW)
+    tomorrow = dg.build_digest([earlier], COUNTERS, NOW, NOW + dg.DIGEST_PERIOD)
+    assert len(today.total.updates) == 1
+    assert tomorrow.total.updates == []
+
+
+def quiet_digest() -> dg.Digest:
+    """Gopro and ipad have activity; bike and camera are quiet (listed first and between)."""
+    digest = summarized_digest()
+    bike = dg.ItemDigest(name="bike", searches=3, summary="Nothing new (3 searches).")
+    camera = dg.ItemDigest(name="camera", searches=1, summary="Nothing new (1 search).")
+    digest.items = [bike, digest.items[0], camera, digest.items[1]]
+    return digest
+
+
+QUIET_LINE = "Nothing new in the last 24 hours: bike (3 searches), camera (1 search)."
+
+
+def test_split_quiet() -> None:
+    active, quiet = dg.split_quiet(quiet_digest())
+    assert [x.name for x in active] == ["gopro", "ipad"]
+    assert [x.name for x in quiet] == ["bike", "camera"]
+
+
+def test_email_text_collapses_quiet_items() -> None:
+    text, _ = dg.render_email_digest(quiet_digest())
+    assert text.index("gopro") < text.index("ipad") < text.index(QUIET_LINE)
+    assert text.endswith(QUIET_LINE)
+    assert "bike\n" not in text and "camera\n" not in text
+    assert text.count("Nothing new") == 1
+
+
+def test_email_html_collapses_quiet_items() -> None:
+    _, html_message = dg.render_email_digest(quiet_digest())
+    assert html_message.count(QUIET_LINE) == 1
+    assert '<h2 style="margin-top: 30px;">bike' not in html_message
+    assert html_message.index(">gopro<") < html_message.index(QUIET_LINE)
+    assert "Searches" in html_message  # the totals table stays
+
+
+def test_phone_digest_ends_with_the_quiet_line() -> None:
+    lines = dg.render_phone_digest(quiet_digest()).split("\n")
+    assert lines[-1] == QUIET_LINE
+    assert [x for x in lines if x.startswith("bike")] == []
+    assert lines.index("ipad: Nothing stands out.") < len(lines) - 1
+
+
+def test_phone_digest_counts_quiet_items_as_more_items() -> None:
+    digest = quiet_digest()
+    digest.items[1].summary = "x" * 600
+    digest.items[3].summary = "y" * 300
+    digest.more_where = " in the email digest"
+    message = dg.render_phone_digest(digest)
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+    assert QUIET_LINE not in message
+    # ipad did not fit; the two quiet items it leaves out are counted with it
+    assert message.endswith("…and 3 more items in the email digest")
+
+
+def test_phone_best_bet_title_is_shortened() -> None:
+    digest = summarized_digest()
+    digest.items[0].notified[0].title = "T" * 200
+    message = dg.render_phone_digest(digest, "html")
+    assert "T" * 200 not in message and "T" * 59 + "…" in message
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+
+
+def test_phone_quiet_line_is_escaped() -> None:
+    digest = quiet_digest()
+    digest.items[0].name = "<b>bike</b>"
+    message = dg.render_phone_digest(digest, "html")
+    assert "<b>bike</b>" not in message and "&lt;b&gt;bike" in message
+    _, html_message = dg.render_email_digest(digest)
+    assert "<b>bike</b>" not in html_message
+
+
+def test_phone_digest_shows_listings_of_an_item_without_a_summary() -> None:
+    # the AI failed for "ipad", while the quiet "gopro" got its fixed summary
+    notified = rec(NOW - 100, "ipad", "notified", listing_id="1", rating=5, title="iPad Air")
+    earlier = rec(NOW - 3 * dg.DIGEST_PERIOD, "ipad", "notified", listing_id="2", title="Bike")
+    earlier.state, earlier.state_changed = "sold", NOW - 60
+    digest = dg.build_digest([notified, earlier], COUNTERS, SINCE, NOW)
+    gopro, ipad = digest.items
+    gopro.summary = "Nothing new in the last 24 hours (10 searches)."
+    assert ipad.summary == ""
+
+    message = dg.render_phone_digest(digest)
+    assert "iPad Air" in message  # its match
+    assert "Bike" in message and "Sold" in message  # and its update are still there
+    assert len(message) <= dg.PHONE_MAX_LENGTH
+
+
+def test_phone_digest_points_to_email_only_when_it_was_sent(
+    sent: Sent, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    digest = dg.compose_digest(SINCE, NOW)
+    config = user(email=["me@example.com"], smtp_password="p")
+    # this window is due on the push channels only (the email channel already has it)
+    dg.send_digest(config, digest, channels=["pushover"])
+    assert digest.more_where == ""
+    # sent by email too: the phone digest can point to it
+    dg.send_digest(config, digest)
+    assert digest.more_where == " in the email digest"
+    # the email failed: it cannot
+    monkeypatch.setattr(EmailNotificationConfig, "send_email_message", lambda *a, **k: False)
+    dg.send_digest(config, digest)
+    assert digest.more_where == ""

@@ -1,8 +1,9 @@
 import sys
 import time
+from datetime import datetime
 from logging import Logger
 from pathlib import Path
-from typing import ClassVar, List
+from typing import ClassVar, Dict, Iterable, List
 
 import humanize
 import inflect
@@ -21,8 +22,16 @@ from .config import (
     supported_marketplaces,
 )
 from .control import control
-from .digest import send_due_digest
-from .evaluations import REJECTED, EvaluationRecord, record_evaluation, set_history_days
+from .digest import latest_cutoff, pending_digest_channels, send_due_digest
+from .evaluations import (
+    NOTIFIED,
+    REJECTED,
+    SOLD,
+    EvaluationRecord,
+    iter_evaluations,
+    record_evaluation,
+    set_history_days,
+)
 from .listing import Listing
 from .marketplace import (
     DEFAULT_RATING,
@@ -48,6 +57,31 @@ from .utils import (
 
 # tag of the daily digest jobs, followed by the user name
 DIGEST_TAG = "digest:"
+
+# before a digest, the pages of listings notified this recently are opened again to see whether
+# they sold, at most this many per item, and not again within STATUS_RECHECK_AFTER
+STATUS_LOOKBACK = 7 * 24 * 60 * 60
+STATUS_RECHECK_AFTER = 20 * 60 * 60
+STATUS_MAX_PER_ITEM = 10
+
+
+def status_candidates(
+    records: Iterable[EvaluationRecord], now: float
+) -> Dict[str, List[EvaluationRecord]]:
+    """The notified listings whose status the digest should check, by marketplace."""
+    by_item: Dict[str, List[EvaluationRecord]] = {}
+    for record in records:
+        if record.stage != NOTIFIED or record.time < now - STATUS_LOOKBACK:
+            continue
+        if record.state == SOLD or record.checked > now - STATUS_RECHECK_AFTER:
+            continue
+        by_item.setdefault(record.item, []).append(record)
+    picked: Dict[str, List[EvaluationRecord]] = {}
+    for item_records in by_item.values():
+        item_records.sort(key=lambda r: -r.time)
+        for record in item_records[:STATUS_MAX_PER_ITEM]:
+            picked.setdefault(record.marketplace, []).append(record)
+    return picked
 
 
 class MarketplaceMonitor:
@@ -449,13 +483,82 @@ class MarketplaceMonitor:
                 self.send_digest, user_config.name
             ).tag(f"{DIGEST_TAG}{user_config.name}")
 
+    def refresh_listing_status(self: "MarketplaceMonitor", as_of: float | None = None) -> None:
+        """Check whether recently notified listings sold, for the digest with cutoff ``as_of``.
+
+        Best effort: nothing is checked while the monitor is paused, and a failure only
+        means the digest uses the status known so far.
+        """
+        if control.is_paused():
+            return
+        now = time.time()
+        try:
+            candidates = status_candidates(iter_evaluations(since=now - STATUS_LOOKBACK), now)
+            for name, records in candidates.items():
+                marketplace = self.active_marketplaces.get(name)
+                if marketplace is None:
+                    continue
+                read = marketplace.check_status(records, as_of=as_of)
+                if read and self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Status]", "succ")} Checked {read} notified {name} listing(s) for the digest."""
+                    )
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Status]", "fail")} Could not check the status of notified listings: {e}"""
+                )
+
     def send_digest(self: "MarketplaceMonitor", user_name: str) -> None:
         """Send the daily digest to a user if it is due."""
         assert self.config is not None
-        if user_name in self.config.user:
-            send_due_digest(
-                self.config.user[user_name], self.config.notification, logger=self.logger
-            )
+        if user_name not in self.config.user:
+            return
+        user_config = self.config.user[user_name]
+        if user_config.digest_at and pending_digest_channels(
+            user_config, self.config.notification
+        ):
+            # the check runs just after the cutoff; its findings belong to this digest
+            cutoff = latest_cutoff(user_config.digest_at, datetime.now()).timestamp()
+            self.refresh_listing_status(as_of=cutoff)
+        send_due_digest(
+            user_config,
+            self.config.notification,
+            logger=self.logger,
+            summarize=self.summarize_item if self.ai_agents else None,
+            item_configs=self.config.item,
+        )
+
+    def summarize_item(self: "MarketplaceMonitor", item_name: str, prompt: str) -> str | None:
+        """An AI summary for the digest, from the item's AI services in order; None if none can."""
+        assert self.config is not None
+        item_config = self.config.item.get(item_name)
+        names = None
+        if item_config is not None:
+            marketplace_config = self.config.marketplace.get(item_config.marketplace or "")
+            if marketplace_config is None:
+                names = item_config.ai
+            else:
+                names = resolve_option("ai", item_config, marketplace_config)
+        # the item's own order of AI services, else the order of the [ai.*] sections
+        agents = (
+            self.ai_agents
+            if names is None
+            else [a for name in names for a in self.ai_agents if a.config.name == name]
+        )
+        for agent in agents:
+            try:
+                return agent.summarize(prompt)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if self.logger:
+                    self.logger.debug(
+                        f"""{hilight("[AI]", "fail")} {agent.config.name} could not summarize {item_name} for the digest: {e}"""
+                    )
+        return None
 
     def stop_jobs(self: "MarketplaceMonitor") -> None:
         """Clear all scheduled jobs and make the next ``schedule_jobs`` reload the config."""
