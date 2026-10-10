@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.14] - 2026-10-10
+
+### Added
+- The Configure chat finds a location's `search_city` code from a city, neighborhood or ZIP code (for example "Houston, TX", "Los Angeles, Texas" or "92101"): aimm asks Facebook Marketplace's location search, as its location dialog does, without a browser or a Facebook account, and confirms the place with you from Facebook's matches ("Do you mean Los Angeles, California, or Los Ángeles, Chile?"). Pasting a Marketplace URL still works.
+- A **Check for updates** button in the web UI's Settings › About asks PyPI for a newer release right away; the automatic check runs when aimm starts.
+
+### Fixed
+- `radius` now takes effect. Facebook ignores a radius in the search URL and searches with the radius saved on the account, so aimm sets it in Marketplace's location dialog before searching a city, if it differs, rounded to the nearest choice Facebook offers (1, 2, 5, 10, 20, 40, 60, 80, 100, 250 or 500, in the unit Facebook shows: miles in the US). The radius is saved on your Facebook account. See "Search Radius" in the [configuration guide](docs/configuration-guide.rst).
+- With several search cities (or a `search_region`), each city's search no longer also carries the radius and prices of the cities before it.
+
 ## [0.10.13] - 2026-10-10
 
 ### Added
@@ -405,7 +415,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.13...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.14...HEAD
+[0.10.14]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.13...v0.10.14
 [0.10.13]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.12...v0.10.13
 [0.10.12]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.11...v0.10.12
 [0.10.11]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.10...v0.10.11
