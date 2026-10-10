@@ -61,14 +61,50 @@ docker compose logs -f aimm
 
 On Unraid, CasaOS, ZimaOS, Umbrel, Runtipi, TrueNAS SCALE, Cosmos or Portainer, install aimm from the templates in the repository's [`deploy/`](https://github.com/BoPeng/ai-marketplace-monitor/tree/main/deploy) folder, which also say how to install each one before it is listed in that platform's app store.
 
-On **Synology** (Container Manager, DSM 7.2 or later) and **QNAP** (Container Station), create a project from the Docker Compose files above:
+Synology and QNAP have no app store for Docker apps; their container managers run Docker Compose files, and their image search finds aimm on Docker Hub as `bopeng/ai-marketplace-monitor` (amd64 and arm64, the same tags as `ghcr.io/bopeng/ai-marketplace-monitor`).
 
-1. In File Station, create a folder for aimm, for example `docker/aimm` on Synology or `Container/aimm` on QNAP, with a `data` folder in it. Put `docker-compose.yml` and your filled-in `.env` (from `.env.example`) in it.
-2. Find the IDs of the user that should own the files (on Synology, `id <user>` over SSH; the first user is usually `1026`, group `100`) and set them as `PUID` and `PGID` in `.env`.
-3. Synology: **Container Manager › Project › Create**, choose the folder, and select **Use existing docker-compose.yml**. QNAP: **Container Station › Applications › Create**, and paste `docker-compose.yml`; enter the variables of `.env` in its environment settings if it does not read the file.
-4. Open `http://<NAS address>:8467` and continue with First run below.
+### Synology (Container Manager, DSM 7.2 or later)
 
-The image runs on amd64 and arm64 NAS models. It is published both as `ghcr.io/bopeng/ai-marketplace-monitor` (which the project files above use) and on Docker Hub as `bopeng/ai-marketplace-monitor`, so the image search of Container Manager (**Registry**) or Container Station (**Images › Pull**) finds it by name, with the same tags.
+Container Manager runs a **Project** inside a folder, so the files from Set up with Docker Compose above work as they are, `.env` included:
+
+1. In File Station, create a folder for aimm, for example `docker/aimm`. Upload [`docker-compose.yml`](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docker-compose/docker-compose.yml) and [`.env.example`](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docker-compose/.env.example) to it, then rename `.env.example` to `.env` in File Station (a file whose name starts with a dot is hard to create on a computer). Fill in `.env` before uploading it, or with the Text Editor package.
+2. Set `PUID` and `PGID` in `.env` to the user that should own aimm's files. Over SSH, `id <user>` shows them; the first user created on DSM is usually `1026`, group `users` (`100`).
+3. **Container Manager › Project › Create**: give it a name, choose the folder as its path, select **Use existing docker-compose.yml**, and finish the wizard. Container Manager pulls the image and starts aimm; the `data` folder appears next to the files.
+4. Open `http://<NAS address>:8467` and continue with First run below. The project's **Container** tab shows the log.
+
+To update, open the project, **Action › Stop**, then **Action › Build** (it pulls the newer image), and start it again.
+
+### QNAP (Container Station 3)
+
+Container Station's **Applications** keep the YAML you paste in their own folder, so a `.env` file next to it is not read. Use a self-contained file instead:
+
+1. In File Station, create a folder for aimm's data, for example `Container/aimm/data` (the share `Container` is `/share/Container`).
+2. Find the IDs of the user that should own the files: over SSH, `id <user>`. New QNAP users usually start at `1000`, group `everyone` (`100`).
+3. **Container Station › Applications › Create**, name it `aimm`, and paste the following, with your values:
+
+   ```yaml
+   services:
+     aimm:
+       image: bopeng/ai-marketplace-monitor:latest
+       container_name: aimm
+       restart: unless-stopped
+       environment:
+         FACEBOOK_USERNAME: "you@example.com"
+         FACEBOOK_PASSWORD: "your-facebook-password"
+         UNITYSVC_API_KEY: "svcpass_..."
+         TZ: "America/Chicago"
+         PUID: "1000"
+         PGID: "100"
+       ports:
+         - "8467:8467"
+       volumes:
+         - /share/Container/aimm/data:/data
+   ```
+
+   Write any `$` in a value as `$$`; Compose reads a single `$` as the start of a variable.
+4. **Create**, then open `http://<NAS address>:8467` and continue with First run below. The application's container shows the log.
+
+To update, open the application and choose **Recreate** (or remove it and create it again with the same YAML); the data folder keeps your config, cache and logs.
 
 ## First run
 
