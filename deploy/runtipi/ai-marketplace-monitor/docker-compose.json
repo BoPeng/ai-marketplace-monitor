@@ -4,7 +4,7 @@
   "services": [
     {
       "name": "ai-marketplace-monitor",
-      "image": "ghcr.io/bopeng/ai-marketplace-monitor:0.10.11",
+      "image": "ghcr.io/bopeng/ai-marketplace-monitor:0.10.12",
       "isMain": true,
       "internalPort": 8467,
       "environment": [
