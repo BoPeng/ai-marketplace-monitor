@@ -114,19 +114,29 @@ def authentik(keys: Keys) -> ProxyAuth:
 # --- settings ---------------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "value, mode",
-    [(None, "password"), ("", "password"), ("proxy", "proxy"), (" Authelia ", "authelia")],
+    [
+        (None, "facebook"),
+        ("", "facebook"),
+        ("password", "facebook"),  # the old name
+        ("local", "local"),
+        ("proxy", "proxy"),
+        (" Authelia ", "authelia"),
+    ],
 )
 def test_auth_mode_from_environment(value: str | None, mode: str) -> None:
     assert webui_auth_mode({} if value is None else {"AIMM_WEBUI_AUTH": value}) == mode
 
 
 def test_unknown_auth_mode_is_an_error() -> None:
-    with pytest.raises(ValueError, match="use password, proxy, authelia, authentik, cloudflare"):
+    with pytest.raises(
+        ValueError, match="use facebook, local, proxy, authelia, authentik, cloudflare"
+    ):
         webui_auth_mode({"AIMM_WEBUI_AUTH": "none"})
 
 
 def test_settings_of_each_mode() -> None:
     assert ProxyAuth.from_environment({}) is None
+    assert ProxyAuth.from_environment({"AIMM_WEBUI_AUTH": "local"}) is None
     bare = ProxyAuth.from_environment({"AIMM_WEBUI_AUTH": "proxy"})
     assert bare is not None and not bare.verified
     authelia = ProxyAuth.from_environment({"AIMM_WEBUI_AUTH": "authelia"})

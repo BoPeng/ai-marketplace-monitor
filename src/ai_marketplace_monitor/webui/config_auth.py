@@ -29,6 +29,9 @@ else:  # pragma: no cover - legacy runtimes
     import tomli as tomllib
 
 
+WEBUI_USERNAME_DEFAULT = "admin"
+
+
 @dataclass
 class ExtractedCredentials:
     username: str | None
@@ -100,3 +103,16 @@ def extract_credentials(config_files: List[Path]) -> ExtractedCredentials:
         return ExtractedCredentials(username=fb_user, password=fb_pass)
 
     return ExtractedCredentials(None, None)
+
+
+def local_credentials() -> ExtractedCredentials:
+    """The web UI's own credentials for ``AIMM_WEBUI_AUTH=local``.
+
+    ``AIMM_WEBUI_PASSWORD`` is required (an app platform may generate it); ``AIMM_WEBUI_USERNAME``
+    defaults to ``admin``. Unrelated to the marketplace login, which stays in the config.
+    """
+    password = os.environ.get("AIMM_WEBUI_PASSWORD")
+    if not password:
+        raise ValueError("AIMM_WEBUI_AUTH=local needs AIMM_WEBUI_PASSWORD.")
+    username = os.environ.get("AIMM_WEBUI_USERNAME") or WEBUI_USERNAME_DEFAULT
+    return ExtractedCredentials(username=username, password=password)

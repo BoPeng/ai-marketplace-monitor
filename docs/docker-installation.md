@@ -139,13 +139,22 @@ The override removes the published port and adds the Traefik labels. Change its 
 
 Anyone who can reach the URL sees the aimm sign-in page, which is protected only by your Facebook credentials. You can also put the site behind your proxy's own authentication (for example a forward-auth middleware).
 
+### Who signs you in to the web UI
+
+`AIMM_WEBUI_AUTH`, in `.env` (or with `-e` for `docker run`), chooses who signs you in to the web UI:
+
+- `facebook` (the default; `password` is its old name): aimm asks for the Facebook username and password, the same ones it logs in to Facebook with.
+- `local`: aimm asks for a username and password of the web UI's own, `AIMM_WEBUI_USERNAME` (`admin` by default) and `AIMM_WEBUI_PASSWORD`, whatever the Facebook credentials are. aimm refuses to start without `AIMM_WEBUI_PASSWORD`. The web UI starts even before you have set the Facebook credentials, which you can then enter in its config editor. App platforms use this to show a password they generate.
+- A reverse proxy that signs users in, as below.
+
 ### Let the reverse proxy sign you in
 
-If your reverse proxy already signs users in, aimm does not need to ask for the Facebook username and password as well. Set `AIMM_WEBUI_AUTH` in `.env` (or with `-e` for `docker run`) to the proxy that signs you in. aimm then checks, on every request, what that proxy adds once you are signed in, so a request that goes around the proxy is refused:
+If your reverse proxy already signs users in, aimm does not need to ask for a password as well. Set `AIMM_WEBUI_AUTH` to the proxy that signs you in. aimm then checks, on every request, what that proxy adds once you are signed in, so a request that goes around the proxy is refused:
 
 | `AIMM_WEBUI_AUTH` | Each request must carry | Settings |
 | --- | --- | --- |
-| `password` (default) | aimm's own sign-in, with the Facebook username and password | |
+| `facebook` (default) | aimm's own sign-in, with the Facebook username and password | |
+| `local` | aimm's own sign-in, with the web UI's own username and password | `AIMM_WEBUI_PASSWORD` (required) and `AIMM_WEBUI_USERNAME` (`admin` by default) |
 | `authentik` | the signed token in `X-Authentik-Jwt` from Authentik's proxy outpost, issued for aimm's application | `AIMM_WEBUI_JWKS_URL`: the provider's JWKS URL, e.g. `https://auth.example.com/application/o/aimm/jwks/`. `AIMM_WEBUI_JWT_AUDIENCE`: the provider's client ID. The issuer is taken from the JWKS URL (`https://auth.example.com/application/o/aimm/`); set `AIMM_WEBUI_JWT_ISSUER` if your URL has another form |
 | `cloudflare` | the signed token in `Cf-Access-Jwt-Assertion` from Cloudflare Access | `AIMM_WEBUI_CF_TEAM`: your team name (`<team>.cloudflareaccess.com`). `AIMM_WEBUI_JWT_AUDIENCE`: the application's AUD tag |
 | `authelia` | the `Remote-User` header from Authelia's forward auth | Optional `AIMM_WEBUI_USER_HEADER` for another header, e.g. the one a basic-auth middleware sets |
@@ -158,7 +167,7 @@ aimm still logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`,
 Container managers:
 
 - **Umbrel** puts its own login in front of apps, but does not tell aimm who signed in. The template in `deploy/umbrel/` keeps Umbrel authentication enabled and uses `AIMM_WEBUI_AUTH=proxy`; configure the Facebook credentials in aimm's web config editor. Direct access from another container on Umbrel's network bypasses that login, so this setup relies on Umbrel's network isolation. Do not disable Umbrel authentication when using `proxy` mode.
-- **CasaOS** signs you in to its dashboard, not to the apps, which are published on the host's ports. Keep `password`.
+- **CasaOS** signs you in to its dashboard, not to the apps, which are published on the host's ports. Keep `facebook`, or use `local` for a web UI password of its own.
 
 ## Update
 

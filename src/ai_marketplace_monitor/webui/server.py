@@ -79,11 +79,18 @@ from .auth import (
     verify_password,
 )
 from .config_api import ConfigFileService
-from .config_auth import extract_credentials
+from .config_auth import extract_credentials, local_credentials
 from .evaluations_export import MAX_LIMIT, iter_evaluations_csv
 from .found_export import iter_found_csv, iter_found_rows
 from .log_handler import LogBroadcastHandler
-from .proxy_auth import AUTH_PROXY, ProxyAuth, ProxyAuthError, webui_auth_mode
+from .proxy_auth import (
+    AUTH_FACEBOOK,
+    AUTH_LOCAL,
+    AUTH_PROXY,
+    ProxyAuth,
+    ProxyAuthError,
+    webui_auth_mode,
+)
 
 # Ensure the vendored toml-edit-js WASM bundle is served with the right
 # Content-Type. Python's mimetypes module learned .wasm in 3.10 but
@@ -162,7 +169,8 @@ class AuthState:
     On loopback (default) the web UI is always open — no password
     required.  When ``--webui-host`` exposes the server on a
     non-loopback interface, ``auth`` must be set (credentials from
-    a marketplace config section or environment variables).
+    AIMM_WEBUI_* in local mode, else a marketplace config section or
+    environment variables).
     """
 
     def __init__(self) -> None:
@@ -173,6 +181,7 @@ class AuthState:
         # Sessions and CSRF tokens are still required: proxy credentials (cookies, cached
         # basic auth) are sent with cross-site requests too.
         self.proxy: ProxyAuth | None = None
+        self.mode = AUTH_FACEBOOK
 
     @property
     def proxy_auth(self) -> bool:
@@ -183,20 +192,27 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
     """Build initial AuthState from config files and environment.
 
     On loopback the UI is always open.  When exposed (--webui-host),
-    credentials are required — checked from ``[marketplace.*]`` config
-    sections, then ``FACEBOOK_USERNAME`` / ``FACEBOOK_PASSWORD`` env
-    vars.
+    credentials are required: in ``local`` mode ``AIMM_WEBUI_USERNAME`` /
+    ``AIMM_WEBUI_PASSWORD``; in ``facebook`` mode the ``[marketplace.*]``
+    config sections, then ``FACEBOOK_USERNAME`` / ``FACEBOOK_PASSWORD``
+    env vars.
     """
     exposed = config.host not in ("127.0.0.1", "localhost", "::1")
     state = AuthState()
     state.exposed = exposed
     # an unsupported value is an error even on loopback, where no proxy check applies
-    webui_auth_mode()
+    state.mode = webui_auth_mode()
     if exposed:
         state.proxy = ProxyAuth.from_environment()
 
     if exposed and not state.proxy_auth:
-        extracted = extract_credentials(config.config_files)
+        if state.mode == AUTH_LOCAL:
+            try:
+                extracted = local_credentials()
+            except ValueError as e:
+                raise RuntimeError(f"--webui-host {config.host}: {e}") from None
+        else:
+            extracted = extract_credentials(config.config_files)
         if extracted.username and extracted.password:
             state.auth = AuthConfig(
                 username=extracted.username,
@@ -398,6 +414,7 @@ def create_app(
             # the frontend signs in without asking for a password
             "open": no_password(),
             "username_hint": state.auth.username if state.auth else None,
+            "mode": state.mode,
             "proxy_error": proxy_error,
         }
 
@@ -1083,8 +1100,9 @@ def start_webui(
             "Set username/password in a [marketplace.*] config section "
             "or set FACEBOOK_USERNAME and FACEBOOK_PASSWORD environment "
             "variables. Omit --webui-host to run on 127.0.0.1 without "
-            "a password, or set AIMM_WEBUI_AUTH (proxy, authelia, authentik "
-            "or cloudflare) if a reverse proxy signs users in."
+            "a password, set AIMM_WEBUI_AUTH=local and AIMM_WEBUI_PASSWORD for "
+            "a web UI password of its own, or set AIMM_WEBUI_AUTH (proxy, authelia, "
+            "authentik or cloudflare) if a reverse proxy signs users in."
         )
 
     config_service = ConfigFileService(config.config_files, logger=logger)
