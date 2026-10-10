@@ -8,7 +8,7 @@ TZ: Etc/UTC
 aimm:
   facebook_username: test@example.com
   facebook_password: test-password
-  unitysvc_api_key: ""
+  unitysvc_api_key: svcpass_XXXXX
   webui_auth: facebook
   additional_envs: []
 
