@@ -1,0 +1,26 @@
+# AI Marketplace Monitor as a TrueNAS custom app, until it is in the TrueNAS app catalog.
+#
+# 1. Datasets: add a dataset named "aimm" with the "Apps" preset (owned by the apps user, 568).
+# 2. Apps > Discover Apps > (menu next to Custom App) > Install via YAML: name it "aimm" and
+#    paste this file. Replace <pool> with your pool's name and fill in your values.
+#    Write any $ in a value as $$.
+# 3. Save, then open http://<TrueNAS address>:8467.
+#
+# See "TrueNAS" in https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html
+services:
+  aimm:
+    image: ghcr.io/bopeng/ai-marketplace-monitor:latest
+    restart: unless-stopped
+    # the apps user and group, which own the dataset
+    user: "568:568"
+    environment:
+      FACEBOOK_USERNAME: "you@example.com"
+      FACEBOOK_PASSWORD: "your-facebook-password"
+      # your UnitySVC API key; with this placeholder, aimm searches but cannot rate listings
+      # or send notifications
+      UNITYSVC_API_KEY: "svcpass_XXXXX"
+      TZ: "America/Chicago"
+    ports:
+      - "8467:8467"
+    volumes:
+      - /mnt/<pool>/aimm:/data

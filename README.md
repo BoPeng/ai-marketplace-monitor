@@ -19,7 +19,15 @@ An intelligent tool that monitors Facebook Marketplace listings using AI to help
 
 **📚 [Read the Full Documentation](https://ai-marketplace-monitor.readthedocs.io/)**
 
-![Search In Action](docs/search_in_action.png)
+aimm runs in a terminal or in its web UI, which starts with it:
+
+**Command line**: each search, the listings it skips or excludes, and the AI's verdict on each new listing
+
+![aimm searching in a terminal](docs/search_in_action.png)
+
+**Web UI**: the config editor, the Configure chat that sets aimm up for you, and the listings aimm evaluated with their AI ratings; it also shows the live log and aimm's browser when Facebook asks for a check (see [Web UI](docs/webui.md))
+
+![The aimm web UI](docs/webui_screenshot.png)
 
 Example notification from PushBullet:
 
@@ -37,8 +45,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
 - **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models and 100+ notification channels. See [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
-- **Anthropic/Claude AI Backend**: Use Claude models (e.g. `claude-sonnet-5-5`) to evaluate listings alongside OpenAI, DeepSeek, Gemini, and Ollama. See [AI Services](docs/README.md#ai-services) for configuration.
-- **Configurable Rate Limiting**: Rate limiting framework for all notification types with per-instance and global limits. Telegram notifications use optimized defaults automatically.
 
 **Table of Contents:**
 
@@ -85,8 +91,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - A **Listings** table of every listing aimm evaluated, with its AI rating and why it was notified, rejected, or excluded
 - Add, edit, and delete config sections from your browser
 - No password required on localhost
-
-![Web UI](docs/webui_screenshot.png)
 
 🌎 **Location Support**
 
@@ -241,7 +245,18 @@ docker run -d --name aimm \
 
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
-See the [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) for Docker Compose with a `.env` file (the files are in [`docker-compose/`](docker-compose/)), running behind a reverse proxy, updates, and running aimm commands in the container.
+The [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) covers the ways to run the image, from the container engine itself to NAS and home-server systems:
+
+- [Docker](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#quick-start-with-docker-run), the container engine: `docker run`, as above, starts the container from the command line.
+- [Docker Compose](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#set-up-with-docker-compose), Docker's tool for declarative configuration: the container is described in `docker-compose.yml`, with its settings in a `.env` file (both in [`docker-compose/`](docker-compose/)), and `docker compose up -d` creates it the same way every time.
+- [Portainer](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#portainer), a web interface for managing Docker containers and Compose stacks: point its **App Templates** at a community template list that includes aimm, and deploy aimm from there.
+- [Synology](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#synology-container-manager-dsm-7-2-or-later) and [QNAP](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#qnap-container-station-3) NAS run containers in their own apps, Container Manager and Container Station, so aimm runs on your NAS around the clock with the same Compose file.
+- [Unraid](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#unraid): add aimm's template, then create the container from it under **Docker › Add Container**.
+- [TrueNAS SCALE](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#truenas-scale-community-edition-24-10-or-later): add aimm as a custom app with **Install via YAML** and our configuration file, [`deploy/truenas/install-via-yaml.yaml`](deploy/truenas/install-via-yaml.yaml).
+- [CasaOS and ZimaOS](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#casaos-and-zimaos): import aimm's template with **Custom Install**.
+- [Cosmos](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#cosmos): import aimm's template under **ServApps**.
+
+The guide also covers running behind a [reverse proxy](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#behind-a-reverse-proxy), [updates](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#update), and running aimm commands in the container.
 
 ## 💡 Example Usage
 
