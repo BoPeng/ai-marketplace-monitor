@@ -13,7 +13,7 @@ services:
       TZ: $TZ
       FACEBOOK_USERNAME: ""
       FACEBOOK_PASSWORD: ""
-      UNITYSVC_API_KEY: ""
+      UNITYSVC_API_KEY: "svcpass_XXXXX"
     network_mode: bridge
     ports:
       - target: 8467
@@ -34,7 +34,7 @@ services:
             en_US: Password of that Facebook account. Also signs you in to the web UI.
         - container: UNITYSVC_API_KEY
           description:
-            en_US: For the default configuration, a UnitySVC API key (https://unitysvc.com) for the AI that rates listings and for email and phone notifications.
+            en_US: For the default configuration, a UnitySVC API key (https://unitysvc.com) for the AI that rates listings and for email and phone notifications. Replace the placeholder with your key; with the placeholder, aimm searches but cannot rate listings or send notifications until you set a key here or other AI and notification services in the web UI.
         - container: PUID
           description:
             en_US: User ID that owns the files in the data folder
@@ -79,7 +79,7 @@ x-casaos:
   tips:
     before_install:
       en_US: |
-        Before installing, set FACEBOOK_USERNAME and FACEBOOK_PASSWORD in the installation settings (and UNITYSVC_API_KEY for the default configuration). If they are empty, the web UI will not start; edit the installed app's settings and restart it. The web UI asks for the same Facebook username and password.
+        Before installing, set FACEBOOK_USERNAME and FACEBOOK_PASSWORD in the installation settings (and replace the UNITYSVC_API_KEY placeholder with your key, for the default configuration). If they are empty, the web UI will not start; edit the installed app's settings and restart it. The web UI asks for the same Facebook username and password.
   title:
     en_US: AI Marketplace Monitor
   index: /

@@ -33,8 +33,9 @@
     {
       "type": "password",
       "label": "UnitySVC API key",
-      "hint": "For the default configuration: the AI that rates listings, and email and phone notifications (https://unitysvc.com). Leave it empty only if you set up other AI and notification services in the web UI; until then, aimm waits.",
-      "required": false,
+      "hint": "For the default configuration: the AI that rates listings, and email and phone notifications (https://unitysvc.com). Replace the placeholder with your key; with the placeholder, aimm searches but cannot rate listings or send notifications until you set a key here or other AI and notification services in the web UI.",
+      "default": "svcpass_XXXXX",
+      "required": true,
       "env_variable": "AIMM_UNITYSVC_API_KEY"
     }
   ],
