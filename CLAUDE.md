@@ -30,6 +30,8 @@ and use the `Digest:` of the index (not one of the per-platform manifests).
 | `deploy/truenas/ai-marketplace-monitor/ix_values.yaml` | `tag: "X.Y.Z@sha256:<digest>"` |
 | `deploy/truenas/ai-marketplace-monitor/app.yaml` | `app_version: X.Y.Z`, and `version` (the app's own version: bump its patch number) |
 
-The Unraid, Portainer and Cosmos templates use `latest` and need no change. Check that nothing still names the previous version with `grep -rn "<previous version>" deploy`.
+The Unraid, Portainer and Cosmos templates use `latest` and need no change.
+
+The `deploy-versions` workflow enforces this on every pull request and push to `main`: `python scripts/check_deploy_versions.py` requires every pin above to name the version in `pyproject.toml` once it is released (the tag `vX.Y.Z` exists), or the latest release while the release PR is open, and checks the Umbrel and TrueNAS digests against the registry. So after a release, pull requests fail until the templates are bumped. Run it locally before pushing; `--offline` skips the registry.
 
 For a store that already lists aimm, the same bump goes to the store in a pull request to its repository; [#417](https://github.com/BoPeng/ai-marketplace-monitor/issues/417) tracks which stores list it.
