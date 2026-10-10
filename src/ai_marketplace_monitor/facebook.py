@@ -779,7 +779,7 @@ class FacebookMarketplace(Marketplace):
         """Complete what the listing page showed about the seller, and list warning signs.
 
         The seller's profile (active and sold listings) is opened only for listings that
-        passed the other filters, and at most once a week per seller (see Seller.to_cache).
+        passed the other filters, and at most once a month per seller (see Seller.to_cache).
         """
         if not listing.seller_id:
             return

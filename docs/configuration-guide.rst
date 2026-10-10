@@ -370,7 +370,7 @@ Seller Information
 
 Who sells a listing matters as much as the listing: new accounts, dealers posing as private sellers, sellers with many listings but few sales, single listings at an unrealistic price, and sellers with poor ratings are often unreliable. aimm therefore tells the AI about the seller of each listing it rates, and lets the AI judge whether the seller is legitimate.
 
-From the listing page, aimm reads the seller's name, the year they joined Facebook and, for sellers with ratings, their rating and number of ratings. For listings that pass your other filters, it also opens the seller's Marketplace profile, at most once a week per seller, for the number of active and sold listings, what buyers appreciate, and a few recent reviews. The AI receives a summary such as
+From the listing page, aimm reads the seller's name, the year they joined Facebook and, for sellers with ratings, their rating and number of ratings. For listings that pass your other filters, it also opens the seller's Marketplace profile, at most once a month per seller, for the number of active and sold listings, what buyers appreciate, and a few recent reviews. The AI receives a summary such as
 
     joined Facebook in 2024, no ratings, 20+ active listings, 1 sold listing
 

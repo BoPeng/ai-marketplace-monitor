@@ -15,8 +15,9 @@ from diskcache import Cache  # type: ignore
 
 from .utils import CacheType, Translator, cache
 
-# a profile is opened again after this long: listings and ratings change slowly
-SELLER_CACHE_SECONDS = 7 * 24 * 3600
+# a profile is opened again after about a month: ratings and account age barely change, and
+# listing and sales counts a few weeks old still show a dealer or a seller who never sells
+SELLER_CACHE_SECONDS = 30 * 24 * 3600
 
 # warning signs (see seller_warnings); 0 disables a threshold
 DEFAULT_MIN_ACCOUNT_YEARS = 2
