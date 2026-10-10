@@ -42,7 +42,7 @@ To submit it, copy the folder to `Apps/AIMarketplaceMonitor/` of a fork of the C
 Portainer has no app store: it lists the templates of one URL, set in **Settings › App Templates**. [`portainer/templates.json`](portainer/templates.json) is such a list (format version 3) with one container template: the web UI on port 8467, a named volume for `/data`, and fields for the Facebook credentials, the UnitySVC key, the time zone and the web UI sign-in.
 
 - To use it, set the templates URL to `https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/portainer/templates.json`, then deploy **AI Marketplace Monitor** from **App Templates**. This URL replaces Portainer's default list.
-- To appear next to other apps, the file can be added as a source of a community template collection such as [Lissy93/portainer-templates](https://github.com/Lissy93/portainer-templates), whose URL many Portainer users set instead.
+- The file is a source of [Lissy93/portainer-templates](https://github.com/Lissy93/portainer-templates), a community collection whose URL many Portainer users set instead, so aimm appears there next to other apps and follows this file. It is also submitted to Portainer's default list ([portainer/templates#280](https://github.com/portainer/templates/pull/280)). The Docker installation guide's Portainer section tells users which URL to set.
 - To use Docker Compose instead, paste [`docker-compose/docker-compose.yml`](../docker-compose/docker-compose.yml) into **Stacks › Add stack** and enter the variables of `.env.example` under **Environment variables**. Portainer saves them in a file named `stack.env`, not `.env`, so change `env_file: .env` to `env_file: stack.env`.
 
 ## Umbrel

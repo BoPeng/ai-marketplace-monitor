@@ -59,7 +59,7 @@ docker compose logs -f aimm
 
 ## NAS and container managers
 
-On Unraid, CasaOS, ZimaOS, Umbrel, Runtipi, TrueNAS SCALE, Cosmos or Portainer, install aimm from the templates in the repository's [`deploy/`](https://github.com/BoPeng/ai-marketplace-monitor/tree/main/deploy) folder, which also say how to install each one before it is listed in that platform's app store.
+On Portainer, use the community template list described in Portainer below. On Unraid, CasaOS, ZimaOS, Umbrel, Runtipi, TrueNAS SCALE or Cosmos, install aimm from the templates in the repository's [`deploy/`](https://github.com/BoPeng/ai-marketplace-monitor/tree/main/deploy) folder, which also say how to install each one before it is listed in that platform's app store.
 
 Synology and QNAP have no app store for Docker apps; their container managers run Docker Compose files, and their image search finds aimm on Docker Hub as `bopeng/ai-marketplace-monitor` (amd64 and arm64, the same tags as `ghcr.io/bopeng/ai-marketplace-monitor`).
 
@@ -105,6 +105,18 @@ Container Station's **Applications** keep the YAML you paste in their own folder
 4. **Create**, then open `http://<NAS address>:8467` and continue with First run below. The application's container shows the log.
 
 To update, open the application and choose **Recreate** (or remove it and create it again with the same YAML); the data folder keeps your config, cache and logs.
+
+### Portainer
+
+Portainer's **App Templates** come from one list, set in **Settings › App Templates**. aimm is not in Portainer's default list, but it is in [Lissy93/portainer-templates](https://github.com/Lissy93/portainer-templates), a community collection of several hundred apps:
+
+1. In **Settings › App Templates**, set **URL** to `https://raw.githubusercontent.com/Lissy93/portainer-templates/main/templates.json` and save. This replaces Portainer's default list.
+2. In **App Templates**, choose **AI Marketplace Monitor**. Fill in the Facebook username and password, replace the placeholder UnitySVC API key with yours, and set the time zone. **Web UI sign-in** chooses whether aimm asks for the Facebook login (the default) or a web UI password of its own (`local`), or leaves the sign-in to your reverse proxy (see Who signs you in to the web UI below).
+3. **Deploy the container**, then open `http://<host>:8467` and continue with First run below. The config, cache and logs are in a named volume mounted at `/data`.
+
+To list only aimm instead, use `https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/portainer/templates.json` as the URL. Portainer shows the form's passwords as plain text fields; its template format cannot mask them.
+
+To update, open the container, choose **Recreate** and turn on **Re-pull image**; the volume keeps your data.
 
 ## First run
 

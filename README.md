@@ -241,7 +241,7 @@ docker run -d --name aimm \
 
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
-See the [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) for Docker Compose with a `.env` file (the files are in [`docker-compose/`](docker-compose/)), running behind a reverse proxy, updates, and running aimm commands in the container.
+On Portainer, install aimm from **App Templates** with a community template list; see [Portainer](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#portainer) in the Docker installation guide. See the [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) for Docker Compose with a `.env` file (the files are in [`docker-compose/`](docker-compose/)), running behind a reverse proxy, updates, and running aimm commands in the container.
 
 ## 💡 Example Usage
 
