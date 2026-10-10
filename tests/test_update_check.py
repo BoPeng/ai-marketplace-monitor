@@ -1,6 +1,4 @@
-"""The update check: compare with PyPI at start (at most once a day) or on request, log a line, and
-tell the web UI.
-"""
+"""The update check: compare with PyPI at start or on request, log a line, tell the web UI."""
 
 from __future__ import annotations
 
