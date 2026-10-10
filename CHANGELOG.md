@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.13] - 2026-10-10
+
+### Added
+- aimm evaluates the seller of each listing. From the listing page it reads the seller's name, the year they joined Facebook, their rating and number of ratings and a "Highly rated" badge; from the seller's Marketplace profile, opened at most once a month per seller, the number of active and sold listings, what buyers appreciate and a few recent reviews. The AI receives a summary of the seller and possible warning signs (a new account, a low rating, 20+ active listings, many listings with at most one sold, a single listing on a new account), judges whether the seller is legitimate, lowers its rating for an unreliable one and explains why. Notifications show the warning signs as a "Seller warning" line. `aimm check` does the same. See "Seller Information" in the [configuration guide](docs/configuration-guide.rst).
+- `seller_min_rating` skips sellers rated below it by at least 3 buyers; sellers without ratings are kept and judged by the AI.
+
+### Changed
+- Listings cached by earlier versions are read once more for their seller information, and AI answers given before a seller's profile could be read are not reused once it has been, so listings in active searches are rated once more with the seller's summary.
+- The Docker installation guide has a section for each NAS and container manager (Synology, QNAP, Unraid, TrueNAS SCALE, CasaOS and ZimaOS, Cosmos, Portainer), with a Compose file for TrueNAS's Install via YAML. The README lists them, and shows the command-line and web UI screenshots together.
+
 ## [0.10.12] - 2026-10-09
 
 ### Added
@@ -395,7 +405,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.12...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.13...HEAD
+[0.10.13]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.12...v0.10.13
 [0.10.12]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.11...v0.10.12
 [0.10.11]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.10...v0.10.11
 [0.10.10]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.9...v0.10.10
