@@ -108,7 +108,7 @@ To update, open the application and choose **Recreate** (or remove it and create
 
 ### Unraid
 
-aimm's template is submitted to **Community Applications**: on the **Apps** tab, search for *AI Marketplace Monitor*. Until it is listed:
+aimm is approved for **Community Applications** and appears on the **Apps** tab (search for *AI Marketplace Monitor*) once its catalog is next updated. Until then, add its template by hand:
 
 1. Open the terminal (**>_** in the header) and save the template where Unraid keeps your own templates:
 
@@ -124,10 +124,11 @@ To update, use **Check for Updates** on the **Docker** tab, then **Apply update*
 
 ### TrueNAS SCALE (Community Edition 24.10 or later)
 
-aimm is proposed for the community train of TrueNAS's app catalog. Until it is listed, install it as a custom app from a Compose file, which TrueNAS runs the same way:
+aimm is proposed for the community train of TrueNAS's app catalog ([truenas/apps#6044](https://github.com/truenas/apps/issues/6044)). Until it is listed, add it as a custom app: TrueNAS runs a Compose file that you paste, and [`deploy/truenas/install-via-yaml.yaml`](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/deploy/truenas/install-via-yaml.yaml) is one for aimm.
 
-1. **Datasets**: select your pool, **Add Dataset**, name it `aimm` and choose the **Apps** preset, which gives it to the `apps` user (568) that aimm runs as.
-2. **Apps › Discover Apps**, the **⋮** menu next to **Custom App** › **Install via YAML**. Name it `aimm` and paste the following, with your values and pool name:
+1. **Datasets**: select your pool, **Add Dataset**, name it `aimm` and choose the **Apps** preset. The dataset then belongs to the `apps` user (568), which aimm runs as.
+2. If you have not used apps yet, choose a pool for them: **Apps › Configuration › Choose Pool**.
+3. **Apps › Discover Apps**, the **⋮** menu next to **Custom App** › **Install via YAML**. Name the app `aimm` and paste the contents of [`install-via-yaml.yaml`](https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/truenas/install-via-yaml.yaml):
 
    ```yaml
    services:
@@ -138,7 +139,7 @@ aimm is proposed for the community train of TrueNAS's app catalog. Until it is l
        environment:
          FACEBOOK_USERNAME: "you@example.com"
          FACEBOOK_PASSWORD: "your-facebook-password"
-         UNITYSVC_API_KEY: "svcpass_..."
+         UNITYSVC_API_KEY: "svcpass_XXXXX"
          TZ: "America/Chicago"
        ports:
          - "8467:8467"
@@ -146,10 +147,10 @@ aimm is proposed for the community train of TrueNAS's app catalog. Until it is l
          - /mnt/<pool>/aimm:/data
    ```
 
-   Write any `$` in a value as `$$`. If **Install via YAML** is greyed out, choose a pool for apps first (**Apps › Configuration › Choose Pool**).
-3. **Save**. When the app is **Running**, open `http://<TrueNAS address>:8467`.
+   Replace `<pool>` with your pool's name, fill in your Facebook login, UnitySVC API key and time zone, and write any `$` in a value as `$$`.
+4. **Save**. When the app is **Running**, open `http://<TrueNAS address>:8467`.
 
-TrueNAS notices when a newer image is published and offers an **Update** for the app, as for catalog apps; the dataset keeps your data.
+To change a setting later, open the app and choose **Edit**. TrueNAS notices when a newer image is published and offers an **Update** for the app, as for catalog apps; the dataset keeps your data.
 
 ### CasaOS and ZimaOS
 
@@ -166,7 +167,13 @@ aimm is submitted to the Cosmos servapps market. Until it is listed, import its 
 
 ### Umbrel
 
-aimm is submitted to the Umbrel App Store, where it will sign you in with a password that Umbrel shows for the app, and you enter the Facebook credentials in its config editor. Until it is listed, install **Portainer** from the Umbrel App Store and follow Portainer below.
+aimm is submitted to the Umbrel App Store ([getumbrel/umbrel-apps#6175](https://github.com/getumbrel/umbrel-apps/pull/6175)). Listed there, it will sign you in with a password that Umbrel shows for the app, and you will enter the Facebook credentials in its config editor. Until then, run it with Portainer, which the Umbrel App Store has:
+
+1. In the Umbrel **App Store**, install **Portainer**, open it and sign in with the username and password that Umbrel shows for it.
+2. Install aimm from Portainer's **App Templates** as described in Portainer below: set the community template list, choose **AI Marketplace Monitor**, fill in the form and deploy. Keep the template's named volume for `/data`: Umbrel's Portainer keeps only named volumes when it restarts or updates.
+3. Open `http://umbrel.local:8467` (or your Umbrel's address with port 8467).
+
+aimm then runs as a container of Portainer's, outside Umbrel's apps: Umbrel's login does not protect it, aimm's own sign-in does, and you update it in Portainer. Before installing aimm from the Umbrel App Store later, remove this container: both use port 8467.
 
 ### Portainer
 
