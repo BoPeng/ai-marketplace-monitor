@@ -545,9 +545,7 @@ class FacebookMarketplace(Marketplace):
         """
         assert self.page is not None
         try:
-            button = self.page.locator(
-                f'[aria-label^="{self.translator("Location:")}"]'
-            ).first
+            button = self.page.locator(f'[aria-label^="{self.translator("Location:")}"]').first
             current = radius_from_label(button.get_attribute("aria-label", timeout=10000) or "")
             if current is not None and current == nearest_radius(radius):
                 return False
@@ -735,6 +733,8 @@ class FacebookMarketplace(Marketplace):
                 ).get_listings()
                 if not found_listings and self.recover_login():
                     self.goto_url(search_url)
+                    if radius and self.set_search_radius(radius):
+                        self.goto_url(search_url)
                     found_listings = FacebookSearchResultPage(
                         self.page, self.translator, self.logger
                     ).get_listings()

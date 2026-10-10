@@ -73,12 +73,15 @@ def test_a_new_radius_reloads_the_search(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     mp = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
     mp.configure(
-        FacebookMarketplaceConfig(name="facebook", search_city=["houston", "dallas"], radius=[10, 10])
+        FacebookMarketplaceConfig(
+            name="facebook", search_city=["houston", "dallas"], radius=[10, 10]
+        )
     )
     mp.page = MagicMock()
     monkeypatch.setattr(mp, "goto_url", urls.append)
     monkeypatch.setattr(mp, "recover_login", lambda: False)
     asked: List[int] = []
+
     # the first city changes the radius, the second finds it already set
     def set_radius(radius: int) -> bool:
         asked.append(radius)
@@ -168,3 +171,27 @@ def test_a_radius_that_cannot_be_set_does_not_stop_the_search() -> None:
     page = _FakePage("Location: Houston, Texas, Within 40 mi", [])  # no choices in the dialog
     assert _marketplace(page).set_search_radius(10) is False
     page.keyboard.press.assert_called_with("Escape")
+
+
+def test_a_recovered_login_reapplies_the_radius(monkeypatch: pytest.MonkeyPatch) -> None:
+    urls: List[str] = []
+    monkeypatch.setattr(facebook.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        facebook, "FacebookSearchResultPage", lambda *a, **k: MagicMock(get_listings=lambda: [])
+    )
+    mp = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
+    mp.configure(FacebookMarketplaceConfig(name="facebook", search_city=["houston"], radius=[10]))
+    mp.page = MagicMock()
+    monkeypatch.setattr(mp, "goto_url", urls.append)
+    monkeypatch.setattr(mp, "recover_login", lambda: True)
+    asked: List[int] = []
+
+    def set_radius(radius: int) -> bool:
+        asked.append(radius)
+        # Before login the dialog was unavailable; afterward the radius changes.
+        return len(asked) == 2
+
+    monkeypatch.setattr(mp, "set_search_radius", set_radius)
+    list(mp.search(FacebookItemConfig(name="ipad", search_phrases=["ipad"])))
+    assert asked == [10, 10]
+    assert urls == ["https://www.facebook.com/marketplace/houston/search?query=ipad"] * 3
