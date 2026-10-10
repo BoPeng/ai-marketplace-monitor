@@ -59,7 +59,7 @@ docker compose logs -f aimm
 
 ## NAS and container managers
 
-On Portainer, use the community template list described in Portainer below. On Unraid, CasaOS, ZimaOS, Umbrel, Runtipi, TrueNAS SCALE or Cosmos, install aimm from the templates in the repository's [`deploy/`](https://github.com/BoPeng/ai-marketplace-monitor/tree/main/deploy) folder, which also say how to install each one before it is listed in that platform's app store.
+The sections below install aimm on NAS and home-server systems and with container managers. Where aimm is not yet listed in a platform's app store, they install it from the templates in the repository's [`deploy/`](https://github.com/BoPeng/ai-marketplace-monitor/tree/main/deploy) folder, which is only a little more work. On every platform, aimm keeps its config, cache and logs in the folder or volume mounted at `/data`, and you continue with First run below.
 
 Synology and QNAP have no app store for Docker apps; their container managers run Docker Compose files, and their image search finds aimm on Docker Hub as `bopeng/ai-marketplace-monitor` (amd64 and arm64, the same tags as `ghcr.io/bopeng/ai-marketplace-monitor`).
 
@@ -105,6 +105,68 @@ Container Station's **Applications** keep the YAML you paste in their own folder
 4. **Create**, then open `http://<NAS address>:8467` and continue with First run below. The application's container shows the log.
 
 To update, open the application and choose **Recreate** (or remove it and create it again with the same YAML); the data folder keeps your config, cache and logs.
+
+### Unraid
+
+aimm's template is submitted to **Community Applications**: on the **Apps** tab, search for *AI Marketplace Monitor*. Until it is listed:
+
+1. Open the terminal (**>_** in the header) and save the template where Unraid keeps your own templates:
+
+   ```bash
+   wget -O /boot/config/plugins/dockerMan/templates-user/my-ai-marketplace-monitor.xml https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/unraid/ai-marketplace-monitor.xml
+   ```
+
+2. **Docker › Add Container**, and under **Template** choose *ai-marketplace-monitor* from the user templates.
+3. Fill in the Facebook username and password, and replace the placeholder UnitySVC API key with yours. The data goes to `/mnt/user/appdata/ai-marketplace-monitor`, owned by Unraid's `nobody:users` (`99`/`100`).
+4. **Apply**, then open the web UI from the container's icon.
+
+To update, use **Check for Updates** on the **Docker** tab, then **Apply update**.
+
+### TrueNAS SCALE (Community Edition 24.10 or later)
+
+aimm is proposed for the community train of TrueNAS's app catalog. Until it is listed, install it as a custom app from a Compose file, which TrueNAS runs the same way:
+
+1. **Datasets**: select your pool, **Add Dataset**, name it `aimm` and choose the **Apps** preset, which gives it to the `apps` user (568) that aimm runs as.
+2. **Apps › Discover Apps**, the **⋮** menu next to **Custom App** › **Install via YAML**. Name it `aimm` and paste the following, with your values and pool name:
+
+   ```yaml
+   services:
+     aimm:
+       image: ghcr.io/bopeng/ai-marketplace-monitor:latest
+       restart: unless-stopped
+       user: "568:568"
+       environment:
+         FACEBOOK_USERNAME: "you@example.com"
+         FACEBOOK_PASSWORD: "your-facebook-password"
+         UNITYSVC_API_KEY: "svcpass_..."
+         TZ: "America/Chicago"
+       ports:
+         - "8467:8467"
+       volumes:
+         - /mnt/<pool>/aimm:/data
+   ```
+
+   Write any `$` in a value as `$$`. If **Install via YAML** is greyed out, choose a pool for apps first (**Apps › Configuration › Choose Pool**).
+3. **Save**. When the app is **Running**, open `http://<TrueNAS address>:8467`.
+
+TrueNAS notices when a newer image is published and offers an **Update** for the app, as for catalog apps; the dataset keeps your data.
+
+### CasaOS and ZimaOS
+
+aimm is submitted to the CasaOS App Store. Until it is listed, import its template:
+
+1. **App Store**, then **Custom Install** (the **+** at the top right) › **Import**.
+2. Paste the contents of [`casaos/AIMarketplaceMonitor/docker-compose.yml`](https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/casaos/AIMarketplaceMonitor/docker-compose.yml) and submit. CasaOS fills in the install form from it.
+3. Fill in the Facebook username and password, and replace the placeholder UnitySVC API key with yours, **before** installing: the web UI does not start without the Facebook credentials. The data goes to `/DATA/AppData/<app>/data`.
+4. **Install**, then open aimm from its tile on the dashboard.
+
+### Cosmos
+
+aimm is submitted to the Cosmos servapps market. Until it is listed, import its template: **ServApps › Import Compose File**, paste the contents of [`cosmos/AI-Marketplace-Monitor/cosmos-compose.json`](https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/deploy/cosmos/AI-Marketplace-Monitor/cosmos-compose.json), and fill in the form it shows (the Facebook username and password, and your UnitySVC API key). Cosmos puts the data in a volume and serves the web UI through its reverse proxy.
+
+### Umbrel
+
+aimm is submitted to the Umbrel App Store, where it will sign you in with a password that Umbrel shows for the app, and you enter the Facebook credentials in its config editor. Until it is listed, install **Portainer** from the Umbrel App Store and follow Portainer below.
 
 ### Portainer
 
