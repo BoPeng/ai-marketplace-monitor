@@ -86,8 +86,10 @@ def status_candidates(
 
 
 def listing_needs_browser(post_url: str) -> bool:
-    """Whether checking a listing must open Facebook: a listing not read before (or before
-    aimm read sellers), or one whose seller's profile is due.
+    """Whether checking a listing must open Facebook.
+
+    It must for a listing not read before (or read before aimm read sellers), and for one
+    whose seller's profile is due.
     """
     cached = Listing.from_cache(post_url)
     if cached is None or not cached.seller_parsed:
