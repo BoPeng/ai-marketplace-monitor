@@ -1238,8 +1238,10 @@ class FacebookLocationDialog(WebPage):
     def choose_radius(self: "FacebookLocationDialog", radius: float) -> str:
         """Choose the radius nearest ``radius``; its text, e.g. "40 miles"."""
         self._radius_field().click(timeout=5000)
+        options = self.page.get_by_role("option")
+        options.first.wait_for(timeout=5000)
         choices = {}
-        for text in self.page.get_by_role("option").all_inner_texts():
+        for text in options.all_inner_texts():
             value = radius_from_label(text)
             if value is not None:
                 choices[value] = text.strip()
