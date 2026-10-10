@@ -100,7 +100,7 @@ class Place:
 
 
 def expand_state(place: str) -> str:
-    """ "Houston, TX" -> "Houston, Texas": a US state's abbreviation after a comma or space."""
+    """Spell out a trailing US state abbreviation: "Houston, TX" -> "Houston, Texas"."""
     match = re.search(r"([,\s])\s*([A-Za-z]{2})\.?\s*$", place)
     if not match or match.group(2).upper() not in US_STATES:
         return place
