@@ -612,16 +612,16 @@ def send_digest(
     ``channels`` limits it to some of them (names as ``digest_channels`` returns them).
     """
     results: Dict[str, bool] = {}
-    user_channels = digest_channels(user_config, notifications)
     email_class = channel_classes()["email"]
-    digest.more_where = (
-        " in the email digest"
-        if any(isinstance(ch, email_class) for ch in user_channels.values())
-        else ""
-    )
-    for name, channel in user_channels.items():
-        if channels is not None and name not in channels:
-            continue
+    selected = [
+        (name, channel)
+        for name, channel in digest_channels(user_config, notifications).items()
+        if channels is None or name in channels
+    ]
+    # email first: the phone digest points to the email digest only once it has been sent
+    selected.sort(key=lambda x: not isinstance(x[1], email_class))
+    digest.more_where = ""
+    for name, channel in selected:
         try:
             results[name] = channel.send_digest(digest, logger=logger)
         except KeyboardInterrupt:
@@ -632,6 +632,8 @@ def send_digest(
                     f"""{hilight("[Digest]", "fail")} Failed to send the digest to {user_config.name} with {name}: {e}"""
                 )
             results[name] = False
+        if results[name] and isinstance(channel, email_class):
+            digest.more_where = " in the email digest"
     return results
 
 

@@ -948,3 +948,20 @@ def test_phone_digest_shows_listings_of_an_item_without_a_summary() -> None:
     assert "iPad Air" in message  # its match
     assert "Bike" in message and "Sold" in message  # and its update are still there
     assert len(message) <= dg.PHONE_MAX_LENGTH
+
+
+def test_phone_digest_points_to_email_only_when_it_was_sent(
+    sent: Sent, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    digest = dg.compose_digest(SINCE, NOW)
+    config = user(email=["me@example.com"], smtp_password="p")
+    # this window is due on the push channels only (the email channel already has it)
+    dg.send_digest(config, digest, channels=["pushover"])
+    assert digest.more_where == ""
+    # sent by email too: the phone digest can point to it
+    dg.send_digest(config, digest)
+    assert digest.more_where == " in the email digest"
+    # the email failed: it cannot
+    monkeypatch.setattr(EmailNotificationConfig, "send_email_message", lambda *a, **k: False)
+    dg.send_digest(config, digest)
+    assert digest.more_where == ""
