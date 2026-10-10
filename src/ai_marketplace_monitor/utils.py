@@ -211,6 +211,7 @@ class CacheType(Enum):
     UPDATE_CHECK = "update-check"
     EVALUATIONS = "evaluations"
     DIGEST = "digest"
+    SELLER_INFO = "seller-info"
 
 
 class CounterItem(Enum):

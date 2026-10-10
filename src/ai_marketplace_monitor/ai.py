@@ -344,6 +344,21 @@ class AIBackend(Generic[TAIConfig]):
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
         )
+        seller = listing.seller_info.get("summary") if listing.seller_info else ""
+        warnings = listing.seller_info.get("warnings") if listing.seller_info else []
+        if seller or warnings:
+            prompt += (
+                f"""About the seller, {listing.seller}: {seller or "nothing more is known"}.\n"""
+            )
+            if warnings:
+                prompt += f"""Possible warning signs: {"; ".join(warnings)}.\n"""
+            prompt += (
+                "Judge from this whether the seller is legitimate and reliable (for example "
+                "a new account, a dealer posing as a private seller, few or no sales, or "
+                "reviews that mention no-shows or no responses). Lower the rating for an "
+                "unreliable seller, and mention your concerns about the seller in your "
+                "summary so that the buyer knows.\n\n"
+            )
         # prompt
         custom_prompt = resolve_option("prompt", item_config, marketplace_config)
         if custom_prompt is not None:

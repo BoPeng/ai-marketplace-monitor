@@ -81,6 +81,28 @@ def test_listing_page(
     assert listing.post_url, f"post_url of {filename} should not be empty"
 
 
+@pytest.mark.parametrize(
+    "filename,seller_id,joined_year",
+    [
+        ("regular_listing.html", "61556688665315", 2024),
+        ("rental_listing.html", "100019506965772", 2017),
+        ("auto_with_description_listing.html", "100005881778792", 2013),
+    ],
+)
+def test_listing_page_seller_panel(
+    new_context: CreateContextCallback, filename: str, seller_id: str, joined_year: int
+) -> None:
+    """The seller's id and the year they joined Facebook, from the "Seller information" panel."""
+    page = new_context(java_script_enabled=False).new_page()
+    page.goto(f"file://{Path(__file__).parent / filename}")
+    page.wait_for_load_state("domcontentloaded")
+    listing = parse_listing(page, "post_url", None)
+
+    assert listing is not None
+    assert listing.seller_id == seller_id
+    assert listing.seller_info["seller"]["joined_year"] == joined_year
+
+
 @pytest.mark.parametrize("filename", ["flex_listing.html", "flex_listing_with_attributes.html"])
 def test_flex_listing_description_follows_the_attribute_rows(
     new_context: CreateContextCallback, filename: str

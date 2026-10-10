@@ -2,7 +2,7 @@ import datetime
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
 from itertools import repeat
 from logging import Logger
@@ -32,6 +32,15 @@ from .marketplace import (
     WebPage,
     option,
     resolve_option,
+)
+from .seller import (
+    MIN_RATINGS_FOR_RATING,
+    Seller,
+    count_listing_tiles,
+    parse_seller_panel,
+    parse_seller_profile,
+    seller_id_from_url,
+    seller_warnings,
 )
 from .utils import (
     BaseConfig,
@@ -172,6 +181,18 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     delivery_method: List[str] | None = option(Fallback.TRUTHY)
     category: str | None = option(Fallback.TRUTHY)
     sort_by: str | None = option(Fallback.TRUTHY)
+    # skip sellers rated below this by enough buyers; sellers without ratings are kept
+    seller_min_rating: float | None = option(Fallback.NOT_NONE)
+
+    def handle_seller_min_rating(self: "FacebookMarketItemCommonConfig") -> None:
+        value = self.seller_min_rating
+        if value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 5:
+            raise ValueError(
+                f"Item {hilight(self.name)} seller_min_rating must be a number from 0 to 5."
+            )
+        self.seller_min_rating = float(value)
 
     def handle_seller_locations(self: "FacebookMarketItemCommonConfig") -> None:
         if self.seller_locations is None:
@@ -688,7 +709,7 @@ class FacebookMarketplace(Marketplace):
                         continue
                     # currently we trust the other items from summary page a bit better
                     # so we do not copy title, description etc from the detailed result
-                    for attr in ("condition", "seller", "description"):
+                    for attr in ("condition", "seller", "description", "seller_id", "seller_info"):
                         # other attributes should be consistent
                         setattr(listing, attr, getattr(details, attr))
                     listing.name = item_config.name
@@ -709,7 +730,10 @@ class FacebookMarketplace(Marketplace):
                         )
 
                     if not self._exclude(listing, item_config):
-                        yield listing
+                        self.add_seller_info(listing, item_config)
+                        # the cached or profile rating may exclude the seller (seller_min_rating)
+                        if not self._exclude(listing, item_config):
+                            yield listing
 
     def get_listing_details(
         self: "FacebookMarketplace",
@@ -748,6 +772,48 @@ class FacebookMarketplace(Marketplace):
             )
         details.to_cache(post_url)
         return details, False
+
+    def add_seller_info(
+        self: "FacebookMarketplace", listing: Listing, item_config: FacebookItemConfig
+    ) -> None:
+        """Complete what the listing page showed about the seller, and list warning signs.
+
+        The seller's profile (active and sold listings) is opened only for listings that
+        passed the other filters, and at most once a month per seller (see Seller.to_cache).
+        """
+        if not listing.seller_id:
+            return
+        seller = Seller.from_cache(listing.seller_id) or Seller(id=listing.seller_id)
+        seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
+        if not seller.profile_checked:
+            try:
+                assert self.page is not None
+                self.goto_url(f"https://www.facebook.com/marketplace/profile/{seller.id}/")
+                counter.increment(CounterItem.LISTING_QUERY, item_config.name)
+                profile = FacebookSellerProfilePage(self.page, self.translator, self.logger).parse(
+                    seller.id
+                )
+                seller.update(profile)
+                seller.profile_checked = True
+                time.sleep(5)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                if self.logger:
+                    self.logger.debug(
+                        f"""{hilight("[Retrieve]", "fail")} Could not read the profile of seller {seller.id}: {e}"""
+                    )
+        seller.to_cache()
+        warnings = seller_warnings(seller)
+        listing.seller_info = {
+            "seller": asdict(seller),
+            "summary": seller.summary(),
+            "warnings": warnings,
+        }
+        if warnings and self.logger:
+            self.logger.info(
+                f"""{hilight("[Seller]", "fail")} {hilight(listing.title)} is sold by {listing.seller}: {"; ".join(warnings)}"""
+            )
 
     def check_listing(
         self: "FacebookMarketplace",
@@ -813,6 +879,22 @@ class FacebookMarketplace(Marketplace):
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
                 )
             return f"banned seller: {item.seller}"
+
+        # the listing page shows the seller's rating; one or two ratings are not held against them
+        min_rating = resolve_option("seller_min_rating", item_config, self.config)
+        seller = (item.seller_info or {}).get("seller") or {}
+        rating, count = seller.get("rating"), seller.get("rating_count") or 0
+        if (
+            min_rating
+            and rating is not None
+            and count >= MIN_RATINGS_FOR_RATING
+            and rating < min_rating
+        ):
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight(item.seller)}, {hilight("rated", "fail")} {rating:g} out of 5 by {count} buyers"""
+                )
+            return f"seller rated {rating:g} out of 5"
 
         return None
 
@@ -1032,6 +1114,30 @@ class FacebookSearchResultPage(WebPage):
         return listings
 
 
+_SELLER_PANEL_JS = """// the seller panel: the smallest element around one of the seller's links that also
+// says when they joined
+(joined) => {
+    const links = [...document.querySelectorAll('a[href*="/marketplace/profile/"]')];
+    if (!links.length) return null;
+    let best = null, bestDepth = 99;
+    for (const link of links) {
+        let node = link;
+        for (let depth = 0; depth < 25 && node; depth++, node = node.parentElement) {
+            if ((node.innerText || "").includes(joined)) {
+                if (depth < bestDepth) { best = node; bestDepth = depth; }
+                break;
+            }
+        }
+    }
+    const scope = best || links[links.length - 1].parentElement;
+    return {
+        href: links[0].getAttribute("href") || "",
+        text: scope ? scope.innerText : "",
+        labels: scope ? [...scope.querySelectorAll("[aria-label]")].map(e => e.getAttribute("aria-label")) : [],
+    };
+}"""
+
+
 class FacebookItemPage(WebPage):
     def verify_layout(self: "FacebookItemPage") -> bool:
         return True
@@ -1056,6 +1162,29 @@ class FacebookItemPage(WebPage):
 
     def get_condition(self: "FacebookItemPage") -> str:
         raise NotImplementedError("get_condition is not implemented for this page")
+
+    def get_seller_info(self: "FacebookItemPage", name: str = "") -> Seller | None:
+        """The seller as the page's "Seller information" panel shows them, if it does."""
+        try:
+            panel = self.page.evaluate(_SELLER_PANEL_JS, self.translator("Joined Facebook in"))
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} seller panel: {e}")
+            return None
+        if not panel:
+            return None
+        seller_id = seller_id_from_url(panel.get("href", ""))
+        if not seller_id:
+            return None
+        return parse_seller_panel(
+            panel.get("text") or "",
+            [x for x in panel.get("labels") or [] if x],
+            seller_id,
+            name=name,
+            translator=self.translator,
+        )
 
     def _expand_see_more(self: "FacebookItemPage") -> None:
         """Click any 'See more' disclosure links to expand truncated descriptions."""
@@ -1108,6 +1237,10 @@ class FacebookItemPage(WebPage):
             description=description,
             seller=self.get_seller(),
         )
+        seller = self.get_seller_info(res.seller)
+        if seller is not None:
+            res.seller_id = seller.id
+            res.seller_info = {"seller": asdict(seller)}
         if self.logger:
             self.logger.debug(f"{hilight('[Retrieve]', 'succ')} {pretty_repr(res)}")
         return cast(Listing, res)
@@ -1571,6 +1704,68 @@ class FacebookAutoItemWithDescriptionPage(FacebookAutoItemWithAboutAndDescriptio
             if self.logger:
                 self.logger.debug(f"{hilight('[Retrieve]', 'fail')} {e}")
             return ""
+
+
+_SELLER_PROFILE_JS = """// the profile opens as a dialog over the Marketplace feed
+(joined) => {
+    const dialog = [...document.querySelectorAll('[role="dialog"]')].find(
+        d => (d.innerText || "").includes(joined));
+    if (!dialog) return null;
+    return {
+        text: dialog.innerText,
+        labels: [...dialog.querySelectorAll("[aria-label]")].map(e => e.getAttribute("aria-label")),
+    };
+}"""
+
+
+class FacebookSellerProfilePage(WebPage):
+    """A seller's Marketplace profile, /marketplace/profile/<id>/."""
+
+    def _read(self: "FacebookSellerProfilePage") -> dict | None:
+        joined = self.translator("Joined Facebook in")
+        for _ in range(10):
+            content = self.page.evaluate(_SELLER_PROFILE_JS, joined)
+            if content:
+                return cast(dict, content)
+            self.page.wait_for_timeout(1000)
+        return None
+
+    def get_sold_listings(self: "FacebookSellerProfilePage") -> int | None:
+        """Switch the profile to its "Sold & out of stock" listings and count them."""
+        try:
+            self.page.get_by_role(
+                "combobox", name=self.translator("Inventory availability status")
+            ).click(timeout=5000)
+            self.page.get_by_text(self.translator("Sold & out of stock"), exact=True).last.click(
+                timeout=5000
+            )
+            self.page.wait_for_timeout(3000)
+            content = self._read()
+            if content is None:
+                return None
+            return count_listing_tiles([x for x in content.get("labels") or [] if x])
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"{hilight('[Retrieve]', 'fail')} sold listings: {e}")
+            return None
+
+    def parse(self: "FacebookSellerProfilePage", seller_id: str) -> Seller:
+        content = self._read()
+        if content is None:
+            raise ValueError(f"No seller profile found for {seller_id}")
+        seller = parse_seller_profile(
+            content.get("text") or "",
+            [x for x in content.get("labels") or [] if x],
+            seller_id,
+            translator=self.translator,
+        )
+        if seller.active_listings:
+            seller.sold_listings = self.get_sold_listings()
+        if self.logger:
+            self.logger.debug(f"{hilight('[Retrieve]', 'succ')} seller {pretty_repr(seller)}")
+        return seller
 
 
 def parse_listing(

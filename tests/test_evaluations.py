@@ -56,7 +56,7 @@ def eval_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Cach
 
 
 def _listing(listing_id: str = "1", title: str = "Road bike", **kwargs: Any) -> Listing:
-    values = {
+    values: dict[str, Any] = {
         "marketplace": "facebook",
         "name": "bike",
         "id": listing_id,

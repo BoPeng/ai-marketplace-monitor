@@ -1,5 +1,5 @@
-from dataclasses import asdict, dataclass
-from typing import Optional, Tuple, Type
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, Optional, Tuple, Type
 
 from diskcache import Cache  # type: ignore
 
@@ -20,6 +20,10 @@ class Listing:
     seller: str
     condition: str
     description: str
+    # the seller's id on the marketplace, and what aimm learned about them: a summary and
+    # warning signs (see seller.py). Not part of the hash: they do not change the listing.
+    seller_id: str = ""
+    seller_info: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def content(self: "Listing") -> Tuple[str, str, str]:
@@ -33,7 +37,7 @@ class Listing:
             {
                 x: (y.split("?")[0] if x == "post_url" else y)
                 for x, y in asdict(self).items()
-                if x != "image"
+                if x not in ("image", "seller_id", "seller_info")
             }
         )
 
