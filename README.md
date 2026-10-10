@@ -241,11 +241,13 @@ docker run -d --name aimm \
 
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
-The [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) covers:
+The [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#docker) ([source](docs/docker-installation.md)) covers three ways to run the image, from the container engine itself to a web interface on top of it:
 
-- [Docker Compose](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#set-up-with-docker-compose) with a `.env` file (the files are in [`docker-compose/`](docker-compose/))
-- [Portainer](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#portainer), installing aimm from **App Templates** with a community template list
-- running behind a [reverse proxy](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#behind-a-reverse-proxy), [updates](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#update), and running aimm commands in the container
+- [Docker](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#quick-start-with-docker-run), the container engine: `docker run`, as above, starts the container from the command line.
+- [Docker Compose](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#set-up-with-docker-compose), Docker's tool for declarative configuration: the container is described in `docker-compose.yml`, with its settings in a `.env` file (both in [`docker-compose/`](docker-compose/)), and `docker compose up -d` creates it the same way every time.
+- [Portainer](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#portainer), a web interface for managing Docker containers and Compose stacks: aimm is deployed from its **App Templates**, with a community template list.
+
+The guide also covers running behind a [reverse proxy](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#behind-a-reverse-proxy), [updates](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#update), and running aimm commands in the container.
 
 ## 💡 Example Usage
 

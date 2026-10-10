@@ -108,7 +108,7 @@ To update, open the application and choose **Recreate** (or remove it and create
 
 ### Portainer
 
-Portainer's **App Templates** come from one list, set in **Settings › App Templates**. aimm is not in Portainer's default list, but it is in [Lissy93/portainer-templates](https://github.com/Lissy93/portainer-templates), a community collection of several hundred apps:
+Portainer is a web interface for managing Docker containers and Compose stacks. Its **App Templates** come from one list, set in **Settings › App Templates**. aimm is not in Portainer's default list, but it is in [Lissy93/portainer-templates](https://github.com/Lissy93/portainer-templates), a community collection of several hundred apps:
 
 1. In **Settings › App Templates**, set **URL** to `https://raw.githubusercontent.com/Lissy93/portainer-templates/main/templates.json` and save. This replaces Portainer's default list.
 2. In **App Templates**, choose **AI Marketplace Monitor**. Fill in the Facebook username and password, replace the placeholder UnitySVC API key with yours, and set the time zone. **Web UI sign-in** chooses whether aimm asks for the Facebook login (the default) or a web UI password of its own (`local`), or leaves the sign-in to your reverse proxy (see Who signs you in to the web UI below).
