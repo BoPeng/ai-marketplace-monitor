@@ -1,7 +1,7 @@
 images:
   image:
     repository: ghcr.io/bopeng/ai-marketplace-monitor
-    tag: "0.10.11@sha256:fef1da913be34f4bbec7a170c7a638de448ce00a02f687b721bb33d7a000a2f4"
+    tag: "0.10.12@sha256:b8d7d6f74eb5191c851a61a2c0175d57b7ddf4bfa99e634ee5cc63c62cfd5bed"
   container_utils_image:
     repository: ixsystems/container-utils
     tag: "1.0.2@sha256:46eba20714c1cc6784f60e245c32c33a2d9f616e47d804694a9854248c89a992"
