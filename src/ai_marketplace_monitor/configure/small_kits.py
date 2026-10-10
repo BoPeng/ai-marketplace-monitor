@@ -43,6 +43,10 @@ LABELS: Tuple[str, ...] = (
     "See less",
     "Joined Facebook in",
     "Inventory availability status",
+    "Location:",
+    "Change location",
+    "Radius",
+    "Apply",
     "Sold & out of stock",
     # in seller.py, which reads what a seller's panel and profile say
     "Highly rated",

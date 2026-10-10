@@ -3,6 +3,8 @@
 # - full_name and city_name are for readability/booktracking purpose only
 # - different radius can be used for different search_city. In this case
 #   radius should an array with the same length as search_city
+# - radius is in the unit Facebook shows (miles in the US, km elsewhere); 500 is
+#   the largest radius Facebook offers, and larger values mean 500
 #
 # Usage：
 # - ·search_city` will be ignored if `search_region` is specified.

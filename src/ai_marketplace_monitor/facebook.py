@@ -155,6 +155,21 @@ _FACEBOOK_AD_BLOCK_RE = re.compile(
 )
 
 
+# the radii Facebook's location dialog offers, in the unit it shows (miles in the US)
+RADIUS_CHOICES = (1, 2, 5, 10, 20, 40, 60, 80, 100, 250, 500)
+
+
+def radius_from_label(label: str) -> int | None:
+    """The radius in "Location: Houston, Texas, Within 40 mi" (or "Radius 40 miles")."""
+    numbers = re.findall(r"(\d+)\s*[^\d\s,]+\s*$", label.strip())
+    return int(numbers[-1]) if numbers else None
+
+
+def nearest_radius(radius: float, choices: "Tuple[int, ...] | List[int]" = RADIUS_CHOICES) -> int:
+    """The choice closest to ``radius``; the larger one on a tie."""
+    return min(choices, key=lambda c: (abs(c - radius), -c))
+
+
 def _clean_facebook_description(text: str) -> str:
     """Remove Facebook-injected ad/video text from listing descriptions."""
     text = text.replace("\xa0", " ").strip()
@@ -520,6 +535,62 @@ class FacebookMarketplace(Marketplace):
         self.wait_for_login()
         return True
 
+    def set_search_radius(self: "FacebookMarketplace", radius: int) -> bool:
+        """Set the radius saved on the Facebook account to the choice nearest ``radius``.
+
+        Facebook ignores a radius in the search URL and searches with the radius saved on the
+        account, which only its location dialog changes. ``radius`` is in the unit Facebook
+        shows (miles in the US). True if the radius was changed, so the search must be
+        reloaded; False if it already matched or could not be set.
+        """
+        assert self.page is not None
+        try:
+            button = self.page.locator(f'[aria-label^="{self.translator("Location:")}"]').first
+            current = radius_from_label(button.get_attribute("aria-label", timeout=10000) or "")
+            if current is not None and current == nearest_radius(radius):
+                return False
+            button.click(timeout=5000)
+            dialog = self.page.get_by_role("dialog", name=self.translator("Change location"))
+            dialog.get_by_role("combobox").filter(has_text=self.translator("Radius")).click(
+                timeout=5000
+            )
+            choices = {}
+            for text in self.page.get_by_role("option").all_inner_texts():
+                value = radius_from_label(text)
+                if value is not None:
+                    choices[value] = text.strip()
+            if not choices:
+                raise ValueError("the location dialog offers no radius")
+            target = nearest_radius(radius, sorted(choices))
+            if target == current:
+                self.page.keyboard.press("Escape")
+                self.page.keyboard.press("Escape")
+                return False
+            self.page.get_by_role("option", name=choices[target], exact=True).click(timeout=5000)
+            dialog.get_by_role("button", name=self.translator("Apply"), exact=True).click(
+                timeout=5000
+            )
+            self.page.wait_for_timeout(2000)
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Search]", "info")} Set the search radius to {choices[target]}"""
+                    + (f" (closest to radius={radius})" if target != radius else "")
+                )
+            return True
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Search]", "fail")} Could not set the search radius to {radius}, searching with the radius saved on the Facebook account: {e}"""
+                )
+            try:
+                self.page.keyboard.press("Escape")
+                self.page.keyboard.press("Escape")
+            except Exception:  # noqa: S110
+                pass
+            return False
+
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
     ) -> Generator[Listing, None, None]:
@@ -595,17 +666,14 @@ class FacebookMarketplace(Marketplace):
             repeat(None) if currencies is None else currencies,
         ):
             marketplace_url = f"https://www.facebook.com/marketplace/{city}/search?"
-
-            if radius:
-                # avoid specifying radius more than once
-                if options and options[-1].startswith("radius"):
-                    options.pop()
-                options.append(f"radius={radius}")
+            # the options of this city: prices and category follow the shared ones. Facebook
+            # ignores a radius in the URL; set_search_radius sets it in the location dialog.
+            city_options = list(options)
 
             max_price = resolve_option("max_price", item_config, self.config)
             if max_price:
                 if max_price.isdigit():
-                    options.append(f"maxPrice={max_price}")
+                    city_options.append(f"maxPrice={max_price}")
                 else:
                     price, cur = max_price.split(" ", 1)
                     if currency and cur != currency:
@@ -615,12 +683,12 @@ class FacebookMarketplace(Marketplace):
                             self.logger.debug(
                                 f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""
                             )
-                    options.append(f"maxPrice={price}")
+                    city_options.append(f"maxPrice={price}")
 
             min_price = resolve_option("min_price", item_config, self.config)
             if min_price:
                 if min_price.isdigit():
-                    options.append(f"minPrice={min_price}")
+                    city_options.append(f"minPrice={min_price}")
                 else:
                     price, cur = min_price.split(" ", 1)
                     if currency and cur != currency:
@@ -630,16 +698,16 @@ class FacebookMarketplace(Marketplace):
                             self.logger.debug(
                                 f"""{hilight("[Search]", "info")} Converting price {max_price} {cur} to {price} {currency}"""
                             )
-                    options.append(f"minPrice={price}")
+                    city_options.append(f"minPrice={price}")
 
             category = resolve_option("category", item_config, self.config)
             if category:
-                options.append(f"category={category}")
+                city_options.append(f"category={category}")
                 if category == Category.FREE_STUFF.value or category == Category.FREE.value:
                     # find min_price= and max_price= in options and remove them
-                    options = [
+                    city_options = [
                         x
-                        for x in options
+                        for x in city_options
                         if not x.startswith("minPrice=") and not x.startswith("maxPrice=")
                     ]
 
@@ -654,15 +722,19 @@ class FacebookMarketplace(Marketplace):
                 if control.is_paused():
                     return
                 search_url = marketplace_url + "&".join(
-                    [f"query={quote(search_phrase)}", *options]
+                    [f"query={quote(search_phrase)}", *city_options]
                 )
                 self.goto_url(search_url)
+                if radius and self.set_search_radius(radius):
+                    self.goto_url(search_url)  # the results follow a new radius after a reload
 
                 found_listings = FacebookSearchResultPage(
                     self.page, self.translator, self.logger
                 ).get_listings()
                 if not found_listings and self.recover_login():
                     self.goto_url(search_url)
+                    if radius and self.set_search_radius(radius):
+                        self.goto_url(search_url)
                     found_listings = FacebookSearchResultPage(
                         self.page, self.translator, self.logger
                     ).get_listings()
