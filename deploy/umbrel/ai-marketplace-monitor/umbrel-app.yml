@@ -2,7 +2,7 @@ manifestVersion: 1
 id: ai-marketplace-monitor
 category: automation
 name: AI Marketplace Monitor
-version: "0.10.10"
+version: "0.10.11"
 tagline: Find Facebook Marketplace deals with AI
 description: >
   AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want,
@@ -30,6 +30,9 @@ gallery: []
 path: ""
 defaultUsername: ""
 defaultPassword: ""
-releaseNotes: ""
+releaseNotes: >
+  The daily digest summarizes each item with AI and tracks which notified listings sold,
+  went pending or changed price. Full release notes:
+  https://github.com/BoPeng/ai-marketplace-monitor/releases/tag/v0.10.11
 submitter: Bo Peng
 submission: ""

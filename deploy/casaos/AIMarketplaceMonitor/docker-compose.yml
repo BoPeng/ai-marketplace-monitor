@@ -1,7 +1,7 @@
 name: ai-marketplace-monitor
 services:
   ai-marketplace-monitor:
-    image: ghcr.io/bopeng/ai-marketplace-monitor:0.10.10
+    image: ghcr.io/bopeng/ai-marketplace-monitor:0.10.11
     container_name: ai-marketplace-monitor
     deploy:
       resources:
@@ -55,7 +55,7 @@ services:
 
 x-casaos:
   id: io.github.bopeng.ai-marketplace-monitor
-  version: "0.10.10"
+  version: "0.10.11"
   architectures:
     - amd64
     - arm64
