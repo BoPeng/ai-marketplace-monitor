@@ -41,6 +41,7 @@ from .marketplace import (
     resolve_option,
 )
 from .notification import NotificationStatus
+from .seller import Seller
 from .user import User
 from .utils import (
     CounterItem,
@@ -82,6 +83,19 @@ def status_candidates(
         for record in item_records[:STATUS_MAX_PER_ITEM]:
             picked.setdefault(record.marketplace, []).append(record)
     return picked
+
+
+def listing_needs_browser(post_url: str) -> bool:
+    """Whether checking a listing must open Facebook: a listing not read before (or before
+    aimm read sellers), or one whose seller's profile is due.
+    """
+    cached = Listing.from_cache(post_url)
+    if cached is None or not cached.seller_parsed:
+        return True
+    if not cached.seller_id:
+        return False
+    seller = Seller.from_cache(cached.seller_id)
+    return seller is None or seller.needs_profile()
 
 
 class MarketplaceMonitor:
@@ -826,7 +840,7 @@ class MarketplaceMonitor:
                 )
 
                 # do we need a browser?
-                if Listing.from_cache(post_url) is None:
+                if listing_needs_browser(post_url):
                     if self.browser is None:
                         if self.logger:
                             self.logger.info(
@@ -857,6 +871,11 @@ class MarketplaceMonitor:
                 else:
                     # Fallback - treat as direct listing (shouldn't happen but defensive)
                     listing = listing_result
+
+                # the seller's summary and warning signs, as in a scheduled search
+                add_seller_info = getattr(marketplace, "add_seller_info", None)
+                if add_seller_info is not None:
+                    add_seller_info(listing, item_config)
 
                 if self.logger:
                     self.logger.info(

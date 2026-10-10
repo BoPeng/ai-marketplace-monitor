@@ -53,6 +53,8 @@ LABELS: Tuple[str, ...] = (
     "strengths",
     "Seller reviews",
     "Like",
+    "Sold",
+    "No listings found",
 )
 
 

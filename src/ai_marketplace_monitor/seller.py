@@ -261,9 +261,21 @@ def _reviews(text: str, translator: Translator) -> List[str]:
     return reviews
 
 
-def count_listing_tiles(labels: List[str]) -> int:
-    """The number of listings on a profile: each tile is labelled "..., listing <id>"."""
-    return len({label for label in labels if re.search(r"listing \d+\s*$", label or "")})
+def sold_grid_count(
+    text: str, tiles: List[str], translator: Translator | None = None
+) -> int | None:
+    """The number of sold listings once the "Sold & out of stock" grid has loaded, else None.
+
+    ``tiles`` are the first lines of the listing tiles. Sold tiles start with a "Sold" badge;
+    a tile that starts with its price is an active listing still shown from before the switch.
+    An empty grid says "No listings found".
+    """
+    translator = translator or Translator()
+    if not tiles:
+        return 0 if translator("No listings found") in text else None
+    if any(re.search(r"\d", tile) for tile in tiles):
+        return None  # still the active listings
+    return sum(1 for tile in tiles if tile == translator("Sold"))
 
 
 def seller_warnings(

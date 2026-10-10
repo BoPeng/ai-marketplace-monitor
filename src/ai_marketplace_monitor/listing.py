@@ -24,6 +24,17 @@ class Listing:
     # warning signs (see seller.py). Not part of the hash: they do not change the listing.
     seller_id: str = ""
     seller_info: Dict[str, Any] = field(default_factory=dict)
+    # whether the page was read for seller information: False for listings cached before
+    # aimm read sellers, which are read again once (an unavailable seller panel stays True)
+    seller_parsed: bool = False
+
+    @property
+    def seller_state(self: "Listing") -> str:
+        """How much is known about the seller: "", "listing" (the listing page) or "profile"."""
+        seller = (self.seller_info or {}).get("seller") or {}
+        if seller.get("profile_checked"):
+            return "profile"
+        return "listing" if self.seller_info else ""
 
     @property
     def content(self: "Listing") -> Tuple[str, str, str]:
@@ -37,7 +48,7 @@ class Listing:
             {
                 x: (y.split("?")[0] if x == "post_url" else y)
                 for x, y in asdict(self).items()
-                if x not in ("image", "seller_id", "seller_info")
+                if x not in ("image", "seller_id", "seller_info", "seller_parsed")
             }
         )
 

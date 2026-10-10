@@ -36,11 +36,11 @@ from .marketplace import (
 from .seller import (
     MIN_RATINGS_FOR_RATING,
     Seller,
-    count_listing_tiles,
     parse_seller_panel,
     parse_seller_profile,
     seller_id_from_url,
     seller_warnings,
+    sold_grid_count,
 )
 from .utils import (
     BaseConfig,
@@ -746,6 +746,7 @@ class FacebookMarketplace(Marketplace):
         details = Listing.from_cache(post_url)
         if (
             details is not None
+            and details.seller_parsed
             and (price is None or details.price == price)
             and (title is None or details.title == title)
         ):
@@ -787,6 +788,8 @@ class FacebookMarketplace(Marketplace):
         seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
         if seller.needs_profile():
             try:
+                if self.page is None:
+                    self.login()
                 assert self.page is not None
                 self.goto_url(f"https://www.facebook.com/marketplace/profile/{seller.id}/")
                 counter.increment(CounterItem.LISTING_QUERY, item_config.name)
@@ -1238,6 +1241,7 @@ class FacebookItemPage(WebPage):
             description=description,
             seller=self.get_seller(),
         )
+        res.seller_parsed = True
         seller = self.get_seller_info(res.seller)
         if seller is not None:
             res.seller_id = seller.id
@@ -1719,6 +1723,20 @@ _SELLER_PROFILE_JS = """// the profile opens as a dialog over the Marketplace fe
 }"""
 
 
+_SOLD_GRID_JS = """// the listings grid of the profile: its text, and the first line of each listing tile
+(joined) => {
+    const dialog = [...document.querySelectorAll('[role="dialog"]')].find(
+        d => (d.innerText || "").includes(joined));
+    if (!dialog) return null;
+    const tiles = [...dialog.querySelectorAll("a[aria-label]")].filter(
+        e => /listing \\d+\\s*$/.test(e.getAttribute("aria-label") || ""));
+    return {
+        text: dialog.innerText,
+        tiles: tiles.map(e => ((e.innerText || "").trim().split("\\n")[0] || "").trim()),
+    };
+}"""
+
+
 class FacebookSellerProfilePage(WebPage):
     """A seller's Marketplace profile, /marketplace/profile/<id>/."""
 
@@ -1732,7 +1750,12 @@ class FacebookSellerProfilePage(WebPage):
         return None
 
     def get_sold_listings(self: "FacebookSellerProfilePage") -> int | None:
-        """Switch the profile to its "Sold & out of stock" listings and count them."""
+        """Switch the profile to its "Sold & out of stock" listings and count them.
+
+        The grid keeps showing the active listings for a moment after the switch, so a count
+        is accepted only once every tile carries the "Sold" badge (twice in a row), or the grid
+        says "No listings found". Otherwise the number of sold listings stays unknown.
+        """
         try:
             self.page.get_by_role(
                 "combobox", name=self.translator("Inventory availability status")
@@ -1740,11 +1763,21 @@ class FacebookSellerProfilePage(WebPage):
             self.page.get_by_text(self.translator("Sold & out of stock"), exact=True).last.click(
                 timeout=5000
             )
-            self.page.wait_for_timeout(3000)
-            content = self._read()
-            if content is None:
-                return None
-            return count_listing_tiles([x for x in content.get("labels") or [] if x])
+            previous: int | None = None
+            for _ in range(20):
+                self.page.wait_for_timeout(500)
+                grid = self.page.evaluate(_SOLD_GRID_JS, self.translator("Joined Facebook in"))
+                if not grid:
+                    continue
+                count = sold_grid_count(
+                    grid.get("text") or "", grid.get("tiles") or [], self.translator
+                )
+                if count == 0:
+                    return 0
+                if count is not None and count == previous:
+                    return count
+                previous = count
+            return None
         except KeyboardInterrupt:
             raise
         except Exception as e:

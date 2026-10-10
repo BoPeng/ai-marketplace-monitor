@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, Callable, ClassVar, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, ClassVar, Generic, Optional, Tuple, Type, TypeVar
 
 import requests  # type: ignore
 from diskcache import Cache  # type: ignore
@@ -23,6 +23,22 @@ class AIServiceProvider(Enum):
     ANTHROPIC = "Anthropic"
     OLLAMA = "Ollama"
     UNITYSVC = "UnitySVC"
+
+
+def _answer_key(listing: Listing, item_config: Any, marketplace_config: Any) -> Tuple[Any, ...]:
+    """The cache key of an AI answer.
+
+    It includes how much was known about the seller, so that an answer given before the
+    seller's profile could be read is not reused once it has been; later changes to a profile
+    keep the answer.
+    """
+    key: Tuple[Any, ...] = (
+        CacheType.AI_INQUIRY.value,
+        item_config.hash,
+        marketplace_config.hash,
+        listing.hash,
+    )
+    return (*key, listing.seller_state) if listing.seller_state else key
 
 
 @dataclass
@@ -71,7 +87,7 @@ class AIResponse:
         local_cache: Cache | None = None,
     ) -> Optional["AIResponse"]:
         res = (cache if local_cache is None else local_cache).get(
-            (CacheType.AI_INQUIRY.value, item_config.hash, marketplace_config.hash, listing.hash)
+            _answer_key(listing, item_config, marketplace_config)
         )
         if res is None:
             return None
@@ -85,7 +101,7 @@ class AIResponse:
         local_cache: Cache | None = None,
     ) -> None:
         (cache if local_cache is None else local_cache).set(
-            (CacheType.AI_INQUIRY.value, item_config.hash, marketplace_config.hash, listing.hash),
+            _answer_key(listing, item_config, marketplace_config),
             asdict(self),
             tag=CacheType.AI_INQUIRY.value,
         )

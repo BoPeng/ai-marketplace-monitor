@@ -12,11 +12,11 @@ from diskcache import Cache  # type: ignore
 from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.seller import (
     Seller,
-    count_listing_tiles,
     parse_seller_panel,
     parse_seller_profile,
     seller_id_from_url,
     seller_warnings,
+    sold_grid_count,
 )
 from ai_marketplace_monitor.utils import Translator
 
@@ -147,14 +147,19 @@ def test_translated_pages() -> None:
     assert (seller.joined_year, seller.active_listings) == (2019, 3)
 
 
-def test_sold_listings_are_counted_from_their_tiles() -> None:
-    labels = [
-        "iPhone 14 128GB unlocked, $350, reduced from $400, Houston, TX, listing 1417940473406809",
-        "Inventory availability status",
-        "iPhone 13, $300, Houston, TX, listing 1",
-        "iPhone 13, $300, Houston, TX, listing 1",
-    ]
-    assert count_listing_tiles(labels) == 2
+def test_sold_listings_are_counted_once_the_grid_has_loaded() -> None:
+    """Shapes from a live profile (2026-10-10): the switch to "Sold & out of stock" keeps the
+    active tiles for a moment, then shows sold tiles or "No listings found".
+    """
+    header = "Pat's listings\nSold & out of stock\nSort by\n"
+    # still the active listings: tiles start with their price
+    assert sold_grid_count(header + "$499\nIphone 15 pro", ["$499", "$419"]) is None
+    assert sold_grid_count(header + "$200\n$220\niPad", ["$200"]) is None
+    # nothing shown yet
+    assert sold_grid_count(header, []) is None
+    # loaded
+    assert sold_grid_count(header + "Sold\n·\n$100\nPops", ["Sold", "Sold", "Sold"]) == 3
+    assert sold_grid_count(header + "No listings found", []) == 0
 
 
 @pytest.mark.parametrize(
@@ -521,3 +526,123 @@ def test_notifications_show_the_warning_signs(fmt: str, line: str) -> None:
     rating = AIResponse(name="ai", score=2, comment="New account; be careful.")
     config.notify([listing], [rating], [NotificationStatus.NOT_NOTIFIED])
     assert sent and any(line in str(part) for part in sent[0])
+
+
+# --- the review of #437: legacy caches, AI answers, the sold grid, `aimm check`
+def test_listings_cached_before_seller_reading_are_read_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai_marketplace_monitor.listing as listing_module
+    from ai_marketplace_monitor import facebook
+
+    local = Cache(str(tmp_path))
+    monkeypatch.setattr(listing_module, "cache", local)
+    url = "https://www.facebook.com/marketplace/item/1/"
+    read: list = []
+
+    def fake_parse(page: Any, post_url: str, *args: Any) -> Listing:
+        read.append(post_url)
+        return _listing(seller_parsed=True)  # e.g. a page without a seller panel
+
+    monkeypatch.setattr(facebook, "parse_listing", fake_parse)
+    mp = _marketplace(local)
+    monkeypatch.setattr(mp, "goto_url", lambda url: None)
+    item = _item_config()
+
+    _listing().to_cache(url, local)  # cached by an earlier aimm: seller_parsed is False
+    details, from_cache = mp.get_listing_details(url, item, price="$200", title="iPad")
+    assert not from_cache and read == [url]
+    # read once: a page without seller information is not read again
+    details, from_cache = mp.get_listing_details(url, item, price="$200", title="iPad")
+    assert from_cache and read == [url]
+
+
+def test_an_answer_before_the_profile_is_not_reused_after_it(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.ai import AIResponse
+    from ai_marketplace_monitor.facebook import FacebookMarketplaceConfig
+
+    local = Cache(str(tmp_path))
+    item = _item_config()
+    market = FacebookMarketplaceConfig(name="facebook", search_city=["houston"])
+    partial = _listing(seller_info={"seller": {"id": "1", "joined_year": 2015}})
+    complete = _listing(
+        seller_info={"seller": {"id": "1", "joined_year": 2015, "profile_checked": True}}
+    )
+    AIResponse(name="ai", score=5, comment="great").to_cache(partial, item, market, local)
+    assert AIResponse.from_cache(partial, item, market, local) is not None
+    assert AIResponse.from_cache(complete, item, market, local) is None
+    # once the profile was read, a later change in it keeps the answer
+    AIResponse(name="ai", score=2, comment="risky").to_cache(complete, item, market, local)
+    changed = _listing(
+        seller_info={
+            "seller": {"id": "1", "joined_year": 2015, "profile_checked": True, "rating": 3.0}
+        }
+    )
+    cached = AIResponse.from_cache(changed, item, market, local)
+    assert cached is not None and cached.score == 2
+    # listings without seller information keep the key they always had
+    AIResponse(name="ai", score=4, comment="ok").to_cache(_listing(), item, market, local)
+    assert local.get(("ai-inquiries", item.hash, market.hash, _listing().hash)) is not None
+
+
+class _FakeSoldPage:
+    """A profile page whose grid goes through ``states`` (text, tile first lines)."""
+
+    def __init__(self, states: list) -> None:
+        from unittest.mock import MagicMock
+
+        self.states = list(states)
+        self.locator = MagicMock()
+
+    def get_by_role(self, *args: Any, **kwargs: Any) -> Any:
+        return self.locator
+
+    def get_by_text(self, *args: Any, **kwargs: Any) -> Any:
+        return self.locator
+
+    def wait_for_timeout(self, ms: int) -> None:
+        pass
+
+    def evaluate(self, script: str, *args: Any) -> Any:
+        text, tiles = self.states.pop(0) if len(self.states) > 1 else self.states[0]
+        return {"text": text, "tiles": tiles}
+
+
+@pytest.mark.parametrize(
+    "states, expected",
+    [
+        # active tiles first, then the sold ones, the same twice
+        ([("$499", ["$499", "$419"]), ("Sold", ["Sold"] * 3), ("Sold", ["Sold"] * 3)], 3),
+        ([("$499", ["$499"]), ("Sort by\nNo listings found", [])], 0),
+        # never loads: unknown, not "none sold"
+        ([("Sort by", [])], None),
+        ([("$499", ["$499"])], None),
+    ],
+)
+def test_the_sold_grid_is_read_once_loaded(states: list, expected: Any) -> None:
+    from ai_marketplace_monitor.facebook import FacebookSellerProfilePage
+
+    page = FacebookSellerProfilePage(_FakeSoldPage(states))  # type: ignore[arg-type]
+    assert page.get_sold_listings() == expected
+
+
+def test_aimm_check_opens_facebook_when_the_seller_is_due(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai_marketplace_monitor.listing as listing_module
+    import ai_marketplace_monitor.seller as seller_module
+    from ai_marketplace_monitor.monitor import listing_needs_browser
+
+    local = Cache(str(tmp_path))
+    monkeypatch.setattr(listing_module, "cache", local)
+    monkeypatch.setattr(seller_module, "cache", local)
+    url = "https://www.facebook.com/marketplace/item/1/"
+    assert listing_needs_browser(url)  # never read
+    _listing().to_cache(url, local)
+    assert listing_needs_browser(url)  # read before aimm read sellers
+    _listing(seller_parsed=True).to_cache(url, local)
+    assert not listing_needs_browser(url)  # no seller panel
+    _listing(seller_parsed=True, seller_id="9").to_cache(url, local)
+    assert listing_needs_browser(url)  # the seller's profile was never read
+    Seller(id="9", profile_checked=True, checked_at=time.time()).to_cache(local)
+    assert not listing_needs_browser(url)
