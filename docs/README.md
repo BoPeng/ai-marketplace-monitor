@@ -360,7 +360,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `notify`              | Optional          | String/List         | Users who should be notified.                                                                                                                               |
 | `ai`                  | Optional          | String/List         | AI services to use, default to all specified services. `ai=[]` will disable ai.                                                                             |
 | `city_name`           | Optional          | String/List         | Corresponding name of `search_city`.                                                                                                                        |
-| `radius`              | Optional          | Integer/List        | Radius of search, can be a list if multiple `search_city` are specified.                                                                                    |
+| `radius`              | Optional          | Integer/List        | Radius of search in the unit Facebook shows (miles in the US, km elsewhere), rounded to the nearest choice Facebook offers (1, 2, 5, 10, 20, 40, 60, 80, 100, 250 or 500). A list sets one radius per `search_city`. See [Search radius](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#search-radius).                                                                                    |
 | `currency`            | Optional          | Integer/List        | Currency used for the search city, can be a list if multiple `search_city` are specified.                                                                   |
 | `prompt`              | Optional          | String              | Prompt to AI service that will replace the default prompt                                                                                                   |
 | `extra_prompt`        | Optional          | String              | Additional prompt that will be inserted between regular and rating prompt                                                                                   |
@@ -393,13 +393,13 @@ One or more sections of `[region.region_name]`, which defines regions to search.
 | ------------- | ----------------- | ------------ | --------------------------------------------------------------------------- |
 | `search_city` | Required          | String/List  | One or more cities with names used by Facebook.                             |
 | `full_name`   | Optional          | String       | A display name for the region.                                              |
-| `radius`      | Optional          | Integer/List | Recommended `805` for regions using kms, and `500` for regions using miles. |
+| `radius`      | Optional          | Integer/List | Radius in the unit Facebook shows; `500`, the largest choice, for large regions. |
 | `currency`    | Optional          | Integer/List | Currency used for the region.                                               |
 | `city_name`   | Optional          | String/List  | Corresponding names for `search_city`.                                      |
 
 Note that
 
-1. `radius` has a default value of `500` (miles). You can specify different `radius` for different `search_city`.
+1. `radius` is in the unit Facebook shows (miles in the US, km elsewhere), and `500` is the largest radius Facebook offers. You can specify different `radius` for different `search_city`.
 2. Options `full_name` and `city_name` are for documentation and logging purposes only.
 
 ### Translators
@@ -420,6 +420,10 @@ This section currently accept the following values for Facebook Marketplace.
 | `About this vehicle`              | Optional          | String    | The "About this vehicle" section of an automobile listing. |
 | `Seller's description`            | Optional          | String    | The "Seller's description" of an automobile listing.       |
 | `Joined Facebook in`              | Optional          | String    | Before the year a seller joined Facebook.                  |
+| `Location:`                       | Optional          | String    | The start of the label of Marketplace's location button.   |
+| `Change location`                 | Optional          | String    | The title of the location dialog.                          |
+| `Radius`                          | Optional          | String    | The radius field of the location dialog.                   |
+| `Apply`                           | Optional          | String    | Its Apply button.                                          |
 | `Highly rated`                    | Optional          | String    | The badge of highly rated sellers.                         |
 | `out of 5`                        | Optional          | String    | In the label of a seller's star rating, "4.6 out of 5".    |
 | `active listing`                  | Optional          | String    | After the number of a seller's listings.                   |

@@ -460,13 +460,23 @@ Multiple searches will be performed if multiple cities are provided to option `s
     search_city = ['city1', 'city2']
     seller_locations = ['city1', 'city2', 'city3', 'city4']
 
-You can also increase the radius of search using:
+You can also change the radius of search using:
 
 .. code-block:: toml
 
     [item.name]
     search_city = ['city1', 'city2']
     radius = 50
+
+Search Radius
+~~~~~~~~~~~~~
+
+Facebook ignores a radius in the search URL and searches with the radius saved in your account's Marketplace location settings, which only its location dialog changes. When ``radius`` is set, aimm therefore sets it in that dialog before searching a city, if the saved radius is different, and reloads the search:
+
+- ``radius`` is in the unit Facebook shows: miles in the US, kilometers elsewhere.
+- Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and 500, and aimm picks the choice closest to ``radius`` (``radius = 50`` becomes 60, ``radius = 805`` becomes 500).
+- The radius is saved on your Facebook account, so it also applies when you browse Marketplace yourself. Without ``radius``, aimm searches with whatever radius the account has.
+- The city comes from ``search_city`` in the URL, which Facebook does follow.
 
 Pre-defined Regions
 ------------------

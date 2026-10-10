@@ -25,15 +25,20 @@ def _item(**kwargs: Any) -> FacebookItemConfig:
     return FacebookItemConfig(name="bike", search_phrases=["bike"], **kwargs)
 
 
-def _search_urls(item: FacebookItemConfig, market: FacebookMarketplaceConfig) -> List[str]:
+def _search_urls(
+    item: FacebookItemConfig, market: FacebookMarketplaceConfig, radii: List[int] | None = None
+) -> List[str]:
+    """The search URLs, and in ``radii`` the radius set before each search."""
     mp = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
     mp.configure(market)
     mp.page = MagicMock()
     mp.page.url = "https://www.facebook.com/marketplace/houston/search"  # not a login page
     urls: List[str] = []
+    radii = [] if radii is None else radii
     # ruff targets py39, so no parenthesized context managers
     with (
         patch.object(mp, "goto_url", side_effect=urls.append),
+        patch.object(mp, "set_search_radius", side_effect=radii.append),
         patch("ai_marketplace_monitor.facebook.FacebookSearchResultPage") as page_cls,
         patch("ai_marketplace_monitor.facebook.time.sleep"),
         patch("ai_marketplace_monitor.facebook.counter"),
@@ -82,15 +87,17 @@ def test_search_city_item_overrides_marketplace() -> None:
 
 
 def test_radius_empty_item_list_falls_back_to_marketplace() -> None:
-    url = _search_urls(
-        _item(search_city=[], radius=[]), _market(search_city=["houston"], radius=[50])
-    )[0]
-    assert "radius=50" in url
+    radii: List[int] = []
+    _search_urls(
+        _item(search_city=[], radius=[]), _market(search_city=["houston"], radius=[50]), radii
+    )
+    assert radii == [50]
 
 
 def test_radius_from_marketplace_when_item_unset() -> None:
-    url = _search_urls(_item(), _market(search_city=["houston"], radius=[50]))[0]
-    assert "radius=50" in url
+    radii: List[int] = []
+    url = _search_urls(_item(), _market(search_city=["houston"], radius=[50]), radii)[0]
+    assert radii == [50] and "radius=" not in url  # Facebook ignores it in the URL
 
 
 def _check(item: FacebookItemConfig, market: FacebookMarketplaceConfig, listing: Listing) -> bool:
