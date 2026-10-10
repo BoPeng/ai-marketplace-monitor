@@ -407,6 +407,8 @@ def test_summary_timeout_has_only_the_outer_retry_budget(
         raise httpx.ReadTimeout("simulated provider timeout", request=request)
 
     monkeypatch.setattr(ai_module.time, "sleep", lambda seconds: None)
+    ai: ai_module.AIBackend
+    client: Any
     with httpx.Client(transport=httpx.MockTransport(timeout)) as http_client:
         if provider == "openai":
             from openai import OpenAI
