@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.12] - 2026-10-09
+
+### Added
+- `AIMM_WEBUI_AUTH=local` gives the web UI a username and password of its own, `AIMM_WEBUI_USERNAME` (`admin` by default) and `AIMM_WEBUI_PASSWORD`, unrelated to the Facebook login. aimm refuses to start in this mode without `AIMM_WEBUI_PASSWORD`. The web UI starts before the Facebook credentials are set, so they can be entered in its config editor; app platforms can generate the password and show it to you. The sign-in page says which credentials it asks for. See "Who signs you in to the web UI" in the [Docker installation guide](docs/docker-installation.md).
+
+### Changed
+- The default `AIMM_WEBUI_AUTH` mode, sign-in with the Facebook username and password, is now called `facebook`. Its old name, `password`, still works.
+- The Docker installation guide covers Synology and QNAP NAS, and the image is also published on Docker Hub as `bopeng/ai-marketplace-monitor`.
+
+### Fixed
+- The error messages for an empty `smtp_username` or `smtp_password` read "is required" (they said "is requires" and "is is required").
+
 ## [0.10.11] - 2026-10-09
 
 ### Added
@@ -383,7 +395,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.11...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.12...HEAD
+[0.10.12]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.11...v0.10.12
 [0.10.11]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.10...v0.10.11
 [0.10.10]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.9...v0.10.10
 [0.10.9]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.8...v0.10.9
