@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.11] - 2026-10-09
+
+### Added
+- The daily digest summarizes each item with AI: one to three sentences on what looks promising, what sold, went pending or dropped in price, and the best bet. It uses the item's AI services (in the order of its `ai` option) with one short call per item with new activity; an item with nothing new gets "Nothing new in the last 24 hours (N searches)." without a call. Summaries are shared by every user and channel of the same digest. When the AI fails, the digest is sent without them, and aimm stops asking for the rest of that digest so that an outage does not hold up searches.
+- aimm tracks the status of listings it notified you about. Search results update when a listing was last seen and its price, and before a digest aimm opens the pages of listings notified in the past 7 days (at most 10 per item, once a day, 5 seconds apart) to see whether they sold or are pending. The digest tags them `Sold` or `Pending`, shows price changes as `(was $X)`, and lists earlier matches that sold, went pending or changed price under **Updates**.
+- `AIMM_LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`; `INFO` by default) sets what the terminal or container log and the web UI's Logs tab show, for example in Docker, which runs without `--verbose`. `--verbose` still means `DEBUG`; the log file keeps everything.
+- App templates for Unraid, CasaOS, Portainer, Umbrel, Runtipi, TrueNAS and Cosmos in [`deploy/`](deploy/), with how to install each before it is listed in its store. The Docker guide covers Synology Container Manager and QNAP Container Station, and the image can be mirrored to Docker Hub.
+
+### Changed
+- The email digest is laid out per item: its counts, the AI summary, the notified listings, updates on earlier matches, and the top 5 listings rejected by AI. Items with nothing new are listed together in one line at the end, and the "By item" table is gone. Phone and chat digests show each item's summary with a link to its best bet, as many items as fit in 1,000 characters.
+- Without `max_search_interval`, the time between searches is now random between `search_interval` and 1.5 × `search_interval` (it was up to a fixed hour, so a `search_interval` of an hour or more had no randomness). The "Next job" log line shows both intervals.
+- The web UI's Logs tab follows the log level: it no longer shows `DEBUG` messages unless aimm runs with `--verbose` or `AIMM_LOG_LEVEL=DEBUG`, so they do not push useful history out of the retained log. Long messages are folded to a short preview until clicked, and AI responses are logged as one line with the answer and the tokens used instead of the whole response.
+- The web UI's Configure chat starts from a card with the section picker and a **Start chat** button. Messages are typed in a multi-line box that appears only during a chat (Enter sends, Shift+Enter adds a line), answer buttons sit in the question they answer, a typing indicator shows while aimm works, and formatted messages render as lists, bold and code.
+- The documentation explains that aimm's AI tasks (configuration, rating listings and digest summaries) need a mid-tier model that reads images, not a top-tier one, and that the daily digest uses AI tokens.
+
 ## [0.10.10] - 2026-10-09
 
 ### Added
@@ -369,7 +384,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.10...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.11...HEAD
+[0.10.11]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.10...v0.10.11
 [0.10.10]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.9...v0.10.10
 [0.10.9]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.8...v0.10.9
 [0.10.8]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.7...v0.10.8
