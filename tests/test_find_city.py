@@ -166,6 +166,28 @@ def test_facebook_refusing_is_reported() -> None:
         FacebookLocations(FakeFacebook(token_page="<html>")).find("92101")  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    "answer, message",
+    [
+        # GraphQL errors arrive with HTTP 200, next to null or partial data
+        ('{"errors":[{"message":"Rate limit exceeded"}],"data":null}', "Rate limit exceeded"),
+        (
+            '{"errors":[{"message":"Field missing"}],"data":{"city_street_search":null}}',
+            "Field missing",
+        ),
+        ('{"data":null}', "failed"),
+        ("[]", "answered unexpectedly"),
+    ],
+)
+def test_graphql_errors_are_reported_with_facebooks_message(answer: str, message: str) -> None:
+    class Answering(FakeFacebook):
+        def post(self, url: str, data: Dict[str, str], **kwargs: Any) -> _Response:
+            return _Response(answer)
+
+    with pytest.raises(LocationLookupError, match=message):
+        FacebookLocations(Answering()).find("92101")  # type: ignore[arg-type]
+
+
 # --- the chat tool
 def _run(scenario: Callable[[], Awaitable[Any]]) -> Any:
     """Run a coroutine on a fresh event loop in its own thread.

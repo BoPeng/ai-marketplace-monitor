@@ -158,9 +158,19 @@ class FacebookLocations:
             data = json.loads(response.text.removeprefix("for (;;);"))
         except ValueError:
             raise LocationLookupError(f"Facebook's {name} did not answer in JSON") from None
-        if not isinstance(data, dict) or "data" not in data:
-            summary = data.get("errorSummary") if isinstance(data, dict) else None
-            raise LocationLookupError(f"Facebook's {name} failed: {summary or data}")
+        if not isinstance(data, dict):
+            raise LocationLookupError(f"Facebook's {name} answered unexpectedly: {data}")
+        # GraphQL reports errors next to (possibly null or partial) data, with HTTP 200
+        errors = data.get("errors")
+        if errors:
+            messages = [
+                str(e.get("message") or e) if isinstance(e, dict) else str(e)
+                for e in (errors if isinstance(errors, list) else [errors])
+            ]
+            raise LocationLookupError(f"Facebook's {name} failed: {'; '.join(messages)}")
+        if not isinstance(data.get("data"), dict):
+            summary = data.get("errorSummary") or data
+            raise LocationLookupError(f"Facebook's {name} failed: {summary}")
         return data["data"]  # type: ignore[no-any-return]
 
     def places(self: "FacebookLocations", place: str) -> List[Place]:
