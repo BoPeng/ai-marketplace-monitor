@@ -109,3 +109,12 @@ def test_key_from_environment(monkeypatch: pytest.MonkeyPatch, smtp: Dict[str, A
     assert config.uses_unitysvc_smtp
     assert send(config) is True
     assert smtp["password"] == KEY
+
+
+@pytest.mark.parametrize("option", ["smtp_username", "smtp_password"])
+def test_empty_smtp_credentials_are_reported_clearly(option: str) -> None:
+    # e.g. smtp_password = "${UNITYSVC_API_KEY}" with the variable set but empty, which is what
+    # a first run from an app store looks like when the key was left out
+    with pytest.raises(ValueError) as error:
+        EmailNotificationConfig(name="u", smtp_server="smtp.gmail.com", **{option: ""})
+    assert str(error.value) == f"A non-empty value is required for option {option}."
