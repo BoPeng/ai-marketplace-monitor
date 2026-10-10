@@ -2,15 +2,15 @@
   "version": "3",
   "templates": [
     {
-      "id": 1,
       "type": 1,
       "title": "AI Marketplace Monitor",
       "name": "ai-marketplace-monitor",
-      "description": "Watch Facebook Marketplace for the items you want, rate each new listing with AI, and get notified of good deals.",
-      "note": "Open the web UI on port 8467 and sign in with the Facebook username and password. If Facebook asks for a CAPTCHA or a security code, click <b>Open browser</b> in the web UI. The default configuration needs a <a href=\"https://unitysvc.com\" target=\"_blank\">UnitySVC</a> API key. See the <a href=\"https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/docker-installation.md\" target=\"_blank\">Docker installation guide</a>.",
+      "description": "Watch Facebook Marketplace for the items you want, rate each new listing with AI, and get notified of good deals. Source: https://github.com/BoPeng/ai-marketplace-monitor",
+      "note": "Open the web UI on port 8467 and sign in with the Facebook username and password you entered here. If Facebook asks for a CAPTCHA or a security code, click <b>Open browser</b> in the web UI. The default configuration needs a <a href=\"https://unitysvc.com\" target=\"_blank\">UnitySVC</a> API key. Config, cache and logs live in the named volume mounted at <code>/data</code>. See the <a href=\"https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/docker-installation.md\" target=\"_blank\">Docker installation guide</a>.",
       "categories": [
-        "productivity",
-        "tools"
+        "Productivity",
+        "Tools",
+        "AI"
       ],
       "platform": "linux",
       "logo": "https://raw.githubusercontent.com/BoPeng/ai-marketplace-monitor/main/docs/icon.png",
@@ -27,12 +27,12 @@
       "env": [
         {
           "name": "FACEBOOK_USERNAME",
-          "label": "Facebook username",
+          "label": "Facebook username (required)",
           "description": "The Facebook account aimm logs in with. Also signs you in to the web UI."
         },
         {
           "name": "FACEBOOK_PASSWORD",
-          "label": "Facebook password",
+          "label": "Facebook password (required)",
           "description": "Password of that Facebook account. Also signs you in to the web UI."
         },
         {
