@@ -1,0 +1,28 @@
+name: deploy-versions
+
+# The app-store templates in deploy/ must pin the latest released aimm, with digests that match
+# the registry (see "Update the app-store templates" in CLAUDE.md). This runs on every pull
+# request, not only those that touch deploy/: a new release makes the templates stale.
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the release tags decide which version the templates must pin
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Check the versions pinned in deploy/
+        run: python scripts/check_deploy_versions.py
