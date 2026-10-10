@@ -49,12 +49,16 @@
         {
           "name": "AIMM_WEBUI_AUTH",
           "label": "Web UI sign-in",
-          "description": "Who signs you in to the web UI. Behind a reverse proxy that signs users in, see the Docker installation guide for the variables each mode needs.",
+          "description": "Who signs you in to the web UI. local needs the web UI password below. Behind a reverse proxy that signs users in, see the Docker installation guide for the variables each mode needs.",
           "select": [
             {
               "text": "aimm, with the Facebook username and password",
-              "value": "password",
+              "value": "facebook",
               "default": true
+            },
+            {
+              "text": "aimm, with the web UI username and password below",
+              "value": "local"
             },
             {
               "text": "Authelia (Remote-User header)",
@@ -73,6 +77,17 @@
               "value": "proxy"
             }
           ]
+        },
+        {
+          "name": "AIMM_WEBUI_USERNAME",
+          "label": "Web UI username",
+          "description": "With local sign-in: the username of the web UI.",
+          "default": "admin"
+        },
+        {
+          "name": "AIMM_WEBUI_PASSWORD",
+          "label": "Web UI password",
+          "description": "With local sign-in (required): the password of the web UI, unrelated to the Facebook password."
         }
       ]
     }

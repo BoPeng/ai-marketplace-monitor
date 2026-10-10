@@ -88,10 +88,10 @@ def bump(version: str, digest: str, root: Path = ROOT) -> List[str]:
 
     def umbrel_app(t: str) -> str:
         t = _sub(r'^(version: ")[^"]+(")', rf"\g<1>{version}\g<2>", t, rel)
-        notes = f"releaseNotes: >\n  Release notes: {RELEASES}/v{version}\n"
+        notes = f"releaseNotes: >-\n  Release notes: {RELEASES}/v{version}\n"
         if f"{RELEASES}/v{version}" in t:
             return t  # already this release's notes, maybe edited by hand: keep them
-        return _sub(r"^releaseNotes:.*?\n(?=\S)", notes, t, rel)
+        return _sub(r"^releaseNotes:.*?\n(?=\n|\S)", notes, t, rel)
 
     edit(rel, umbrel_app)
 
