@@ -25,7 +25,15 @@ right after `/marketplace/`. It is a name for some large cities (`houston`, `san
 `nyc`) and a numeric location ID for most other places (`111979382146893`). It cannot be worked
 out reliably from a city's name, so never guess it. Instead:
 
-- Ask the user to open Facebook Marketplace in a browser, set the location (and distance) they
+- Ask where to search: a city, neighborhood or ZIP code, and how far around it. Then call
+  `find_city` with that place (and the distance as `radius`). aimm looks it up in Facebook's
+  location dialog and returns the code, the place's name, the places Facebook suggested and the
+  radius Facebook chose (it offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 or 500, in miles in
+  the US). Tell the user which place was chosen; if it may be the wrong one (e.g. a town that
+  exists in several states), ask and call `find_city` again with the right `choice`. Mention
+  that this also sets their Facebook Marketplace location.
+- If `find_city` is not available (aimm's monitor is not running here), or the user prefers,
+  ask them to open Facebook Marketplace in a browser, set the location (and distance) they
   want, search for anything, and paste the URL of the results page.
 - Extract the code from the pasted URL: the segment after `/marketplace/` and before the next
   `/` or `?`. Ignore `/search`, `/category/...` and query parameters.
@@ -37,7 +45,8 @@ out reliably from a city's name, so never guess it. Instead:
   location code: ask for the URL after the location is set. A URL from `m.facebook.com` works
   the same way.
 - Set `search_city` to the code only (never the whole URL), and `city_name` to the place's
-  readable name ("Houston, TX"), from the user or the page title they mention.
+  readable name ("Houston, TX"): `city_name` from `find_city`, or from the user or the page
+  title they mention.
 - Ask how far to search if they did not say, and set `radius` to that distance. Do not save a
   new location before the user has answered (a distance, or that Facebook's default is fine).
 - For several cities, repeat for each; `search_city`, `city_name` and `radius` are lists in the

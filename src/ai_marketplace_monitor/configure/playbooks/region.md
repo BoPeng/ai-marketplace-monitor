@@ -13,9 +13,10 @@ summary: Named groups of cities ([region.NAME]) that marketplaces and items sear
 ### A new region
 
 Ask which cities the region covers and how far around each to search. Every `search_city` is a
-Facebook location code and is never guessed: for each city, ask the user to open Facebook
+Facebook location code and is never guessed: for each city, call `find_city` with the city or a
+ZIP code (as in the marketplace task), or, if it is not available, ask the user to open Facebook
 Marketplace, set that location, search for anything and paste the URL; the code is the segment
-after `/marketplace/` (as in the marketplace task). Codes already in the config or a built-in
+after `/marketplace/`. Codes already in the config or a built-in
 region can be reused. Set `city_name` to readable names in the same order, `radius` to one
 distance or one per city, and `currency` if the user sets price limits in a currency. Choose a
 short name (`gulf_coast`) and a `full_name`.

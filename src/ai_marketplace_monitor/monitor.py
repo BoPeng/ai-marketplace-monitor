@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from logging import Logger
 from pathlib import Path
-from typing import ClassVar, Dict, Iterable, List
+from typing import Any, ClassVar, Dict, Iterable, List
 
 import humanize
 import inflect
@@ -591,8 +591,8 @@ class MarketplaceMonitor:
             self.logger.info(
                 f"""{hilight("[Pause]", "info")} Monitor stopped. Click ▶ in the web UI to start it again with the current configuration."""
             )
-        while not control.wait_until_resumed(60):
-            pass
+        while not control.wait_until_resumed(1):
+            control.run_browser_tasks()  # the Configure chat may need the browser while stopped
         if self.logger:
             self.logger.info(
                 f"""{hilight("[Pause]", "succ")} Restarting the monitor with the current configuration."""
@@ -674,6 +674,8 @@ class MarketplaceMonitor:
         self.browser = self._launch_browser()
         #
         assert self.browser is not None
+        # the web UI's Configure chat asks for browser tasks (control.submit_browser_task)
+        control.set_browser_handler(self.run_browser_task)
         while True:
             self.handle_stop()
             self.schedule_jobs()
@@ -779,8 +781,33 @@ class MarketplaceMonitor:
                     break
                 schedule.run_pending()
 
+    def run_browser_task(self: "MarketplaceMonitor", name: str, **args: Any) -> Any:
+        """Run a browser task for the web UI, in the monitor's thread (see control.py)."""
+        if name != "find_city":
+            raise ValueError(f"Unknown browser task {name}")
+        assert self.config is not None and self.browser is not None
+        marketplace_config = self.config.marketplace.get("facebook")
+        if marketplace_config is None:
+            raise ValueError("No [marketplace.facebook] section is configured.")
+        marketplace = self.active_marketplaces.get("facebook")
+        if marketplace is None:
+            marketplace = supported_marketplaces["facebook"](
+                "facebook", self.browser, self.keyboard_monitor, self.logger
+            )
+            self.active_marketplaces["facebook"] = marketplace
+        marketplace.configure(
+            marketplace_config,
+            translator=self._select_translator(marketplace_config.language),
+        )
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Configure]", "info")} Looking up "{args.get("place")}" in Facebook's location dialog."""
+            )
+        return marketplace.find_city(**args)  # type: ignore[attr-defined]
+
     def stop_monitor(self: "MarketplaceMonitor") -> None:
         """Stop the monitor."""
+        control.set_browser_handler(None)
         for marketplace in self.active_marketplaces.values():
             marketplace.stop()
         self.playwright.stop()

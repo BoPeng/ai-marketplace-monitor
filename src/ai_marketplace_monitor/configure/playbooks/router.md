@@ -23,7 +23,7 @@ including AI services (`ai`).
 ### Setting up from the beginning
 
 aimm needs three things to work: where to search (a `[marketplace.*]` with a location, which
-needs a Facebook Marketplace URL from the user), how to notify the user (`[notification.*]` and
+which `find_city` looks up from a city or ZIP code), how to notify the user (`[notification.*]` and
 `[user.*]`), and something to search for (`[item.*]`). When starting from scratch, set them up in
 that order: marketplace, then notification, then suggest adding an item.
 

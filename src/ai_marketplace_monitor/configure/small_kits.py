@@ -44,6 +44,8 @@ LABELS: Tuple[str, ...] = (
     "Joined Facebook in",
     "Inventory availability status",
     "Location:",
+    "Location",
+    "Within",
     "Change location",
     "Radius",
     "Apply",
@@ -223,7 +225,7 @@ class MonitorToolkit(_SmallToolkit):
 REGION_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "search_city",
-        "the cities of the region, as Facebook location codes from Marketplace URLs the user "
+        "the cities of the region, as Facebook location codes from find_city or Marketplace URLs the user "
         "pastes (or codes already in the config or the built-in regions); never guessed",
         'list, e.g. `["houston", "dallas", "111979382146893"]`',
         "required for a new region",
@@ -290,7 +292,9 @@ class RegionToolkit(_SmallToolkit):
 
     def missing(self: "RegionToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
         if not self._effective(ws, draft).get("search_city"):
-            return ["search_city: the cities of the region, from pasted Marketplace URLs"]
+            return [
+                "search_city: the cities of the region, from find_city or pasted Marketplace URLs"
+            ]
         return []
 
 

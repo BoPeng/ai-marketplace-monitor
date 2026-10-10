@@ -100,7 +100,7 @@ async def test_a_new_region_needs_cities_from_pasted_urls(tmp_path: Path) -> Non
     ws = await ws_for(tmp_path, BASE)
     draft = R.view(ws, "gulf")
     assert R.missing(ws, draft) == [
-        "search_city: the cities of the region, from pasted Marketplace URLs"
+        "search_city: the cities of the region, from find_city or pasted Marketplace URLs"
     ]
     draft.values = {"search_city": ["galveston", "portland"], "radius": 40}
     assert "Never guess" in R.validate(ws, draft)[0]

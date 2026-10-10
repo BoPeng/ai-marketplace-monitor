@@ -243,6 +243,7 @@ async def test_tools_for_model_have_names_and_docs(tmp_path: Path) -> None:
         "section_show",
         "section_update",
         "section_check",
+        "find_city",
     }
     assert all(
         fn.__doc__ and "Args:" in fn.__doc__ for n, fn in tools.items() if n != "list_sections"

@@ -54,7 +54,8 @@ distance, a whole region); otherwise leave it to the marketplace.
 
 If `marketplace_exists` is false, the item cannot be searched yet: create the marketplace
 (`section_update` with `section_type="marketplace"`), following the marketplace task, with the
-user's location from a pasted Facebook Marketplace URL and the distance they want. Then later
+user's location (from `find_city` with the place they name, or a pasted Marketplace URL) and
+the distance they want. Then later
 items inherit it. Tell the user you are setting up the marketplace too.
 
 ### Extra requests

@@ -122,6 +122,9 @@ class _FakeLocator:
     def all_inner_texts(self) -> List[str]:
         return self.page.choices
 
+    def wait_for(self, timeout: int = 0) -> None:
+        pass
+
 
 class _FakePage:
     def __init__(self, label: str, choices: List[str]) -> None:
