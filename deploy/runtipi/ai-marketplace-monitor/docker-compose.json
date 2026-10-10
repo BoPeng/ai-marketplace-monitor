@@ -14,15 +14,15 @@
         },
         {
           "key": "FACEBOOK_USERNAME",
-          "value": "${AIMM_FACEBOOK_USERNAME}"
+          "value": "${FACEBOOK_USERNAME}"
         },
         {
           "key": "FACEBOOK_PASSWORD",
-          "value": "${AIMM_FACEBOOK_PASSWORD}"
+          "value": "${FACEBOOK_PASSWORD}"
         },
         {
           "key": "UNITYSVC_API_KEY",
-          "value": "${AIMM_UNITYSVC_API_KEY}"
+          "value": "${UNITYSVC_API_KEY}"
         }
       ],
       "volumes": [
