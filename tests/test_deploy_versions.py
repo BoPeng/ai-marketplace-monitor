@@ -74,6 +74,20 @@ def test_a_digest_must_match_the_registry(deploy_copy: Path) -> None:
     assert len(problems) == 2 and all(f"is {other}" in p for p in problems)
 
 
+def test_umbrel_and_truenas_must_pin_a_digest(deploy_copy: Path) -> None:
+    """A tag without its digest would pass the version check; these stores require one."""
+    values = deploy_copy / "deploy/truenas/ai-marketplace-monitor/ix_values.yaml"
+    pins = cdv.collect_pins(deploy_copy)
+    version = pins[0].version
+    digest = next(p.digest for p in pins if p.digest)
+    values.write_text(values.read_text().replace(f"{version}@{digest}", version))
+    problems = cdv.check(cdv.collect_pins(deploy_copy), version)
+    assert problems == [
+        "deploy/truenas/ai-marketplace-monitor/ix_values.yaml: image tag must pin the image by"
+        f" digest (ghcr.io/bopeng/ai-marketplace-monitor:{version}@sha256:...)"
+    ]
+
+
 def test_a_missing_field_is_an_error(deploy_copy: Path) -> None:
     compose = deploy_copy / "deploy/runtipi/ai-marketplace-monitor/docker-compose.json"
     compose.write_text(compose.read_text().replace("ghcr.io/bopeng", "docker.io/someone"))

@@ -40,6 +40,7 @@ class Pin:
     field: str
     version: str
     digest: Optional[str] = None
+    needs_digest: bool = False  # the store requires the image pinned by digest
 
 
 def _find(text: str, pattern: str, file: str) -> re.Match:
@@ -49,10 +50,10 @@ def _find(text: str, pattern: str, file: str) -> re.Match:
     return match
 
 
-def _image_pins(text: str, file: str, field: str) -> List[Pin]:
+def _image_pins(text: str, file: str, field: str, needs_digest: bool = False) -> List[Pin]:
     """Every reference to the image, as `IMAGE:version` or `IMAGE:version@sha256:...`."""
     pins = [
-        Pin(file, field, m.group(1), m.group(2))
+        Pin(file, field, m.group(1), m.group(2), needs_digest)
         for m in re.finditer(
             re.escape(IMAGE) + r":(\d+\.\d+\.\d+)(?:@(sha256:[0-9a-f]{64}))?", text
         )
@@ -80,7 +81,7 @@ def collect_pins(root: Path = ROOT) -> List[Pin]:
     pins.append(Pin(rel, "version", json.loads(read(rel))["version"]))
 
     rel = "deploy/umbrel/ai-marketplace-monitor/docker-compose.yml"
-    pins += _image_pins(read(rel), rel, "image")
+    pins += _image_pins(read(rel), rel, "image", needs_digest=True)
     rel = "deploy/umbrel/ai-marketplace-monitor/umbrel-app.yml"
     pins.append(Pin(rel, "version", _find(read(rel), r'^version: "([^"]+)"', rel).group(1)))
 
@@ -91,7 +92,7 @@ def collect_pins(root: Path = ROOT) -> List[Pin]:
         r"repository: " + re.escape(IMAGE) + r'\n\s+tag: "([^"@]+)(?:@(sha256:[0-9a-f]{64}))?"',
         rel,
     )
-    pins.append(Pin(rel, "image tag", m.group(1), m.group(2)))
+    pins.append(Pin(rel, "image tag", m.group(1), m.group(2), needs_digest=True))
     rel = "deploy/truenas/ai-marketplace-monitor/app.yaml"
     pins.append(Pin(rel, "app_version", _find(read(rel), r"^app_version: (\S+)", rel).group(1)))
     return pins
@@ -150,6 +151,11 @@ def check(
         f"{p.file}: {p.field} is {p.version}, expected {expected}"
         for p in pins
         if p.version != expected
+    ]
+    problems += [
+        f"{p.file}: {p.field} must pin the image by digest ({IMAGE}:{p.version}@sha256:...)"
+        for p in pins
+        if p.needs_digest and p.digest is None
     ]
     if digest_of is not None:
         digests: Dict[str, str] = {}
