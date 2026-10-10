@@ -445,7 +445,7 @@ The optional `monitor` section allows you to define system configurations for th
 | `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy. |
 | `proxy_username` | Optional    | String      | username for the proxy.                  |
 | `proxy_password` | Optional    | String      | password for the proxy.                  |
-| `check_updates`  | Optional    | Boolean     | Check PyPI once a day for a newer release (default `true`). |
+| `check_updates`  | Optional    | Boolean     | Check PyPI for a newer release when aimm starts, at most once a day (default `true`). The web UI's **Check for updates** button works either way. |
 | `evaluation_history_days` | Optional | Integer | Days to keep the record of each evaluated listing shown in the web UI's **Listings** view (default `30`). |
 
 - If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.

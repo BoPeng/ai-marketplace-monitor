@@ -1,10 +1,11 @@
 """Tell the user when a newer aimm release is on PyPI.
 
 aimm runs unattended for days, and Facebook changes its pages often, so an old version can stop
-working long after a fix is released. The check asks PyPI at most once a day (the answer is
-cached), runs in the background, never fails or delays the monitor, and is skipped for
-development builds. Turn it off with ``check_updates = false`` in ``[monitor]`` or the
-``AIMM_NO_UPDATE_CHECK`` environment variable.
+working long after a fix is released. The check runs when the monitor starts and asks PyPI at
+most once a day (the answer is cached); it runs in the background, never fails or delays the
+monitor, and is skipped for development builds. Turn it off with ``check_updates = false`` in
+``[monitor]`` or the ``AIMM_NO_UPDATE_CHECK`` environment variable. The "Check for updates"
+button in the web UI asks PyPI at any time (``check(refresh=True)``), even when it is turned off.
 
 In the Docker image, the web UI can also install the new release in place (``start_self_update``):
 pip installs it inside the container, then aimm exits and supervisord starts the new version.
@@ -103,10 +104,13 @@ def enabled(check_updates: bool | None) -> bool:
     return _release(__version__) is not None  # not for development builds
 
 
-def latest_version(timeout: float = 5.0) -> str | None:
-    """The latest release on PyPI, asked at most once a day; None if it cannot be found."""
+def latest_version(timeout: float = 5.0, refresh: bool = False) -> str | None:
+    """The latest release on PyPI, asked at most once a day; None if it cannot be found.
+
+    ``refresh`` asks PyPI even if it was asked less than a day ago.
+    """
     key = (CacheType.UPDATE_CHECK.value, "latest")
-    cached = cache.get(key)
+    cached = None if refresh else cache.get(key)
     if isinstance(cached, str):
         return cached
     try:
@@ -121,10 +125,17 @@ def latest_version(timeout: float = 5.0) -> str | None:
     return latest
 
 
-def check(logger: Logger | None, current: str = __version__) -> UpdateNotice | None:
-    """Check once; log and remember a notice when a newer release exists."""
+def check(
+    logger: Logger | None, current: str | None = None, refresh: bool = False
+) -> UpdateNotice | None:
+    """Check once; log and remember a notice when a newer release exists.
+
+    ``current`` defaults to the running version. ``refresh`` asks PyPI now instead of using the
+    answer from earlier in the day.
+    """
     global _notice
-    latest = latest_version()
+    current = current or __version__
+    latest = latest_version(refresh=refresh)
     if latest is None or not is_newer(latest, current):
         return None
     _notice = UpdateNotice(

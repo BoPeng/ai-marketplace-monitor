@@ -53,7 +53,9 @@ from ..evaluations import SORT_KEYS, STAGES, filter_evaluations, iter_evaluation
 from ..notification import NotificationConfig
 from ..update_check import (
     can_restart,
+    check,
     current_notice,
+    latest_version,
     restart_later,
     self_update_status,
     start_self_update,
@@ -530,6 +532,29 @@ def create_app(
             )
         control.resume()
         return {"ok": True, **control.status()}
+
+    @app.post("/api/update/check")
+    def check_for_update(
+        _: str = Depends(require_session),
+        __: None = Depends(require_csrf),
+    ) -> Dict[str, Any]:
+        """Ask PyPI now for a newer release (the "Check for updates" button).
+
+        Runs even with ``check_updates = false``: the user asked for it.
+        """
+        latest = latest_version(refresh=True)
+        if latest is None:
+            raise HTTPException(
+                status_code=502, detail="PyPI could not be reached; try again later."
+            )
+        check(logging.getLogger("monitor"))  # uses the answer just cached
+        return {
+            "ok": True,
+            "current": __version__,
+            "latest": latest,
+            "update": current_notice(),
+            "self_update": self_update_status(),
+        }
 
     @app.post("/api/update")
     async def update_aimm(

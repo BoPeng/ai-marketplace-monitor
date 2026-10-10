@@ -1,4 +1,4 @@
-"""The update check: compare with PyPI once a day, log a line, and tell the web UI."""
+"""The update check: compare with PyPI at start or on request, log a line, tell the web UI."""
 
 from __future__ import annotations
 
@@ -104,6 +104,16 @@ def test_pypi_is_asked_once_a_day(pypi: PyPI) -> None:
     assert pypi.calls == [update_check.PYPI_URL]
     key = (update_check.CacheType.UPDATE_CHECK.value, "latest")
     assert update_check.cache.expire[key] == 24 * 60 * 60  # type: ignore[attr-defined]
+
+
+def test_refresh_asks_pypi_again(pypi: PyPI) -> None:
+    pypi.answer = "0.10.3"
+    assert update_check.check(None, current="0.10.3") is None
+    pypi.answer = "0.11.0"  # released later the same day
+    assert update_check.check(None, current="0.10.3") is None  # the cached answer
+    notice = update_check.check(None, current="0.10.3", refresh=True)
+    assert notice is not None and notice.latest == "0.11.0"
+    assert len(pypi.calls) == 2
 
 
 def test_nothing_happens_when_current_or_offline(
@@ -331,3 +341,39 @@ def test_web_ui_update_endpoint(
     response = client.post("/api/update")
     assert response.status_code == 409
     assert "already in progress" in response.json()["detail"]
+
+
+def test_web_ui_check_for_updates_button(
+    tmp_path: Path, pypi: PyPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai_marketplace_monitor.webui import server
+    from ai_marketplace_monitor.webui.config_api import ConfigFileService
+    from ai_marketplace_monitor.webui.log_handler import LogBroadcastHandler
+    from ai_marketplace_monitor.webui.server import AuthState, WebUIConfig, create_app
+
+    monkeypatch.setattr(update_check, "__version__", "0.10.3")
+    monkeypatch.setattr(server, "__version__", "0.10.3")
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[marketplace.facebook]\nsearch_city = 'dallas'\n", encoding="utf-8")
+    handler = LogBroadcastHandler()
+    client = TestClient(
+        create_app(
+            WebUIConfig(config_files=[cfg], log_handler=handler),
+            AuthState(),
+            ConfigFileService([cfg]),
+            handler,
+        )
+    )
+    pypi.answer = "0.10.3"
+    update_check.check(None)  # at start: up to date
+    pypi.answer = "0.11.0"  # released since
+    data = client.post("/api/update/check").json()
+    assert data["current"] == "0.10.3" and data["latest"] == "0.11.0"
+    assert data["update"]["latest"] == "0.11.0"
+    assert client.get("/api/status").json()["update"]["latest"] == "0.11.0"
+    assert len(pypi.calls) == 2  # the button asked PyPI again
+
+    pypi.answer = "offline"
+    response = client.post("/api/update/check")
+    assert response.status_code == 502
+    assert "PyPI could not be reached" in response.json()["detail"]
