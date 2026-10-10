@@ -5,9 +5,15 @@ on:
     tags: ["v*"]
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Only pin the app-store templates to this released version (e.g. 0.10.11), without building"
+        required: false
+        default: ""
 
 jobs:
   build-and-push:
+    if: inputs.version == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,3 +61,58 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # After the image of a release tag is pushed, pin the app-store templates in deploy/ to it
+  # (version and index digest) and commit them to main; see CLAUDE.md. Commits pushed with
+  # GITHUB_TOKEN start no workflows, so this does not run itself again.
+  bump-deploy:
+    needs: build-and-push
+    if: >-
+      !failure() && !cancelled() &&
+      (startsWith(github.ref, 'refs/tags/v') || inputs.version != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0 # the release tags decide which version the templates must pin
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Pin the templates to the release
+        id: bump
+        env:
+          VERSION: ${{ inputs.version || github.ref_name }}
+        run: |
+          version="${VERSION#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "$VERSION is not a release version; the templates stay as they are"
+            exit 0
+          fi
+          digest=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_deploy_versions import registry_digest; print(registry_digest(sys.argv[1]))" "$version")
+          python scripts/bump_deploy_versions.py "$version" "$digest"
+          python scripts/check_deploy_versions.py
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit to main
+        if: steps.bump.outputs.version != ''
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          if git diff --quiet -- deploy; then
+            echo "The templates already pin $VERSION"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deploy
+          git commit -m "Pin the app-store templates to $VERSION"
+          for _ in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1

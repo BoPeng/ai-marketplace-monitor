@@ -12,13 +12,15 @@ A release is prepared in a pull request and published from GitHub:
 
 ### Update the app-store templates
 
-The templates in `deploy/` that pin a version must be bumped to each release, in a pull request after the release, once the image is pushed. Get the image's multi-arch digest with:
+The templates in `deploy/` that pin a version are bumped to each release automatically: after the `docker` workflow pushes the image of a `vX.Y.Z` tag, its `bump-deploy` job reads the image's index digest from the registry, runs `python scripts/bump_deploy_versions.py X.Y.Z sha256:<digest>`, checks the result, and commits it to `main` as "Pin the app-store templates to X.Y.Z". The digest is the image's (not the PyPI package's), so it exists only once the image is pushed. Edit Umbrel's `releaseNotes` afterwards if a summary is wanted instead of the link the job writes.
+
+If the job did not run or failed, run it again with **Actions › docker › Run workflow** and a `version` (it then only bumps, without building), or run the script locally. To find the digest by hand:
 
 ```bash
 docker buildx imagetools inspect ghcr.io/bopeng/ai-marketplace-monitor:X.Y.Z
 ```
 
-and use the `Digest:` of the index (not one of the per-platform manifests).
+and use the `Digest:` of the index (not one of the per-platform manifests). The script makes these changes:
 
 | File | Update |
 | --- | --- |
@@ -32,6 +34,6 @@ and use the `Digest:` of the index (not one of the per-platform manifests).
 
 The Unraid, Portainer and Cosmos templates use `latest` and need no change.
 
-The `deploy-versions` workflow enforces this on every pull request and push to `main`: `python scripts/check_deploy_versions.py` requires every pin above to name the version in `pyproject.toml` once it is released (the tag `vX.Y.Z` exists), or the latest release while the release PR is open, and checks the Umbrel and TrueNAS digests against the registry. So after a release, pull requests fail until the templates are bumped. Run it locally before pushing; `--offline` skips the registry.
+The `deploy-versions` workflow enforces this on every pull request and push to `main`: `python scripts/check_deploy_versions.py` requires every pin above to name the version in `pyproject.toml` once it is released (the tag `vX.Y.Z` exists), or the latest release while the release PR is open, and checks the Umbrel and TrueNAS digests against the registry. So if the automatic bump did not happen, pull requests fail until it does. Run it locally before pushing; `--offline` skips the registry.
 
 For a store that already lists aimm, the same bump goes to the store in a pull request to its repository; [#417](https://github.com/BoPeng/ai-marketplace-monitor/issues/417) tracks which stores list it.

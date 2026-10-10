@@ -93,3 +93,51 @@ def test_a_missing_field_is_an_error(deploy_copy: Path) -> None:
     compose.write_text(compose.read_text().replace("ghcr.io/bopeng", "docker.io/someone"))
     with pytest.raises(ValueError, match="no pinned"):
         cdv.collect_pins(deploy_copy)
+
+
+_bspec = importlib.util.spec_from_file_location(
+    "bump_deploy_versions", ROOT / "scripts" / "bump_deploy_versions.py"
+)
+assert _bspec is not None and _bspec.loader is not None
+bdv: Any = importlib.util.module_from_spec(_bspec)
+sys.modules[_bspec.name] = bdv
+_bspec.loader.exec_module(bdv)
+
+NEW_DIGEST = "sha256:" + "ab" * 32
+
+
+def test_bump_pins_every_template_to_the_release(deploy_copy: Path) -> None:
+    import json
+
+    before = cdv.collect_pins(deploy_copy)
+    tipi = json.loads(
+        (deploy_copy / "deploy/runtipi/ai-marketplace-monitor/config.json").read_text()
+    )
+    changed = bdv.bump("9.8.7", NEW_DIGEST, deploy_copy)
+    assert len(changed) == 7
+    pins = cdv.collect_pins(deploy_copy)
+    assert {p.version for p in pins} == {"9.8.7"} and len(pins) == len(before)
+    assert cdv.check(pins, "9.8.7", lambda v: NEW_DIGEST) == []
+    config = json.loads(
+        (deploy_copy / "deploy/runtipi/ai-marketplace-monitor/config.json").read_text()
+    )
+    assert config["tipi_version"] == tipi["tipi_version"] + 1
+    app = (deploy_copy / "deploy/truenas/ai-marketplace-monitor/app.yaml").read_text()
+    assert app.startswith("app_version: 9.8.7\n")
+    notes = (deploy_copy / "deploy/umbrel/ai-marketplace-monitor/umbrel-app.yml").read_text()
+    assert "releases/tag/v9.8.7" in notes and "\nsubmitter:" in notes
+
+
+def test_bump_is_idempotent(deploy_copy: Path) -> None:
+    bdv.bump("9.8.7", NEW_DIGEST, deploy_copy)
+    snapshot = {p: p.read_bytes() for p in (deploy_copy / "deploy").rglob("*") if p.is_file()}
+    # a re-run (e.g. the workflow run again) neither counts up nor rewrites the notes
+    assert bdv.bump("9.8.7", NEW_DIGEST, deploy_copy) == []
+    assert {p: p.read_bytes() for p in snapshot} == snapshot
+
+
+def test_bump_rejects_bad_input(deploy_copy: Path) -> None:
+    with pytest.raises(ValueError, match="not a release version"):
+        bdv.bump("9.8", NEW_DIGEST, deploy_copy)
+    with pytest.raises(ValueError, match="not an image digest"):
+        bdv.bump("9.8.7", "sha256:abc", deploy_copy)
