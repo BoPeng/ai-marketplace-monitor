@@ -148,8 +148,10 @@ def test_translated_pages() -> None:
 
 
 def test_sold_listings_are_counted_once_the_grid_has_loaded() -> None:
-    """Shapes from a live profile (2026-10-10): the switch to "Sold & out of stock" keeps the
-    active tiles for a moment, then shows sold tiles or "No listings found".
+    """The sold grid in the shapes of a live profile (2026-10-10).
+
+    The switch to "Sold & out of stock" keeps the active tiles for a moment, then shows sold
+    tiles or "No listings found".
     """
     header = "Pat's listings\nSold & out of stock\nSort by\n"
     # still the active listings: tiles start with their price
