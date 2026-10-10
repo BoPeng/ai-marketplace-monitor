@@ -58,6 +58,10 @@ CODES = {
 }
 
 
+# the anonymous token as Facebook's logged-out page embeds it (a made-up value)
+FAKE_TOKEN_PAGE = '"LSD",[],{"token":"tok123"}'
+
+
 class _Response:
     def __init__(self, text: str, status_code: int = 200) -> None:
         self.text, self.status_code = text, status_code
@@ -66,10 +70,9 @@ class _Response:
 class FakeFacebook:
     """A requests.Session that answers like Facebook's page and GraphQL endpoint."""
 
-    def __init__(
-        self, token_page: str = '"LSD",[],{"token":"tok123"}', broken: bool = False
-    ) -> None:
-        self.token_page, self.broken = token_page, broken
+    def __init__(self, token_page: str | None = None, broken: bool = False) -> None:
+        self.token_page = FAKE_TOKEN_PAGE if token_page is None else token_page
+        self.broken = broken
         self.posts: List[Dict[str, Any]] = []
 
     def get(self, url: str, **kwargs: Any) -> _Response:
@@ -325,7 +328,7 @@ def test_los_angeles_tx_is_saved_with_its_code(
 def test_a_name_alone_is_confirmed_from_facebooks_places(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ "Los Angeles" alone: the chat offers Facebook's places, then looks again with the state."""
+    """A name alone: the chat offers Facebook's places, then looks again with the state."""
     outcome, model, written = _converse(
         tmp_path,
         monkeypatch,
