@@ -6,12 +6,17 @@
 
 {# the image runs as any non-root user; data, cache and logs live in /data #}
 {% do c1.set_user(values.run_as.user, values.run_as.group) %}
-{% do c1.healthcheck.set_test("tcp", {"port": values.network.web_port.port_number}) %}
+{% do c1.healthcheck.set_test("http", {"port": values.network.web_port.port_number, "path": "/api/health"}) %}
 
 {% do c1.environment.add_env("AIMM_WEBUI_PORT", values.network.web_port.port_number) %}
 {% do c1.environment.add_env("FACEBOOK_USERNAME", values.aimm.facebook_username) %}
 {% do c1.environment.add_env("FACEBOOK_PASSWORD", values.aimm.facebook_password) %}
 {% do c1.environment.add_env("UNITYSVC_API_KEY", values.aimm.unitysvc_api_key) %}
+{% do c1.environment.add_env("AIMM_WEBUI_AUTH", values.aimm.webui_auth) %}
+{% if values.aimm.webui_auth == "local" %}
+  {% do c1.environment.add_env("AIMM_WEBUI_USERNAME", values.aimm.webui_username) %}
+  {% do c1.environment.add_env("AIMM_WEBUI_PASSWORD", values.aimm.webui_password) %}
+{% endif %}
 {% do c1.environment.add_user_envs(values.aimm.additional_envs) %}
 
 {% do c1.add_port(values.network.web_port) %}

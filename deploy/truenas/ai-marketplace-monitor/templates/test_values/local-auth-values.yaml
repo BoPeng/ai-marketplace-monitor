@@ -9,7 +9,9 @@ aimm:
   facebook_username: test@example.com
   facebook_password: test-password
   unitysvc_api_key: svcpass_XXXXX
-  webui_auth: facebook
+  webui_auth: local
+  webui_username: admin
+  webui_password: test-webui-password
   additional_envs: []
 
 run_as:
