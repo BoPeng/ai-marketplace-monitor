@@ -209,6 +209,10 @@ def test_local_mode_starts_without_marketplace_credentials(
     # local mode never falls back to the marketplace login
     with pytest.raises(RuntimeError, match="AIMM_WEBUI_AUTH=local needs AIMM_WEBUI_PASSWORD"):
         start_webui(config)
+    # nor starts without its password on loopback, where the web UI is open
+    loopback = WebUIConfig(host="127.0.0.1", config_files=[cfg], log_handler=config.log_handler)
+    with pytest.raises(RuntimeError, match="AIMM_WEBUI_AUTH=local needs AIMM_WEBUI_PASSWORD"):
+        start_webui(loopback)
     monkeypatch.setenv("AIMM_WEBUI_PASSWORD", "generated-secret")
     _, info = start_webui(config)
     assert info.username == "admin"

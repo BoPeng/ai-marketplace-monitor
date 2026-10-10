@@ -202,17 +202,18 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
     state.exposed = exposed
     # an unsupported value is an error even on loopback, where no proxy check applies
     state.mode = webui_auth_mode()
+    local = None
+    if state.mode == AUTH_LOCAL:
+        # also on loopback: local mode without its password is a setup error
+        try:
+            local = local_credentials()
+        except ValueError as e:
+            raise RuntimeError(str(e)) from None
     if exposed:
         state.proxy = ProxyAuth.from_environment()
 
     if exposed and not state.proxy_auth:
-        if state.mode == AUTH_LOCAL:
-            try:
-                extracted = local_credentials()
-            except ValueError as e:
-                raise RuntimeError(f"--webui-host {config.host}: {e}") from None
-        else:
-            extracted = extract_credentials(config.config_files)
+        extracted = local or extract_credentials(config.config_files)
         if extracted.username and extracted.password:
             state.auth = AuthConfig(
                 username=extracted.username,
