@@ -20,8 +20,9 @@ the user names hosts that should not use the proxy.
 
 ### Update reminder
 
-aimm checks PyPI once a day and says in its log and the web UI when a newer release is out. Set
-`check_updates = false` only if the user wants that off.
+aimm checks PyPI when it starts (at most once a day) and says in its log and the web UI when a
+newer release is out; Settings › About in the web UI has a "Check for updates" button. Set
+`check_updates = false` only if the user wants the check at start off.
 
 ### Evaluation history
 

@@ -2254,8 +2254,9 @@
   // Boot
   // ---------------------------------------------------------------
   // The running aimm version, and a newer release found by the monitor's
-  // update check (once a day). The header shows a chip when there is one;
-  // Settings > About says how to update (in Docker, aimm installs it itself).
+  // update check (when it starts) or the "Check for updates" button. The
+  // header shows a chip when there is one; Settings > About says how to
+  // update (in Docker, aimm installs it itself).
   const refreshUpdateBadge = async () => {
     try {
       const res = await fetch("/api/status", { credentials: "same-origin" });
@@ -2268,8 +2269,7 @@
         });
       }
       state.version = status.version;
-      state.update = status.update || null;
-      state.updateInPlace = !!(status.update && status.self_update && status.self_update.available);
+      applyUpdateStatus(status);
       // there is nothing to log out of on 127.0.0.1
       const logoutRow = document.getElementById("logout-row");
       if (logoutRow) logoutRow.hidden = !!status.open;
@@ -2282,13 +2282,19 @@
           ? `Signed in as ${status.user}${proxied ? ` by your reverse proxy (${status.auth_mode})` : ""}.`
           : "";
       }
-      const badge = document.getElementById("update-badge");
-      if (badge) {
-        badge.hidden = !state.update;
-        if (state.update) badge.textContent = `⬆ aimm ${state.update.latest} available`;
-      }
       renderUpdateInfo();
     } catch (_) {}
+  };
+
+  // `status` is /api/status or the answer of /api/update/check
+  const applyUpdateStatus = (status) => {
+    state.update = status.update || null;
+    state.updateInPlace = !!(status.update && status.self_update && status.self_update.available);
+    const badge = document.getElementById("update-badge");
+    if (badge) {
+      badge.hidden = !state.update;
+      if (state.update) badge.textContent = `⬆ aimm ${state.update.latest} available`;
+    }
   };
 
   const renderUpdateInfo = () => {
@@ -2297,7 +2303,7 @@
     if (!info || !updateBtn) return;
     const update = state.update;
     if (!update) {
-      info.textContent = "No newer release is known. The monitor checks for one once a day.";
+      info.textContent = state.updateChecked || "No newer release is known.";
       if (!state.updating) updateBtn.hidden = true;
       return;
     }
@@ -2358,6 +2364,30 @@
     };
     setTimeout(poll, 3000);
   };
+
+  wireClick("#update-check-btn", async () => {
+    const btn = $("#update-check-btn");
+    const info = document.getElementById("update-info");
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = "Checking…";
+    try {
+      const res = await api("/api/update/check", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      state.updateChecked =
+        data.latest === data.current
+          ? `You have the latest release (${data.latest}).`
+          : `The latest release is ${data.latest}; no newer release is out.`;
+      applyUpdateStatus(data);
+      renderUpdateInfo();
+    } catch (err) {
+      if (info) info.textContent = `Could not check for updates: ${err.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Check for updates";
+    }
+  });
 
   wireClick("#update-btn", async () => {
     const btn = $("#update-btn");

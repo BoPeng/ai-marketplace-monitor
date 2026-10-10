@@ -572,16 +572,17 @@ Updates and Proxy
 Update Reminder
 ---------------
 
-Once a day, when the monitor starts, aimm asks PyPI whether a newer release is out. If so, it
-logs a line such as::
+When the monitor starts, aimm asks PyPI whether a newer release is out (at most once a day, so
+frequent restarts do not ask again). If so, it logs a line such as::
 
     [UPDATE] AI Marketplace Monitor 0.11.0 is available (you have 0.10.3). Upgrade with: pip install --upgrade ai-marketplace-monitor
 
 and the web UI shows an "aimm 0.11.0 available" badge in its header, linking to the changelog.
 The upgrade command matches how aimm was installed (pip, pipx, ``uv tool`` or Docker). The
-request sends nothing about you or your config, and a failed check is silently retried the next
-day. To turn it off, add this to your config, or set the environment variable
-``AIMM_NO_UPDATE_CHECK=1``:
+request sends nothing about you or your config, and a failed check is silently retried at the
+next start. To check at any time, click **Check for updates** in the web UI's Settings › About,
+which asks PyPI right away. To turn off the check at start, add this to your config, or set the
+environment variable ``AIMM_NO_UPDATE_CHECK=1`` (the button still works):
 
 .. code-block:: toml
 
