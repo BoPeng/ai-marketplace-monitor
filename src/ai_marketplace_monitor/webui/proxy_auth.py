@@ -1,7 +1,9 @@
 """Let a reverse proxy sign users in to an exposed web UI (``AIMM_WEBUI_AUTH``).
 
-``password`` (the default) keeps aimm's own sign-in. The other modes skip it and instead check,
-on every request, what the proxy adds once it has signed the user in:
+``facebook`` (the default; ``password`` is its old name) signs users in with the marketplace
+username and password, and ``local`` with a web UI password of its own (``AIMM_WEBUI_USERNAME``,
+``AIMM_WEBUI_PASSWORD``). The other modes skip aimm's sign-in and instead check, on every request,
+what the proxy adds once it has signed the user in:
 
 - ``proxy``: nothing. Only safe when the web UI's port is reachable through the proxy alone.
 - ``authelia``: a user header (``Remote-User``, or ``AIMM_WEBUI_USER_HEADER``). Not signed:
@@ -25,12 +27,22 @@ import secrets
 from dataclasses import dataclass, field
 from typing import Any, Mapping, NamedTuple
 
-AUTH_PASSWORD = "password"
+AUTH_FACEBOOK = "facebook"
+AUTH_LOCAL = "local"
+AUTH_PASSWORD = "password"  # the old name of AUTH_FACEBOOK, still accepted
 AUTH_PROXY = "proxy"
 AUTH_AUTHELIA = "authelia"
 AUTH_AUTHENTIK = "authentik"
 AUTH_CLOUDFLARE = "cloudflare"
-AUTH_MODES = (AUTH_PASSWORD, AUTH_PROXY, AUTH_AUTHELIA, AUTH_AUTHENTIK, AUTH_CLOUDFLARE)
+AUTH_MODES = (
+    AUTH_FACEBOOK,
+    AUTH_LOCAL,
+    AUTH_PROXY,
+    AUTH_AUTHELIA,
+    AUTH_AUTHENTIK,
+    AUTH_CLOUDFLARE,
+)
+_OLD_NAMES = {AUTH_PASSWORD: AUTH_FACEBOOK}
 
 SECRET_HEADER = "X-Aimm-Proxy-Secret"
 AUTHENTIK_JWT_HEADER = "X-Authentik-Jwt"
@@ -51,9 +63,10 @@ class Identity(NamedTuple):
 
 
 def webui_auth_mode(environ: Mapping[str, str] | None = None) -> str:
-    """The AIMM_WEBUI_AUTH setting; raises ValueError for an unknown value."""
+    """The AIMM_WEBUI_AUTH setting, by its current name; raises ValueError for an unknown value."""
     environ = os.environ if environ is None else environ
-    mode = environ.get("AIMM_WEBUI_AUTH", "").strip().lower() or AUTH_PASSWORD
+    mode = environ.get("AIMM_WEBUI_AUTH", "").strip().lower() or AUTH_FACEBOOK
+    mode = _OLD_NAMES.get(mode, mode)
     if mode not in AUTH_MODES:
         raise ValueError(
             f"AIMM_WEBUI_AUTH={mode!r} is not supported; use {', '.join(AUTH_MODES)}."
@@ -76,10 +89,10 @@ class ProxyAuth:
 
     @classmethod
     def from_environment(cls, environ: Mapping[str, str] | None = None) -> "ProxyAuth | None":
-        """None for password mode; raises ValueError when a mode is missing its settings."""
+        """None when aimm signs users in itself; raises ValueError when a mode lacks its settings."""
         environ = os.environ if environ is None else environ
         mode = webui_auth_mode(environ)
-        if mode == AUTH_PASSWORD:
+        if mode in (AUTH_FACEBOOK, AUTH_LOCAL):
             return None
 
         def setting(name: str) -> str | None:

@@ -101,7 +101,9 @@
       const form = $("#login-form");
       const subtitle = $("#login-subtitle");
       subtitle.textContent =
-        "Sign in with the marketplace credentials from your config.";
+        info.mode === "local"
+          ? "Sign in with the web UI username and password."
+          : "Sign in with the marketplace credentials from your config.";
       subtitle.hidden = false;
       $("#login-submit").textContent = "Sign in";
       if (info.username_hint) form.username.value = info.username_hint;
