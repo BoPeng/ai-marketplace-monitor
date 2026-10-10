@@ -6,8 +6,8 @@
   "dynamic_config": true,
   "port": 8467,
   "id": "ai-marketplace-monitor",
-  "tipi_version": 4,
-  "version": "0.10.13",
+  "tipi_version": 5,
+  "version": "0.10.14",
   "categories": [
     "automation"
   ],
@@ -44,5 +44,5 @@
     "amd64"
   ],
   "created_at": 1791566272207,
-  "updated_at": 1791659361237
+  "updated_at": 1791675792582
 }
