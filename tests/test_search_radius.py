@@ -122,6 +122,9 @@ class _FakeLocator:
     def all_inner_texts(self) -> List[str]:
         return self.page.choices
 
+    def wait_for(self, timeout: int = 0) -> None:
+        pass
+
 
 class _FakePage:
     def __init__(self, label: str, choices: List[str]) -> None:
@@ -195,3 +198,25 @@ def test_a_recovered_login_reapplies_the_radius(monkeypatch: pytest.MonkeyPatch)
     list(mp.search(FacebookItemConfig(name="ipad", search_phrases=["ipad"])))
     assert asked == [10, 10]
     assert urls == ["https://www.facebook.com/marketplace/houston/search?query=ipad"] * 3
+
+
+def test_radius_options_can_render_after_the_dropdown_opens(new_context: Any) -> None:
+    from ai_marketplace_monitor.facebook import FacebookLocationDialog
+
+    page = new_context().new_page()
+    page.set_content(
+        """<button aria-label="Location: Houston, Texas, Within 40 mi"
+            onclick="document.getElementById('dialog').hidden = false">Location</button>
+        <div id="dialog" role="dialog" aria-label="Change location" hidden>
+          <button role="combobox" onclick="setTimeout(() => {
+            document.getElementById('options').innerHTML =
+              '<div role=option onclick=document.body.dataset.radius=10>10 miles</div>' +
+              '<div role=option onclick=document.body.dataset.radius=40>40 miles</div>';
+          }, 500)">Radius</button>
+          <div id="options" role="listbox"></div>
+        </div>"""
+    )
+    dialog = FacebookLocationDialog(page)
+    dialog.open()
+    assert dialog.choose_radius(10) == "10 miles"
+    assert page.evaluate("document.body.dataset.radius") == "10"

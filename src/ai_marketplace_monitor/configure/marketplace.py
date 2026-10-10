@@ -74,8 +74,9 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "search_city",
-        "the code after /marketplace/ in a Facebook Marketplace URL the user pastes (a name or "
-        "a numeric ID); never guessed from a city name",
+        "Facebook's code for the location (a name or a numeric ID): from find_city with the "
+        "city or ZIP code the user names, or after /marketplace/ in a Marketplace URL the "
+        "user pastes; never guessed from a city name",
         'list of codes, e.g. `["houston"]` or `["111979382146893"]`',
         "required unless search_region is set",
     ),
@@ -87,7 +88,8 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "radius",
-        "how far around each city to search",
+        "how far around each city to search, in the unit Facebook shows (miles in the US); "
+        "Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and 500",
         "list of integers, one per city or one for all, e.g. `[40]`",
         "Facebook's default",
     ),

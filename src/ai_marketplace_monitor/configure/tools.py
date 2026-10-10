@@ -11,11 +11,13 @@ async functions with signatures and docstrings for the model adapter.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
+from ..facebook_location import FacebookLocations, LocationLookupError
 from .toolkits import SINGLETONS, Toolkit, location, section_label
 from .ui import SetupClosedError
 from .workspace import ConfigLoadError, SectionKey, Workspace
@@ -421,6 +423,46 @@ class ToolExecutor:
             }
         return await self.ws.toolkits[section_type].send_test(self.ws, name)
 
+    async def find_city(self: "ToolExecutor", place: str) -> Dict[str, Any]:
+        """Look a place up in Facebook Marketplace's location search (no browser needed)."""
+        if not place.strip():
+            return {"ok": False, "errors": ["Give a city name, neighborhood or ZIP code."]}
+        await self.ws.ui.say(f"Looking up {place} in Facebook Marketplace...")
+        try:
+            places = await asyncio.to_thread(FacebookLocations().find, place)
+        except (LocationLookupError, OSError) as e:
+            return {
+                "ok": False,
+                "errors": [
+                    f"Facebook's location search did not answer ({e}). Ask the user for the "
+                    "URL of a Marketplace search instead, as the search_city guide says."
+                ],
+            }
+        if not places:
+            return {
+                "ok": False,
+                "errors": [
+                    f"Facebook found no place for {place!r}. Check the spelling, or try the full "
+                    "state or country name, or a ZIP code."
+                ],
+            }
+        self.ws.found_city_codes |= {p.code for p in places}
+        return {
+            "ok": True,
+            "places": [
+                {"place": p.label, "detail": p.detail, "search_city": p.code} for p in places
+            ],
+            "note": (
+                "Facebook's matches for what the user typed, best first (at most 10). Confirm "
+                "the place with the user before saving: if one clearly fits, ask whether it is "
+                "right; if several could be meant, offer them by `place` (e.g. Los Angeles, "
+                "California or Los Angeles in Mexico); if the user's place is not listed, call "
+                "find_city again with its state or country added. Then set search_city to its "
+                "`search_city` and city_name to its `place`. Places with the same `search_city` "
+                "are the same Marketplace location."
+            ),
+        }
+
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False
     ) -> Dict[str, Any]:
@@ -522,6 +564,25 @@ class ToolExecutor:
                 )
 
             tools.append(test_notification)
+        if any(t in self.ws.toolkits for t in ("marketplace", "item", "region")):
+
+            async def find_city(place: str) -> Dict[str, Any]:
+                """Find the `search_city` code of a place the user names, from Facebook.
+
+                aimm asks Facebook Marketplace's location search, as its location dialog does
+                (no browser or Facebook account needed, and nothing is changed). It returns
+                Facebook's matching places, best first (at most 10), each labelled with its
+                region and with its `search_city` code: confirm with the user which one is
+                meant.
+
+                Args:
+                    place: what the user said, spelled correctly: a city (with its state or
+                        country if given), a neighborhood or a ZIP code, e.g. "Los Angeles",
+                        "San Diego, CA" or "77494".
+                """
+                return await self.call("find_city", {"place": place})
+
+            tools.append(find_city)
         return tools
 
     async def call(self: "ToolExecutor", name: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -557,6 +618,8 @@ class ToolExecutor:
                 return await self.finish(
                     str(args.get("message", "")), bool(args.get("discard_unsaved", False))
                 )
+            if name == "find_city":
+                return await self.find_city(str(args.get("place", "")))
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
             if name == "test_notification":

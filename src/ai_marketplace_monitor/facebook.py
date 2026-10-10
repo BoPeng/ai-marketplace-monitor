@@ -544,37 +544,25 @@ class FacebookMarketplace(Marketplace):
         reloaded; False if it already matched or could not be set.
         """
         assert self.page is not None
+        dialog = FacebookLocationDialog(self.page, self.translator, self.logger)
         try:
-            button = self.page.locator(f'[aria-label^="{self.translator("Location:")}"]').first
-            current = radius_from_label(button.get_attribute("aria-label", timeout=10000) or "")
+            current = dialog.current_radius()
             if current is not None and current == nearest_radius(radius):
                 return False
-            button.click(timeout=5000)
-            dialog = self.page.get_by_role("dialog", name=self.translator("Change location"))
-            dialog.get_by_role("combobox").filter(has_text=self.translator("Radius")).click(
-                timeout=5000
-            )
-            choices = {}
-            for text in self.page.get_by_role("option").all_inner_texts():
-                value = radius_from_label(text)
-                if value is not None:
-                    choices[value] = text.strip()
-            if not choices:
-                raise ValueError("the location dialog offers no radius")
-            target = nearest_radius(radius, sorted(choices))
-            if target == current:
-                self.page.keyboard.press("Escape")
-                self.page.keyboard.press("Escape")
+            dialog.open()
+            chosen = dialog.choose_radius(radius)
+            if radius_from_label(chosen) == current:
+                dialog.close()
                 return False
-            self.page.get_by_role("option", name=choices[target], exact=True).click(timeout=5000)
-            dialog.get_by_role("button", name=self.translator("Apply"), exact=True).click(
-                timeout=5000
-            )
-            self.page.wait_for_timeout(2000)
+            dialog.apply()
             if self.logger:
                 self.logger.info(
-                    f"""{hilight("[Search]", "info")} Set the search radius to {choices[target]}"""
-                    + (f" (closest to radius={radius})" if target != radius else "")
+                    f"""{hilight("[Search]", "info")} Set the search radius to {chosen}"""
+                    + (
+                        f" (closest to radius={radius})"
+                        if radius_from_label(chosen) != radius
+                        else ""
+                    )
                 )
             return True
         except KeyboardInterrupt:
@@ -584,11 +572,7 @@ class FacebookMarketplace(Marketplace):
                 self.logger.warning(
                     f"""{hilight("[Search]", "fail")} Could not set the search radius to {radius}, searching with the radius saved on the Facebook account: {e}"""
                 )
-            try:
-                self.page.keyboard.press("Escape")
-                self.page.keyboard.press("Escape")
-            except Exception:  # noqa: S110
-                pass
+            dialog.close()
             return False
 
     def search(
@@ -1212,6 +1196,67 @@ _SELLER_PANEL_JS = """// the seller panel: the smallest element around one of th
         labels: scope ? [...scope.querySelectorAll("[aria-label]")].map(e => e.getAttribute("aria-label")) : [],
     };
 }"""
+
+
+class FacebookLocationDialog(WebPage):
+    """Marketplace's location dialog ("Change location"): a place and a radius.
+
+    Facebook searches with the place and radius saved on the account, which only this dialog
+    changes; the place in a search URL wins, but the radius there is ignored.
+    """
+
+    def _button(self: "FacebookLocationDialog") -> Any:
+        return self.page.locator(f'[aria-label^="{self.translator("Location:")}"]').first
+
+    def _dialog(self: "FacebookLocationDialog") -> Any:
+        return self.page.get_by_role("dialog", name=self.translator("Change location"))
+
+    def current_label(self: "FacebookLocationDialog") -> str:
+        """The location button: "Location: Houston, Texas, Within 40 mi"."""
+        return str(self._button().get_attribute("aria-label", timeout=10000) or "")
+
+    def current_radius(self: "FacebookLocationDialog") -> int | None:
+        return radius_from_label(self.current_label())
+
+    def open(self: "FacebookLocationDialog") -> None:
+        self._button().click(timeout=5000)
+        self._dialog().wait_for(timeout=10000)
+
+    def close(self: "FacebookLocationDialog") -> None:
+        """Close the dialog (and a list open in it) without applying."""
+        try:
+            for _ in range(2):
+                self.page.keyboard.press("Escape")
+        except KeyboardInterrupt:
+            raise
+        except Exception:  # noqa: S110
+            pass
+
+    def _radius_field(self: "FacebookLocationDialog") -> Any:
+        return self._dialog().get_by_role("combobox").filter(has_text=self.translator("Radius"))
+
+    def choose_radius(self: "FacebookLocationDialog", radius: float) -> str:
+        """Choose the radius nearest ``radius``; its text, e.g. "40 miles"."""
+        self._radius_field().click(timeout=5000)
+        options = self.page.get_by_role("option")
+        options.first.wait_for(timeout=5000)
+        choices = {}
+        for text in options.all_inner_texts():
+            value = radius_from_label(text)
+            if value is not None:
+                choices[value] = text.strip()
+        if not choices:
+            raise ValueError("the location dialog offers no radius")
+        chosen = choices[nearest_radius(radius, sorted(choices))]
+        self.page.get_by_role("option", name=chosen, exact=True).click(timeout=5000)
+        return chosen
+
+    def apply(self: "FacebookLocationDialog") -> None:
+        """Apply the dialog; the page reloads with the place and radius."""
+        self._dialog().get_by_role("button", name=self.translator("Apply"), exact=True).click(
+            timeout=5000
+        )
+        self.page.wait_for_timeout(3000)
 
 
 class FacebookItemPage(WebPage):

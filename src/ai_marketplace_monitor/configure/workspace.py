@@ -54,6 +54,8 @@ class Workspace:
     drafts: Dict[SectionKey, SectionDraft] = field(default_factory=dict)
     shown: Set[str] = field(default_factory=set)  # notes already shown to the user
     user_said: List[str] = field(default_factory=list)  # the user's messages in this session
+    # location codes Facebook gave for a place the user named (the find_city tool)
+    found_city_codes: Set[str] = field(default_factory=set)
     ai_in_use: str | None = None  # the [ai.*] section this session runs on
 
     @property
@@ -117,7 +119,7 @@ class Workspace:
             codes |= {
                 m.group(1) for m in _URL_CODE.finditer(text) if m.group(1) not in _NOT_A_LOCATION
             }
-        return codes
+        return codes | self.found_city_codes
 
     def unconfirmed_cities(self: "Workspace", values: Dict[str, Any]) -> List[str]:
         """An error if `search_city` has a code the user did not give (see known_city_codes)."""
@@ -125,9 +127,10 @@ class Workspace:
         if not guessed:
             return []
         error = (
-            f"`search_city` {guessed} is not from a Facebook Marketplace URL the user pasted. "
-            "Never guess a location code: ask the user to open Facebook Marketplace, set the "
-            "location and distance, search for anything, and paste the URL of the results page."
+            f"`search_city` {guessed} is not from find_city or a Facebook Marketplace URL the "
+            "user pasted. Never guess a location code: look the place up with find_city, or "
+            "ask the user to open Facebook Marketplace, set the location and distance, search "
+            "for anything, and paste the URL of the results page."
         )
         return [error]
 

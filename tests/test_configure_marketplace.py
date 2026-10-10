@@ -235,13 +235,14 @@ async def test_search_city_must_come_from_a_pasted_url(tmp_path: Path) -> None:
     assert T.validate(ws, draft) == []
     draft.values = {"search_city": ["austin"], "city_name": ["Austin"]}
     [error] = T.validate(ws, draft)
-    assert "['austin'] is not from a Facebook Marketplace URL" in error and "Never guess" in error
+    assert "['austin'] is not from find_city or a Facebook Marketplace URL" in error
+    assert "Never guess" in error
     ws.user_said.append("I'm in Austin, here: https://m.facebook.com/marketplace/austin/?ref=x")
     assert T.validate(ws, draft) == []
     # paths that are not locations do not count
     ws.user_said = ["https://www.facebook.com/marketplace/search/?query=bike"]
     draft.values = {"search_city": ["search"]}
-    assert "not from a Facebook Marketplace URL" in T.validate(ws, draft)[0]
+    assert "not from find_city or a Facebook Marketplace URL" in T.validate(ws, draft)[0]
 
 
 def test_notify_level_shows_the_rating_and_how_to_get_more() -> None:
