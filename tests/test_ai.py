@@ -6,6 +6,7 @@ from typing import Any, Tuple
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import httpx
 import pytest
 from PIL import Image
 
@@ -392,3 +393,37 @@ def test_summarize_rejects_an_empty_answer() -> None:
     ai.client = sdk_client(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     with pytest.raises(RuntimeError, match="empty"):
         ai.summarize("Summarize this")
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_summary_timeout_has_only_the_outer_retry_budget(
+    provider: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise real SDK retry handling without a network request or waiting."""
+    attempts = []
+
+    def timeout(request: httpx.Request) -> httpx.Response:
+        attempts.append(request)
+        raise httpx.ReadTimeout("simulated provider timeout", request=request)
+
+    monkeypatch.setattr(ai_module.time, "sleep", lambda seconds: None)
+    with httpx.Client(transport=httpx.MockTransport(timeout)) as http_client:
+        if provider == "openai":
+            from openai import OpenAI
+
+            ai = OpenAIBackend(OpenAIConfig(name="summary-timeout", api_key="test"))
+            client = OpenAI(api_key="test", http_client=http_client)
+        else:
+            from anthropic import Anthropic
+
+            ai = AnthropicBackend(AnthropicConfig(name="summary-timeout", api_key="test"))
+            client = Anthropic(api_key="test", http_client=http_client)
+        # Preserve the SDK defaults: summarize must disable their internal retries.
+        monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+        with pytest.raises(RuntimeError, match="failed to summarize"):
+            ai.summarize("Summarize today's matches")
+
+    assert len(attempts) == ai_module.SUMMARY_RETRIES
+    assert all(
+        request.extensions["timeout"]["read"] == ai_module.SUMMARY_TIMEOUT for request in attempts
+    )
