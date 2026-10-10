@@ -68,7 +68,7 @@ On **Synology** (Container Manager, DSM 7.2 or later) and **QNAP** (Container St
 3. Synology: **Container Manager › Project › Create**, choose the folder, and select **Use existing docker-compose.yml**. QNAP: **Container Station › Applications › Create**, and paste `docker-compose.yml`; enter the variables of `.env` in its environment settings if it does not read the file.
 4. Open `http://<NAS address>:8467` and continue with First run below.
 
-The image, `ghcr.io/bopeng/ai-marketplace-monitor`, runs on amd64 and arm64 NAS models. It is on GitHub's registry, so the image search of Container Manager or Container Station does not list it; the project files above name it directly.
+The image runs on amd64 and arm64 NAS models. It is published both as `ghcr.io/bopeng/ai-marketplace-monitor` (which the project files above use) and on Docker Hub as `bopeng/ai-marketplace-monitor`, so the image search of Container Manager (**Registry**) or Container Station (**Images › Pull**) finds it by name, with the same tags.
 
 ## First run
 
