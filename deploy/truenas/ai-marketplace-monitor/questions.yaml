@@ -30,14 +30,14 @@ questions:
       attrs:
         - variable: facebook_username
           label: Facebook Username
-          description: The Facebook account aimm logs in with. Also signs you in to the web UI.
+          description: The Facebook account aimm logs in with. Also signs you in to the web UI unless Web UI Sign-in is local.
           schema:
             type: string
             default: ""
             required: true
         - variable: facebook_password
           label: Facebook Password
-          description: Password of that Facebook account. Also signs you in to the web UI.
+          description: Password of that Facebook account. Also signs you in to the web UI unless Web UI Sign-in is local.
           schema:
             type: string
             default: ""
@@ -52,6 +52,34 @@ questions:
           schema:
             type: string
             default: ""
+            private: true
+        - variable: webui_auth
+          label: Web UI Sign-in
+          description: Which username and password the web UI asks for.
+          schema:
+            type: string
+            default: facebook
+            required: true
+            enum:
+              - value: facebook
+                description: The Facebook username and password above
+              - value: local
+                description: A web UI username and password of their own
+        - variable: webui_username
+          label: Web UI Username
+          schema:
+            type: string
+            show_if: [["webui_auth", "=", "local"]]
+            default: admin
+            required: true
+        - variable: webui_password
+          label: Web UI Password
+          description: Unrelated to the Facebook password.
+          schema:
+            type: string
+            show_if: [["webui_auth", "=", "local"]]
+            default: ""
+            required: true
             private: true
         - variable: additional_envs
           label: Additional Environment Variables
@@ -131,7 +159,7 @@ questions:
                 label: Port Number
                 schema:
                   type: int
-                  default: 30467
+                  default: 30527
                   min: 1
                   max: 65535
                   required: true
