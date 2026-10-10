@@ -7,6 +7,7 @@ the sold ones. Profiles are cached by seller id, so each is opened at most once 
 """
 
 import re
+import time
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
@@ -18,6 +19,8 @@ from .utils import CacheType, Translator, cache
 # a profile is opened again after about a month: ratings and account age barely change, and
 # listing and sales counts a few weeks old still show a dealer or a seller who never sells
 SELLER_CACHE_SECONDS = 30 * 24 * 3600
+# a seller whose profile could not be read is kept this long, so that aimm tries again soon
+UNCHECKED_CACHE_SECONDS = 24 * 3600
 
 # warning signs (see seller_warnings); 0 disables a threshold
 DEFAULT_MIN_ACCOUNT_YEARS = 2
@@ -46,6 +49,17 @@ class Seller:
     strengths: List[str] = field(default_factory=list)
     reviews: List[str] = field(default_factory=list)
     profile_checked: bool = False
+    # when the profile was read (seconds since the epoch); None if never
+    checked_at: float | None = None
+
+    def needs_profile(self: "Seller", now: float | None = None) -> bool:
+        """Whether to read the profile: never read, or read about a month ago."""
+        now = time.time() if now is None else now
+        return (
+            not self.profile_checked
+            or self.checked_at is None
+            or now - self.checked_at >= SELLER_CACHE_SECONDS
+        )
 
     def update(self: "Seller", other: "Seller") -> None:
         """Take the values ``other`` knows; 0 is known (e.g. no listings sold)."""
@@ -101,13 +115,21 @@ class Seller:
         except Exception:
             return None
 
-    def to_cache(self: "Seller", local_cache: Cache | None = None) -> None:
+    def to_cache(
+        self: "Seller", local_cache: Cache | None = None, now: float | None = None
+    ) -> None:
+        """Keep the seller until their profile is due again: writing does not extend that."""
         if not self.id:
             return
+        now = time.time() if now is None else now
+        if self.profile_checked and self.checked_at is not None:
+            expire = max(60.0, SELLER_CACHE_SECONDS - (now - self.checked_at))
+        else:
+            expire = UNCHECKED_CACHE_SECONDS
         (cache if local_cache is None else local_cache).set(
             (CacheType.SELLER_INFO.value, self.id),
             asdict(self),
-            expire=SELLER_CACHE_SECONDS,
+            expire=expire,
             tag=CacheType.SELLER_INFO.value,
         )
 

@@ -785,7 +785,7 @@ class FacebookMarketplace(Marketplace):
             return
         seller = Seller.from_cache(listing.seller_id) or Seller(id=listing.seller_id)
         seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
-        if not seller.profile_checked:
+        if seller.needs_profile():
             try:
                 assert self.page is not None
                 self.goto_url(f"https://www.facebook.com/marketplace/profile/{seller.id}/")
@@ -795,6 +795,7 @@ class FacebookMarketplace(Marketplace):
                 )
                 seller.update(profile)
                 seller.profile_checked = True
+                seller.checked_at = time.time()
                 time.sleep(5)
             except KeyboardInterrupt:
                 raise

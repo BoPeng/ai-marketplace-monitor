@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -230,11 +231,33 @@ def test_the_summary_for_the_ai_and_the_buyer() -> None:
 
 def test_sellers_are_cached(tmp_path: Path) -> None:
     local = Cache(str(tmp_path))
-    Seller(id="7", name="Pat", joined_year=2020, profile_checked=True).to_cache(local)
+    Seller(id="7", name="Pat", joined_year=2020, profile_checked=True, checked_at=1.0).to_cache(
+        local, now=2.0
+    )
     cached = Seller.from_cache("7", local)
     assert cached is not None and cached.joined_year == 2020 and cached.profile_checked
     assert Seller.from_cache("8", local) is None
     assert Seller.from_cache("", local) is None
+
+
+def test_writing_a_seller_again_does_not_postpone_the_next_profile_visit(tmp_path: Path) -> None:
+    from ai_marketplace_monitor.seller import SELLER_CACHE_SECONDS, UNCHECKED_CACHE_SECONDS
+
+    local = Cache(str(tmp_path))
+    day = 24 * 3600.0
+    now = 1_000_000_000.0
+    seller = Seller(id="7", profile_checked=True, checked_at=now - 20 * day)
+    seller.to_cache(local, now=now)
+    _, expire_time = local.get(("seller-info", "7"), expire_time=True)
+    # it expires when the profile turns a month old, not a month from now
+    assert expire_time == pytest.approx(time.time() + SELLER_CACHE_SECONDS - 20 * day, abs=5)
+    assert not seller.needs_profile(now)
+    assert seller.needs_profile(now + 11 * day)
+    # a profile that could not be read is tried again within a day
+    Seller(id="8", joined_year=2020).to_cache(local, now=now)
+    _, expire_time = local.get(("seller-info", "8"), expire_time=True)
+    assert expire_time == pytest.approx(time.time() + UNCHECKED_CACHE_SECONDS, abs=5)
+    assert Seller(id="8").needs_profile(now)
 
 
 def test_a_later_reading_completes_an_earlier_one() -> None:
@@ -389,6 +412,38 @@ def test_seller_information_is_completed_from_the_profile_once(
     again = _listing(seller_id="9", seller_info={"seller": {"id": "9", "joined_year": 2026}})
     mp.add_seller_info(again, _item_config())
     assert opened == ["9"] and again.seller_info["seller"]["active_listings"] == 1
+
+
+def test_a_month_old_profile_is_read_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai_marketplace_monitor.seller as seller_module
+    from ai_marketplace_monitor import facebook
+
+    local = Cache(str(tmp_path))
+    monkeypatch.setattr(seller_module, "cache", local)
+    monkeypatch.setattr(facebook.time, "sleep", lambda s: None)
+    opened: list = []
+
+    class FakeProfile:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def parse(self, seller_id: str) -> Seller:
+            opened.append(seller_id)
+            return Seller(id=seller_id, active_listings=3, profile_checked=True)
+
+    monkeypatch.setattr(facebook, "FacebookSellerProfilePage", FakeProfile)
+    old = time.time() - 31 * 24 * 3600
+    local.set(
+        ("seller-info", "9"),
+        {"id": "9", "active_listings": 1, "profile_checked": True, "checked_at": old},
+    )
+    mp = _marketplace(local)
+    listing = _listing(seller_id="9", seller_info={"seller": {"id": "9"}})
+    mp.add_seller_info(listing, _item_config())
+    assert opened == ["9"] and listing.seller_info["seller"]["active_listings"] == 3
+    assert listing.seller_info["seller"]["checked_at"] > old
 
 
 def test_a_profile_rating_can_exclude_the_seller(
