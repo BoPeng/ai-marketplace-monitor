@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from logging import Logger
-from typing import Any, Callable, ClassVar, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, ClassVar, Generic, Optional, Tuple, Type, TypeVar
 
 import requests  # type: ignore
 from diskcache import Cache  # type: ignore
@@ -23,6 +23,22 @@ class AIServiceProvider(Enum):
     ANTHROPIC = "Anthropic"
     OLLAMA = "Ollama"
     UNITYSVC = "UnitySVC"
+
+
+def _answer_key(listing: Listing, item_config: Any, marketplace_config: Any) -> Tuple[Any, ...]:
+    """The cache key of an AI answer.
+
+    It includes how much was known about the seller, so that an answer given before the
+    seller's profile could be read is not reused once it has been; later changes to a profile
+    keep the answer.
+    """
+    key: Tuple[Any, ...] = (
+        CacheType.AI_INQUIRY.value,
+        item_config.hash,
+        marketplace_config.hash,
+        listing.hash,
+    )
+    return (*key, listing.seller_state) if listing.seller_state else key
 
 
 @dataclass
@@ -71,7 +87,7 @@ class AIResponse:
         local_cache: Cache | None = None,
     ) -> Optional["AIResponse"]:
         res = (cache if local_cache is None else local_cache).get(
-            (CacheType.AI_INQUIRY.value, item_config.hash, marketplace_config.hash, listing.hash)
+            _answer_key(listing, item_config, marketplace_config)
         )
         if res is None:
             return None
@@ -85,7 +101,7 @@ class AIResponse:
         local_cache: Cache | None = None,
     ) -> None:
         (cache if local_cache is None else local_cache).set(
-            (CacheType.AI_INQUIRY.value, item_config.hash, marketplace_config.hash, listing.hash),
+            _answer_key(listing, item_config, marketplace_config),
             asdict(self),
             tag=CacheType.AI_INQUIRY.value,
         )
@@ -344,6 +360,21 @@ class AIBackend(Generic[TAIConfig]):
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
         )
+        seller = listing.seller_info.get("summary") if listing.seller_info else ""
+        warnings = listing.seller_info.get("warnings") if listing.seller_info else []
+        if seller or warnings:
+            prompt += (
+                f"""About the seller, {listing.seller}: {seller or "nothing more is known"}.\n"""
+            )
+            if warnings:
+                prompt += f"""Possible warning signs: {"; ".join(warnings)}.\n"""
+            prompt += (
+                "Judge from this whether the seller is legitimate and reliable (for example "
+                "a new account, a dealer posing as a private seller, few or no sales, or "
+                "reviews that mention no-shows or no responses). Lower the rating for an "
+                "unreliable seller, and mention your concerns about the seller in your "
+                "summary so that the buyer knows.\n\n"
+            )
         # prompt
         custom_prompt = resolve_option("prompt", item_config, marketplace_config)
         if custom_prompt is not None:

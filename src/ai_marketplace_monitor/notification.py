@@ -639,6 +639,14 @@ class PushNotificationConfig(NotificationConfig):
                         f"<br><b>AI</b>: <i>{rating.comment}</i>"
                     )
                 )
+            warnings = (listing.seller_info or {}).get("warnings") or []
+            if warnings:
+                text = "; ".join(warnings)
+                msg += {
+                    "plain_text": f"\nSeller warning: {text}",
+                    "markdown": f"\n**Seller warning**: {text}",
+                    "html": f"<br><b>Seller warning</b>: {text}",
+                }.get(self.message_format or "plain_text", f"\nSeller warning: {text}")
             msgs[ns].append((listing, msg))
 
         if not msgs:

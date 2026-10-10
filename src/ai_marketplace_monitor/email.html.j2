@@ -65,6 +65,14 @@
                                 </div>
                                 {% endif %}
 
+                                <!-- Seller warning signs -->
+                                {% if listing.seller_info and listing.seller_info.get("warnings") %}
+                                <div style="background-color: #FFF4E5; padding: 12px; border-radius: 4px; margin: 15px 0; color: #8A4B00;">
+                                    <span style="font-weight: bold;">Seller warning:</span>
+                                    {{ listing.seller_info["warnings"] | join("; ") }}
+                                </div>
+                                {% endif %}
+
                                 <!-- AI Rating -->
                                 {% if rating.comment != rating.NOT_EVALUATED %}
                                 <div style="background-color: #F8F9FA; padding: 12px; border-radius: 4px; margin: 15px 0;">

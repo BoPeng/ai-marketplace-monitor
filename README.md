@@ -36,11 +36,12 @@ Found 1 new gopro from facebook
 [Great deal (5)] Go Pro hero 12
 $180, Houston, TX
 https://facebook.com/marketplace/item/1234567890
-AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger.
+AI: Great deal; A well-priced, well-maintained camera meets all search criteria, with extra battery and charger. Seller is reputable, rated 5.0 out of 5 by 37 buyers.
 ```
 
 ## What's New
 
+- **Seller reputation**: aimm evaluates each seller, from how long they have been on Facebook, their listings and sales, their rating and what buyers say in reviews, and the AI identifies unreliable and malicious sellers automatically: new accounts, dealers posing as private sellers, bait listings, no-shows. Its rating and notifications tell you why. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information).
 - **Guided Facebook login**: aimm types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
 - **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
 - **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models and 100+ notification channels. See [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
