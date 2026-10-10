@@ -38,7 +38,7 @@
         {
           "name": "UNITYSVC_API_KEY",
           "label": "UnitySVC API key",
-          "description": "For the default configuration: the AI that rates listings, and email and phone notifications. Leave empty if you configure other providers."
+          "description": "For the default configuration: the AI that rates listings, and email and phone notifications. Leave it empty only if you set up other AI and notification services in the web UI; until then, aimm waits."
         },
         {
           "name": "TZ",
