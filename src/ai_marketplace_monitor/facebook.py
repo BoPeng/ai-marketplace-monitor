@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import re
 import time
@@ -48,6 +49,7 @@ from .utils import (
     KeyboardMonitor,
     Translator,
     aimm_event,
+    amm_home,
     convert_to_seconds,
     counter,
     extract_price,
@@ -56,13 +58,17 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Browser, ElementHandle, Page  # type: ignore
+    from playwright.sync_api import Browser, ElementHandle, Page, StorageState  # type: ignore
 
 
 # pages Facebook shows instead of the one asked for, until the user logs in
 LOGIN_PATHS = ("/login", "/checkpoint", "/two_step_verification", "/recover")
 LOGIN_CHECK_EVERY = 5  # seconds
 LOGIN_REMINDER_EVERY = 5 * 60  # seconds
+# the browser state of the last login, so that a restart does not log in again: Facebook
+# asks for a CAPTCHA or to approve the login on each new login. It is a live session,
+# readable only by the user, like the password in the config.
+SESSION_FILE = amm_home / "facebook-session.json"
 # seconds between listing pages when checking their status, as between search results
 STATUS_CHECK_DELAY = 5
 
@@ -380,6 +386,7 @@ class FacebookItemConfig(ItemConfig, FacebookMarketItemCommonConfig):
 
 class FacebookMarketplace(Marketplace):
     initial_url = "https://www.facebook.com/login/device-based/regular/login/"
+    home_url = "https://www.facebook.com/"
 
     name = "facebook"
 
@@ -406,6 +413,8 @@ class FacebookMarketplace(Marketplace):
         assert self.browser is not None
 
         self.page = self.create_page(swap_proxy=True)
+        if self.resume_session():
+            return
 
         # Navigate to the URL, no timeout
         self.goto_url(self.initial_url)
@@ -465,6 +474,75 @@ class FacebookMarketplace(Marketplace):
             )
         # Facebook may ask for a CAPTCHA or a code first, which can take a while
         self.wait_for_login()
+        self.save_session()
+
+    def resume_session(self: "FacebookMarketplace") -> bool:
+        """Whether the session saved by a previous run is still logged in.
+
+        Its ``c_user`` cookie can outlive a session that Facebook has ended, so a page that
+        requires the login tells.
+        """
+        assert self.page is not None
+        cookies = self.page.context.cookies("https://www.facebook.com")
+        if not any(c.get("name") == "c_user" for c in cookies):
+            return False
+        self.goto_url(self.home_url)
+        if not self.logged_in() or self.page.query_selector('input[name="pass"]') is not None:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Login]", "info")} The saved Facebook session has ended, logging in again."""
+                )
+            return False
+        if self.logger:
+            self.logger.info(
+                f"""{hilight("[Login]", "succ")} Logged in to Facebook with the saved session."""
+            )
+        self.save_session()  # with the cookies Facebook has renewed
+        return True
+
+    def saved_session(self: "FacebookMarketplace") -> "StorageState | None":
+        """The browser state saved by the last login with this account."""
+        try:
+            saved = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError) as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Login]", "fail")} The saved Facebook session {SESSION_FILE} cannot be read ({e}), logging in again."""
+                )
+            self.discard_session()
+            return None
+        if (
+            not isinstance(saved, dict)
+            or saved.get("username") != self.config.username
+            or not isinstance(saved.get("storage_state"), dict)
+        ):
+            return None  # another account's: replaced after this login
+        return cast("StorageState", saved["storage_state"])
+
+    def save_session(self: "FacebookMarketplace") -> None:
+        """Save the browser state of this login for the next run, readable only by the user."""
+        assert self.page is not None
+        tmp = SESSION_FILE.with_name(SESSION_FILE.name + ".tmp")
+        try:
+            state = self.page.context.storage_state()
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            os.chmod(tmp, 0o600)  # in case it was left with other permissions
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"username": self.config.username, "storage_state": state}, f)
+            os.replace(tmp, SESSION_FILE)  # another aimm never reads half a file
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Login]", "fail")} Could not save the Facebook session: {e}"""
+                )
+
+    def discard_session(self: "FacebookMarketplace") -> None:
+        try:
+            SESSION_FILE.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def on_login_page(self: "FacebookMarketplace") -> bool:
         """Whether Facebook is showing a login, CAPTCHA or verification page."""
@@ -533,6 +611,7 @@ class FacebookMarketplace(Marketplace):
                 f"""{hilight("[Login]", "fail")} Facebook redirected to its login page."""
             )
         self.wait_for_login()
+        self.save_session()
         return True
 
     def set_search_radius(self: "FacebookMarketplace", radius: int) -> bool:

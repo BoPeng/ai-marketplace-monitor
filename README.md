@@ -221,6 +221,8 @@ What happens next:
 3. Once you are logged in, aimm searches Facebook Marketplace and notifies you
    of matching items. If Facebook logs it out later, it waits for you the same
    way.
+4. aimm saves the Facebook session, so the next time it starts it is still
+   logged in, without a new login, CAPTCHA or security code.
 
 A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
 
