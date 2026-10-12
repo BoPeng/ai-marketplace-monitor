@@ -60,7 +60,8 @@ logging.getLogger("watchdog").setLevel(logging.WARNING)
 
 # home directory for all settings and caches; the Docker image sets AIMM_HOME to /data
 amm_home = Path(os.environ.get("AIMM_HOME") or Path.home() / ".ai-marketplace-monitor")
-amm_home.mkdir(parents=True, exist_ok=True)
+# it holds the config with the Facebook password and the saved Facebook session
+amm_home.mkdir(mode=0o700, parents=True, exist_ok=True)
 
 
 class CacheCorruptedError(RuntimeError):

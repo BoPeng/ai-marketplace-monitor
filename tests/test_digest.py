@@ -12,6 +12,7 @@ import schedule  # type: ignore
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor import digest as dg
+from ai_marketplace_monitor import utils
 from ai_marketplace_monitor.config import Config
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.evaluations import (
@@ -259,9 +260,13 @@ def test_broken_cache_has_no_records(tmp_path: Path) -> None:
 HOUR = 60 * 60
 
 
-def test_digest_from_recorded_evaluations(temp_cache: Cache) -> None:
+def test_digest_from_recorded_evaluations(
+    temp_cache: Cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The digest of records saved by record_evaluation, as aimm saves them."""
     now = time.time()
+    # count at ``now``: a search counted in the next minute would fall after the digest
+    monkeypatch.setattr(utils, "counter_minute", lambda when=None: counter_minute(when or now))
     saved = [
         # gopro: 2 notified, 2 rejected, 3 excluded (2 by keyword), 1 more than 24 hours ago
         rec(now - 1 * HOUR, "gopro", NOTIFIED, listing_id="g1", rating=5, ai_comment="Great deal"),

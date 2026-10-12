@@ -29,7 +29,13 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Browser, ElementHandle, Locator, Page  # type: ignore
+    from playwright.sync_api import (  # type: ignore
+        Browser,
+        ElementHandle,
+        Locator,
+        Page,
+        StorageState,
+    )
 
     from .evaluations import EvaluationRecord
 
@@ -599,15 +605,33 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             self.page = None
 
         if self.page is None:
-            context = self.browser.new_context(
-                proxy=(
-                    None
-                    if self.config.monitor_config is None
-                    else self.config.monitor_config.get_proxy_options()
-                )
+            proxy = (
+                None
+                if self.config.monitor_config is None
+                else self.config.monitor_config.get_proxy_options()
             )
+            session = self.saved_session()
+            try:
+                context = self.browser.new_context(proxy=proxy, storage_state=session)
+            except Exception as e:
+                if session is None:
+                    raise
+                # the saved session is at fault only if the browser works without it
+                context = self.browser.new_context(proxy=proxy)
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Login]", "fail")} The saved {self.name} session cannot be used ({e}), logging in again."""
+                    )
+                self.discard_session()
             self.page = context.new_page()
         return self.page
+
+    def saved_session(self: "Marketplace") -> "StorageState | None":
+        """The browser state (cookies, local storage) saved by a previous login, if any."""
+        return None
+
+    def discard_session(self: "Marketplace") -> None:
+        """Remove the saved session, which cannot be used."""
 
     def goto_url(self: "Marketplace", url: str, attempt: int = 0) -> None:
         try:

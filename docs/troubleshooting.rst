@@ -49,7 +49,29 @@ Login and Authentication Issues
 *Solution:*
 - Complete 2FA manually in the browser window
 - Consider using app passwords where supported
-- Monitor will remember login state for future runs
+- aimm saves the session after the login, so the next run does not log in again
+
+**The saved Facebook session**
+
+After each login, aimm saves the browser's Facebook session (its cookies) in
+``facebook-session.json`` in its data folder (``~/.ai-marketplace-monitor``, or ``/data``
+in Docker), and the next run uses it instead of logging in again. Each new login can make
+Facebook ask for a CAPTCHA, a security code or your approval of the login, so a restart
+no longer does.
+
+- The file gives access to your Facebook account, like your password. Only your user can
+  read it; do not share it or copy it to another machine.
+- aimm checks that the session still works when it starts, and logs in again if Facebook
+  has ended it. A session saved for another username is not used.
+- To log in from scratch, for example if Facebook keeps showing the login page, stop aimm,
+  delete the file and start aimm again. In Docker, delete it while the container runs,
+  then restart the container::
+
+      docker compose exec aimm rm /data/facebook-session.json
+      docker compose restart aimm
+
+  With the container stopped, delete ``facebook-session.json`` from the data folder mounted
+  at ``/data`` on the host instead.
 
 Browser and Playwright Issues
 -----------------------------
