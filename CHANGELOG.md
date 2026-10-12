@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.15] - 2026-10-12
+
+### Added
+- aimm saves the Facebook session after each login and uses it the next time it starts, so a restart (a config change, an update, a Docker container restart) no longer logs in again and no longer makes Facebook ask for a CAPTCHA, a security code or your approval of the login. aimm first checks that the session still works and logs in as before if Facebook has ended it. The session is kept in `facebook-session.json` in the data folder, readable only by you; it gives access to your Facebook account like your password. Delete it to log in from scratch; a session saved for another username is not used. In Docker, the data folder must be mounted for the session to survive the container. See "The saved Facebook session" in [troubleshooting](docs/troubleshooting.rst). Based on [#352](https://github.com/BoPeng/ai-marketplace-monitor/pull/352) by @kilo-WATT.
+
+### Changed
+- A new data folder (`~/.ai-marketplace-monitor`) is created readable only by you.
+
 ## [0.10.14] - 2026-10-10
 
 ### Added
@@ -415,7 +423,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.14...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.15...HEAD
+[0.10.15]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.14...v0.10.15
 [0.10.14]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.13...v0.10.14
 [0.10.13]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.12...v0.10.13
 [0.10.12]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.11...v0.10.12
