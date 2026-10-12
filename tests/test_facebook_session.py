@@ -40,14 +40,17 @@ class FakePage:
 
 
 class FakeBrowser:
-    """Creates contexts; fails on a saved state if ``bad_state``."""
+    """Creates contexts; fails on a saved state if ``bad_state``, on any if ``broken``."""
 
-    def __init__(self, bad_state: bool = False) -> None:
+    def __init__(self, bad_state: bool = False, broken: bool = False) -> None:
         self.bad_state = bad_state
+        self.broken = broken
         self.states: List[Any] = []
 
     def new_context(self, proxy: Any = None, storage_state: Any = None) -> Any:
         self.states.append(storage_state)
+        if self.broken:
+            raise RuntimeError("browser has been closed")
         if storage_state is not None and self.bad_state:
             raise ValueError("invalid storage state")
         browser = self
@@ -110,6 +113,34 @@ def test_a_session_the_browser_rejects_is_discarded(facebook_session_file: Path)
     assert marketplace.create_page() == "page 2"  # type: ignore[comparison-overlap]
     assert browser.states == [STATE, None]
     assert not facebook_session_file.exists()
+
+
+def test_a_browser_failure_keeps_the_saved_session(facebook_session_file: Path) -> None:
+    _save(facebook_session_file)
+    marketplace = _marketplace()
+    browser = FakeBrowser(broken=True)
+    marketplace.browser = browser  # type: ignore[assignment]
+    with pytest.raises(RuntimeError):
+        marketplace.create_page()
+    assert browser.states == [STATE, None]
+    assert facebook_session_file.exists()
+
+
+def test_saving_leaves_no_temporary_file(
+    facebook_session_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marketplace = _marketplace()
+    marketplace.page = FakePage(["c_user"])  # type: ignore[assignment]
+    marketplace.save_session()
+    assert [p.name for p in facebook_session_file.parent.iterdir()] == [facebook_session_file.name]
+
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(facebook.json, "dump", fail)
+    marketplace.save_session()  # logs the failure
+    assert [p.name for p in facebook_session_file.parent.iterdir()] == [facebook_session_file.name]
+    assert json.loads(facebook_session_file.read_text())["storage_state"]["cookies"]
 
 
 def _login(

@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -524,15 +525,20 @@ class FacebookMarketplace(Marketplace):
     def save_session(self: "FacebookMarketplace") -> None:
         """Save the browser state of this login for the next run, readable only by the user."""
         assert self.page is not None
-        tmp = SESSION_FILE.with_name(SESSION_FILE.name + ".tmp")
+        tmp = None
         try:
             state = self.page.context.storage_state()
-            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            os.chmod(tmp, 0o600)  # in case it was left with other permissions
+            # a new file of a unique name, created with mode 0600, never one planted there
+            fd, tmp = tempfile.mkstemp(dir=SESSION_FILE.parent, prefix=SESSION_FILE.name)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump({"username": self.config.username, "storage_state": state}, f)
             os.replace(tmp, SESSION_FILE)  # another aimm never reads half a file
         except Exception as e:
+            if tmp is not None:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
             if self.logger:
                 self.logger.warning(
                     f"""{hilight("[Login]", "fail")} Could not save the Facebook session: {e}"""

@@ -63,9 +63,15 @@ no longer does.
   read it; do not share it or copy it to another machine.
 - aimm checks that the session still works when it starts, and logs in again if Facebook
   has ended it. A session saved for another username is not used.
-- To log in from scratch, for example if Facebook keeps showing the login page, stop aimm
-  and delete the file (``docker compose exec aimm rm /data/facebook-session.json`` in
-  Docker).
+- To log in from scratch, for example if Facebook keeps showing the login page, stop aimm,
+  delete the file and start aimm again. In Docker, delete it while the container runs,
+  then restart the container::
+
+      docker compose exec aimm rm /data/facebook-session.json
+      docker compose restart aimm
+
+  With the container stopped, delete ``facebook-session.json`` from the data folder mounted
+  at ``/data`` on the host instead.
 
 Browser and Playwright Issues
 -----------------------------

@@ -616,12 +616,13 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             except Exception as e:
                 if session is None:
                     raise
+                # the saved session is at fault only if the browser works without it
+                context = self.browser.new_context(proxy=proxy)
                 if self.logger:
                     self.logger.warning(
                         f"""{hilight("[Login]", "fail")} The saved {self.name} session cannot be used ({e}), logging in again."""
                     )
                 self.discard_session()
-                context = self.browser.new_context(proxy=proxy)
             self.page = context.new_page()
         return self.page
 
