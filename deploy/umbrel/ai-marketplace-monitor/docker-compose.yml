@@ -7,7 +7,7 @@ services:
       APP_PORT: 8467
 
   web:
-    image: ghcr.io/bopeng/ai-marketplace-monitor:0.10.14@sha256:f7dea83be2caee4e53db0e82873a68e01cf3fe4cf5885a4c1fe8fb1fcfd3471c
+    image: ghcr.io/bopeng/ai-marketplace-monitor:0.10.15@sha256:bc421be4f8a0a6f25139dae55996fb88179885518cdae79c6c90c268d9326bbb
     restart: on-failure
     stop_grace_period: 1m
     environment:
