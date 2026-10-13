@@ -239,6 +239,8 @@ async def test_tools_for_model_have_names_and_docs(tmp_path: Path) -> None:
         "save",
         "finish",
         "list_sections",
+        "find_listings",
+        "explain_listing",
         "section_guide",
         "section_show",
         "section_update",
