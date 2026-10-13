@@ -441,6 +441,7 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
         "antikeywords": (list, type(None)),
         "exclude_sellers": (list, type(None)),
         "keywords": (list, type(None)),
+        "title_keywords": (list, type(None)),
         "language": (str, type(None)),
         "login_wait_time": (int, type(None)),
         "marketplace": (str, type(None)),

@@ -424,6 +424,28 @@ is equivalent to:
 
 which means selecting listings that contains `drone` or `DJI` or `Orga` in title or description, but exclude those listings with `Parrot` or `Autel` in title or description.
 
+Matching the Title Only
+-----------------------
+
+``keywords`` and ``antikeywords`` match the title and the description, but Facebook's search
+results show only the title. *AI Marketplace Monitor* therefore opens each listing to read its
+description before it can apply ``keywords``. ``title_keywords`` takes the same values as
+``keywords`` but matches the title only, so listings without them are skipped before they are
+opened. This makes searches faster and opens fewer pages on Facebook:
+
+.. code-block:: toml
+
+    title_keywords = ['drone', 'DJI']
+    keywords = 'drone AND (DJI OR Orqa)'
+
+keeps listings with ``drone`` or ``DJI`` in the title, opens them, and then applies
+``keywords`` to their title and description.
+
+.. warning::
+   Many sellers write very short titles, such as "Bike" or "Camera lens", and put the brand and
+   model in the description only. ``title_keywords`` drops these listings without reading their
+   description, so use it only for words that nearly every matching listing has in its title.
+
 Complex Expressions
 -------------------
 

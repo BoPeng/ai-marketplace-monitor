@@ -216,3 +216,47 @@ def test_clean_facebook_description_all_ad_noise_returns_empty() -> None:
     )
 
     assert _clean_facebook_description(description) == ""
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Bosch EMTB for sale", True),
+        ("EMTB for sale", False),
+    ],
+)
+def test_title_keywords_apply_before_description_is_read(
+    facebook_marketplace: FacebookMarketplace, title: str, expected: bool
+) -> None:
+    """title_keywords filter search results, before the listing is opened for its description."""
+    item_config = FacebookItemConfig(
+        name="test_item",
+        search_phrases=["EMTB"],
+        title_keywords="bosch OR yamaha",  # type: ignore[arg-type]
+    )
+    assert item_config.title_keywords == ["bosch OR yamaha"]
+    listing = Listing(
+        marketplace="facebook",
+        name="test_item",
+        id="123456",
+        title=title,
+        image="",
+        price="$2,800",
+        post_url="/marketplace/item/123456/",
+        location="Roanoke, VA",
+        seller="",
+        condition="used",
+        description="",
+    )
+    assert (
+        facebook_marketplace.check_listing(listing, item_config, description_available=False)
+        is expected
+    )
+    # the description does not rescue a title without the keywords
+    listing.description = "Bosch gen 4 motor"
+    assert facebook_marketplace.check_listing(listing, item_config) is expected
+
+
+def test_title_keywords_must_be_strings() -> None:
+    with pytest.raises(ValueError, match="title_keywords must be a list"):
+        FacebookItemConfig(name="test_item", search_phrases=["EMTB"], title_keywords=[1])  # type: ignore[list-item]

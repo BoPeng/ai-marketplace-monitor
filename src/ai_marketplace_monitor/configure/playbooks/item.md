@@ -37,6 +37,11 @@ For "an Android phone or iPad with USB-C", derive `keywords = ["ipad", "galaxy"]
 the acceptable models in `description`. Leave `keywords` unset when no short list of names
 covers the item.
 
+`title_keywords` take the same values as `keywords` but match the title only, so aimm skips a
+listing without opening it. Many sellers write short titles ("Bike") and name the model only in
+the description, so set `title_keywords` only when the user asks to filter by title or to open
+fewer listings, and then with names nearly every title would contain.
+
 Never split one requirement over several entries expecting AND; combine it in one entry, e.g.
 `"gopro AND ('hero 11' OR 'hero 12')"`. Inside an entry, operators are uppercase `AND` / `OR` /
 `NOT` with parentheses, and multi-word terms must be quoted (`'hero 11'`); an entry that does
