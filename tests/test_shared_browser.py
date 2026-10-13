@@ -25,7 +25,7 @@ from ai_marketplace_monitor.shared_browser import (
     shared_endpoint,
 )
 from ai_marketplace_monitor.utils import MonitorConfig
-from tests.configure_util import ONE_ITEM, make_ws
+from tests.configure_util import ONE_ITEM, make_ws, run_in_fresh_loop
 
 # ------------------------------------------------------------------------- pacing
 
@@ -134,24 +134,36 @@ async def call(ex: ToolExecutor, tool: str, **args: Any) -> Dict[str, Any]:
     return out
 
 
-async def test_without_a_shared_browser_the_tools_say_so(tmp_path: Path) -> None:
-    ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
-    out = await call(ex, "evaluate_listing", listing="123", item="example")
-    assert not out["ok"] and "not available" in out["errors"][0]
-    out = await call(ex, "check_seller", seller="https://www.facebook.com/marketplace/profile/9/")
-    assert not out["ok"] and "not available" in out["errors"][0]
-    ex.end()
+# The async scenarios run on a loop of their own (run_in_fresh_loop): the Playwright tests
+# keep one running in the main thread.
 
 
-async def test_the_tools_check_their_arguments(tmp_path: Path) -> None:
-    ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
-    out = await call(ex, "evaluate_listing", listing="https://example.com/item/1")
-    assert not out["ok"] and "listing id" in out["errors"][0]
-    out = await call(ex, "check_seller", seller="Jane")
-    assert not out["ok"] and "profile URL" in out["errors"][0]
-    out = await call(ex, "evaluate_listing", listing="123", item="camera")
-    assert not out["ok"] and "No item 'camera'" in out["errors"][0]
-    ex.end()
+def test_without_a_shared_browser_the_tools_say_so(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
+        out = await call(ex, "evaluate_listing", listing="123", item="example")
+        assert not out["ok"] and "not available" in out["errors"][0]
+        out = await call(
+            ex, "check_seller", seller="https://www.facebook.com/marketplace/profile/9/"
+        )
+        assert not out["ok"] and "not available" in out["errors"][0]
+        ex.end()
+
+    run_in_fresh_loop(scenario)
+
+
+def test_the_tools_check_their_arguments(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
+        out = await call(ex, "evaluate_listing", listing="https://example.com/item/1")
+        assert not out["ok"] and "listing id" in out["errors"][0]
+        out = await call(ex, "check_seller", seller="Jane")
+        assert not out["ok"] and "profile URL" in out["errors"][0]
+        out = await call(ex, "evaluate_listing", listing="123", item="camera")
+        assert not out["ok"] and "No item 'camera'" in out["errors"][0]
+        ex.end()
+
+    run_in_fresh_loop(scenario)
 
 
 def _fake_listing(**kw: Any) -> Listing:
@@ -177,7 +189,7 @@ def _fake_listing(**kw: Any) -> Listing:
     ("excluded", "score", "would_notify"),
     [(None, 5, True), (None, 3, False), ("excluded keyword: parts", 5, False)],
 )
-async def test_evaluate_listing_reports_the_search_and_the_ai(
+def test_evaluate_listing_reports_the_search_and_the_ai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     excluded: str | None,
@@ -197,11 +209,16 @@ async def test_evaluate_listing_reports_the_search_and_the_ai(
 
     monkeypatch.setattr(live.LiveBrowser, "_facebook", fake_facebook)
     monkeypatch.setattr(monitor, "inspect_listing", fake_inspect)
-    ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
-    out = await call(
-        ex, "evaluate_listing", listing="https://www.facebook.com/marketplace/item/123/?ref=x"
-    )
-    ex.end()
+
+    async def scenario() -> Dict[str, Any]:
+        ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
+        out = await call(
+            ex, "evaluate_listing", listing="https://www.facebook.com/marketplace/item/123/?ref=x"
+        )
+        ex.end()
+        return out
+
+    out = run_in_fresh_loop(scenario)
     assert out["ok"], out
     assert seen == {
         "marketplace": "facebook",
@@ -226,20 +243,17 @@ def test_the_chat_never_logs_in_or_saves_the_session() -> None:
 
 
 @pytest.fixture
-def shared_chromium(browser_endpoint_file: Path) -> Iterator[Any]:
-    from playwright.sync_api import sync_playwright
-
-    playwright = sync_playwright().start()
+def shared_chromium(browser_endpoint_file: Path, playwright: Any) -> Iterator[Any]:
+    # pytest-playwright's Playwright, not a second sync_playwright(): one cannot start while
+    # the session's runs in the main thread (after test_facebook.py)
     try:
         context = shared_browser.launch_shared_chromium(playwright, headless=True)
     except Exception as e:
-        playwright.stop()
         pytest.skip(f"Chromium cannot be launched here: {e}")
     try:
         yield context
     finally:
         context.close()
-        playwright.stop()
         shared_browser._endpoint = None
 
 
