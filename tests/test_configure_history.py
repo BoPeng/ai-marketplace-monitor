@@ -107,7 +107,13 @@ async def call(ex: ToolExecutor, tool: str, **args: Any) -> Dict[str, Any]:
 def test_listing_id_from_url_or_id() -> None:
     assert listing_id("123") == "123"
     assert listing_id(" https://www.facebook.com/marketplace/item/456/?ref=x ") == "456"
+    assert listing_id("facebook.com/marketplace/item/456") == "456"
+    assert listing_id("https://m.facebook.com/marketplace/item/456/") == "456"
     assert listing_id("https://www.facebook.com/marketplace/profile/789/") == ""
+    assert listing_id("https://example.com/marketplace/item/101/") == ""
+    assert listing_id("https://www.facebook.com.evil.com/marketplace/item/101/") == ""
+    assert listing_id("https://www.facebook.com/marketplace/item/101/photos/") == ""
+    assert listing_id("ftp://www.facebook.com/marketplace/item/101/") == ""
     assert listing_id("gopro") == ""
 
 
@@ -224,3 +230,28 @@ async def test_a_damaged_cache_is_reported(tmp_path: Path) -> None:
     for tool, args in (("find_listings", {}), ("explain_listing", {"listing": "101"})):
         out = await call(ex, tool, **args)
         assert not out["ok"] and "damaged" in out["errors"][0]
+
+
+class _FailingCache:
+    """A cache that opened but fails when its keys are read (e.g. damaged pages)."""
+
+    def iterkeys(self: "_FailingCache") -> Any:
+        raise sqlite3.DatabaseError("database disk image is malformed")
+
+
+async def test_a_failed_read_is_reported(tmp_path: Path) -> None:
+    ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM), history_cache=_FailingCache())
+    for tool, args in (("find_listings", {}), ("explain_listing", {"listing": "101"})):
+        out = await call(ex, tool, **args)
+        assert not out["ok"] and "damaged" in out["errors"][0]
+
+
+async def test_status_uses_the_recorded_price_and_state(tmp_path: Path, history: Cache) -> None:
+    hero = _listing("501", "GoPro Hero 11", price="$200")
+    hero.to_cache(hero.post_url, local_cache=history)
+    _record(history, hero, stage=NOTIFIED, rating=4)
+    evaluations.record_seen("facebook", "501", "gopro", "$170", local_cache=history)
+    evaluations.update_evaluation("facebook", "501", "gopro", state="sold", local_cache=history)
+    out = await call(await _executor(tmp_path, history), "explain_listing", listing="501")
+    assert out["price"] == "$170" and out["status"]["previous_price"] == "$200"
+    assert out["status"]["state"] == "sold" and out["status"]["state_changed"]

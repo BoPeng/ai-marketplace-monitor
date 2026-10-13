@@ -15,7 +15,8 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
+from urllib.parse import urlsplit
 
 from diskcache import Cache  # type: ignore
 
@@ -55,25 +56,36 @@ def _when(epoch: float) -> str | None:
 
 
 def listing_id(listing: str) -> str:
-    """The listing id of a Marketplace URL or of an id, or '' if there is none."""
+    """The listing id of a Facebook Marketplace item URL or of an id, or '' if there is none."""
     listing = listing.strip()
     if listing.isdigit():
         return listing
-    match = re.search(r"/marketplace/item/(\d+)", listing)
+    url = urlsplit(listing if "://" in listing else f"https://{listing}")
+    host = (url.hostname or "").lower()
+    if url.scheme not in ("http", "https") or not (
+        host == "facebook.com" or host.endswith(".facebook.com")
+    ):
+        return ""
+    match = re.fullmatch(r"/marketplace/item/(\d+)/?", url.path)
     return match.group(1) if match else ""
 
 
-def _unreadable(local_cache: Cache | None) -> Dict[str, Any] | None:
-    """The error to return when aimm's cache cannot be read (it is corrupted)."""
-    if not is_cache_broken(cache if local_cache is None else local_cache):
+UNREADABLE = (
+    "aimm's records cannot be read: its cache is damaged. Clearing the cache (in the web UI, or "
+    "`aimm admin --clear-cache all`) fixes it, but loses the history."
+)
+
+
+def _records(local_cache: Cache | None) -> List[EvaluationRecord] | None:
+    """All the records, deleting none; None if aimm's cache cannot be read."""
+    if is_cache_broken(cache if local_cache is None else local_cache):
         return None
-    return {
-        "ok": False,
-        "errors": [
-            "aimm's records cannot be read: its cache is damaged. Clearing the cache (in the "
-            "web UI, or `aimm admin --clear-cache all`) fixes it, but loses the history."
-        ],
-    }
+    try:
+        return list(iter_evaluations(prune=False, strict=True, local_cache=local_cache))
+    except KeyboardInterrupt:
+        raise
+    except Exception:
+        return None
 
 
 def _brief(record: EvaluationRecord) -> Dict[str, Any]:
@@ -118,11 +130,10 @@ def find_listings(
         errors.append("days and min_rating cannot be negative.")
     if errors:
         return {"ok": False, "errors": errors}
-    unreadable = _unreadable(local_cache)
-    if unreadable:
-        return unreadable
     limit = max(1, min(int(limit or DEFAULT_LISTINGS), MAX_LISTINGS))
-    records = list(iter_evaluations(prune=False, local_cache=local_cache))
+    records = _records(local_cache)
+    if records is None:
+        return {"ok": False, "errors": [UNREADABLE]}
     items = sorted({r.item for r in records})
     if not records:
         return {
@@ -200,10 +211,10 @@ def explain_listing(listing: str, *, local_cache: Cache | None = None) -> Dict[s
                 "Give a listing id or a Facebook Marketplace URL (/marketplace/item/<id>)."
             ],
         }
-    unreadable = _unreadable(local_cache)
-    if unreadable:
-        return unreadable
-    records = [r for r in iter_evaluations(prune=False, local_cache=local_cache) if r.id == lid]
+    all_records = _records(local_cache)
+    if all_records is None:
+        return {"ok": False, "errors": [UNREADABLE]}
+    records = [r for r in all_records if r.id == lid]
     records.sort(key=lambda r: r.time, reverse=True)
     url = records[0].url if records else f"https://www.facebook.com/marketplace/item/{lid}/"
     details = Listing.from_cache(url, local_cache=local_cache)
@@ -234,6 +245,7 @@ def explain_listing(listing: str, *, local_cache: Cache | None = None) -> Dict[s
     if first is not None:
         status = {
             "state": first.state,
+            "state_changed": _when(first.state_changed),
             "last_seen_in_search": _when(first.last_seen),
             "price_now": first.price,
         }
@@ -247,7 +259,7 @@ def explain_listing(listing: str, *, local_cache: Cache | None = None) -> Dict[s
         "id": lid,
         "url": url,
         "title": _cut(details.title if details else first.title if first else "", TITLE_CHARS),
-        "price": details.price if details else first.price if first else "",
+        "price": first.price if first else details.price if details else "",
         "location": details.location if details else first.location if first else "",
         "condition": details.condition if details else first.condition if first else "",
         "description": _cut(details.description, DESCRIPTION_CHARS) if details else None,
