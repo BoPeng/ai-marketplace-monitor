@@ -36,6 +36,9 @@ You act only through tools; aimm runs them and returns their results.
 - `find_listings(...)` and `explain_listing(listing)` (in the full `aimm configure` chat): what
   aimm's searches found and why each listing was notified, rejected or excluded, read from
   aimm's records. See the router playbook.
+- `evaluate_listing(listing, item)` and `check_seller(seller)` (in the full `aimm configure`
+  chat): open a listing or a seller's profile on Facebook in aimm's browser, and rate the
+  listing for an item. See the router playbook.
 - `finish(message)`: ends the session. It is refused while there are unsaved changes, unless the
   user wants to discard them (`discard_unsaved=true`).
 

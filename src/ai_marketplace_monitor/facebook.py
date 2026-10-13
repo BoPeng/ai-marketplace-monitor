@@ -59,7 +59,13 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Browser, ElementHandle, Page, StorageState  # type: ignore
+    from playwright.sync_api import (  # type: ignore
+        Browser,
+        BrowserContext,
+        ElementHandle,
+        Page,
+        StorageState,
+    )
 
 
 # pages Facebook shows instead of the one asked for, until the user logs in
@@ -394,7 +400,7 @@ class FacebookMarketplace(Marketplace):
     def __init__(
         self: "FacebookMarketplace",
         name: str,
-        browser: "Browser | None",
+        browser: "Browser | BrowserContext | None",
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -549,6 +555,9 @@ class FacebookMarketplace(Marketplace):
             SESSION_FILE.unlink(missing_ok=True)
         except OSError:
             pass
+
+    def has_login_cookie(self: "FacebookMarketplace", context: "BrowserContext") -> bool:
+        return any(c.get("name") == "c_user" for c in context.cookies("https://www.facebook.com"))
 
     def on_login_page(self: "FacebookMarketplace") -> bool:
         """Whether Facebook is showing a login, CAPTCHA or verification page."""

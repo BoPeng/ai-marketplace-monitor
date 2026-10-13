@@ -165,6 +165,14 @@ MONITOR_GUIDES: Tuple[FieldGuide, ...] = (
         "on",
     ),
     FieldGuide(
+        "share_browser",
+        "only to stop the configure chat from using the monitor's browser (to check listings "
+        "and sellers on Facebook). The browser then has no DevTools port on 127.0.0.1, which "
+        "other users of this computer could otherwise connect to",
+        "`false`",
+        "on (Chromium only)",
+    ),
+    FieldGuide(
         "evaluation_history_days",
         "only to keep the web UI's Listings history (each evaluated listing and why it was "
         "notified, rejected or excluded) for other than 30 days",
