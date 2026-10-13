@@ -249,13 +249,17 @@ def iter_evaluations(
     since: float | None = None,
     item: str | None = None,
     stage: str | None = None,
+    prune: bool = True,
+    strict: bool = False,
     local_cache: Cache | None = None,
 ) -> Iterator[EvaluationRecord]:
     """Yield the saved records, in no particular order, optionally filtered.
 
     ``since`` is in epoch seconds. Records older than the history (see
-    :func:`history_cutoff`) are removed instead. Yields nothing when the cache
-    cannot be read.
+    :func:`history_cutoff`) are removed instead, unless ``prune`` is False: a reader
+    that does not know ``evaluation_history_days`` (``aimm configure``) then yields
+    every record that has not expired and deletes nothing. Yields nothing when the
+    cache cannot be read, or raises the error if ``strict`` is True.
     """
     c = cache if local_cache is None else local_cache
     if is_cache_broken(c):
@@ -265,6 +269,8 @@ def iter_evaluations(
     except KeyboardInterrupt:
         raise
     except Exception:
+        if strict:
+            raise
         logger.debug("Failed to read the evaluation history", exc_info=True)
         return
     cutoff = history_cutoff()
@@ -278,7 +284,7 @@ def iter_evaluations(
             if not isinstance(value, dict):
                 continue
             record = EvaluationRecord.from_dict(value)
-            if record.time < cutoff:
+            if prune and record.time < cutoff:
                 c.delete(key)
                 continue
         except KeyboardInterrupt:

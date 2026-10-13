@@ -110,6 +110,13 @@ listings already recorded):
 evaluation_history_days = 60
 ```
 
+You can also ask the **Configure** chat (or `aimm configure`) about these listings, for example
+"what did you find for my GoPro this week?", "anything rated 4 or better?", or "why was
+https://www.facebook.com/marketplace/item/… skipped?". It answers from the same records, with
+the reason or the AI's comment, the listing's description and the seller's warning signs, and
+can then change the item ("never show this seller again"). It does not open Facebook: a listing
+aimm never found is not known.
+
 ## Disabling the Web UI
 
 If you don't need the web UI, disable it with:

@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
 from ..facebook_location import FacebookLocations, LocationLookupError
+from .history import explain_listing, find_listings
 from .toolkits import SINGLETONS, Toolkit, location, section_label
 from .ui import SetupClosedError
 from .workspace import ConfigLoadError, SectionKey, Workspace
@@ -122,6 +123,8 @@ class ToolExecutor:
     guides_read: Set[str] = field(default_factory=set)
     # saved sections aimm offers to try with test_notification (e.g. a notification channel)
     testable: Set[SectionKey] = field(default_factory=set)
+    # the cache that find_listings and explain_listing read (None: aimm's own; tests set one)
+    history_cache: Any = None
 
     # --- state ------------------------------------------------------------------------------
     @property
@@ -463,6 +466,29 @@ class ToolExecutor:
             ),
         }
 
+    # --- what aimm found (read from the cache) --------------------------------------------
+    async def find_listings(self: "ToolExecutor", args: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            days = float(args.get("days") or 0)
+            min_rating = int(args.get("min_rating") or 0)
+            limit = int(args.get("limit") or 0)
+        except (TypeError, ValueError):
+            return {"ok": False, "errors": ["days, min_rating and limit must be numbers."]}
+        return await asyncio.to_thread(
+            find_listings,
+            text=str(args.get("text") or ""),
+            item=str(args.get("item") or ""),
+            stage=str(args.get("stage") or ""),
+            days=days,
+            min_rating=min_rating,
+            sort=str(args.get("sort") or "time"),
+            limit=limit,
+            local_cache=self.history_cache,
+        )
+
+    async def explain_listing(self: "ToolExecutor", listing: str) -> Dict[str, Any]:
+        return await asyncio.to_thread(explain_listing, listing, local_cache=self.history_cache)
+
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False
     ) -> Dict[str, Any]:
@@ -544,7 +570,59 @@ class ToolExecutor:
                 """
                 return await self.call("list_sections", {})
 
-            tools.append(list_sections)
+            async def find_listings(
+                text: str = "",
+                item: str = "",
+                stage: str = "",
+                days: float = 0,
+                min_rating: int = 0,
+                sort: str = "time",
+                limit: int = 20,
+            ) -> Dict[str, Any]:
+                """List the listings aimm's searches found and what it decided about each.
+
+                Read from aimm's records (no browser): each listing with its item, stage
+                (excluded, rejected or notified), AI rating, title, price, location, when it
+                was decided, URL and a short reason. Also the number per stage. Records are
+                kept `evaluation_history_days` (30 days by default).
+
+                Args:
+                    text: words to find in the title, seller, location, price, reason or AI
+                        comment, e.g. "hero 12". Empty for all.
+                    item: an item name, e.g. "gopro". Empty for all items.
+                    stage: "excluded", "rejected" or "notified". Empty for all.
+                    days: only listings decided in the last this many days; 0 for all.
+                    min_rating: only listings the AI rated at least this (1-5); 0 for all.
+                    sort: "time" (newest first) or "rating" (best first).
+                    limit: how many listings to return (at most 50).
+                """
+                return await self.call(
+                    "find_listings",
+                    {
+                        "text": text,
+                        "item": item,
+                        "stage": stage,
+                        "days": days,
+                        "min_rating": min_rating,
+                        "sort": sort,
+                        "limit": limit,
+                    },
+                )
+
+            async def explain_listing(listing: str) -> Dict[str, Any]:
+                """Explain what aimm knows and decided about one listing, from its records.
+
+                Returns the decision for each item that found it (stage, AI rating, the reason
+                or the AI's comment), the listing's details and description as aimm read them,
+                its price and status history, and its seller (summary and warning signs). No
+                browser: a listing aimm never found is not known.
+
+                Args:
+                    listing: the listing's Facebook Marketplace URL or its id.
+                """
+                return await self.call("explain_listing", {"listing": listing})
+
+            tools += [list_sections, find_listings, explain_listing]
         tools += _section_tools(self)
         if any(t in self.ws.toolkits for t in ("notification", "user")):
 
@@ -620,6 +698,10 @@ class ToolExecutor:
                 )
             if name == "find_city":
                 return await self.find_city(str(args.get("place", "")))
+            if name == "find_listings":
+                return await self.find_listings(args)
+            if name == "explain_listing":
+                return await self.explain_listing(str(args.get("listing", "")))
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
             if name == "test_notification":
