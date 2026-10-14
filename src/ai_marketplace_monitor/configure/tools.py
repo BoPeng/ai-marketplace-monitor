@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
 from ..facebook_location import FacebookLocations, LocationLookupError
+from ..shared_browser import shared_endpoint
 from .history import explain_listing, find_listings
 from .live import LiveBrowser
 from .toolkits import SINGLETONS, Toolkit, location, section_label
@@ -404,6 +405,16 @@ class ToolExecutor:
         )
         if notes:
             result["shown_to_user"] = notes
+        tried = [n for t, n in (d.key for d in pending) if t == "item"]
+        if tried and await asyncio.to_thread(shared_endpoint) is not None:
+            result["try_item"] = {
+                "items": tried,
+                "note": (
+                    "aimm can run the search of what was just saved once, now, in the monitor's "
+                    "browser, and list what it finds (search results only, no AI). Offer it "
+                    "with ask_user, in your own words; call try_item only if the user agrees."
+                ),
+            }
         if tests:
             result["test_notification"] = {
                 "sections": [{"section_type": t, "name": n} for t, n in tests],
@@ -512,6 +523,38 @@ class ToolExecutor:
     ) -> Dict[str, Any]:
         await self.ws.ui.say("Checking the seller...")
         return await self._live().check_seller(seller, refresh)
+
+    async def try_item(self: "ToolExecutor", item: str) -> Dict[str, Any]:
+        item = item.strip()
+        if not item:
+            saved = list(self.ws.user_cfg.get("item", {}))
+            if len(saved) != 1:
+                return {
+                    "ok": False,
+                    "errors": [
+                        "Which item? "
+                        + (f"Items: {', '.join(saved)}." if saved else "No item is saved.")
+                    ],
+                }
+            item = saved[0]
+        if (
+            self.only is not None
+            and ("item", item) not in self.only
+            and ("item", "*") not in self.only
+        ):
+            allowed = ", ".join(section_label(t, n) for t, n in sorted(self.only))
+            return {"ok": False, "errors": [f"This session works on {allowed} only."]}
+        draft = self.ws.drafts.get(("item", item))
+        if draft is not None and draft.unsaved_changes():
+            return {
+                "ok": False,
+                "errors": [
+                    f"{section_label('item', item)} has unsaved changes: the search runs what is "
+                    "saved. Save it first."
+                ],
+            }
+        await self.ws.ui.say(f"Running the search of {section_label('item', item)} once...")
+        return await self._live().try_item(item)
 
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False
@@ -713,6 +756,25 @@ class ToolExecutor:
                 )
 
             tools.append(test_notification)
+        if "item" in self.ws.toolkits:
+
+            async def try_item(item: str) -> Dict[str, Any]:
+                """Run a saved item's search once, now, and list what it finds.
+
+                aimm opens the item's search pages (its search phrases in its cities, with its
+                price, radius and other options, up to 4 pages) in the monitor's browser and
+                applies the filters that work on search results (title, location, price). It
+                opens no listing page and asks no AI, so it is quick and free; rate listings
+                the user picks with evaluate_listing. Needs the monitor running on this
+                computer, logged in to Facebook (if not, it says so). Runs only what is saved:
+                save the item first. Nothing is recorded and no one is notified.
+
+                Args:
+                    item: the item's name, e.g. "gopro".
+                """
+                return await self.call("try_item", {"item": item})
+
+            tools.append(try_item)
         if any(t in self.ws.toolkits for t in ("marketplace", "item", "region")):
 
             async def find_city(place: str) -> Dict[str, Any]:
@@ -779,6 +841,8 @@ class ToolExecutor:
                     str(args.get("item", "") or ""),
                     args.get("refresh") is True,
                 )
+            if name == "try_item":
+                return await self.try_item(str(args.get("item", "")))
             if name == "check_seller":
                 return await self.check_seller(
                     str(args.get("seller", "")), args.get("refresh") is True

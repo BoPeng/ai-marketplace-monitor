@@ -46,6 +46,7 @@ NAVIGATION_GAP = 3.0
 
 _endpoint: str | None = None  # this process's shared browser, while it runs
 _navigation_lock = threading.Lock()
+_search_lock = threading.Lock()  # one search at a time (see search_slot)
 _last_navigation = 0.0
 _last_navigator: int | None = None  # the thread that loaded the last page
 
@@ -147,6 +148,24 @@ def shared_endpoint() -> str | None:
         return None
     endpoint = f"http://127.0.0.1:{port}"
     return endpoint if _answers(endpoint) else None
+
+
+@contextmanager
+def search_slot(timeout: float | None = None) -> Iterator[None]:
+    """Run one search page at a time: set the account's radius, reload and read the results.
+
+    Facebook searches with the radius saved on the account, so another search must not change
+    it between this search's update and its reload (within this process: the monitor and the
+    web UI's chat). Page loads inside still take turns with ``navigation_slot``. ``timeout``
+    (seconds) raises BrowserBusyError instead of waiting longer; None waits as long as it
+    takes.
+    """
+    if not _search_lock.acquire(timeout=-1 if timeout is None else timeout):
+        raise BrowserBusyError("aimm's browser is busy with another search.")
+    try:
+        yield
+    finally:
+        _search_lock.release()
 
 
 @contextmanager
