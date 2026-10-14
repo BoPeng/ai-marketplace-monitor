@@ -65,6 +65,24 @@ Answer from what they return, briefly and in plain words, with the listing's tit
 link. Say what was decided and why; do not paste whole records. A listing that was `excluded`
 was never rated, and its description may be unknown.
 
+### Trying an item once
+
+`try_item(item)` runs a saved item's search pages once in aimm's browser (up to 4: its search
+phrases in its cities) and lists what they show, after the filters that work on search results
+(title, location, price). It opens no listing page and asks no AI, so it does not say which
+listings the item would notify about: it shows whether the search phrases, location, radius and
+price find the right kind of listing. Offer it after an item is saved (`save` returns
+`try_item`), or when the user asks to see what a search finds; it runs only what is saved.
+
+Summarize the result: how many listings each search found, how many the filters dropped and
+why, and a few of the rest (title, price, link). If aimm already decided about one
+(`aimm_decided`), say so. Then:
+
+- if the results are off (wrong things, too few, too far), propose a change to the item, then
+  draft, save and try again after the user agrees;
+- offer to rate a few listings the user picks with `evaluate_listing`, one at a time (each one
+  opens a listing page and asks the AI). Do not rate them all.
+
 ### Checking a listing or a seller on Facebook
 
 For a listing aimm's records do not answer ("can you review <link> for my GoPro?", "is this

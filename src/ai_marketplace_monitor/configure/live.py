@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Tuple, Ty
 
 from ..ai import AIResponse
 from ..config import Config, supported_marketplaces
+from ..evaluations import find_evaluation
 from ..facebook import FacebookMarketplace, FacebookSellerProfilePage
 from ..listing import Listing
 from ..marketplace import DEFAULT_RATING, resolve_option
@@ -52,6 +53,8 @@ T = TypeVar("T")
 CONNECT_TIMEOUT_MS = 10_000
 PAGE_TIMEOUT_MS = 60_000  # one page load
 WAIT_FOR_MONITOR = 120.0  # seconds to wait while the monitor loads a page
+TRY_SEARCHES = 4  # search pages a trial run opens (cities x search phrases)
+TRY_LISTINGS = 30  # listings a trial run returns
 
 UNAVAILABLE = (
     "aimm's browser cannot be shared with the chat now, so Facebook pages cannot be opened "
@@ -177,6 +180,15 @@ class LiveBrowser:
         except Exception as e:
             logger.debug("check_seller failed", exc_info=True)
             return {"ok": False, "errors": [f"aimm could not read the seller: {e}"]}
+
+    async def try_item(self: "LiveBrowser", item: str) -> Dict[str, Any]:
+        try:
+            return await self._run(lambda: self._try_item(item))
+        except (LiveUnavailableError, BrowserBusyError) as e:
+            return {"ok": False, "errors": [str(e)]}
+        except Exception as e:
+            logger.debug("try_item failed", exc_info=True)
+            return {"ok": False, "errors": [f"aimm could not run the search: {e}"]}
 
     # --- in the worker thread -----------------------------------------------------------
     def _config(self: "LiveBrowser") -> Config:
@@ -328,6 +340,87 @@ class LiveBrowser:
                 "AI's earlier answer is reused if the item has not changed; pass refresh=true "
                 "only if the user asks for a fresh look. This check is not recorded as a "
                 "decision and notifies no one. " + UNTRUSTED_NOTE
+            ),
+        }
+
+    def _try_item(self: "LiveBrowser", item: str) -> Dict[str, Any]:
+        config = self._config()
+        item_config = self._item(config, item)
+        marketplace_config = self._marketplace_config(config, item_config)
+        started = time.monotonic()
+        searches: List[Dict[str, Any]] = []
+        found: Dict[str, Listing] = {}
+        reasons: Dict[str, str | None] = {}
+        with self._facebook(config, marketplace_config) as marketplace:
+            pages = marketplace.search_pages(item_config)
+            for search in pages[:TRY_SEARCHES]:
+                listings = marketplace.read_search_page(search)
+                searches.append(
+                    {
+                        "phrase": search.phrase,
+                        "city": search.city_name or search.city,
+                        "radius": search.radius,
+                        "found": len(listings),
+                    }
+                )
+                for listing in listings:
+                    found.setdefault(listing.post_url.split("?")[0], listing)
+            # the search's filters on what a search page shows (title, location, price)
+            for url, listing in found.items():
+                reasons[url] = marketplace.exclusion_reason(
+                    listing, item_config, description_available=False
+                )
+        excluded_by: Dict[str, int] = {}
+        kept: List[Dict[str, Any]] = []
+        for url, listing in found.items():
+            reason = reasons[url]
+            if reason is not None:
+                excluded_by[reason] = excluded_by.get(reason, 0) + 1
+                continue
+            decided = find_evaluation("facebook", listing.id, item_config.name)
+            kept.append(
+                {
+                    "id": listing.id,
+                    "url": url,
+                    "title": _cut(listing.title, TITLE_CHARS),
+                    "price": listing.price,
+                    "location": listing.location,
+                    "aimm_decided": (
+                        None
+                        if decided is None
+                        else {
+                            "decision": decided.stage,
+                            "rating": decided.rating,
+                            "reason": _cut(decided.reason or decided.ai_comment, COMMENT_CHARS),
+                        }
+                    ),
+                }
+            )
+        return {
+            "ok": True,
+            "item": item_config.name,
+            "searches": searches,
+            "searches_not_run": [
+                {"phrase": s.phrase, "city": s.city_name or s.city} for s in pages[TRY_SEARCHES:]
+            ],
+            "found": len(found),
+            "excluded": sum(excluded_by.values()),
+            "excluded_by": dict(sorted(excluded_by.items(), key=lambda x: -x[1])[:5]),
+            "would_check": len(kept),
+            "listings": kept[:TRY_LISTINGS],
+            "more_listings": max(0, len(kept) - TRY_LISTINGS),
+            "seconds": round(time.monotonic() - started),
+            "note": (
+                "One run of the item's search pages, as its first search would see them. Only "
+                "the search results were read: no listing page was opened and no AI was asked, "
+                "so filters on the description and the seller, and the AI's rating, are not "
+                "applied yet. The monitor does that for each of the `would_check` listings (a "
+                "page and an AI question each). `aimm_decided`: what aimm's searches already "
+                "decided about a listing for this item. Summarize for the user and show a few "
+                "listings; offer evaluate_listing for the ones they pick, one at a time. If the "
+                "results look wrong, propose a change to the item (search_phrases, "
+                "antikeywords, price, radius). Nothing is recorded and no one is notified. "
+                + UNTRUSTED_NOTE
             ),
         }
 

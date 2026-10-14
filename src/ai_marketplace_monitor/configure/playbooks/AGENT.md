@@ -39,6 +39,9 @@ You act only through tools; aimm runs them and returns their results.
 - `evaluate_listing(listing, item, refresh)` and `check_seller(seller, refresh)` (in the full
   `aimm configure` chat): rate one listing for one item, and check a seller, from aimm's cache
   or by opening Facebook in aimm's browser. See the router playbook.
+- `try_item(item)` (when items can be configured): runs a saved item's search once and lists
+  what it finds, from search results only (no AI). Offered by `save` after an item is saved
+  (its `try_item` result); see the router playbook.
 - `finish(message)`: ends the session. It is refused while there are unsaved changes, unless the
   user wants to discard them (`discard_unsaved=true`).
 

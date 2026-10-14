@@ -391,6 +391,17 @@ class FacebookItemConfig(ItemConfig, FacebookMarketItemCommonConfig):
     pass
 
 
+@dataclass
+class SearchPage:
+    """One search of an item: a phrase in a city, with its URL."""
+
+    city: str
+    city_name: str | None
+    radius: int | None
+    phrase: str
+    url: str
+
+
 class FacebookMarketplace(Marketplace):
     initial_url = "https://www.facebook.com/login/device-based/regular/login/"
     home_url = "https://www.facebook.com/"
@@ -669,13 +680,14 @@ class FacebookMarketplace(Marketplace):
             dialog.close()
             return False
 
-    def search(
+    def search_pages(
         self: "FacebookMarketplace", item_config: FacebookItemConfig
-    ) -> Generator[Listing, None, None]:
-        if not self.page:
-            self.login()
-            assert self.page is not None
+    ) -> List[SearchPage]:
+        """The search pages of an item, one per city and search phrase, in search order.
 
+        The options follow the item's first search or later ones (``searched_count``), as the
+        search does.
+        """
         options = []
 
         condition = resolve_option("condition", item_config, self.config)
@@ -722,8 +734,6 @@ class FacebookMarketplace(Marketplace):
             options.append(f"sortBy={SORT_BY_PARAM[sort_by]}")
 
         # search multiple keywords and cities
-        # there is a small chance that search by different keywords and city will return the same items.
-        found = {}
         search_city = resolve_option("search_city", item_config, self.config) or []
         city_name = resolve_option("city_name", item_config, self.config) or []
         radiuses = resolve_option("radius", item_config, self.config)
@@ -735,8 +745,7 @@ class FacebookMarketplace(Marketplace):
                 self.logger.error(
                     f"""{hilight("[Search]", "fail")} No search city provided for {item_config.name}"""
                 )
-        # increase the searched_count to differentiate first and subsequent searches
-        item_config.searched_count += 1
+        pages: List[SearchPage] = []
         for city, cname, radius, currency in zip(
             search_city,
             repeat(None) if city_name is None else city_name,
@@ -790,100 +799,131 @@ class FacebookMarketplace(Marketplace):
                     ]
 
             for search_phrase in item_config.search_phrases:
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
-                        f"""{hilight(item_config.name)} from {hilight(cname or city)}"""
-                        + (f" with radius={radius}" if radius else " with default radius")
+                pages.append(
+                    SearchPage(
+                        city=city,
+                        city_name=cname,
+                        radius=radius,
+                        phrase=search_phrase,
+                        url=marketplace_url
+                        + "&".join([f"query={quote(search_phrase)}", *city_options]),
                     )
-
-                if control.is_paused():
-                    return
-                search_url = marketplace_url + "&".join(
-                    [f"query={quote(search_phrase)}", *city_options]
                 )
-                self.goto_url(search_url)
-                if radius and self.set_search_radius(radius):
-                    self.goto_url(search_url)  # the results follow a new radius after a reload
+        return pages
 
-                found_listings = FacebookSearchResultPage(
-                    self.page, self.translator, self.logger
-                ).get_listings()
-                if not found_listings and self.recover_login():
-                    self.goto_url(search_url)
-                    if radius and self.set_search_radius(radius):
-                        self.goto_url(search_url)
-                    found_listings = FacebookSearchResultPage(
-                        self.page, self.translator, self.logger
-                    ).get_listings()
-                time.sleep(5)
-                if not found_listings and self.logger:
-                    self.logger.warning(
-                        f"""{hilight("[Search]", "fail")} No search results for {search_phrase} from {city}"""
+    def read_search_page(self: "FacebookMarketplace", search: SearchPage) -> List[Listing]:
+        """Open a search page, with the item's radius, and read the listings it shows."""
+        assert self.page is not None
+        self.goto_url(search.url)
+        if search.radius and self.set_search_radius(search.radius):
+            self.goto_url(search.url)  # the results follow a new radius after a reload
+        found_listings = FacebookSearchResultPage(
+            self.page, self.translator, self.logger
+        ).get_listings()
+        if not found_listings and self.recover_login():
+            self.goto_url(search.url)
+            if search.radius and self.set_search_radius(search.radius):
+                self.goto_url(search.url)
+            found_listings = FacebookSearchResultPage(
+                self.page, self.translator, self.logger
+            ).get_listings()
+        return found_listings
+
+    def search(
+        self: "FacebookMarketplace", item_config: FacebookItemConfig
+    ) -> Generator[Listing, None, None]:
+        if not self.page:
+            self.login()
+            assert self.page is not None
+
+        pages = self.search_pages(item_config)
+        # increase the searched_count to differentiate first and subsequent searches
+        item_config.searched_count += 1
+        # there is a small chance that search by different keywords and city will return the same items.
+        found = {}
+        for search in pages:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
+                    f"""{hilight(item_config.name)} from {hilight(search.city_name or search.city)}"""
+                    + (
+                        f" with radius={search.radius}"
+                        if search.radius
+                        else " with default radius"
+                    )
+                )
+
+            if control.is_paused():
+                return
+            found_listings = self.read_search_page(search)
+            time.sleep(5)
+            if not found_listings and self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Search]", "fail")} No search results for {search.phrase} from {search.city}"""
+                )
+
+            counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
+
+            # go to each item and get the description
+            # if we have not done that before
+            for listing in found_listings:
+                if listing.post_url.split("?")[0] in found:
+                    continue
+                if control.is_paused() or (
+                    self.keyboard_monitor is not None and self.keyboard_monitor.is_paused()
+                ):
+                    return
+                counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
+                found[listing.post_url.split("?")[0]] = True
+                # a listing aimm decided on before: still listed, maybe at a new price
+                record_seen("facebook", listing.id, item_config.name, listing.price)
+                # filter by title and location; skip keyword filtering since we do not have description yet.
+                if self._exclude(listing, item_config, description_available=False):
+                    continue
+                try:
+                    details, from_cache = self.get_listing_details(
+                        listing.post_url,
+                        item_config,
+                        price=listing.price,
+                        title=listing.title,
+                    )
+                    if not from_cache:
+                        time.sleep(5)
+                except KeyboardInterrupt:
+                    raise
+                except Exception as e:
+                    if self.logger:
+                        self.logger.error(
+                            f"""{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"""
+                        )
+                    continue
+                # currently we trust the other items from summary page a bit better
+                # so we do not copy title, description etc from the detailed result
+                for attr in ("condition", "seller", "description", "seller_id", "seller_info"):
+                    # other attributes should be consistent
+                    setattr(listing, attr, getattr(details, attr))
+                listing.name = item_config.name
+                if self.logger:
+                    self.logger.debug(
+                        f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from {listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
                     )
 
-                counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
+                # Warn if we never managed to extract a description for keyword-based filtering
+                if (
+                    (not listing.description or len(listing.description.strip()) == 0)
+                    and item_config.keywords
+                    and len(item_config.keywords) > 0
+                    and self.logger
+                ):
+                    self.logger.debug(
+                        f"""{hilight("[Error]", "fail")} Failed to extract description for {hilight(listing.title)} at {listing.post_url}. Keyword filtering will only apply to title."""
+                    )
 
-                # go to each item and get the description
-                # if we have not done that before
-                for listing in found_listings:
-                    if listing.post_url.split("?")[0] in found:
-                        continue
-                    if control.is_paused() or (
-                        self.keyboard_monitor is not None and self.keyboard_monitor.is_paused()
-                    ):
-                        return
-                    counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
-                    found[listing.post_url.split("?")[0]] = True
-                    # a listing aimm decided on before: still listed, maybe at a new price
-                    record_seen("facebook", listing.id, item_config.name, listing.price)
-                    # filter by title and location; skip keyword filtering since we do not have description yet.
-                    if self._exclude(listing, item_config, description_available=False):
-                        continue
-                    try:
-                        details, from_cache = self.get_listing_details(
-                            listing.post_url,
-                            item_config,
-                            price=listing.price,
-                            title=listing.title,
-                        )
-                        if not from_cache:
-                            time.sleep(5)
-                    except KeyboardInterrupt:
-                        raise
-                    except Exception as e:
-                        if self.logger:
-                            self.logger.error(
-                                f"""{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"""
-                            )
-                        continue
-                    # currently we trust the other items from summary page a bit better
-                    # so we do not copy title, description etc from the detailed result
-                    for attr in ("condition", "seller", "description", "seller_id", "seller_info"):
-                        # other attributes should be consistent
-                        setattr(listing, attr, getattr(details, attr))
-                    listing.name = item_config.name
-                    if self.logger:
-                        self.logger.debug(
-                            f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from {listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
-                        )
-
-                    # Warn if we never managed to extract a description for keyword-based filtering
-                    if (
-                        (not listing.description or len(listing.description.strip()) == 0)
-                        and item_config.keywords
-                        and len(item_config.keywords) > 0
-                        and self.logger
-                    ):
-                        self.logger.debug(
-                            f"""{hilight("[Error]", "fail")} Failed to extract description for {hilight(listing.title)} at {listing.post_url}. Keyword filtering will only apply to title."""
-                        )
-
+                if not self._exclude(listing, item_config):
+                    self.add_seller_info(listing, item_config)
+                    # the cached or profile rating may exclude the seller (seller_min_rating)
                     if not self._exclude(listing, item_config):
-                        self.add_seller_info(listing, item_config)
-                        # the cached or profile rating may exclude the seller (seller_min_rating)
-                        if not self._exclude(listing, item_config):
-                            yield listing
+                        yield listing
 
     def get_listing_details(
         self: "FacebookMarketplace",

@@ -77,6 +77,9 @@ The item is complete when it has `search_phrases`, its marketplace exists (saved
 this session), and a location is available from the item or its marketplace. Settings the user
 mentioned are set; anything else stays unset so the marketplace's values apply.
 
+Once the item is saved, `save` may offer `try_item`: offer to run the search once, so the user
+sees what it finds before the monitor runs (see the router playbook).
+
 ## Rules
 
 - Change the marketplace only to create it or to give it a missing location, and say so: its
