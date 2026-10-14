@@ -8,7 +8,9 @@ import pytest
 
 from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 
-APP_JS = Path(__file__).parents[1] / "src" / "ai_marketplace_monitor" / "webui" / "static" / "app.js"
+APP_JS = (
+    Path(__file__).parents[1] / "src" / "ai_marketplace_monitor" / "webui" / "static" / "app.js"
+)
 
 
 def _form_keys(section: str) -> list[str]:
