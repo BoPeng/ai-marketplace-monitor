@@ -585,6 +585,43 @@ def test_notifications_show_the_seller_status(fmt: str, line: str) -> None:
     assert sent and any(line in str(part) for part in sent[0])
 
 
+def test_pushover_keeps_the_seller_line_of_a_long_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pushover cuts each listing to 1024 characters: the seller line comes before the description."""
+    from ai_marketplace_monitor import pushover
+    from ai_marketplace_monitor.ai import AIResponse
+    from ai_marketplace_monitor.notification import NotificationStatus
+
+    posted: list = []
+
+    class Connection:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def request(self, method: str, url: str, body: str, headers: dict) -> None:
+            import urllib.parse
+
+            posted.append(urllib.parse.parse_qs(body)["message"][0])
+
+        def getresponse(self) -> Any:
+            class Response:
+                def read(self) -> bytes:
+                    return b'{"status": 1}'
+
+            return Response()
+
+    monkeypatch.setattr(pushover.http.client, "HTTPSConnection", Connection)
+    config = pushover.PushoverNotificationConfig(
+        name="po", pushover_user_key="u" * 30, pushover_api_token="t" * 30
+    )
+    listing = _listing(description="x" * 1200, seller_info=_NEW_SELLER)
+    rating = AIResponse(name="ai", score=4, comment="Good match.")
+    assert config.notify([listing], [rating], [NotificationStatus.NOT_NOTIFIED])
+    assert len(posted[0]) <= 1024
+    assert f"<b>Seller</b>: {_STATUS}" in posted[0]
+
+
 def test_the_seller_status_always_says_something() -> None:
     checked_at = time.mktime((2026, 10, 1, 12, 0, 0, 0, 0, -1))
     checked = {

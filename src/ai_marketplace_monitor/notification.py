@@ -592,18 +592,21 @@ class PushNotificationConfig(NotificationConfig):
             else:
                 desc = listing.description[: self.with_description] + "..."
 
+            # always, so that a missing seller check shows (see seller_status); before the
+            # description, which channels with a length limit (Pushover) may cut off
+            seller = seller_status(listing.seller_info)
             if self.message_format == "plain_text":
                 desc_newline = "\n" if desc else ""
                 msg = (
                     (
                         f"{listing.title}\n{listing.price}, {listing.location}\n"
-                        f"{listing.post_url.split('?')[0]}{desc_newline}{desc}"
+                        f"{listing.post_url.split('?')[0]}\nSeller: {seller}{desc_newline}{desc}"
                     )
                     if rating.comment == AIResponse.NOT_EVALUATED
                     else (
                         f"[{rating.conclusion} ({rating.score})] {listing.title}\n"
                         f"{listing.price}, {listing.location}\n"
-                        f"{listing.post_url.split('?')[0]}\n{desc}{desc_newline}"
+                        f"{listing.post_url.split('?')[0]}\nSeller: {seller}\n{desc}{desc_newline}"
                         f"\nAI: {rating.comment}"
                     )
                 )
@@ -612,14 +615,14 @@ class PushNotificationConfig(NotificationConfig):
                 msg = (
                     (
                         f"[**{listing.title}**]({listing.post_url.split('?')[0]})\n"
-                        f"{listing.price}, {listing.location}"
+                        f"{listing.price}, {listing.location}\n**Seller**: {seller}"
                         f"{desc_newline}{desc}"
                     )
                     if rating.comment == AIResponse.NOT_EVALUATED
                     else (
                         f"[{rating.conclusion} ({rating.score})] "
                         f"[**{listing.title}**]({listing.post_url.split('?')[0]})\n"
-                        f"{listing.price}, {listing.location}\n"
+                        f"{listing.price}, {listing.location}\n**Seller**: {seller}\n"
                         f"{desc}{desc_newline}"
                         f"\n**AI**: {rating.comment}"
                     )
@@ -629,24 +632,18 @@ class PushNotificationConfig(NotificationConfig):
                 msg = (
                     (
                         f"""<a href="{listing.post_url.split("?")[0]}"><b>{listing.title}</b></a>"""
-                        f"<br>{listing.price}, {listing.location}{desc_newline}{desc}"
+                        f"<br>{listing.price}, {listing.location}<br><b>Seller</b>: {seller}"
+                        f"{desc_newline}{desc}"
                     )
                     if rating.comment == AIResponse.NOT_EVALUATED
                     else (
                         f"<b>[{rating.conclusion} ({rating.score})]</b>"
                         f"""<a href="{listing.post_url.split("?")[0]}"><b>{listing.title}</b></a>"""
-                        f"<br>{listing.price}, {listing.location}<br>"
+                        f"<br>{listing.price}, {listing.location}<br><b>Seller</b>: {seller}<br>"
                         f"{desc}{desc_newline}"
                         f"<br><b>AI</b>: <i>{rating.comment}</i>"
                     )
                 )
-            # always, so that a missing seller check shows (see seller_status)
-            text = seller_status(listing.seller_info)
-            msg += {
-                "plain_text": f"\nSeller: {text}",
-                "markdown": f"\n**Seller**: {text}",
-                "html": f"<br><b>Seller</b>: {text}",
-            }.get(self.message_format or "plain_text", f"\nSeller: {text}")
             msgs[ns].append((listing, msg))
 
         if not msgs:
