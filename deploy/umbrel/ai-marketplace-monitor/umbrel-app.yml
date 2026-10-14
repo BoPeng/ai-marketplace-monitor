@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: automation
 name: AI Marketplace Monitor
-version: "0.10.15"
+version: "0.10.16"
 tagline: Find Facebook Marketplace deals with AI
 description: >-
   AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want,
@@ -25,7 +25,7 @@ description: >-
   put your key in place of ${UNITYSVC_API_KEY}. Until then, aimm searches but cannot
   rate listings or send notifications.
 releaseNotes: >-
-  Release notes: https://github.com/BoPeng/ai-marketplace-monitor/releases/tag/v0.10.15
+  Release notes: https://github.com/BoPeng/ai-marketplace-monitor/releases/tag/v0.10.16
 
 developer: Bo Peng
 website: https://github.com/BoPeng/ai-marketplace-monitor
