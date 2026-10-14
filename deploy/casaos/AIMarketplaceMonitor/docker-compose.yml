@@ -67,7 +67,7 @@ x-casaos:
     en_US: |
       AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.
 
-      aimm logs in to Facebook in its own browser. If Facebook asks for a CAPTCHA or a security code, click Open browser in the web UI and complete it there. Describe what you are looking for in the Configure chat, or edit config.toml in the web UI.
+      aimm logs in to Facebook in its own browser. If Facebook asks for a CAPTCHA or a security code, click Open browser in the web UI and complete it there. Describe what you are looking for to the Assistant, or edit config.toml in the web UI.
 
       The default configuration uses one UnitySVC API key (https://unitysvc.com) both for the AI that rates listings (OpenAI, Anthropic and other engines) and for email and phone notifications. You can configure other providers instead.
   tagline:

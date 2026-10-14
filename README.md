@@ -25,7 +25,7 @@ aimm runs in a terminal or in its web UI, which starts with it:
 
 ![aimm searching in a terminal](docs/search_in_action.png)
 
-**Web UI**: the config editor, the Configure chat that sets aimm up for you, and the listings aimm evaluated with their AI ratings; it also shows the live log and aimm's browser when Facebook asks for a check (see [Web UI](docs/webui.md))
+**Web UI**: the config editor, the Assistant chat that sets aimm up for you and answers questions about what it found, and the listings aimm evaluated with their AI ratings; it also shows the live log and aimm's browser when Facebook asks for a check (see [Web UI](docs/webui.md))
 
 ![The aimm web UI](docs/webui_screenshot.png)
 
@@ -72,7 +72,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 - Intelligent listing evaluation
 - Smart recommendations
-- AI-assisted configuration editing with `aimm configure` and the Web UI Configure chat
+- AI-assisted configuration editing with `aimm configure` and the Web UI Assistant
 - Almost arbitrary AI models through [UnitySVC](https://unitysvc.com/), plus OpenAI, Anthropic, DeepSeek, Gemini, and Ollama
 - Self-hosted model option through Ollama
 

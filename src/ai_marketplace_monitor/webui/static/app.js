@@ -37,6 +37,7 @@
     chatWs: null,
     chatActive: false,
     chatPrompt: null,
+    chatStarter: null, // an example request to send on the user's first turn
   };
 
   // ---------------------------------------------------------------
@@ -832,11 +833,13 @@
   });
 
   // ---------------------------------------------------------------
-  // Configure chat — JSON SetupUI over WebSocket
+  // Assistant chat (aimm configure) — JSON SetupUI over WebSocket
   // ---------------------------------------------------------------
   //
-  // Before a chat, the pane shows a welcome card with the section picker and
-  // a Start button; the composer appears only while a chat runs. A free-text
+  // Before a chat, the pane shows a welcome card with example requests, a
+  // Start button and an optional section to focus on; the composer appears
+  // only while a chat runs. An example request starts a chat and is sent as
+  // the user's first message once the assistant hands them the turn. A free-text
   // prompt of just "You" (the terminal's label for the user's turn) hands the
   // turn to the user without a bubble. Choice and yes/no buttons render inside
   // the question's bubble, and a typing indicator shows while aimm works.
@@ -845,6 +848,12 @@
     "ai", "marketplace", "item", "notification", "user", "region", "translation", "monitor",
   ];
   const USER_TURN_PROMPT = "You";
+  // what the assistant does, as requests a user can start a chat with
+  const CHAT_STARTERS = [
+    "Watch for a GoPro under $200",
+    "What did you find this week?",
+    "Facebook keeps asking for a CAPTCHA",
+  ];
   const COMPOSER_MAX_HEIGHT = 160; // px, about 8 lines
 
   const chatScrollToEnd = () => {
@@ -925,13 +934,22 @@
     card.innerHTML =
       (again
         ? ""
-        : `<p>Chat with the configuration assistant to add a search, set up notifications, or change any setting. It edits your config file for you.</p>`) +
+        : `<p>Ask the assistant to set up a search or notifications, change any setting, ` +
+          `explain what aimm found and why, or help with a problem. It edits your config file for you.</p>`) +
+      `<div class="chat-starters">${CHAT_STARTERS.map(
+        (text) => `<button type="button" class="chat-option chat-starter">${text}</button>`
+      ).join("")}</div>` +
+      `<button type="button" class="chat-start">${again ? "Start new chat" : "Start chat"}</button>` +
+      `<details class="chat-welcome-focus"><summary>Focus on a section (optional)</summary>` +
       `<label class="chat-welcome-section">Section ` +
-      `<input id="chat-section" list="chat-section-options" type="text" placeholder="optional, e.g. item.ipad" autocomplete="off" />` +
-      `</label>` +
-      `<datalist id="chat-section-options">${CHAT_SECTIONS.map((s) => `<option value="${s}"></option>`).join("")}</datalist>` +
-      `<button type="button" class="chat-start">${again ? "Start new chat" : "Start chat"}</button>`;
-    card.querySelector(".chat-start").addEventListener("click", startConfigureChat);
+      `<input id="chat-section" list="chat-section-options" type="text" placeholder="e.g. item.ipad" autocomplete="off" />` +
+      `</label></details>` +
+      `<datalist id="chat-section-options">${CHAT_SECTIONS.map((s) => `<option value="${s}"></option>`).join("")}</datalist>`;
+    card.querySelector(".chat-start").addEventListener("click", () => startConfigureChat());
+    card.querySelectorAll(".chat-starter").forEach((btn) =>
+      // a request for the whole assistant, whatever section is typed
+      btn.addEventListener("click", () => startConfigureChat(btn.textContent, false))
+    );
     card.querySelector("#chat-section").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -1014,6 +1032,14 @@
       buttons = [{ value: true, label: "Yes" }, { value: false, label: "No" }];
     }
 
+    // a chat started from an example request: send it on the user's first turn
+    if (userTurn && state.chatStarter) {
+      const starter = state.chatStarter;
+      state.chatStarter = null;
+      sendChatAnswer(starter, starter);
+      return;
+    }
+
     if (!userTurn) {
       const bubble = appendChatMessage("assistant", msg.prompt, "prompt");
       if (buttons.length) {
@@ -1065,11 +1091,12 @@
     renderChatWelcome(true);
   };
 
-  function startConfigureChat() {
+  function startConfigureChat(starter = null, withSection = true) {
     if (state.chatWs) state.chatWs.close();
     const sectionInput = $("#chat-section");
-    const section = sectionInput ? sectionInput.value.trim() : "";
+    const section = withSection && sectionInput ? sectionInput.value.trim() : "";
     state.chatPrompt = null;
+    state.chatStarter = starter;
     $("#chat-messages").innerHTML = "";
     setChatActive(true);
     $("#chat-scope").textContent = section;
@@ -2507,7 +2534,7 @@
         return;
       }
       if (!data.users.length) {
-        settingsMessage(container, "There is no [user.*] section yet: add one in the editor or with Configure.", "settings-dim");
+        settingsMessage(container, "There is no [user.*] section yet: add one in the editor or with the Assistant.", "settings-dim");
         return;
       }
       container.innerHTML = "";

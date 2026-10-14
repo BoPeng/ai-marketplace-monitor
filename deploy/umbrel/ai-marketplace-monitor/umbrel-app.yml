@@ -15,7 +15,7 @@ description: >-
   After installing, open the app and sign in with the username and password Umbrel
   shows for it. In the config editor, set the username and password of the Facebook
   account aimm logs in with in [marketplace.facebook], and the AI and notification
-  services you want (or let the Configure chat set them up). If Facebook asks for a
+  services you want (or let the Assistant set them up). If Facebook asks for a
   CAPTCHA or a security code, click Open browser in the app and complete it there.
 
 
