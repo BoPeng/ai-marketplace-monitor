@@ -1496,8 +1496,6 @@
         help: "Comma-separated seller names to skip." },
       { key: "keywords", label: "Keywords (include)", type: "text", advanced: true, column: "right",
         help: "Boolean expression, e.g. 'drone AND (DJI OR Orqa)'" },
-      { key: "title_keywords", label: "Title keywords (include)", type: "text", advanced: true, column: "right",
-        help: "Like keywords, but matched against the title only, before the listing is opened. Faster; misses listings with short titles." },
       { key: "antikeywords", label: "Anti-keywords (exclude)", type: "text", advanced: true, column: "right",
         help: "Boolean expression for exclusion." },
 
