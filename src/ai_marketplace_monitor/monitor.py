@@ -954,13 +954,17 @@ def inspect_listing(
     marketplace_config: TMarketplaceConfig,
     agents: List[AIBackend],
     logger: Logger | None = None,
+    refresh: bool = False,
 ) -> Tuple[Listing, bool, str | None, AIResponse]:
     """Read one listing as a search would, and rate it for an item.
 
     Returns the listing (with its seller's information and warning signs), whether its
     details came from the cache, why a search would exclude it before the AI (None if it
     would not), and the AI's answer. Used by ``aimm check`` and by the configure chat.
+    ``refresh`` reads the page again and asks the AI again instead of using the cache.
     """
+    if refresh:
+        Listing.forget(post_url)
     listing, from_cache = marketplace.get_listing_details(post_url, item_config)
     # the seller's summary and warning signs, as in a scheduled search
     add_seller_info = getattr(marketplace, "add_seller_info", None)
@@ -979,6 +983,8 @@ def inspect_listing(
         if exclusion_reason is not None
         else (None if marketplace.check_listing(listing, item_config) else "excluded")
     )
+    if refresh:
+        AIResponse.forget(listing, item_config, marketplace_config)
     rating = evaluate_with_agents(agents, listing, item_config, marketplace_config, logger)
     return listing, from_cache, excluded, rating
 

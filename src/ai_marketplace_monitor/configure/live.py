@@ -6,6 +6,11 @@ chat's event loop), opens a tab in the browser's context, which is logged in to 
 whenever the monitor is, and closes the tab when done. It reuses the monitor's code to read a
 listing, its seller and the AI's rating (``monitor.inspect_listing``).
 
+aimm's cache comes first: a listing whose details and seller were read before is rated without
+the browser (the AI's answer is cached too), and a seller profile read in the last month is
+not opened again. The browser is needed only for what aimm has not read, or when the user asks
+for a fresh look (``refresh``).
+
 The chat never logs in, never waits for a login and never writes the saved session: when the
 browser is not logged in, it says so. Page loads take turns with the monitor's
 (``navigation_slot``) and give up instead of waiting without end.
@@ -24,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Tuple, Ty
 from ..ai import AIResponse
 from ..config import Config, supported_marketplaces
 from ..facebook import FacebookMarketplace, FacebookSellerProfilePage
+from ..listing import Listing
 from ..marketplace import DEFAULT_RATING, resolve_option
 from ..seller import Seller, seller_id_from_url, seller_warnings
 from ..shared_browser import BrowserBusyError, shared_endpoint
@@ -102,6 +108,21 @@ def _seller_view(seller: Seller) -> Dict[str, Any]:
     }
 
 
+def _known_listing(url: str) -> bool:
+    """Whether aimm can rate the listing from its cache, without opening a page.
+
+    As ``get_listing_details`` and ``add_seller_info`` decide: the details were read with the
+    seller, and the seller's profile was read in the last month (or there is no seller id).
+    """
+    details = Listing.from_cache(url)
+    if details is None or not details.seller_parsed:
+        return False
+    if not details.seller_id:
+        return True
+    seller = Seller.from_cache(details.seller_id)
+    return seller is not None and not seller.needs_profile()
+
+
 class LiveBrowser:
     """Opens Facebook pages for the chat in the monitor's browser, one request at a time."""
 
@@ -116,7 +137,9 @@ class LiveBrowser:
         return await asyncio.get_running_loop().run_in_executor(self._executor, work)
 
     # --- the tools ----------------------------------------------------------------------
-    async def evaluate_listing(self: "LiveBrowser", listing: str, item: str) -> Dict[str, Any]:
+    async def evaluate_listing(
+        self: "LiveBrowser", listing: str, item: str, refresh: bool = False
+    ) -> Dict[str, Any]:
         lid = listing_id(listing)
         if not lid:
             return {
@@ -126,14 +149,16 @@ class LiveBrowser:
                 ],
             }
         try:
-            return await self._run(lambda: self._evaluate(lid, item))
+            return await self._run(lambda: self._evaluate(lid, item, refresh))
         except (LiveUnavailableError, BrowserBusyError) as e:
             return {"ok": False, "errors": [str(e)]}
         except Exception as e:
             logger.debug("evaluate_listing failed", exc_info=True)
             return {"ok": False, "errors": [f"aimm could not read listing {lid}: {e}"]}
 
-    async def check_seller(self: "LiveBrowser", seller: str) -> Dict[str, Any]:
+    async def check_seller(
+        self: "LiveBrowser", seller: str, refresh: bool = False
+    ) -> Dict[str, Any]:
         seller = seller.strip()
         sid = seller if seller.isdigit() else seller_id_from_url(seller)
         lid = "" if sid else listing_id(seller)
@@ -146,7 +171,7 @@ class LiveBrowser:
                 ],
             }
         try:
-            return await self._run(lambda: self._check_seller(sid, lid))
+            return await self._run(lambda: self._check_seller(sid, lid, refresh))
         except (LiveUnavailableError, BrowserBusyError) as e:
             return {"ok": False, "errors": [str(e)]}
         except Exception as e:
@@ -186,14 +211,28 @@ class LiveBrowser:
             return marketplace_config
         raise LiveUnavailableError("There is no Facebook [marketplace.*] section.")
 
+    def _marketplace(
+        self: "LiveBrowser",
+        config: Config,
+        marketplace_config: Any,
+        context: "BrowserContext | None" = None,
+    ) -> ChatFacebookMarketplace:
+        """The chat's Facebook marketplace; without a context, it can only read aimm's cache."""
+        from ..monitor import select_translator
+
+        marketplace = ChatFacebookMarketplace(marketplace_config.name, context, None, logger)
+        marketplace.configure(
+            marketplace_config,
+            translator=select_translator(config, marketplace_config.language, logger),
+        )
+        return marketplace
+
     @contextmanager
     def _facebook(
         self: "LiveBrowser", config: Config, marketplace_config: Any
     ) -> Iterator[ChatFacebookMarketplace]:
         """A logged-in Facebook marketplace on a new tab of the shared browser."""
         from playwright.sync_api import sync_playwright  # type: ignore
-
-        from ..monitor import select_translator
 
         endpoint = shared_endpoint()
         if endpoint is None:
@@ -209,13 +248,7 @@ class LiveBrowser:
                 if not browser.contexts:
                     raise LiveUnavailableError(UNAVAILABLE)
                 context: "BrowserContext" = browser.contexts[0]
-                marketplace = ChatFacebookMarketplace(
-                    marketplace_config.name, context, None, logger
-                )
-                marketplace.configure(
-                    marketplace_config,
-                    translator=select_translator(config, marketplace_config.language, logger),
-                )
+                marketplace = self._marketplace(config, marketplace_config, context)
                 marketplace.navigation_timeout_ms = PAGE_TIMEOUT_MS
                 marketplace.navigation_retries = 1
                 marketplace.navigation_wait = WAIT_FOR_MONITOR
@@ -230,7 +263,7 @@ class LiveBrowser:
             finally:
                 browser.close()  # disconnects; the monitor's browser keeps running
 
-    def _evaluate(self: "LiveBrowser", lid: str, item: str) -> Dict[str, Any]:
+    def _evaluate(self: "LiveBrowser", lid: str, item: str, refresh: bool) -> Dict[str, Any]:
         from ..monitor import inspect_listing, make_ai_agents
 
         config = self._config()
@@ -239,10 +272,20 @@ class LiveBrowser:
         agents = make_ai_agents(config, logger)
         url = f"https://www.facebook.com/marketplace/item/{lid}/"
         started = time.monotonic()
-        with self._facebook(config, marketplace_config) as marketplace:
+        if not refresh and _known_listing(url):
             listing, from_cache, excluded, answer = inspect_listing(
-                marketplace, url, item_config, marketplace_config, agents, logger
+                self._marketplace(config, marketplace_config),
+                url,
+                item_config,
+                marketplace_config,
+                agents,
+                logger,
             )
+        else:
+            with self._facebook(config, marketplace_config) as marketplace:
+                listing, from_cache, excluded, answer = inspect_listing(
+                    marketplace, url, item_config, marketplace_config, agents, logger, refresh
+                )
         rated = answer.comment != AIResponse.NOT_EVALUATED
         ratings = resolve_option("rating", item_config, marketplace_config)
         threshold = ratings[-1] if ratings else DEFAULT_RATING
@@ -277,12 +320,21 @@ class LiveBrowser:
                 "The listing as a search for this item would see it: `excluded_by` is why the "
                 "search would drop it before the AI (null if it would not), and the AI rated "
                 "it with the item's settings (null if no AI answered). `from_cache`: the "
-                "details were read earlier, and the page was not opened again. This check is "
-                "not recorded as a decision and notifies no one. " + UNTRUSTED_NOTE
+                "details and the seller were read earlier, the page was not opened, and the "
+                "AI's earlier answer is reused if the item has not changed; pass refresh=true "
+                "only if the user asks for a fresh look. This check is not recorded as a "
+                "decision and notifies no one. " + UNTRUSTED_NOTE
             ),
         }
 
-    def _check_seller(self: "LiveBrowser", sid: str, lid: str) -> Dict[str, Any]:
+    def _check_seller(self: "LiveBrowser", sid: str, lid: str, refresh: bool) -> Dict[str, Any]:
+        if lid and not refresh:
+            known = Listing.from_cache(f"https://www.facebook.com/marketplace/item/{lid}/")
+            if known is not None and known.seller_id:
+                sid, lid = known.seller_id, ""
+        cached = Seller.from_cache(sid) if sid and not refresh else None
+        if cached is not None and not cached.needs_profile():
+            return self._seller_result(cached, True)
         config = self._config()
         marketplace_config = self._marketplace_config(config, None)
         with self._facebook(config, marketplace_config) as marketplace:
@@ -296,7 +348,10 @@ class LiveBrowser:
                     raise LiveUnavailableError(
                         f"Listing {lid} does not show a link to its seller's profile."
                     )
-            seller, from_cache = self._read_seller(marketplace, sid)
+            seller, from_cache = self._read_seller(marketplace, sid, refresh)
+        return self._seller_result(seller, from_cache)
+
+    def _seller_result(self: "LiveBrowser", seller: Seller, from_cache: bool) -> Dict[str, Any]:
         return {
             "ok": True,
             "seller": _seller_view(seller),
@@ -304,15 +359,16 @@ class LiveBrowser:
             "note": (
                 "What the seller's Marketplace profile shows, and warning signs at aimm's "
                 "default thresholds (an item's seller_* settings may differ). `from_cache`: the "
-                "profile was read in the last month and not opened again. " + UNTRUSTED_NOTE
+                "profile was read in the last month and not opened again; pass refresh=true "
+                "only if the user asks for a fresh look. " + UNTRUSTED_NOTE
             ),
         }
 
     def _read_seller(
-        self: "LiveBrowser", marketplace: ChatFacebookMarketplace, sid: str
+        self: "LiveBrowser", marketplace: ChatFacebookMarketplace, sid: str, refresh: bool
     ) -> Tuple[Seller, bool]:
         seller = Seller.from_cache(sid) or Seller(id=sid)
-        if not seller.needs_profile():
+        if not refresh and not seller.needs_profile():
             return seller, True
         assert marketplace.page is not None
         marketplace.goto_url(f"https://www.facebook.com/marketplace/profile/{sid}/")

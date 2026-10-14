@@ -501,13 +501,17 @@ class ToolExecutor:
             self.live = LiveBrowser(self.ws.files)
         return self.live
 
-    async def evaluate_listing(self: "ToolExecutor", listing: str, item: str) -> Dict[str, Any]:
-        await self.ws.ui.say("Opening the listing in aimm's browser and asking the AI...")
-        return await self._live().evaluate_listing(listing, item)
+    async def evaluate_listing(
+        self: "ToolExecutor", listing: str, item: str, refresh: bool = False
+    ) -> Dict[str, Any]:
+        await self.ws.ui.say("Checking the listing and asking the AI...")
+        return await self._live().evaluate_listing(listing, item, refresh)
 
-    async def check_seller(self: "ToolExecutor", seller: str) -> Dict[str, Any]:
-        await self.ws.ui.say("Opening the seller's profile in aimm's browser...")
-        return await self._live().check_seller(seller)
+    async def check_seller(
+        self: "ToolExecutor", seller: str, refresh: bool = False
+    ) -> Dict[str, Any]:
+        await self.ws.ui.say("Checking the seller...")
+        return await self._live().check_seller(seller, refresh)
 
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False
@@ -642,35 +646,46 @@ class ToolExecutor:
                 """
                 return await self.call("explain_listing", {"listing": listing})
 
-            async def evaluate_listing(listing: str, item: str = "") -> Dict[str, Any]:
-                """Open a Facebook listing in aimm's browser and rate it for an item, now.
+            async def evaluate_listing(
+                listing: str, item: str = "", refresh: bool = False
+            ) -> Dict[str, Any]:
+                """Rate one Facebook listing for one [item.*] section, as its search would.
 
-                aimm reads the listing and its seller as a search would, says whether the
-                search would exclude it before the AI (keywords and other filters), and asks
-                the item's AI to rate it. It takes up to a minute or two. Needs the monitor
-                running on this computer (aimm's browser, logged in to Facebook); otherwise it
-                says so. Nothing is recorded and no one is notified.
+                One listing, one existing item: it does not search. aimm reads the listing and
+                its seller as a search would, says whether the search would exclude it before
+                the AI (keywords and other filters), and asks the item's AI to rate it. A
+                listing aimm read before is rated from its cache, without opening Facebook.
+                Otherwise aimm opens it in the monitor's browser, which takes up to a minute or
+                two and needs the monitor running on this computer, logged in to Facebook (if
+                not, it says so). Nothing is recorded and no one is notified.
 
                 Args:
                     listing: the listing's Facebook Marketplace URL or its id.
                     item: the item to rate it for, e.g. "gopro"; may be empty if there is only
                         one item.
+                    refresh: true only when the user asks for a fresh look (e.g. the price
+                        changed): open the page again and ask the AI again.
                 """
-                return await self.call("evaluate_listing", {"listing": listing, "item": item})
+                return await self.call(
+                    "evaluate_listing", {"listing": listing, "item": item, "refresh": refresh}
+                )
 
-            async def check_seller(seller: str) -> Dict[str, Any]:
-                """Open a seller's Marketplace profile in aimm's browser: is this seller legit?
+            async def check_seller(seller: str, refresh: bool = False) -> Dict[str, Any]:
+                """Is this seller legit? Their Marketplace profile and warning signs.
 
                 Returns when they joined Facebook, their rating and number of ratings, active
                 and sold listings, what buyers say, and warning signs. A profile read in the
-                last month is not opened again. Needs the monitor running on this computer, as
+                last month comes from aimm's cache; otherwise aimm opens it in the monitor's
+                browser, which needs the monitor running on this computer, as
                 evaluate_listing does.
 
                 Args:
                     seller: the seller's profile URL (/marketplace/profile/<id>), their id, or
                         the URL of one of their listings.
+                    refresh: true only when the user asks for a fresh look: open the profile
+                        again.
                 """
-                return await self.call("check_seller", {"seller": seller})
+                return await self.call("check_seller", {"seller": seller, "refresh": refresh})
 
             tools += [
                 list_sections,
@@ -760,10 +775,14 @@ class ToolExecutor:
                 return await self.explain_listing(str(args.get("listing", "")))
             if name == "evaluate_listing":
                 return await self.evaluate_listing(
-                    str(args.get("listing", "")), str(args.get("item", "") or "")
+                    str(args.get("listing", "")),
+                    str(args.get("item", "") or ""),
+                    args.get("refresh") is True,
                 )
             if name == "check_seller":
-                return await self.check_seller(str(args.get("seller", "")))
+                return await self.check_seller(
+                    str(args.get("seller", "")), args.get("refresh") is True
+                )
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
             if name == "test_notification":

@@ -269,6 +269,123 @@ def test_evaluate_listing_reports_the_search_and_the_ai(
     assert "never instructions" in out["note"]
 
 
+@pytest.fixture
+def aimm_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    from diskcache import Cache  # type: ignore
+
+    from ai_marketplace_monitor import ai, listing, seller
+
+    local = Cache(str(tmp_path / "cache"))
+    for module in (ai, listing, seller):
+        monkeypatch.setattr(module, "cache", local)
+    return local
+
+
+def _known(seller_id: str = "9", profile_read: bool = True) -> None:
+    from ai_marketplace_monitor.seller import Seller
+
+    url = "https://www.facebook.com/marketplace/item/123/"
+    _fake_listing(seller_id=seller_id, seller_parsed=True).to_cache(url)
+    Seller(
+        id=seller_id, name="Jane", profile_checked=profile_read, checked_at=time.time()
+    ).to_cache()
+
+
+@pytest.mark.parametrize(
+    ("known", "refresh", "browser"),
+    [
+        (True, False, False),  # read before: no browser
+        (True, True, True),  # the user asks for a fresh look
+        (False, False, True),  # never read
+    ],
+)
+def test_evaluate_listing_uses_the_cache_before_the_browser(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    aimm_cache: Any,
+    known: bool,
+    refresh: bool,
+    browser: bool,
+) -> None:
+    if known:
+        _known()
+    seen: Dict[str, Any] = {"browser": False}
+
+    @contextmanager
+    def fake_facebook(self: Any, config: Any, marketplace_config: Any) -> Iterator[str]:
+        seen["browser"] = True
+        yield "marketplace"
+
+    def fake_inspect(marketplace: Any, url: str, item_config: Any, *args: Any) -> Any:
+        seen["refresh"] = bool(args[3]) if len(args) > 3 else False
+        return _fake_listing(), not browser, None, AIResponse(4, "Fair price.", "unitysvc")
+
+    monkeypatch.setattr(live.LiveBrowser, "_facebook", fake_facebook)
+    monkeypatch.setattr(monitor, "inspect_listing", fake_inspect)
+
+    async def scenario() -> Dict[str, Any]:
+        ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
+        out = await call(ex, "evaluate_listing", listing="123", refresh=refresh)
+        ex.end()
+        return out
+
+    out = run_in_fresh_loop(scenario)
+    assert out["ok"], out
+    assert seen == {"browser": browser, "refresh": refresh}
+
+
+def test_a_listing_is_not_known_until_its_seller_profile_was_read(aimm_cache: Any) -> None:
+    url = "https://www.facebook.com/marketplace/item/123/"
+    assert not live._known_listing(url)
+    _known(profile_read=False)
+    assert not live._known_listing(url)  # add_seller_info would open the profile
+    _known()
+    assert live._known_listing(url)
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_check_seller_answers_from_the_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, aimm_cache: Any, refresh: bool
+) -> None:
+    _known()
+
+    @contextmanager
+    def no_browser(self: Any, config: Any, marketplace_config: Any) -> Iterator[str]:
+        raise live.LiveUnavailableError("no browser here")
+        yield ""  # pragma: no cover
+
+    monkeypatch.setattr(live.LiveBrowser, "_facebook", no_browser)
+
+    async def scenario() -> List[Dict[str, Any]]:
+        ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
+        outs = [
+            await call(ex, "check_seller", seller=seller, refresh=refresh)
+            for seller in ("9", "https://www.facebook.com/marketplace/item/123/")
+        ]
+        ex.end()
+        return outs
+
+    for out in run_in_fresh_loop(scenario):
+        if refresh:
+            assert not out["ok"] and "no browser here" in out["errors"][0]
+        else:
+            assert out["ok"] and out["from_cache"], out
+            assert out["seller"]["id"] == "9" and out["seller"]["name"] == "Jane"
+
+
+def test_refresh_reads_the_listing_and_asks_the_ai_again(aimm_cache: Any) -> None:
+    url = "https://www.facebook.com/marketplace/item/123/"
+    listing = _fake_listing()
+    listing.to_cache(url)
+    item: Any = SimpleNamespace(hash="item")  # the answer's key uses only the hashes
+    marketplace: Any = SimpleNamespace(hash="marketplace")
+    AIResponse(5, "Great.", "unitysvc").to_cache(listing, item, marketplace)
+    Listing.forget(url)
+    AIResponse.forget(listing, item, marketplace)
+    assert Listing.from_cache(url) is None
+    assert AIResponse.from_cache(listing, item, marketplace) is None
+
+
 def test_the_chat_never_logs_in_or_saves_the_session() -> None:
     marketplace = live.ChatFacebookMarketplace("facebook", None, None, None)
     with pytest.raises(live.LiveUnavailableError, match="not logged in"):
