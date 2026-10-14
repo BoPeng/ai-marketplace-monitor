@@ -44,6 +44,15 @@ Login and Authentication Issues
 - Complete CAPTCHA challenges manually
 - The monitor will continue with limited results if login fails
 
+**Facebook keeps asking for a CAPTCHA**
+
+If Facebook shows CAPTCHA after CAPTCHA and the login never finishes, turn on two-factor
+authentication for your Facebook account (in Facebook's Accounts Center, under Password and
+security). Facebook then asks you to confirm the login on your phone, with its app or a
+code, and users found that this ends the repeated CAPTCHAs. Once you are logged in, aimm
+saves the session (see below), so it does not need to log in again when it restarts. aimm
+also suggests this in its log, and in the web UI's login banner, when a login takes long.
+
 **Two-factor authentication required**
 
 *Solution:*

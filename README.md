@@ -218,6 +218,9 @@ What happens next:
 2. If Facebook asks for a CAPTCHA or a security code, complete it in that
    window. aimm waits as long as it takes (the web UI shows a "waiting for
    Facebook login" banner) and reminds you in the log every few minutes.
+   If Facebook keeps asking for CAPTCHAs, turn on two-factor authentication
+   for your Facebook account, so that you confirm the login on your phone
+   instead (see [Troubleshooting](docs/troubleshooting.rst)).
 3. Once you are logged in, aimm searches Facebook Marketplace and notifies you
    of matching items. If Facebook logs it out later, it waits for you the same
    way.
