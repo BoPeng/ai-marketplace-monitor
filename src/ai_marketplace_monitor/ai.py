@@ -363,9 +363,12 @@ class AIBackend(Generic[TAIConfig]):
         # bait prices: in every prompt, with or without seller information or a custom prompt
         prompt += (
             "Beware of bait prices: a price far below the item's market value together with "
-            '"financing available", "payment plans", "no credit check", "rent to own" or the '
-            "like means that the listed price is a down payment or a monthly payment, not the "
-            "price of the item. Rate such a listing 1, however well it matches.\n\n"
+            '"financing available", "payment plans", "no credit check", "rent to own", '
+            '"layaway" or the like means that the listed price is a down payment or a monthly '
+            "payment, not the price of the item. Rate such a listing 1, however well it "
+            "matches. Financing or layaway at a realistic price is typical of a pawnshop or a "
+            "dealer rather than a private seller: say so in your summary, and lower the rating "
+            "if the user did not ask for a business.\n\n"
         )
         seller = listing.seller_info.get("summary") if listing.seller_info else ""
         warnings = listing.seller_info.get("warnings") if listing.seller_info else []

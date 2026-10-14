@@ -356,6 +356,7 @@ def test_the_ai_prompt_describes_the_seller_and_its_warning_signs() -> None:
     custom = FacebookItemConfig(name="ipad", search_phrases=["ipad"], prompt="Is it a deal?")
     for text in (plain, backend.get_prompt(_listing(), custom, market)):
         assert '"financing available"' in text and "Rate such a listing 1" in text
+        assert '"layaway"' in text and "pawnshop" in text
 
 
 # --- the marketplace: the rating filter, completing seller information, notifications
