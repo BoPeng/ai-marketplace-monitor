@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.16] - 2026-10-14
+
+### Added
+- The web UI's Assistant (formerly the Configure chat), and `aimm configure`, answer questions about what aimm found: "what did you find for my GoPro this week?", "anything rated 4 or better?", "why was this listing skipped?". The answers come from aimm's records, with the reason or the AI's comment, the description, price changes and the seller's warning signs. A follow-up such as "never show this seller again" changes the item after you agree. The Assistant does not open Facebook.
+- `title_keywords` keeps only listings whose title matches, with the same `AND`/`OR`/`NOT` syntax as `keywords`. It is checked on the search results, before a listing is opened, so listings without the keywords in their title are skipped without loading their pages. Sellers who name the model only in the description are missed, so it is off unless set. See "Matching the Title Only" in the [configuration guide](docs/configuration-guide.rst).
+- Every notification has a `Seller` line: what aimm knows about the seller, when it read their profile, and the warning signs. It says "not verified" when the profile could not be read or there is no seller information, so a seller who was never checked is not mistaken for one who was. It comes before the description, so Pushover's length limit does not cut it off.
+- When a Facebook login takes long, aimm's reminders and the web UI's login banner suggest turning on two-factor authentication for your Facebook account: users found that confirming the login on the phone ends repeated CAPTCHAs. See "Facebook keeps asking for a CAPTCHA" in [troubleshooting](docs/troubleshooting.rst).
+
+### Changed
+- The AI weighs the seller as much as the item. It judges the seller from all signs together (a new account with many listings and none sold may be a moving sale, a dealer with dozens of listings may be reputable), rates a likely scammer no higher than 2 however well the item matches, and says what it concluded about the seller in its comment. A profile that cannot be read is logged, and the AI is told that the seller is not verified.
+- The AI rates a listing 1 when its price is far below market value together with "financing available", "payment plans", "no credit check", "rent to own" or "layaway": the listed price is then a down payment or a monthly payment. Financing or layaway at a realistic price points to a pawnshop or a dealer, which the AI names and rates lower. The instruction is in every prompt, also with a custom `prompt`.
+- The web UI's chat pane is called **Assistant**. Its welcome card says what it can do and offers example requests that start a chat; the optional section is under **Focus on a section**.
+
+### Fixed
+- The web UI's marketplace form no longer offers Keywords and Anti-keywords, which are item options: saved in a marketplace section, they made the configuration fail to load.
+
 ## [0.10.15] - 2026-10-12
 
 ### Added
@@ -423,7 +439,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release on PyPI.
 
-[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.15...HEAD
+[Unreleased]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.16...HEAD
+[0.10.16]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.15...v0.10.16
 [0.10.15]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.14...v0.10.15
 [0.10.14]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.13...v0.10.14
 [0.10.13]: https://github.com/BoPeng/ai-marketplace-monitor/compare/v0.10.12...v0.10.13
