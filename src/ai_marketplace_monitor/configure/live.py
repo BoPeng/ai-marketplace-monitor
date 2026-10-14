@@ -314,12 +314,16 @@ class LiveBrowser:
             "ai_comment": _cut(answer.comment, COMMENT_CHARS) if rated else None,
             "ai": answer.name or None,
             "notify_threshold": threshold,
-            "would_notify": bool(rated and excluded is None and answer.score >= threshold),
+            "ai_rated": rated,
+            # as the monitor: without an AI answer, the score is 5 and the filters decide
+            "would_notify": bool(excluded is None and answer.score >= threshold),
             "seconds": round(time.monotonic() - started),
             "note": (
                 "The listing as a search for this item would see it: `excluded_by` is why the "
                 "search would drop it before the AI (null if it would not), and the AI rated "
-                "it with the item's settings (null if no AI answered). `from_cache`: the "
+                "it with the item's settings (null if no AI answered: `ai_rated` false; the "
+                "search then notifies every listing that passes its filters, and so does "
+                "`would_notify`). `from_cache`: the "
                 "details and the seller were read earlier, the page was not opened, and the "
                 "AI's earlier answer is reused if the item has not changed; pass refresh=true "
                 "only if the user asks for a fresh look. This check is not recorded as a "

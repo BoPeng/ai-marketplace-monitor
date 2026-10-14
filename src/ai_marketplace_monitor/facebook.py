@@ -925,18 +925,22 @@ class FacebookMarketplace(Marketplace):
         return details, False
 
     def add_seller_info(
-        self: "FacebookMarketplace", listing: Listing, item_config: FacebookItemConfig
+        self: "FacebookMarketplace",
+        listing: Listing,
+        item_config: FacebookItemConfig,
+        refresh: bool = False,
     ) -> None:
         """Complete what the listing page showed about the seller, and list warning signs.
 
         The seller's profile (active and sold listings) is opened only for listings that
-        passed the other filters, and at most once a month per seller (see Seller.to_cache).
+        passed the other filters, and at most once a month per seller (see Seller.to_cache),
+        unless ``refresh`` asks to read it again.
         """
         if not listing.seller_id:
             return
         seller = Seller.from_cache(listing.seller_id) or Seller(id=listing.seller_id)
         seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
-        if seller.needs_profile():
+        if refresh or seller.needs_profile():
             try:
                 if self.page is None:
                     self.login()

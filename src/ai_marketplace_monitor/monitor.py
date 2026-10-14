@@ -961,7 +961,8 @@ def inspect_listing(
     Returns the listing (with its seller's information and warning signs), whether its
     details came from the cache, why a search would exclude it before the AI (None if it
     would not), and the AI's answer. Used by ``aimm check`` and by the configure chat.
-    ``refresh`` reads the page again and asks the AI again instead of using the cache.
+    ``refresh`` reads the page and the seller's profile again, and asks the AI again,
+    instead of using the cache.
     """
     if refresh:
         Listing.forget(post_url)
@@ -969,7 +970,7 @@ def inspect_listing(
     # the seller's summary and warning signs, as in a scheduled search
     add_seller_info = getattr(marketplace, "add_seller_info", None)
     if add_seller_info is not None:
-        add_seller_info(listing, item_config)
+        add_seller_info(listing, item_config, refresh=refresh)
     if logger:
         logger.info(
             f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""

@@ -223,14 +223,22 @@ def _fake_listing(**kw: Any) -> Listing:
 
 
 @pytest.mark.parametrize(
-    ("excluded", "score", "would_notify"),
-    [(None, 5, True), (None, 3, False), ("excluded keyword: parts", 5, False)],
+    ("excluded", "score", "comment", "would_notify"),
+    [
+        (None, 5, "Fair price.", True),
+        (None, 3, "Fair price.", False),
+        ("excluded keyword: parts", 5, "Fair price.", False),
+        # no AI answered: as the monitor, a score of 5, so the filters decide
+        (None, 5, AIResponse.NOT_EVALUATED, True),
+        ("excluded keyword: parts", 5, AIResponse.NOT_EVALUATED, False),
+    ],
 )
 def test_evaluate_listing_reports_the_search_and_the_ai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     excluded: str | None,
     score: int,
+    comment: str,
     would_notify: bool,
 ) -> None:
     seen: Dict[str, Any] = {}
@@ -242,7 +250,7 @@ def test_evaluate_listing_reports_the_search_and_the_ai(
 
     def fake_inspect(marketplace: Any, url: str, item_config: Any, *args: Any) -> Any:
         seen["url"], seen["item"] = url, item_config.name
-        return _fake_listing(), False, excluded, AIResponse(score, "Fair price.", "unitysvc")
+        return _fake_listing(), False, excluded, AIResponse(score, comment, "unitysvc")
 
     monkeypatch.setattr(live.LiveBrowser, "_facebook", fake_facebook)
     monkeypatch.setattr(monitor, "inspect_listing", fake_inspect)
@@ -262,7 +270,9 @@ def test_evaluate_listing_reports_the_search_and_the_ai(
         "url": "https://www.facebook.com/marketplace/item/123/",
         "item": "example",  # the only item
     }
-    assert out["rating"] == score and out["excluded_by"] == excluded
+    rated = comment != AIResponse.NOT_EVALUATED
+    assert out["ai_rated"] is rated and out["excluded_by"] == excluded
+    assert out["rating"] == (score if rated else None)
     assert out["would_notify"] is would_notify and out["notify_threshold"] == 4
     assert out["seller"]["warnings"] == ["new account"]
     assert len(out["listing"]["description"]) <= 2000
@@ -371,6 +381,24 @@ def test_check_seller_answers_from_the_cache(
         else:
             assert out["ok"] and out["from_cache"], out
             assert out["seller"]["id"] == "9" and out["seller"]["name"] == "Jane"
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_refresh_reads_the_seller_profile_again(
+    monkeypatch: pytest.MonkeyPatch, aimm_cache: Any, refresh: bool
+) -> None:
+    _known()  # the profile was read just now
+    marketplace = live.ChatFacebookMarketplace("facebook", None, None, None)
+    opened: List[bool] = []
+
+    def login() -> None:
+        opened.append(True)
+        raise live.LiveUnavailableError("no browser here")
+
+    monkeypatch.setattr(marketplace, "login", login)
+    listing = _fake_listing(seller_id="9", seller_parsed=True)
+    marketplace.add_seller_info(listing, SimpleNamespace(name="example"), refresh=refresh)  # type: ignore[arg-type]
+    assert opened == ([True] if refresh else [])
 
 
 def test_refresh_reads_the_listing_and_asks_the_ai_again(aimm_cache: Any) -> None:
