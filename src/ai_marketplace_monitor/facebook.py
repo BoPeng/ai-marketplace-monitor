@@ -41,6 +41,7 @@ from .seller import (
     parse_seller_panel,
     parse_seller_profile,
     seller_id_from_url,
+    seller_status,
     seller_warnings,
     sold_grid_count,
 )
@@ -946,8 +947,8 @@ class FacebookMarketplace(Marketplace):
                 raise
             except Exception as e:
                 if self.logger:
-                    self.logger.debug(
-                        f"""{hilight("[Retrieve]", "fail")} Could not read the profile of seller {seller.id}: {e}"""
+                    self.logger.info(
+                        f"""{hilight("[Seller]", "fail")} Could not read the profile of seller {seller.id}, who is not verified: {e}"""
                     )
         seller.to_cache()
         warnings = seller_warnings(seller)
@@ -956,9 +957,9 @@ class FacebookMarketplace(Marketplace):
             "summary": seller.summary(),
             "warnings": warnings,
         }
-        if warnings and self.logger:
+        if self.logger:
             self.logger.info(
-                f"""{hilight("[Seller]", "fail")} {hilight(listing.title)} is sold by {listing.seller}: {"; ".join(warnings)}"""
+                f"""{hilight("[Seller]", "fail" if warnings or not seller.profile_checked else "succ")} {hilight(listing.title)}, seller {seller_status(listing.seller_info)}"""
             )
 
     def check_listing(

@@ -70,8 +70,8 @@ class Seller:
                 continue
             setattr(self, f.name, value)
 
-    def summary(self: "Seller") -> str:
-        """The seller in a sentence, for the AI and for notifications."""
+    def summary(self: "Seller", reviews: bool = True) -> str:
+        """The seller in a sentence, for the AI and (without reviews) for notifications."""
         parts = []
         if self.joined_year:
             parts.append(f"joined Facebook in {self.joined_year}")
@@ -94,7 +94,7 @@ class Seller:
         if self.strengths:
             parts.append("buyers appreciate: " + ", ".join(self.strengths))
         text = ", ".join(parts)
-        if self.reviews:
+        if reviews and self.reviews:
             text += ". Recent reviews: " + " | ".join(f'"{r}"' for r in self.reviews)
         return text
 
@@ -324,12 +324,41 @@ def seller_warnings(
     return warnings
 
 
-def seller_context(seller_info: Dict[str, Any]) -> str:
-    """The seller and their warning signs, as stored on a listing, in a line or two."""
-    if not seller_info:
-        return ""
-    warnings = seller_info.get("warnings") or []
-    text = seller_info.get("summary") or ""
+def seller_from_info(seller_info: Dict[str, Any] | None) -> Seller | None:
+    """The Seller stored on a listing (``seller_info["seller"]``), or None."""
+    data = (seller_info or {}).get("seller")
+    if not data or not data.get("id"):
+        return None
+    known = {f.name for f in fields(Seller)}
+    try:
+        return Seller(**{k: v for k, v in data.items() if k in known})
+    except TypeError:
+        return None
+
+
+def seller_status(seller_info: Dict[str, Any] | None) -> str:
+    """The seller and their warning signs, as stored on a listing, for notifications.
+
+    It always says something, so that a notification without a word about the seller is
+    not mistaken for one whose seller was checked and found fine.
+    """
+    seller = seller_from_info(seller_info)
+    if seller is None:
+        text = "not verified (no seller information)"
+    elif seller.profile_checked and seller.checked_at:
+        checked = datetime.fromtimestamp(seller.checked_at).strftime("%Y-%m-%d")
+        text = ", ".join(
+            x for x in (seller.summary(reviews=False), f"profile checked {checked}") if x
+        )
+    else:
+        text = "; ".join(
+            x
+            for x in (seller.summary(reviews=False), "not verified (profile could not be read)")
+            if x
+        )
+    if seller is not None and seller.name:
+        text = f"{seller.name}: {text}"
+    warnings = (seller_info or {}).get("warnings") or []
     if warnings:
-        text += ("; " if text else "") + "warning signs: " + "; ".join(warnings)
+        text += ". Warning signs: " + "; ".join(warnings)
     return text

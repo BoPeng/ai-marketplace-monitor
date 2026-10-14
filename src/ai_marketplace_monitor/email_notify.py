@@ -22,6 +22,7 @@ from .notification import (
     NotificationStatus,
     notification_field,
 )
+from .seller import seller_status
 from .utils import fetch_image, hilight, resize_image_data
 
 if TYPE_CHECKING:
@@ -192,9 +193,7 @@ class EmailNotificationConfig(NotificationConfig):
                     f"\nAI: {rating.comment}"
                 )
             )
-            warnings = (listing.seller_info or {}).get("warnings") or []
-            if warnings:
-                messages[-1] += f"\nSeller warning: {'; '.join(warnings)}"
+            messages[-1] += f"\nSeller: {seller_status(listing.seller_info)}"
         message = "\n\n".join(messages)
         return message
 
@@ -225,6 +224,7 @@ class EmailNotificationConfig(NotificationConfig):
             return Markup(safe_text)  # noqa: S704 — safe_text was escaped above
 
         env.filters["bold_headers"] = bold_headers
+        env.filters["seller_status"] = seller_status
 
         # Load template
         template = env.get_template("email.html.j2")

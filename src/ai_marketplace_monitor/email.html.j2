@@ -65,13 +65,16 @@
                                 </div>
                                 {% endif %}
 
-                                <!-- Seller warning signs -->
-                                {% if listing.seller_info and listing.seller_info.get("warnings") %}
+                                <!-- Seller: highlighted for warning signs or an unverified seller -->
+                                {% set seller_line = listing.seller_info | seller_status %}
+                                {% if (listing.seller_info and listing.seller_info.get("warnings")) or "not verified" in seller_line %}
                                 <div style="background-color: #FFF4E5; padding: 12px; border-radius: 4px; margin: 15px 0; color: #8A4B00;">
-                                    <span style="font-weight: bold;">Seller warning:</span>
-                                    {{ listing.seller_info["warnings"] | join("; ") }}
-                                </div>
+                                {% else %}
+                                <div style="background-color: #F8F9FA; padding: 12px; border-radius: 4px; margin: 15px 0; color: #444444;">
                                 {% endif %}
+                                    <span style="font-weight: bold;">Seller:</span>
+                                    {{ seller_line }}
+                                </div>
 
                                 <!-- AI Rating -->
                                 {% if rating.comment != rating.NOT_EVALUATED %}

@@ -374,7 +374,15 @@ From the listing page, aimm reads the seller's name, the year they joined Facebo
 
     joined Facebook in 2024, no ratings, 20+ active listings, 1 sold listing
 
-along with possible warning signs (a new account, a low rating, a dealer-like number of listings, few or no sales, a single listing on a new account) and the reviews, which may mention no-shows or sellers who stopped answering. It lowers its rating for an unreliable seller and explains its concerns in its comment. Notifications show the warning signs as a ``Seller warning`` line.
+along with possible warning signs (a new account, a low rating, a dealer-like number of listings, few or no sales, a single listing on a new account) and the reviews, which may mention no-shows or sellers who stopped answering. The AI is told that the seller matters as much as the item, and to judge the seller from all of this together rather than from any one sign: a new account with many listings and none sold may be a moving sale, and a dealer with dozens of listings may be reputable. It rates a listing from a likely scammer no higher than 2 however well the item matches, lowers its rating for an unreliable or unverified seller, and says what it concluded about the seller in its comment. If the seller's profile could not be read, the AI is told that the seller is not verified, and the log says so.
+
+The AI is also told to rate a listing 1 when it has a bait price: a price far below the item's market value together with "financing available", "payment plans", "no credit check", "rent to own" or "layaway", which means that the listed price is only a down payment or a monthly payment. Financing or layaway at a realistic price usually means a pawnshop or a dealer, which the AI points out and rates lower. To skip such listings without asking the AI, add the phrases to ``antikeywords``, for example ``antikeywords = ["financing available", "no credit check", "layaway"]``.
+
+Every notification has a ``Seller`` line with what aimm knows about the seller, when it read the seller's profile, and the warning signs, for example
+
+    Seller: Sam Roe: joined Facebook in 2024, no ratings, 30 active listings, 0 sold listings, profile checked 2026-10-01. Warning signs: 30 active listings but none sold
+
+It says ``not verified`` when the profile could not be read, or when there is no seller information at all (for example when aimm is not logged in), so that a seller who was never checked is not mistaken for one who was checked and found fine.
 
 To skip low-rated sellers altogether, set ``seller_min_rating`` in a ``marketplace`` or an ``item`` section:
 

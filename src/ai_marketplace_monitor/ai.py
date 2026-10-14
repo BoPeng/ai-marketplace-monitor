@@ -360,20 +360,45 @@ class AIBackend(Generic[TAIConfig]):
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
         )
+        # bait prices: in every prompt, with or without seller information or a custom prompt
+        prompt += (
+            "Beware of bait prices: a price far below the item's market value together with "
+            '"financing available", "payment plans", "no credit check", "rent to own", '
+            '"layaway" or the like means that the listed price is a down payment or a monthly '
+            "payment, not the price of the item. Rate such a listing 1, however well it "
+            "matches. Financing or layaway at a realistic price is typical of a pawnshop or a "
+            "dealer rather than a private seller: say so in your summary, and lower the rating "
+            "if the user did not ask for a business.\n\n"
+        )
         seller = listing.seller_info.get("summary") if listing.seller_info else ""
         warnings = listing.seller_info.get("warnings") if listing.seller_info else []
         if seller or warnings:
             prompt += (
                 f"""About the seller, {listing.seller}: {seller or "nothing more is known"}.\n"""
             )
+            if not (listing.seller_info.get("seller") or {}).get("profile_checked"):
+                prompt += (
+                    "The seller's profile could not be read, so their listings and sales are "
+                    "unknown: treat the seller as not verified.\n"
+                )
             if warnings:
-                prompt += f"""Possible warning signs: {"; ".join(warnings)}.\n"""
+                prompt += f"""Warning signs about the seller: {"; ".join(warnings)}.\n"""
             prompt += (
-                "Judge from this whether the seller is legitimate and reliable (for example "
-                "a new account, a dealer posing as a private seller, few or no sales, or "
-                "reviews that mention no-shows or no responses). Lower the rating for an "
-                "unreliable seller, and mention your concerns about the seller in your "
-                "summary so that the buyer knows.\n\n"
+                "The seller matters as much as the item: a listing that matches perfectly is "
+                "still a bad deal from a scammer, a dealer posing as a private seller, or "
+                "someone who does not show up. Judge whether the seller is legitimate and "
+                "reliable from everything known together, not from any one sign: many "
+                "sellers never mark items as sold, a new account with many listings and none "
+                "sold may be someone's moving sale, and a dealer with dozens of listings may "
+                "be reputable, especially with good ratings. Be suspicious when the signs add "
+                "up, for example a new or unrated account with many listings and no sales "
+                "offering this item well below its market price, a single unusually cheap "
+                "listing on a new account, a description that is vague or pushes for "
+                "shipping, deposits or contact off Facebook, or reviews that mention "
+                "no-shows, no responses or fraud. Rate a listing from a likely scammer no "
+                "higher than 2, however well the item matches, and lower the rating for an "
+                "unreliable or unverified seller. Always say in your summary what you "
+                "concluded about the seller.\n\n"
             )
         # prompt
         custom_prompt = resolve_option("prompt", item_config, marketplace_config)
@@ -396,7 +421,7 @@ class AIBackend(Generic[TAIConfig]):
         else:
             prompt += (
                 "\nRate from 1 to 5 based on the following: \n"
-                "1 - No match: Missing key details, wrong category/brand, or suspicious activity (e.g., external links).\n"
+                "1 - No match: Missing key details, wrong category/brand, suspicious activity (e.g., external links), a bait price, or a likely scam seller.\n"
                 "2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.\n"
                 "3 - Poor match: Some mismatches or missing details; acceptable but not ideal.\n"
                 "4 - Good match: Mostly meets criteria with clear, relevant details.\n"

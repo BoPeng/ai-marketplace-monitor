@@ -15,6 +15,7 @@ from ai_marketplace_monitor.seller import (
     parse_seller_panel,
     parse_seller_profile,
     seller_id_from_url,
+    seller_status,
     seller_warnings,
     sold_grid_count,
 )
@@ -335,10 +336,27 @@ def test_the_ai_prompt_describes_the_seller_and_its_warning_signs() -> None:
         "About the seller, Sam Roe: joined Facebook in 2025, no ratings, 1 active listing."
         in prompt
     )
-    assert "Possible warning signs: new account (joined Facebook in 2025)." in prompt
-    assert "whether the seller is legitimate" in prompt
+    assert "Warning signs about the seller: new account (joined Facebook in 2025)." in prompt
+    assert "The seller matters as much as the item" in prompt
+    assert "no higher than 2" in prompt and "moving sale" in prompt
+    assert "what you concluded about the seller" in prompt
+    # the profile was not read
+    assert "treat the seller as not verified" in prompt
+    checked = _listing(
+        seller_info={
+            "seller": {"id": "1", "profile_checked": True},
+            "summary": "joined Facebook in 2015, no ratings, 3 active listings",
+        }
+    )
+    assert "not verified" not in backend.get_prompt(checked, item, market)
     # nothing about the seller without seller information
-    assert "About the seller" not in backend.get_prompt(_listing(), item, market)
+    plain = backend.get_prompt(_listing(), item, market)
+    assert "About the seller" not in plain
+    # but bait prices are always flagged, also with a custom prompt
+    custom = FacebookItemConfig(name="ipad", search_phrases=["ipad"], prompt="Is it a deal?")
+    for text in (plain, backend.get_prompt(_listing(), custom, market)):
+        assert '"financing available"' in text and "Rate such a listing 1" in text
+        assert '"layaway"' in text and "pawnshop" in text
 
 
 # --- the marketplace: the rating filter, completing seller information, notifications
@@ -375,6 +393,33 @@ def test_seller_min_rating_excludes_low_rated_sellers(tmp_path: Path) -> None:
     assert mp.exclusion_reason(_listing(), item) is None  # no ratings
     # the item can turn it off
     assert mp.exclusion_reason(_rated(3.5, 10), _item_config(seller_min_rating=0)) is None
+
+
+def test_an_unread_profile_is_logged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+
+    import ai_marketplace_monitor.seller as seller_module
+    from ai_marketplace_monitor import facebook
+
+    local = Cache(str(tmp_path))
+    monkeypatch.setattr(seller_module, "cache", local)
+
+    class BrokenProfile:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def parse(self, seller_id: str) -> Seller:
+            raise ValueError("No seller profile found")
+
+    monkeypatch.setattr(facebook, "FacebookSellerProfilePage", BrokenProfile)
+    mp = _marketplace(local)
+    mp.logger = MagicMock()
+    listing = _listing(seller_id="9", seller_info={"seller": {"id": "9", "joined_year": 2015}})
+    mp.add_seller_info(listing, _item_config())
+    assert mp.exclusion_reason(listing, _item_config()) is None
+    logged = " ".join(str(c) for c in mp.logger.info.call_args_list)
+    assert "Could not read the profile of seller 9" in logged
+    assert "not verified (profile could not be read)" in logged
 
 
 @pytest.mark.parametrize("value", [6, -1, "four", True])
@@ -507,15 +552,25 @@ def test_a_failed_profile_keeps_what_the_listing_showed(
     assert plain.seller_info == {}
 
 
+_NEW_SELLER = {
+    "seller": {"id": "9", "name": "Sam Roe", "joined_year": 2026},
+    "warnings": ["new account (joined Facebook in 2026)"],
+}
+_STATUS = (
+    "Sam Roe: joined Facebook in 2026, no ratings; not verified (profile could not be read). "
+    "Warning signs: new account (joined Facebook in 2026)"
+)
+
+
 @pytest.mark.parametrize(
     "fmt, line",
     [
-        ("plain_text", "\nSeller warning: new account (joined Facebook in 2026)"),
-        ("markdown", "\n**Seller warning**: new account (joined Facebook in 2026)"),
-        ("html", "<br><b>Seller warning</b>: new account (joined Facebook in 2026)"),
+        ("plain_text", f"\nSeller: {_STATUS}"),
+        ("markdown", f"\n**Seller**: {_STATUS}"),
+        ("html", f"<br><b>Seller</b>: {_STATUS}"),
     ],
 )
-def test_notifications_show_the_warning_signs(fmt: str, line: str) -> None:
+def test_notifications_show_the_seller_status(fmt: str, line: str) -> None:
     from ai_marketplace_monitor.ai import AIResponse
     from ai_marketplace_monitor.notification import NotificationStatus
     from ai_marketplace_monitor.pushbullet import PushbulletNotificationConfig
@@ -524,10 +579,92 @@ def test_notifications_show_the_warning_signs(fmt: str, line: str) -> None:
     config.message_format = fmt  # Pushbullet itself sends plain text
     sent: list = []
     config.send_message_with_retry = lambda *a, **k: sent.append(a) or True  # type: ignore
-    listing = _listing(seller_info={"warnings": ["new account (joined Facebook in 2026)"]})
+    listing = _listing(seller_info=_NEW_SELLER)
     rating = AIResponse(name="ai", score=2, comment="New account; be careful.")
     config.notify([listing], [rating], [NotificationStatus.NOT_NOTIFIED])
     assert sent and any(line in str(part) for part in sent[0])
+
+
+def test_pushover_keeps_the_seller_line_of_a_long_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pushover cuts each listing to 1024 characters: the seller line comes before the description."""
+    from ai_marketplace_monitor import pushover
+    from ai_marketplace_monitor.ai import AIResponse
+    from ai_marketplace_monitor.notification import NotificationStatus
+
+    posted: list = []
+
+    class Connection:
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def request(self, method: str, url: str, body: str, headers: dict) -> None:
+            import urllib.parse
+
+            posted.append(urllib.parse.parse_qs(body)["message"][0])
+
+        def getresponse(self) -> Any:
+            class Response:
+                def read(self) -> bytes:
+                    return b'{"status": 1}'
+
+            return Response()
+
+    monkeypatch.setattr(pushover.http.client, "HTTPSConnection", Connection)
+    config = pushover.PushoverNotificationConfig(
+        name="po", pushover_user_key="u" * 30, pushover_api_token="t" * 30
+    )
+    listing = _listing(description="x" * 1200, seller_info=_NEW_SELLER)
+    rating = AIResponse(name="ai", score=4, comment="Good match.")
+    assert config.notify([listing], [rating], [NotificationStatus.NOT_NOTIFIED])
+    assert len(posted[0]) <= 1024
+    assert f"<b>Seller</b>: {_STATUS}" in posted[0]
+
+
+def test_the_seller_status_always_says_something() -> None:
+    checked_at = time.mktime((2026, 10, 1, 12, 0, 0, 0, 0, -1))
+    checked = {
+        "seller": {
+            "id": "1",
+            "name": "Pat Doe",
+            "joined_year": 2009,
+            "rating": 4.6,
+            "rating_count": 182,
+            "active_listings": 3,
+            "sold_listings": 40,
+            "reviews": ["Great seller."],
+            "profile_checked": True,
+            "checked_at": checked_at,
+        },
+        "warnings": [],
+    }
+    # reviews are left to the AI
+    assert seller_status(checked) == (
+        "Pat Doe: joined Facebook in 2009, rated 4.6 out of 5 by 182 buyers, 3 active "
+        "listings, 40 sold listings, profile checked 2026-10-01"
+    )
+    assert seller_status(_NEW_SELLER) == _STATUS
+    # not logged in, or a listing from before seller information
+    assert seller_status({}) == "not verified (no seller information)"
+    assert seller_status({"warnings": ["new account"]}) == (
+        "not verified (no seller information). Warning signs: new account"
+    )
+
+
+def test_emails_show_the_seller_status() -> None:
+    from ai_marketplace_monitor.ai import AIResponse
+    from ai_marketplace_monitor.email_notify import EmailNotificationConfig
+    from ai_marketplace_monitor.notification import NotificationStatus
+
+    config = EmailNotificationConfig(name="mail", email=["a@example.com"])
+    listing = _listing(seller_info=_NEW_SELLER)
+    rating = AIResponse(name="ai", score=2, comment="New account; be careful.")
+    status = [NotificationStatus.NOT_NOTIFIED]
+    assert f"\nSeller: {_STATUS}" in config.get_text_message([listing], [rating], status)
+    html, _ = config.get_html_message([listing], [rating], status)
+    assert "Seller:" in html and "not verified (profile could not be read)" in html
+    assert "#FFF4E5" in html  # highlighted
 
 
 # --- the review of #437: legacy caches, AI answers, the sold grid, `aimm check`
