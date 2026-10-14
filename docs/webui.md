@@ -9,7 +9,7 @@ AI Marketplace Monitor includes a built-in web interface for editing your config
 The web UI provides:
 
 - **TOML Config Editor** with syntax highlighting, powered by CodeMirror
-- **Configure Chat** that uses the same AI-assisted configuration tools as `aimm configure`
+- **Assistant** chat that sets up and changes the configuration with the same AI-assisted tools as `aimm configure`, answers questions about the listings aimm found, and helps with problems
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level (all, problems, or errors) and text search; click a line to see its details
 - **Listings** view of every listing aimm evaluated, with its AI rating and the decision: notified, rejected by AI, or excluded (see [Listings](#listings))
@@ -41,14 +41,21 @@ The web UI is available at [http://127.0.0.1:8467](http://127.0.0.1:8467). A sta
 
 On localhost, **no password is required**. Open the URL in your browser and start editing.
 
-**Saved changes take effect on their own.** When you save the config, the running monitor reloads it after the current search and searches all items with the new configuration; there is no need to stop and start it. **Save** in the config editor checks the whole configuration and refuses to write it if it does not load. The Configure Chat checks the sections it writes, not the whole configuration. **▶** also refuses to start the monitor while the configuration is invalid.
+**Saved changes take effect on their own.** When you save the config, the running monitor reloads it after the current search and searches all items with the new configuration; there is no need to stop and start it. **Save** in the config editor checks the whole configuration and refuses to write it if it does not load. The Assistant checks the sections it writes, not the whole configuration. **▶** also refuses to start the monitor while the configuration is invalid.
 
-## Configure Chat
+## Assistant
 
-The **Configure** pane lets you edit the config through the same AI-assisted flow as
-`aimm configure`. Leave the section field blank to let the assistant route the request,
-or enter a section address such as `ai`, `marketplace`, `item.gopro`, or `notification`
-before starting. The chat asks for confirmation before tool-driven changes are written,
+The **Assistant** pane runs the same AI-assisted chat as `aimm configure`. It can:
+
+- set up a search, notifications or an AI service, and change any setting;
+- answer questions about what aimm found, such as "what did you find this week?" or "why
+  was this listing skipped?" (see [Listings](#listings));
+- help with problems, such as Facebook asking for CAPTCHA after CAPTCHA.
+
+Click **Start chat**, or one of the example requests above it to start the chat with that
+request. To work on one section only, open **Focus on a section** and enter a section address
+such as `ai`, `marketplace`, `item.gopro`, or `notification` before starting; the example
+requests always start a chat about everything. The chat asks for confirmation before tool-driven changes are written,
 then the editor reloads the updated config. After a notification is saved, the assistant
 offers to send a test message through it, so you can fix a channel that does not work
 right away.
@@ -110,7 +117,7 @@ listings already recorded):
 evaluation_history_days = 60
 ```
 
-You can also ask the **Configure** chat (or `aimm configure`) about these listings, for example
+You can also ask the **Assistant** (or `aimm configure`) about these listings, for example
 "what did you find for my GoPro this week?", "anything rated 4 or better?", or "why was
 https://www.facebook.com/marketplace/item/… skipped?". It answers from the same records, with
 the reason or the AI's comment, the listing's description and the seller's warning signs, and

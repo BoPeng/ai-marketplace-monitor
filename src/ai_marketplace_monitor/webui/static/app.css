@@ -826,6 +826,17 @@ html, body {
 }
 .chat-system + .chat-welcome { margin-top: 4px; }
 .chat-welcome p { margin: 0; line-height: 1.5; }
+.chat-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chat-welcome-focus summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.chat-welcome-focus[open] summary { margin-bottom: 8px; }
 .chat-welcome-section {
   display: flex;
   align-items: center;
