@@ -828,7 +828,8 @@ class FacebookMarketplace(Marketplace):
                     found[listing.post_url.split("?")[0]] = True
                     # a listing aimm decided on before: still listed, maybe at a new price
                     record_seen("facebook", listing.id, item_config.name, listing.price)
-                    # filter by title and location; skip keyword filtering since we do not have description yet.
+                    # filter by title (title_keywords, antikeywords) and location before opening the
+                    # listing; keywords wait for the description.
                     if self._exclude(listing, item_config, description_available=False):
                         continue
                     try:
@@ -985,6 +986,15 @@ class FacebookMarketplace(Marketplace):
                 )
             matched = [x for x in antikeywords if is_substring(x, text)] or antikeywords
             return f"excluded keyword: {', '.join(matched)}"
+
+        # title_keywords need only the title, so they also apply before the listing is opened
+        title_keywords = item_config.title_keywords
+        if title_keywords and not is_substring(title_keywords, item.title, logger=self.logger):
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required title keywords", "fail")}."""
+                )
+            return f"missing required title keywords: {', '.join(title_keywords)}"
 
         # if the return description does not contain any of the search keywords
         keywords = item_config.keywords

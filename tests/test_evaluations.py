@@ -379,6 +379,13 @@ def _item(**kwargs: Any) -> FacebookItemConfig:
             "excluded keyword: broken",
         ),
         ({"keywords": ["carbon"]}, {}, {}, "missing required keywords: carbon"),
+        (
+            {"title_keywords": ["carbon"]},
+            {},
+            {"title": "Road bike", "description": "carbon frame"},
+            "missing required title keywords: carbon",
+        ),
+        ({"title_keywords": ["carbon"]}, {}, {"title": "Carbon road bike"}, None),
         ({}, {"seller_locations": ["dallas"]}, {"location": "Katy, TX"}, "out of area: Katy, TX"),
         ({}, {"exclude_sellers": ["jane"]}, {}, "banned seller: Jane"),
         ({}, {}, {}, None),

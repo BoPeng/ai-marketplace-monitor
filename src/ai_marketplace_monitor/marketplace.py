@@ -493,6 +493,7 @@ class ItemConfig(MarketItemCommonConfig):
     # keywords is required, all others are optional
     search_phrases: List[str] = field(default_factory=list)
     keywords: List[str] | None = None
+    title_keywords: List[str] | None = None
     antikeywords: List[str] | None = None
     description: str | None = None
     marketplace: str | None = None
@@ -531,6 +532,18 @@ class ItemConfig(MarketItemCommonConfig):
             isinstance(x, str) for x in self.keywords
         ):
             raise ValueError(f"Item {hilight(self.name)} keywords must be a list.")
+
+    def handle_title_keywords(self: "ItemConfig") -> None:
+        if self.title_keywords is None:
+            return
+
+        if isinstance(self.title_keywords, str):
+            self.title_keywords = [self.title_keywords]
+
+        if not isinstance(self.title_keywords, list) or not all(
+            isinstance(x, str) for x in self.title_keywords
+        ):
+            raise ValueError(f"Item {hilight(self.name)} title_keywords must be a list.")
 
     def handle_description(self: "ItemConfig") -> None:
         if self.description is None:

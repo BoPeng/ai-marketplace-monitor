@@ -45,6 +45,15 @@ _OWN_GUIDES: Tuple[FieldGuide, ...] = (
         "no filter",
     ),
     FieldGuide(
+        "title_keywords",
+        "hard pre-filter on the title only: a listing is kept only if its title contains ANY "
+        "of these (OR); skips listings before aimm opens them, so it is faster than keywords, "
+        'but drops listings with short titles (e.g. just "Bike"); only when the user asks '
+        "for a title filter or for fewer listings to be opened",
+        "same syntax as keywords",
+        "no filter",
+    ),
+    FieldGuide(
         "antikeywords",
         "hard pre-filter: listings whose title or description contains ANY of these (OR) are "
         "dropped, e.g. accessories or parts the user does not want",
