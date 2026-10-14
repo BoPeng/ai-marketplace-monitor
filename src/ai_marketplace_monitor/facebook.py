@@ -67,6 +67,12 @@ if TYPE_CHECKING:
 LOGIN_PATHS = ("/login", "/checkpoint", "/two_step_verification", "/recover")
 LOGIN_CHECK_EVERY = 5  # seconds
 LOGIN_REMINDER_EVERY = 5 * 60  # seconds
+# added to the reminders: users found that a login approved on the phone ends repeated CAPTCHAs
+LOGIN_TWO_FACTOR_TIP = (
+    "If Facebook keeps asking for a CAPTCHA, turn on two-factor authentication for your "
+    "Facebook account (Accounts Center, Password and security): Facebook then asks you to "
+    "confirm the login on your phone, which users found ends the repeated CAPTCHAs."
+)
 # the browser state of the last login, so that a restart does not log in again: Facebook
 # asks for a CAPTCHA or to approve the login on each new login. It is a live session,
 # readable only by the user, like the password in the config.
@@ -581,6 +587,9 @@ class FacebookMarketplace(Marketplace):
                 self.page.wait_for_timeout(LOGIN_CHECK_EVERY * 1000)
                 if time.monotonic() - reminded > LOGIN_REMINDER_EVERY:
                     reminded = time.monotonic()
+                    # the login is taking long: suggest what helps with repeated CAPTCHAs
+                    control.login_hint = f"{self.login_hint()} {LOGIN_TWO_FACTOR_TIP}"
+                    message = f"""{hilight("[Login]", "fail")} {control.login_hint}"""
                     if self.logger:
                         self.logger.warning(
                             message, extra=aimm_event("credentials_wait", status="waiting")

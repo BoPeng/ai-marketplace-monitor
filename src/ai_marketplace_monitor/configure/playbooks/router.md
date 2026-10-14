@@ -71,6 +71,19 @@ of the price, raise it to $300", "more like this one"), it is a change to that i
 read the item guide, propose the change (e.g. add the seller to `exclude_sellers`, an
 antikeyword, or a new price), and draft and save it as for any change, after the user agrees.
 
+### Problems running aimm
+
+The user may ask for help with a problem rather than a change. Answer what you know, in plain
+words; do not change the configuration unless the user asks for a change:
+
+- Facebook keeps asking for a CAPTCHA, or the login never finishes: suggest turning on
+  two-factor authentication for their Facebook account (Accounts Center, Password and
+  security), so that Facebook asks them to confirm the login on their phone; users found that
+  this ends repeated CAPTCHAs. aimm saves the session after a login, so a restart does not log
+  in again. In Docker, the login is completed in the web UI's browser view (**Open browser**).
+- For other problems, point to the troubleshooting guide:
+  https://ai-marketplace-monitor.readthedocs.io/en/latest/troubleshooting.html
+
 ### AI services
 
 AI services are `[ai.*]` sections like any other. You are running on one of them; changes to

@@ -88,6 +88,9 @@ def test_wait_for_login_waits_until_facebook_has_logged_in(
     assert page.waiting_seen == [True, True, True]  # the web UI shows "waiting for login"
     assert control.waiting_for_login is False
     assert len(reminders) >= 2 and "CAPTCHA" in reminders[0]
+    # the first message says where to log in; reminders add the two-factor tip
+    assert "two-factor" not in reminders[0]
+    assert "two-factor authentication" in reminders[1]
 
 
 @pytest.mark.parametrize(
@@ -115,6 +118,7 @@ def test_the_login_hint_says_where_to_finish_logging_in(
     marketplace = _marketplace(page)
     marketplace.wait_for_login()
     assert where in hints[0] and "CAPTCHA" in hints[0]
+    assert "two-factor" not in hints[0]  # only once the login takes long
     assert control.status()["login_hint"] == ""  # only while waiting
 
 
@@ -388,3 +392,20 @@ def test_start_before_stop_is_acknowledged_still_rebuilds_jobs() -> None:
     assert not schedule.get_jobs()
     assert monitor.config_hash is None
     assert monitor.handle_stop() is False  # the request is consumed once
+
+
+def test_the_login_banner_adds_the_two_factor_tip_once_the_login_takes_long(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(facebook, "LOGIN_REMINDER_EVERY", 0)  # remind on every check
+    hints: List[str] = []
+
+    class HintPage(FakePage):
+        def wait_for_timeout(self, ms: float) -> None:
+            hints.append(control.status()["login_hint"])
+            super().wait_for_timeout(ms)
+
+    _marketplace(HintPage(polls_to_login=3)).wait_for_login()
+    assert "two-factor" not in hints[0]
+    assert "two-factor authentication" in hints[-1]
+    assert control.status()["login_hint"] == ""
