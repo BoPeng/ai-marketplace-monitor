@@ -360,6 +360,13 @@ class AIBackend(Generic[TAIConfig]):
             f"""priced at {listing.price}, located in {listing.location}, """
             f"""posted at {listing.post_url} with description "{listing.description}"\n\n"""
         )
+        # bait prices: in every prompt, with or without seller information or a custom prompt
+        prompt += (
+            "Beware of bait prices: a price far below the item's market value together with "
+            '"financing available", "payment plans", "no credit check", "rent to own" or the '
+            "like means that the listed price is a down payment or a monthly payment, not the "
+            "price of the item. Rate such a listing 1, however well it matches.\n\n"
+        )
         seller = listing.seller_info.get("summary") if listing.seller_info else ""
         warnings = listing.seller_info.get("warnings") if listing.seller_info else []
         if seller or warnings:
@@ -411,7 +418,7 @@ class AIBackend(Generic[TAIConfig]):
         else:
             prompt += (
                 "\nRate from 1 to 5 based on the following: \n"
-                "1 - No match: Missing key details, wrong category/brand, suspicious activity (e.g., external links), or a likely scam seller.\n"
+                "1 - No match: Missing key details, wrong category/brand, suspicious activity (e.g., external links), a bait price, or a likely scam seller.\n"
                 "2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.\n"
                 "3 - Poor match: Some mismatches or missing details; acceptable but not ideal.\n"
                 "4 - Good match: Mostly meets criteria with clear, relevant details.\n"

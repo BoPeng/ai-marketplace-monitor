@@ -350,7 +350,12 @@ def test_the_ai_prompt_describes_the_seller_and_its_warning_signs() -> None:
     )
     assert "not verified" not in backend.get_prompt(checked, item, market)
     # nothing about the seller without seller information
-    assert "About the seller" not in backend.get_prompt(_listing(), item, market)
+    plain = backend.get_prompt(_listing(), item, market)
+    assert "About the seller" not in plain
+    # but bait prices are always flagged, also with a custom prompt
+    custom = FacebookItemConfig(name="ipad", search_phrases=["ipad"], prompt="Is it a deal?")
+    for text in (plain, backend.get_prompt(_listing(), custom, market)):
+        assert '"financing available"' in text and "Rate such a listing 1" in text
 
 
 # --- the marketplace: the rating filter, completing seller information, notifications
@@ -389,9 +394,7 @@ def test_seller_min_rating_excludes_low_rated_sellers(tmp_path: Path) -> None:
     assert mp.exclusion_reason(_rated(3.5, 10), _item_config(seller_min_rating=0)) is None
 
 
-def test_an_unread_profile_is_logged(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_an_unread_profile_is_logged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from unittest.mock import MagicMock
 
     import ai_marketplace_monitor.seller as seller_module
