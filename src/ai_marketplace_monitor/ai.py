@@ -366,14 +366,23 @@ class AIBackend(Generic[TAIConfig]):
             prompt += (
                 f"""About the seller, {listing.seller}: {seller or "nothing more is known"}.\n"""
             )
+            if not (listing.seller_info.get("seller") or {}).get("profile_checked"):
+                prompt += (
+                    "The seller's profile could not be read, so their listings and sales are "
+                    "unknown: treat the seller as not verified.\n"
+                )
             if warnings:
-                prompt += f"""Possible warning signs: {"; ".join(warnings)}.\n"""
+                prompt += f"""Warning signs about the seller: {"; ".join(warnings)}.\n"""
             prompt += (
-                "Judge from this whether the seller is legitimate and reliable (for example "
-                "a new account, a dealer posing as a private seller, few or no sales, or "
-                "reviews that mention no-shows or no responses). Lower the rating for an "
-                "unreliable seller, and mention your concerns about the seller in your "
-                "summary so that the buyer knows.\n\n"
+                "The seller matters as much as the item: a listing that matches perfectly is "
+                "still a bad deal from a seller who is a scammer, a dealer posing as a private "
+                "seller, or someone who does not show up. Judge whether the seller is "
+                "legitimate and reliable. Rate a listing no higher than 2, however well the "
+                "item matches, when the seller shows a scam pattern: many active listings "
+                "with few or no sales, a single cheap listing on a new account, or reviews "
+                "that mention no-shows, no responses or fraud. Lower the rating for other "
+                "warning signs, and rate a listing from an unverified seller no higher than "
+                "4. Always say in your summary what you concluded about the seller.\n\n"
             )
         # prompt
         custom_prompt = resolve_option("prompt", item_config, marketplace_config)
@@ -396,7 +405,7 @@ class AIBackend(Generic[TAIConfig]):
         else:
             prompt += (
                 "\nRate from 1 to 5 based on the following: \n"
-                "1 - No match: Missing key details, wrong category/brand, or suspicious activity (e.g., external links).\n"
+                "1 - No match: Missing key details, wrong category/brand, suspicious activity (e.g., external links), or a likely scam seller.\n"
                 "2 - Potential match: Lacks essential info (e.g., condition, brand, or model); needs clarification.\n"
                 "3 - Poor match: Some mismatches or missing details; acceptable but not ideal.\n"
                 "4 - Good match: Mostly meets criteria with clear, relevant details.\n"

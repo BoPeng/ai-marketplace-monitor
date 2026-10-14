@@ -374,7 +374,21 @@ From the listing page, aimm reads the seller's name, the year they joined Facebo
 
     joined Facebook in 2024, no ratings, 20+ active listings, 1 sold listing
 
-along with possible warning signs (a new account, a low rating, a dealer-like number of listings, few or no sales, a single listing on a new account) and the reviews, which may mention no-shows or sellers who stopped answering. It lowers its rating for an unreliable seller and explains its concerns in its comment. Notifications show the warning signs as a ``Seller warning`` line.
+along with possible warning signs (a new account, a low rating, a dealer-like number of listings, few or no sales, a single listing on a new account) and the reviews, which may mention no-shows or sellers who stopped answering. The AI is told that the seller matters as much as the item: it rates a listing from a seller with a scam pattern no higher than 2 however well the item matches, lowers its rating for other warning signs, and says what it concluded about the seller in its comment. If the seller's profile could not be read, the AI is told that the seller is not verified, and the log says so.
+
+Every notification has a ``Seller`` line with what aimm knows about the seller, when it read the seller's profile, and the warning signs, for example
+
+    Seller: Sam Roe: joined Facebook in 2024, no ratings, 30 active listings, 0 sold listings, profile checked 2026-10-01. Warning signs: 30 active listings but none sold
+
+It says ``not verified`` when the profile could not be read, or when there is no seller information at all (for example when aimm is not logged in), so that a seller who was never checked is not mistaken for one who was checked and found fine.
+
+Two warning signs are strong enough that aimm skips the listing before asking the AI: many active listings with none or one sold, and a single listing on a new account. These are the usual shapes of scam and bait listings. To leave them to the AI instead, set ``exclude_suspicious_sellers`` to ``false`` in a ``marketplace`` or an ``item`` section:
+
+.. code-block:: toml
+
+    exclude_suspicious_sellers = false
+
+Both signs need the seller's profile, so a seller whose profile could not be read is not skipped.
 
 To skip low-rated sellers altogether, set ``seller_min_rating`` in a ``marketplace`` or an ``item`` section:
 

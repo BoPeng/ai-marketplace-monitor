@@ -21,6 +21,7 @@ from typing import (
 
 from .ai import AIResponse  # type: ignore
 from .listing import Listing
+from .seller import seller_status
 from .utils import PACKAGE_DIR, BaseConfig, hilight
 
 if TYPE_CHECKING:
@@ -639,14 +640,13 @@ class PushNotificationConfig(NotificationConfig):
                         f"<br><b>AI</b>: <i>{rating.comment}</i>"
                     )
                 )
-            warnings = (listing.seller_info or {}).get("warnings") or []
-            if warnings:
-                text = "; ".join(warnings)
-                msg += {
-                    "plain_text": f"\nSeller warning: {text}",
-                    "markdown": f"\n**Seller warning**: {text}",
-                    "html": f"<br><b>Seller warning</b>: {text}",
-                }.get(self.message_format or "plain_text", f"\nSeller warning: {text}")
+            # always, so that a missing seller check shows (see seller_status)
+            text = seller_status(listing.seller_info)
+            msg += {
+                "plain_text": f"\nSeller: {text}",
+                "markdown": f"\n**Seller**: {text}",
+                "html": f"<br><b>Seller</b>: {text}",
+            }.get(self.message_format or "plain_text", f"\nSeller: {text}")
             msgs[ns].append((listing, msg))
 
         if not msgs:

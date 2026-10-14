@@ -70,8 +70,8 @@ class Seller:
                 continue
             setattr(self, f.name, value)
 
-    def summary(self: "Seller") -> str:
-        """The seller in a sentence, for the AI and for notifications."""
+    def summary(self: "Seller", reviews: bool = True) -> str:
+        """The seller in a sentence, for the AI and (without reviews) for notifications."""
         parts = []
         if self.joined_year:
             parts.append(f"joined Facebook in {self.joined_year}")
@@ -94,7 +94,7 @@ class Seller:
         if self.strengths:
             parts.append("buyers appreciate: " + ", ".join(self.strengths))
         text = ", ".join(parts)
-        if self.reviews:
+        if reviews and self.reviews:
             text += ". Recent reviews: " + " | ".join(f'"{r}"' for r in self.reviews)
         return text
 
@@ -278,6 +278,37 @@ def sold_grid_count(
     return sum(1 for tile in tiles if tile == translator("Sold"))
 
 
+def red_flags(seller: Seller, year: int | None = None) -> List[str]:
+    """Warning signs strong enough to skip the listing (see exclude_suspicious_sellers).
+
+    Many active listings with none or one sold, and a single listing on a new account, are
+    the usual shapes of scam and bait listings; a good match from such a seller is still a
+    bad deal. Both need the seller's profile, so an unread profile raises no red flag.
+    """
+    year = year or datetime.now().year
+    flags: List[str] = []
+    active = seller.active_listings
+    capped = "+" if seller.active_listings_capped else ""
+    if (
+        active is not None
+        and active >= MANY_LISTINGS_FOR_SOLD
+        and seller.sold_listings is not None
+        and seller.sold_listings <= FEW_SOLD
+    ):
+        sold = "none" if seller.sold_listings == 0 else f"only {seller.sold_listings}"
+        flags.append(f"{active}{capped} active listings but {sold} sold")
+    if (
+        active == 1
+        and seller.joined_year
+        and year - seller.joined_year < DEFAULT_MIN_ACCOUNT_YEARS
+    ):
+        flags.append(
+            "a single listing on a new account, a pattern of bait listings: "
+            "check that the price is realistic"
+        )
+    return flags
+
+
 def seller_warnings(
     seller: Seller,
     min_account_years: int | None = DEFAULT_MIN_ACCOUNT_YEARS,
@@ -285,13 +316,13 @@ def seller_warnings(
     max_listings: int | None = DEFAULT_MAX_LISTINGS,
     year: int | None = None,
 ) -> List[str]:
-    """Signs that the seller may be unreliable, worded for the buyer. None or 0 disables one."""
+    """Signs that the seller may be unreliable, worded for the buyer. None or 0 disables one.
+
+    They include the red flags (see red_flags).
+    """
     year = year or datetime.now().year
     warnings: List[str] = []
-    new_account = bool(
-        min_account_years and seller.joined_year and year - seller.joined_year < min_account_years
-    )
-    if new_account:
+    if min_account_years and seller.joined_year and year - seller.joined_year < min_account_years:
         warnings.append(f"new account (joined Facebook in {seller.joined_year})")
     if (
         min_rating
@@ -306,30 +337,45 @@ def seller_warnings(
             f"{active}{'+' if seller.active_listings_capped else ''} active listings, "
             "likely a dealer or a shop"
         )
-    if (
-        active is not None
-        and active >= MANY_LISTINGS_FOR_SOLD
-        and seller.sold_listings is not None
-        and seller.sold_listings <= FEW_SOLD
-    ):
-        sold = "none" if seller.sold_listings == 0 else f"only {seller.sold_listings}"
-        warnings.append(
-            f"{active}{'+' if seller.active_listings_capped else ''} active listings but {sold} sold"
-        )
-    if active == 1 and new_account:
-        warnings.append(
-            "a single listing on a new account, a pattern of bait listings: "
-            "check that the price is realistic"
-        )
+    warnings.extend(red_flags(seller, year=year))
     return warnings
 
 
-def seller_context(seller_info: Dict[str, Any]) -> str:
-    """The seller and their warning signs, as stored on a listing, in a line or two."""
-    if not seller_info:
-        return ""
-    warnings = seller_info.get("warnings") or []
-    text = seller_info.get("summary") or ""
+def seller_from_info(seller_info: Dict[str, Any] | None) -> Seller | None:
+    """The Seller stored on a listing (``seller_info["seller"]``), or None."""
+    data = (seller_info or {}).get("seller")
+    if not data or not data.get("id"):
+        return None
+    known = {f.name for f in fields(Seller)}
+    try:
+        return Seller(**{k: v for k, v in data.items() if k in known})
+    except TypeError:
+        return None
+
+
+def seller_status(seller_info: Dict[str, Any] | None) -> str:
+    """The seller and their warning signs, as stored on a listing, for notifications.
+
+    It always says something, so that a notification without a word about the seller is
+    not mistaken for one whose seller was checked and found fine.
+    """
+    seller = seller_from_info(seller_info)
+    if seller is None:
+        text = "not verified (no seller information)"
+    elif seller.profile_checked and seller.checked_at:
+        checked = datetime.fromtimestamp(seller.checked_at).strftime("%Y-%m-%d")
+        text = ", ".join(
+            x for x in (seller.summary(reviews=False), f"profile checked {checked}") if x
+        )
+    else:
+        text = "; ".join(
+            x
+            for x in (seller.summary(reviews=False), "not verified (profile could not be read)")
+            if x
+        )
+    if seller is not None and seller.name:
+        text = f"{seller.name}: {text}"
+    warnings = (seller_info or {}).get("warnings") or []
     if warnings:
-        text += ("; " if text else "") + "warning signs: " + "; ".join(warnings)
+        text += ". Warning signs: " + "; ".join(warnings)
     return text
