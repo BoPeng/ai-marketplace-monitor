@@ -128,3 +128,30 @@ class FakeModel:
 
     def results(self, tool: str) -> List[Dict[str, Any]]:
         return [out for name, out in self.outputs if name == tool]
+
+
+def run_in_fresh_loop(scenario: Callable[[], Awaitable[Any]]) -> Any:
+    """Run a coroutine on a fresh event loop in its own thread, and return its result.
+
+    For async scenarios in test files that run after the Playwright tests (test_facebook.py):
+    pytest-playwright keeps an event loop running in the main thread, so pytest-asyncio cannot
+    start one there, and these tests run as plain functions instead.
+    """
+    import asyncio
+    import threading
+
+    result: List[Any] = []
+    errors: List[BaseException] = []
+
+    def target() -> None:
+        try:
+            result.append(asyncio.run(scenario()))  # type: ignore[arg-type]
+        except BaseException as e:
+            errors.append(e)
+
+    thread = threading.Thread(target=target)
+    thread.start()
+    thread.join()
+    if errors:
+        raise errors[0]
+    return result[0]

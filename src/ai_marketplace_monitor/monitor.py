@@ -3,13 +3,13 @@ import time
 from datetime import datetime
 from logging import Logger
 from pathlib import Path
-from typing import ClassVar, Dict, Iterable, List
+from typing import Any, ClassVar, Dict, Iterable, List, Tuple
 
 import humanize
 import inflect
 import rich
 import schedule  # type: ignore
-from playwright.sync_api import Browser, Playwright, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, Playwright, sync_playwright
 from rich.pretty import pretty_repr
 from rich.prompt import Prompt
 
@@ -42,6 +42,7 @@ from .marketplace import (
 )
 from .notification import NotificationStatus
 from .seller import Seller
+from .shared_browser import launch_shared_chromium
 from .user import User
 from .utils import (
     CounterItem,
@@ -115,7 +116,8 @@ class MarketplaceMonitor:
         self.ai_agents: List[AIBackend] = []
         self.keyboard_monitor: KeyboardMonitor | None = None
         self.playwright: Playwright = sync_playwright().start()
-        self.browser: Browser | None = None
+        # a browser, or the shared Chromium's context (see shared_browser.py)
+        self.browser: Browser | BrowserContext | None = None
         self.logger = logger
 
     def load_config_file(self: "MarketplaceMonitor") -> Config:
@@ -148,8 +150,32 @@ class MarketplaceMonitor:
                 doze(60, self.config_files, self.keyboard_monitor)
                 continue
 
-    def _launch_browser(self: "MarketplaceMonitor") -> Browser:
-        """Launch a browser, preferring Chromium if available, otherwise any installed browser."""
+    def _launch_browser(self: "MarketplaceMonitor") -> "Browser | BrowserContext":
+        """Launch a browser, preferring Chromium if available, otherwise any installed browser.
+
+        Chromium is shared with the configure chat (see shared_browser.py). When it cannot be
+        launched, the other browsers are not shared, and the log warns that the chat cannot
+        open Facebook pages.
+        """
+        monitor_config = self.config.monitor if self.config is not None else None
+        try:
+            context = launch_shared_chromium(
+                self.playwright,
+                None if monitor_config is None else monitor_config.get_proxy_options(),
+            )
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Browser]", "info")} Successfully launched chromium browser, shared with the configure chat.""",
+                    extra=aimm_event("browser_ready", engine="chromium"),
+                )
+            return context
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Browser]", "fail")} Chromium could not be launched with a port for the configure chat ({e}). Trying other browsers; the configure chat will not be able to open listings and seller pages on Facebook."""
+                )
         # Try browsers in order of preference
         browser_types = [
             ("chromium", self.playwright.chromium),
@@ -183,38 +209,7 @@ class MarketplaceMonitor:
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
         """Load the AI agents, replacing those of a previous config."""
         assert self.config is not None
-        self.ai_agents = []
-        for ai_config in (self.config.ai or {}).values():
-            if ai_config.enabled is False:
-                continue
-            if (
-                ai_config.provider is not None
-                and ai_config.provider.lower() in supported_ai_backends
-            ):
-                ai_class = supported_ai_backends[ai_config.provider.lower()]
-            elif ai_config.name.lower() in supported_ai_backends:
-                ai_class = supported_ai_backends[ai_config.name.lower()]
-            else:
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[Config]", "fail")} Cannot determine an AI service provider from service name or provider."""
-                    )
-                continue
-
-            try:
-                self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
-                # self.ai_agents[-1].connect()
-                # self.logger.info(
-                #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""
-                # )
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[AI]", "fail")} Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
-                    )
-                continue
+        self.ai_agents = make_ai_agents(self.config, self.logger)
 
     def search_item(
         self: "MarketplaceMonitor",
@@ -349,42 +344,8 @@ class MarketplaceMonitor:
         self: "MarketplaceMonitor", language: str | None = None
     ) -> Translator | None:
         """Select the language for the marketplace."""
-        # self.config.translator.get(marketplace_config.language, None)
         assert self.config is not None
-        if not language:
-            return None
-        if language in self.config.translator:
-            return self.config.translator[language]
-        # if there is no exact match, we are going to match the language code
-        # e.g. 'en' to 'en_US'
-        if "_" in language:
-            # if a more general languge exists?
-            if language.split("_")[0] in self.config.translator:
-                translator = self.config.translator[language.split("_")[0]]
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Translator]", "info")} Using language {language.split("_")[0]} (locale {translator.locale}) for {language} translation."""
-                    )
-                return translator
-            # if not, we are going to match the language code
-            # e.g. 'en' to 'en_US'
-            for name, translator in self.config.translator.items():
-                if name.startswith(language.split("_")[0] + "_"):
-                    if self.logger:
-                        self.logger.info(
-                            f"""{hilight("[Translator]", "info")} Using language {name} (locale {translator.locale}) for {language} translation."""
-                        )
-                    return translator
-        # if there is no match, we are going to match the language code
-        # e.g. 'en' to 'en_US'
-        for name, translator in self.config.translator.items():
-            if name.startswith(language + "_"):
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Translator]", "info")} Using language {name} (locale {translator.locale}) for {language} translation."""
-                    )
-                return translator
-        raise RuntimeError(f"Cannot find translator for language {language}.")
+        return select_translator(self.config, language, self.logger)
 
     def schedule_jobs(self: "MarketplaceMonitor") -> None:
         """Schedule jobs to run periodically."""
@@ -865,32 +826,13 @@ class MarketplaceMonitor:
                     item_config = self.config.item[for_item]
 
                 # do not search, get the item details directly
-                listing_result = marketplace.get_listing_details(post_url, item_config)
-
-                # get_listing_details returns a tuple (Listing, bool) - unpack it properly
-                if isinstance(listing_result, tuple) and len(listing_result) == 2:
-                    listing, from_cache = listing_result
-                else:
-                    # Fallback - treat as direct listing (shouldn't happen but defensive)
-                    listing = listing_result
-
-                # the seller's summary and warning signs, as in a scheduled search
-                add_seller_info = getattr(marketplace, "add_seller_info", None)
-                if add_seller_info is not None:
-                    add_seller_info(listing, item_config)
-
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
-                    )
-
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
-                    )
-                marketplace.check_listing(listing, item_config)
-                rating = self.evaluate_by_ai(
-                    listing, item_config=item_config, marketplace_config=marketplace_config
+                listing, _, _, rating = inspect_listing(
+                    marketplace,
+                    post_url,
+                    item_config,
+                    marketplace_config,
+                    self.ai_agents,
+                    self.logger,
                 )
                 if self.logger:
                     if rating.comment == AIResponse.NOT_EVALUATED:
@@ -947,19 +889,142 @@ class MarketplaceMonitor:
         item_config: TItemConfig,
         marketplace_config: TMarketplaceConfig,
     ) -> AIResponse:
-        ai_agents = resolve_option("ai", item_config, marketplace_config)
-        #
-        for agent in self.ai_agents:
-            if ai_agents is not None and agent.config.name not in ai_agents:
-                continue
-            try:
-                return agent.evaluate(item, item_config, marketplace_config)
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(
-                        f"""{hilight("[AI]", "fail")} Failed to get an answer from {agent.config.name}: {e}"""
+        return evaluate_with_agents(
+            self.ai_agents, item, item_config, marketplace_config, self.logger
+        )
+
+
+def make_ai_agents(config: Config, logger: Logger | None = None) -> List[AIBackend]:
+    """The enabled AI services of a config, in order (the first is the default)."""
+    agents: List[AIBackend] = []
+    for ai_config in (config.ai or {}).values():
+        if ai_config.enabled is False:
+            continue
+        if ai_config.provider is not None and ai_config.provider.lower() in supported_ai_backends:
+            ai_class = supported_ai_backends[ai_config.provider.lower()]
+        elif ai_config.name.lower() in supported_ai_backends:
+            ai_class = supported_ai_backends[ai_config.name.lower()]
+        else:
+            if logger:
+                logger.error(
+                    f"""{hilight("[Config]", "fail")} Cannot determine an AI service provider from service name or provider."""
+                )
+            continue
+        try:
+            agents.append(ai_class(config=ai_config, logger=logger))
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if logger:
+                logger.error(
+                    f"""{hilight("[AI]", "fail")} Failed to connect to {hilight(ai_config.name, "fail")}: {e}"""
+                )
+    return agents
+
+
+def evaluate_with_agents(
+    agents: List[AIBackend],
+    listing: Listing,
+    item_config: TItemConfig,
+    marketplace_config: TMarketplaceConfig,
+    logger: Logger | None = None,
+) -> AIResponse:
+    """Rate a listing with the item's AI services, trying the next one when one fails."""
+    ai_agents = resolve_option("ai", item_config, marketplace_config)
+    for agent in agents:
+        if ai_agents is not None and agent.config.name not in ai_agents:
+            continue
+        try:
+            return agent.evaluate(listing, item_config, marketplace_config)
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if logger:
+                logger.error(
+                    f"""{hilight("[AI]", "fail")} Failed to get an answer from {agent.config.name}: {e}"""
+                )
+            continue
+    return AIResponse(5, AIResponse.NOT_EVALUATED)
+
+
+def inspect_listing(
+    marketplace: Any,  # a Marketplace subclass, which reads listing details
+    post_url: str,
+    item_config: TItemConfig,
+    marketplace_config: TMarketplaceConfig,
+    agents: List[AIBackend],
+    logger: Logger | None = None,
+    refresh: bool = False,
+) -> Tuple[Listing, bool, str | None, AIResponse]:
+    """Read one listing as a search would, and rate it for an item.
+
+    Returns the listing (with its seller's information and warning signs), whether its
+    details came from the cache, why a search would exclude it before the AI (None if it
+    would not), and the AI's answer. Used by ``aimm check`` and by the configure chat.
+    ``refresh`` reads the page and the seller's profile again, and asks the AI again,
+    instead of using the cache.
+    """
+    if refresh:
+        Listing.forget(post_url)
+    listing, from_cache = marketplace.get_listing_details(post_url, item_config)
+    # the seller's summary and warning signs, as in a scheduled search
+    add_seller_info = getattr(marketplace, "add_seller_info", None)
+    if add_seller_info is not None:
+        add_seller_info(listing, item_config, refresh=refresh)
+    if logger:
+        logger.info(
+            f"""{hilight("[Retrieve]", "succ")} Details of the item is found: {pretty_repr(listing)}"""
+        )
+        logger.info(
+            f"""{hilight("[Search]", "succ")} Checking {post_url} for item {item_config.name} with configuration {pretty_repr(item_config)}"""
+        )
+    exclusion_reason = getattr(marketplace, "exclusion_reason", None)
+    excluded: Any = (
+        exclusion_reason(listing, item_config)
+        if exclusion_reason is not None
+        else (None if marketplace.check_listing(listing, item_config) else "excluded")
+    )
+    if refresh:
+        AIResponse.forget(listing, item_config, marketplace_config)
+    rating = evaluate_with_agents(agents, listing, item_config, marketplace_config, logger)
+    return listing, from_cache, excluded, rating
+
+
+def select_translator(
+    config: Config, language: str | None = None, logger: Logger | None = None
+) -> Translator | None:
+    """Select the language for the marketplace."""
+    if not language:
+        return None
+    if language in config.translator:
+        return config.translator[language]
+    # if there is no exact match, we are going to match the language code
+    # e.g. 'en' to 'en_US'
+    if "_" in language:
+        # if a more general languge exists?
+        if language.split("_")[0] in config.translator:
+            translator = config.translator[language.split("_")[0]]
+            if logger:
+                logger.info(
+                    f"""{hilight("[Translator]", "info")} Using language {language.split("_")[0]} (locale {translator.locale}) for {language} translation."""
+                )
+            return translator
+        # if not, we are going to match the language code
+        # e.g. 'en' to 'en_US'
+        for name, translator in config.translator.items():
+            if name.startswith(language.split("_")[0] + "_"):
+                if logger:
+                    logger.info(
+                        f"""{hilight("[Translator]", "info")} Using language {name} (locale {translator.locale}) for {language} translation."""
                     )
-                continue
-        return AIResponse(5, AIResponse.NOT_EVALUATED)
+                return translator
+    # if there is no match, we are going to match the language code
+    # e.g. 'en' to 'en_US'
+    for name, translator in config.translator.items():
+        if name.startswith(language + "_"):
+            if logger:
+                logger.info(
+                    f"""{hilight("[Translator]", "info")} Using language {name} (locale {translator.locale}) for {language} translation."""
+                )
+            return translator
+    raise RuntimeError(f"Cannot find translator for language {language}.")

@@ -59,7 +59,13 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Browser, ElementHandle, Page, StorageState  # type: ignore
+    from playwright.sync_api import (  # type: ignore
+        Browser,
+        BrowserContext,
+        ElementHandle,
+        Page,
+        StorageState,
+    )
 
 
 # pages Facebook shows instead of the one asked for, until the user logs in
@@ -394,7 +400,7 @@ class FacebookMarketplace(Marketplace):
     def __init__(
         self: "FacebookMarketplace",
         name: str,
-        browser: "Browser | None",
+        browser: "Browser | BrowserContext | None",
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
@@ -549,6 +555,9 @@ class FacebookMarketplace(Marketplace):
             SESSION_FILE.unlink(missing_ok=True)
         except OSError:
             pass
+
+    def has_login_cookie(self: "FacebookMarketplace", context: "BrowserContext") -> bool:
+        return any(c.get("name") == "c_user" for c in context.cookies("https://www.facebook.com"))
 
     def on_login_page(self: "FacebookMarketplace") -> bool:
         """Whether Facebook is showing a login, CAPTCHA or verification page."""
@@ -916,18 +925,22 @@ class FacebookMarketplace(Marketplace):
         return details, False
 
     def add_seller_info(
-        self: "FacebookMarketplace", listing: Listing, item_config: FacebookItemConfig
+        self: "FacebookMarketplace",
+        listing: Listing,
+        item_config: FacebookItemConfig,
+        refresh: bool = False,
     ) -> None:
         """Complete what the listing page showed about the seller, and list warning signs.
 
         The seller's profile (active and sold listings) is opened only for listings that
-        passed the other filters, and at most once a month per seller (see Seller.to_cache).
+        passed the other filters, and at most once a month per seller (see Seller.to_cache),
+        unless ``refresh`` asks to read it again.
         """
         if not listing.seller_id:
             return
         seller = Seller.from_cache(listing.seller_id) or Seller(id=listing.seller_id)
         seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
-        if seller.needs_profile():
+        if refresh or seller.needs_profile():
             try:
                 if self.page is None:
                     self.login()

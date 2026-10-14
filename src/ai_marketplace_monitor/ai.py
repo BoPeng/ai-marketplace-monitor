@@ -93,6 +93,19 @@ class AIResponse:
             return None
         return AIResponse(**res)
 
+    @classmethod
+    def forget(
+        cls: Type["AIResponse"],
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+        local_cache: Cache | None = None,
+    ) -> None:
+        """Drop the cached answer, so that the AI is asked again."""
+        (cache if local_cache is None else local_cache).delete(
+            _answer_key(listing, item_config, marketplace_config)
+        )
+
     def to_cache(
         self: "AIResponse",
         listing: Listing,

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import sys
-import threading
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Dict, List
 from urllib.parse import parse_qs
 
 import pytest
@@ -26,6 +24,7 @@ from ai_marketplace_monitor.facebook_location import (
     expand_state,
 )
 from tests.configure_util import ONE_ITEM, make_ws
+from tests.configure_util import run_in_fresh_loop as _run
 
 # the answers Facebook gave on 2026-10-10 (shortened)
 PLACES = {
@@ -189,29 +188,6 @@ def test_graphql_errors_are_reported_with_facebooks_message(answer: str, message
 
 
 # --- the chat tool
-def _run(scenario: Callable[[], Awaitable[Any]]) -> Any:
-    """Run a coroutine on a fresh event loop in its own thread.
-
-    Not as an async test: the Playwright tests (test_facebook.py) leave an event loop running
-    in the main thread, so pytest-asyncio cannot start one there for later tests.
-    """
-    result: List[Any] = []
-    errors: List[BaseException] = []
-
-    def target() -> None:
-        try:
-            result.append(asyncio.run(scenario()))  # type: ignore[arg-type]
-        except BaseException as e:
-            errors.append(e)
-
-    thread = threading.Thread(target=target)
-    thread.start()
-    thread.join()
-    if errors:
-        raise errors[0]
-    return result[0]
-
-
 def _tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, place: str, fake: FakeFacebook) -> Any:
     monkeypatch.setattr(tools_module, "FacebookLocations", lambda: FacebookLocations(fake))  # type: ignore[arg-type]
 
