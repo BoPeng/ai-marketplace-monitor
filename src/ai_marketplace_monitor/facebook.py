@@ -40,8 +40,6 @@ from .seller import (
     Seller,
     parse_seller_panel,
     parse_seller_profile,
-    red_flags,
-    seller_from_info,
     seller_id_from_url,
     seller_status,
     seller_warnings,
@@ -208,17 +206,6 @@ class FacebookMarketItemCommonConfig(BaseConfig):
     sort_by: str | None = option(Fallback.TRUTHY)
     # skip sellers rated below this by enough buyers; sellers without ratings are kept
     seller_min_rating: float | None = option(Fallback.NOT_NONE)
-    # skip sellers with red flags (many listings and none sold, a single listing on a new
-    # account) instead of leaving them to the AI; on unless set to false
-    exclude_suspicious_sellers: bool | None = option(Fallback.NOT_NONE)
-
-    def handle_exclude_suspicious_sellers(self: "FacebookMarketItemCommonConfig") -> None:
-        if self.exclude_suspicious_sellers is not None and not isinstance(
-            self.exclude_suspicious_sellers, bool
-        ):
-            raise ValueError(
-                f"Item {hilight(self.name)} exclude_suspicious_sellers must be true or false."
-            )
 
     def handle_seller_min_rating(self: "FacebookMarketItemCommonConfig") -> None:
         value = self.seller_min_rating
@@ -887,8 +874,7 @@ class FacebookMarketplace(Marketplace):
 
                     if not self._exclude(listing, item_config):
                         self.add_seller_info(listing, item_config)
-                        # the cached or profile rating (seller_min_rating) or the profile's
-                        # red flags (exclude_suspicious_sellers) may exclude the seller
+                        # the cached or profile rating may exclude the seller (seller_min_rating)
                         if not self._exclude(listing, item_config):
                             yield listing
 
@@ -1065,18 +1051,6 @@ class FacebookMarketplace(Marketplace):
                     f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight(item.seller)}, {hilight("rated", "fail")} {rating:g} out of 5 by {count} buyers"""
                 )
             return f"seller rated {rating:g} out of 5"
-
-        # red flags need the profile, so they are known only after add_seller_info
-        known = seller_from_info(item.seller_info)
-        flags = red_flags(known) if known is not None else []
-        if flags and (
-            resolve_option("exclude_suspicious_sellers", item_config, self.config) is not False
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("suspicious seller", "fail")} {hilight(item.seller)}: {"; ".join(flags)}"""
-                )
-            return f"suspicious seller: {'; '.join(flags)}"
 
         return None
 

@@ -33,7 +33,6 @@ EXPECTED_FALLBACK = {
     "exclude_sellers": Fallback.NOT_NONE,
     "seller_locations": Fallback.NOT_NONE,
     "seller_min_rating": Fallback.NOT_NONE,
-    "exclude_suspicious_sellers": Fallback.NOT_NONE,
     "prompt": Fallback.NOT_NONE,
     "extra_prompt": Fallback.NOT_NONE,
     "rating_prompt": Fallback.NOT_NONE,

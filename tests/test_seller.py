@@ -14,7 +14,6 @@ from ai_marketplace_monitor.seller import (
     Seller,
     parse_seller_panel,
     parse_seller_profile,
-    red_flags,
     seller_id_from_url,
     seller_status,
     seller_warnings,
@@ -208,21 +207,6 @@ def test_warning_signs(seller: Seller, expected: list) -> None:
     assert seller_warnings(seller, year=2026) == expected
 
 
-def test_red_flags_are_the_scam_patterns() -> None:
-    assert red_flags(Seller(id="1", active_listings=30, sold_listings=0)) == [
-        "30 active listings but none sold"
-    ]
-    assert red_flags(Seller(id="1", joined_year=2026, active_listings=1), year=2026) == [
-        "a single listing on a new account, a pattern of bait listings: "
-        "check that the price is realistic"
-    ]
-    # a new account, a dealer, or a low rating alone is left to the AI
-    assert red_flags(Seller(id="1", joined_year=2026), year=2026) == []
-    assert red_flags(Seller(id="1", active_listings=30, sold_listings=12)) == []
-    # the counts come from the profile: an unread one raises no flag
-    assert red_flags(Seller(id="1", active_listings=30)) == []
-
-
 def test_thresholds_can_be_changed_or_disabled() -> None:
     seller = Seller(id="1", joined_year=2025, rating=3.5, rating_count=5, active_listings=12)
     assert seller_warnings(seller, year=2026) == [
@@ -354,7 +338,7 @@ def test_the_ai_prompt_describes_the_seller_and_its_warning_signs() -> None:
     )
     assert "Warning signs about the seller: new account (joined Facebook in 2025)." in prompt
     assert "The seller matters as much as the item" in prompt
-    assert "no higher than 2" in prompt
+    assert "no higher than 2" in prompt and "moving sale" in prompt
     assert "what you concluded about the seller" in prompt
     # the profile was not read
     assert "treat the seller as not verified" in prompt
@@ -405,41 +389,7 @@ def test_seller_min_rating_excludes_low_rated_sellers(tmp_path: Path) -> None:
     assert mp.exclusion_reason(_rated(3.5, 10), _item_config(seller_min_rating=0)) is None
 
 
-def test_suspicious_sellers_are_excluded_after_their_profile_is_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """#451: a matching listing from a seller with 30 listings and none sold is not rated."""
-    import ai_marketplace_monitor.seller as seller_module
-    from ai_marketplace_monitor import facebook
-
-    local = Cache(str(tmp_path))
-    monkeypatch.setattr(seller_module, "cache", local)
-    monkeypatch.setattr(facebook.time, "sleep", lambda s: None)
-
-    class FakeProfile:
-        def __init__(self, *args: Any) -> None:
-            pass
-
-        def parse(self, seller_id: str) -> Seller:
-            return Seller(id=seller_id, active_listings=30, sold_listings=0, profile_checked=True)
-
-    monkeypatch.setattr(facebook, "FacebookSellerProfilePage", FakeProfile)
-    mp = _marketplace(local)
-    item = _item_config(keywords=["ipad"])
-    listing = _listing(seller_id="9", seller_info={"seller": {"id": "9", "joined_year": 2015}})
-    assert mp.exclusion_reason(listing, item) is None  # a good match, profile not read yet
-    mp.add_seller_info(listing, item)
-    assert (
-        mp.exclusion_reason(listing, item) == "suspicious seller: 30 active listings but none sold"
-    )
-    # the item, or the marketplace, can leave such sellers to the AI
-    assert mp.exclusion_reason(listing, _item_config(exclude_suspicious_sellers=False)) is None
-    off = _marketplace(local, exclude_suspicious_sellers=False)
-    assert off.exclusion_reason(listing, item) is None
-    assert off.exclusion_reason(listing, _item_config(exclude_suspicious_sellers=True))
-
-
-def test_an_unread_profile_excludes_no_one_but_is_logged(
+def test_an_unread_profile_is_logged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from unittest.mock import MagicMock
@@ -466,11 +416,6 @@ def test_an_unread_profile_excludes_no_one_but_is_logged(
     logged = " ".join(str(c) for c in mp.logger.info.call_args_list)
     assert "Could not read the profile of seller 9" in logged
     assert "not verified (profile could not be read)" in logged
-
-
-def test_exclude_suspicious_sellers_must_be_true_or_false() -> None:
-    with pytest.raises(ValueError, match="exclude_suspicious_sellers"):
-        _item_config(exclude_suspicious_sellers="yes")
 
 
 @pytest.mark.parametrize("value", [6, -1, "four", True])

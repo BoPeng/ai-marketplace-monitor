@@ -427,7 +427,6 @@ def test_config(config_file: Callable, config_content: str, acceptable: bool) ->
     key_types: dict[str, Union[Type, Tuple[Type, ...]]] = {
         "seller_locations": (list, type(None)),
         "seller_min_rating": (float, type(None)),
-        "exclude_suspicious_sellers": (bool, type(None)),
         "ai": (list, type(None)),
         "availability": (list, type(None)),
         "api_key": str,

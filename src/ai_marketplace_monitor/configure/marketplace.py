@@ -136,13 +136,6 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
         "none",
     ),
     FieldGuide(
-        "exclude_suspicious_sellers",
-        "skip sellers with many active listings and none sold, or a single listing on a new "
-        "account, instead of leaving them to the AI",
-        "true or false",
-        "true",
-    ),
-    FieldGuide(
         "availability",
         "whether to include listings that are out of stock",
         f"list of {_values(Availability)}.{_TWO_VALUES}",

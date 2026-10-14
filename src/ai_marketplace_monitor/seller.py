@@ -278,37 +278,6 @@ def sold_grid_count(
     return sum(1 for tile in tiles if tile == translator("Sold"))
 
 
-def red_flags(seller: Seller, year: int | None = None) -> List[str]:
-    """Warning signs strong enough to skip the listing (see exclude_suspicious_sellers).
-
-    Many active listings with none or one sold, and a single listing on a new account, are
-    the usual shapes of scam and bait listings; a good match from such a seller is still a
-    bad deal. Both need the seller's profile, so an unread profile raises no red flag.
-    """
-    year = year or datetime.now().year
-    flags: List[str] = []
-    active = seller.active_listings
-    capped = "+" if seller.active_listings_capped else ""
-    if (
-        active is not None
-        and active >= MANY_LISTINGS_FOR_SOLD
-        and seller.sold_listings is not None
-        and seller.sold_listings <= FEW_SOLD
-    ):
-        sold = "none" if seller.sold_listings == 0 else f"only {seller.sold_listings}"
-        flags.append(f"{active}{capped} active listings but {sold} sold")
-    if (
-        active == 1
-        and seller.joined_year
-        and year - seller.joined_year < DEFAULT_MIN_ACCOUNT_YEARS
-    ):
-        flags.append(
-            "a single listing on a new account, a pattern of bait listings: "
-            "check that the price is realistic"
-        )
-    return flags
-
-
 def seller_warnings(
     seller: Seller,
     min_account_years: int | None = DEFAULT_MIN_ACCOUNT_YEARS,
@@ -316,13 +285,13 @@ def seller_warnings(
     max_listings: int | None = DEFAULT_MAX_LISTINGS,
     year: int | None = None,
 ) -> List[str]:
-    """Signs that the seller may be unreliable, worded for the buyer. None or 0 disables one.
-
-    They include the red flags (see red_flags).
-    """
+    """Signs that the seller may be unreliable, worded for the buyer. None or 0 disables one."""
     year = year or datetime.now().year
     warnings: List[str] = []
-    if min_account_years and seller.joined_year and year - seller.joined_year < min_account_years:
+    new_account = bool(
+        min_account_years and seller.joined_year and year - seller.joined_year < min_account_years
+    )
+    if new_account:
         warnings.append(f"new account (joined Facebook in {seller.joined_year})")
     if (
         min_rating
@@ -337,7 +306,21 @@ def seller_warnings(
             f"{active}{'+' if seller.active_listings_capped else ''} active listings, "
             "likely a dealer or a shop"
         )
-    warnings.extend(red_flags(seller, year=year))
+    if (
+        active is not None
+        and active >= MANY_LISTINGS_FOR_SOLD
+        and seller.sold_listings is not None
+        and seller.sold_listings <= FEW_SOLD
+    ):
+        sold = "none" if seller.sold_listings == 0 else f"only {seller.sold_listings}"
+        warnings.append(
+            f"{active}{'+' if seller.active_listings_capped else ''} active listings but {sold} sold"
+        )
+    if active == 1 and new_account:
+        warnings.append(
+            "a single listing on a new account, a pattern of bait listings: "
+            "check that the price is realistic"
+        )
     return warnings
 
 

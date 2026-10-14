@@ -375,14 +375,20 @@ class AIBackend(Generic[TAIConfig]):
                 prompt += f"""Warning signs about the seller: {"; ".join(warnings)}.\n"""
             prompt += (
                 "The seller matters as much as the item: a listing that matches perfectly is "
-                "still a bad deal from a seller who is a scammer, a dealer posing as a private "
-                "seller, or someone who does not show up. Judge whether the seller is "
-                "legitimate and reliable. Rate a listing no higher than 2, however well the "
-                "item matches, when the seller shows a scam pattern: many active listings "
-                "with few or no sales, a single cheap listing on a new account, or reviews "
-                "that mention no-shows, no responses or fraud. Lower the rating for other "
-                "warning signs, and rate a listing from an unverified seller no higher than "
-                "4. Always say in your summary what you concluded about the seller.\n\n"
+                "still a bad deal from a scammer, a dealer posing as a private seller, or "
+                "someone who does not show up. Judge whether the seller is legitimate and "
+                "reliable from everything known together, not from any one sign: many "
+                "sellers never mark items as sold, a new account with many listings and none "
+                "sold may be someone's moving sale, and a dealer with dozens of listings may "
+                "be reputable, especially with good ratings. Be suspicious when the signs add "
+                "up, for example a new or unrated account with many listings and no sales "
+                "offering this item well below its market price, a single unusually cheap "
+                "listing on a new account, a description that is vague or pushes for "
+                "shipping, deposits or contact off Facebook, or reviews that mention "
+                "no-shows, no responses or fraud. Rate a listing from a likely scammer no "
+                "higher than 2, however well the item matches, and lower the rating for an "
+                "unreliable or unverified seller. Always say in your summary what you "
+                "concluded about the seller.\n\n"
             )
         # prompt
         custom_prompt = resolve_option("prompt", item_config, marketplace_config)
