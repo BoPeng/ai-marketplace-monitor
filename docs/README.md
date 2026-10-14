@@ -451,10 +451,8 @@ The optional `monitor` section allows you to define system configurations for th
 | `proxy_password` | Optional    | String      | password for the proxy.                  |
 | `check_updates`  | Optional    | Boolean     | Check PyPI for a newer release when aimm starts, at most once a day (default `true`). The web UI's **Check for updates** button works either way. |
 | `evaluation_history_days` | Optional | Integer | Days to keep the record of each evaluated listing shown in the web UI's **Listings** view (default `30`). |
-| `share_browser` | Optional | Boolean | Let the **Configure** chat use the monitor's browser to check listings and sellers on Facebook (default `true`). See below. |
 
 - If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
-- With `share_browser` (the default), aimm launches Chromium with a DevTools port on `127.0.0.1`, and the **Configure** chat (in the web UI, or `aimm configure` on the same computer) connects to it to open listings and seller profiles with your Facebook login. The port has no password: other users of the same computer could connect to it and use the browser, logged in to your Facebook account. In Docker, `127.0.0.1` is the container's own. Set `share_browser = false` to launch the browser without the port; the chat then cannot open Facebook pages. Nothing is shared when aimm uses Firefox or WebKit instead of Chromium.
 - aimm records every listing it evaluates: excluded before the AI (by keywords, area or seller), rejected because the AI rating is below the item's `rating`, or notified. A later decision about the same listing and item replaces the earlier one, and records older than `evaluation_history_days` are removed.
 
 ### Additional options

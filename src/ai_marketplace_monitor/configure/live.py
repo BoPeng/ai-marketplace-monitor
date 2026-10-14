@@ -48,10 +48,13 @@ PAGE_TIMEOUT_MS = 60_000  # one page load
 WAIT_FOR_MONITOR = 120.0  # seconds to wait while the monitor loads a page
 
 UNAVAILABLE = (
-    "aimm's browser is not available, so Facebook pages cannot be opened from the chat. It is "
-    "available while the monitor runs on this computer (`aimm run`, or the web UI), with "
-    "Chromium and `share_browser` not set to false in [monitor]. Answer from aimm's records "
-    "(find_listings, explain_listing) instead, or ask the user to start the monitor."
+    "aimm's browser cannot be shared with the chat now, so Facebook pages cannot be opened "
+    "from here. Warn the user and say why: the chat uses the browser of a monitor running on "
+    "this computer (`aimm run`, or the web UI), and only when that browser is Chromium (when "
+    "Chromium cannot be launched, aimm uses Firefox or WebKit, which cannot be shared; the "
+    "monitor's log says so). A monitor in a Docker container shares its browser only with the "
+    "web UI's chat, not with `aimm configure` outside the container. Then answer from aimm's "
+    "records (find_listings, explain_listing), or ask the user to start the monitor."
 )
 NOT_LOGGED_IN = (
     "aimm's browser is not logged in to Facebook. The monitor logs in when it starts; if it is "

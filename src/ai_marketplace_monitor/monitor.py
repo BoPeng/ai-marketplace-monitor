@@ -153,27 +153,29 @@ class MarketplaceMonitor:
     def _launch_browser(self: "MarketplaceMonitor") -> "Browser | BrowserContext":
         """Launch a browser, preferring Chromium if available, otherwise any installed browser.
 
-        Chromium is shared with the configure chat (see shared_browser.py) unless
-        ``[monitor] share_browser = false``.
+        Chromium is shared with the configure chat (see shared_browser.py). When it cannot be
+        launched, the other browsers are not shared, and the log warns that the chat cannot
+        open Facebook pages.
         """
         monitor_config = self.config.monitor if self.config is not None else None
-        if monitor_config is None or monitor_config.share_browser is not False:
-            try:
-                context = launch_shared_chromium(
-                    self.playwright,
-                    None if monitor_config is None else monitor_config.get_proxy_options(),
+        try:
+            context = launch_shared_chromium(
+                self.playwright,
+                None if monitor_config is None else monitor_config.get_proxy_options(),
+            )
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Browser]", "info")} Successfully launched chromium browser, shared with the configure chat.""",
+                    extra=aimm_event("browser_ready", engine="chromium"),
                 )
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Browser]", "info")} Successfully launched chromium browser, shared with the configure chat.""",
-                        extra=aimm_event("browser_ready", engine="chromium"),
-                    )
-                return context
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if self.logger:
-                    self.logger.debug(f"Failed to launch a shared chromium browser: {e}")
+            return context
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"""{hilight("[Browser]", "fail")} Chromium could not be launched with a port for the configure chat ({e}). Trying other browsers; the configure chat will not be able to open listings and seller pages on Facebook."""
+                )
         # Try browsers in order of preference
         browser_types = [
             ("chromium", self.playwright.chromium),

@@ -12,8 +12,7 @@ made for this run and removed at exit; the Facebook login is kept between runs b
 session (``facebook-session.json``), as before. Its proxy is chosen at launch.
 
 The CDP port has no authentication: anyone on this machine who can connect to 127.0.0.1 can
-drive the browser, logged in to Facebook. In Docker, 127.0.0.1 is the container's own. Set
-``share_browser = false`` in ``[monitor]`` to launch the browser without the port.
+drive the browser, logged in to Facebook. In Docker, 127.0.0.1 is the container's own.
 
 Only Chromium speaks CDP. When aimm falls back to Firefox or WebKit, nothing is shared.
 """

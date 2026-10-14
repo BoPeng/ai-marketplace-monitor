@@ -114,8 +114,18 @@ You can also ask the **Configure** chat (or `aimm configure`) about these listin
 "what did you find for my GoPro this week?", "anything rated 4 or better?", or "why was
 https://www.facebook.com/marketplace/item/… skipped?". It answers from the same records, with
 the reason or the AI's comment, the listing's description and the seller's warning signs, and
-can then change the item ("never show this seller again"). It does not open Facebook: a listing
-aimm never found is not known.
+can then change the item ("never show this seller again").
+
+While the monitor runs, the chat can also open Facebook in the monitor's browser, with your
+login: "would you buy https://www.facebook.com/marketplace/item/…?" searches the listing and
+rates it against an item the way the monitor would, and "is this seller trustworthy?" reads the
+seller's profile. For this, aimm launches Chromium with a DevTools port on `127.0.0.1` that the
+chat (in the web UI, or `aimm configure` on the same computer) connects to. The port has no
+password: other users of the same computer could connect to it and use the browser, logged in
+to your Facebook account. In Docker, `127.0.0.1` is the container's own, so only the web UI's
+chat can use it. When Chromium cannot be launched, aimm uses Firefox or WebKit, which cannot be
+shared; the log warns about it, and the chat says it cannot open Facebook pages and answers
+from aimm's records instead.
 
 ## Disabling the Web UI
 

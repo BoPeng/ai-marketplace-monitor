@@ -10,6 +10,7 @@ import time
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List
 
 import pytest
@@ -119,10 +120,46 @@ def test_an_endpoint_counts_only_if_chromium_answers(browser_endpoint_file: Path
     assert shared_endpoint() is None  # the port no longer answers (e.g. a Docker container's)
 
 
-def test_share_browser_must_be_true_or_false() -> None:
-    assert MonitorConfig(name="monitor", share_browser=False).share_browser is False
-    with pytest.raises(ValueError, match="share_browser"):
-        MonitorConfig(name="monitor", share_browser="no")  # type: ignore[arg-type]
+def test_without_chromium_the_monitor_warns_that_the_chat_cannot_open_facebook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def no_chromium(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("Executable doesn't exist")
+
+    class Engine:
+        def __init__(self, works: bool) -> None:
+            self.works = works
+
+        def launch(self, headless: bool) -> str:
+            if not self.works:
+                raise RuntimeError("not installed")
+            return "firefox browser"
+
+    class Logger:
+        def __init__(self) -> None:
+            self.warnings: List[str] = []
+
+        def warning(self, msg: str) -> None:
+            self.warnings.append(msg)
+
+        def info(self, msg: str, **kwargs: Any) -> None:
+            pass
+
+        def debug(self, msg: str) -> None:
+            pass
+
+    monkeypatch.setattr(monitor, "launch_shared_chromium", no_chromium)
+    logger = Logger()
+    fake = SimpleNamespace(
+        config=SimpleNamespace(monitor=MonitorConfig(name="monitor")),
+        playwright=SimpleNamespace(
+            chromium=Engine(False), firefox=Engine(True), webkit=Engine(False)
+        ),
+        logger=logger,
+    )
+    assert monitor.MarketplaceMonitor._launch_browser(fake) == "firefox browser"  # type: ignore[arg-type]
+    assert len(logger.warnings) == 1
+    assert "configure chat will not be able to open" in logger.warnings[0]
 
 
 # ------------------------------------------------------------------------- chat tools
@@ -142,11 +179,11 @@ def test_without_a_shared_browser_the_tools_say_so(tmp_path: Path) -> None:
     async def scenario() -> None:
         ex = ToolExecutor(await make_ws(tmp_path, ONE_ITEM))
         out = await call(ex, "evaluate_listing", listing="123", item="example")
-        assert not out["ok"] and "not available" in out["errors"][0]
+        assert not out["ok"] and "cannot be shared" in out["errors"][0]
         out = await call(
             ex, "check_seller", seller="https://www.facebook.com/marketplace/profile/9/"
         )
-        assert not out["ok"] and "not available" in out["errors"][0]
+        assert not out["ok"] and "cannot be shared" in out["errors"][0]
         ex.end()
 
     run_in_fresh_loop(scenario)

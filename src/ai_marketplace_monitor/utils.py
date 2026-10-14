@@ -548,16 +548,10 @@ class MonitorConfig(BaseConfig):
     check_updates: bool | None = None
     # days to keep the record of each evaluated listing (the web UI's Listings view)
     evaluation_history_days: int | None = None
-    # let the configure chat use the monitor's browser (a DevTools port on 127.0.0.1)
-    share_browser: bool | None = None
 
     def handle_check_updates(self: "MonitorConfig") -> None:
         if self.check_updates is not None and not isinstance(self.check_updates, bool):
             raise ValueError("monitor check_updates must be true or false.")
-
-    def handle_share_browser(self: "MonitorConfig") -> None:
-        if self.share_browser is not None and not isinstance(self.share_browser, bool):
-            raise ValueError("monitor share_browser must be true or false.")
 
     def handle_evaluation_history_days(self: "MonitorConfig") -> None:
         if self.evaluation_history_days is None:
