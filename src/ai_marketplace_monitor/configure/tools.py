@@ -525,6 +525,18 @@ class ToolExecutor:
         return await self._live().check_seller(seller, refresh)
 
     async def try_item(self: "ToolExecutor", item: str) -> Dict[str, Any]:
+        item = item.strip()
+        if not item:
+            saved = list(self.ws.user_cfg.get("item", {}))
+            if len(saved) != 1:
+                return {
+                    "ok": False,
+                    "errors": [
+                        "Which item? "
+                        + (f"Items: {', '.join(saved)}." if saved else "No item is saved.")
+                    ],
+                }
+            item = saved[0]
         if (
             self.only is not None
             and ("item", item) not in self.only

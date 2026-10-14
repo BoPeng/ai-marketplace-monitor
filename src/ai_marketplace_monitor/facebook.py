@@ -44,6 +44,7 @@ from .seller import (
     seller_warnings,
     sold_grid_count,
 )
+from .shared_browser import search_slot
 from .utils import (
     BaseConfig,
     CounterItem,
@@ -812,22 +813,27 @@ class FacebookMarketplace(Marketplace):
         return pages
 
     def read_search_page(self: "FacebookMarketplace", search: SearchPage) -> List[Listing]:
-        """Open a search page, with the item's radius, and read the listings it shows."""
+        """Open a search page, with the item's radius, and read the listings it shows.
+
+        The radius update, the reload and the reading happen in one ``search_slot``, so that
+        another search in this process cannot change the account's radius in between.
+        """
         assert self.page is not None
-        self.goto_url(search.url)
-        if search.radius and self.set_search_radius(search.radius):
-            self.goto_url(search.url)  # the results follow a new radius after a reload
-        found_listings = FacebookSearchResultPage(
-            self.page, self.translator, self.logger
-        ).get_listings()
-        if not found_listings and self.recover_login():
+        with search_slot(self.navigation_wait):
             self.goto_url(search.url)
             if search.radius and self.set_search_radius(search.radius):
-                self.goto_url(search.url)
+                self.goto_url(search.url)  # the results follow a new radius after a reload
             found_listings = FacebookSearchResultPage(
                 self.page, self.translator, self.logger
             ).get_listings()
-        return found_listings
+            if not found_listings and self.recover_login():
+                self.goto_url(search.url)
+                if search.radius and self.set_search_radius(search.radius):
+                    self.goto_url(search.url)
+                found_listings = FacebookSearchResultPage(
+                    self.page, self.translator, self.logger
+                ).get_listings()
+            return found_listings
 
     def search(
         self: "FacebookMarketplace", item_config: FacebookItemConfig

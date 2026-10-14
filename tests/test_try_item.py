@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from ai_marketplace_monitor import facebook
 from ai_marketplace_monitor.configure import live, tools
 from ai_marketplace_monitor.configure.item import ItemToolkit
 from ai_marketplace_monitor.configure.marketplace import MarketplaceToolkit
@@ -253,3 +254,84 @@ def test_saving_an_item_offers_to_try_it(
         assert out["try_item"]["items"] == ["example"]
     else:
         assert "try_item" not in out
+
+
+def test_a_search_keeps_its_radius_until_it_has_read_the_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Another search in this process waits: it cannot change the radius before the reload."""
+    import threading
+    import time
+
+    monkeypatch.setattr(
+        facebook, "FacebookSearchResultPage", lambda *a, **k: MagicMock(get_listings=lambda: [])
+    )
+    account: Dict[str, Any] = {"radius": 1}  # the radius saved on the Facebook account
+    loads: List[tuple] = []
+    updating = threading.Event()
+
+    def marketplace(who: str) -> FacebookMarketplace:
+        mp = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
+        mp.page = MagicMock()
+
+        def set_search_radius(radius: int) -> bool:
+            account["radius"] = radius
+            if who == "monitor":
+                updating.set()
+                time.sleep(0.3)  # the chat's search tries to start meanwhile
+            return True
+
+        monkeypatch.setattr(mp, "goto_url", lambda url: loads.append((who, account["radius"])))
+        monkeypatch.setattr(mp, "set_search_radius", set_search_radius)
+        monkeypatch.setattr(mp, "recover_login", lambda: False)
+        return mp
+
+    def search(who: str, radius: int) -> None:
+        marketplace(who).read_search_page(
+            SearchPage(city="houston", city_name=None, radius=radius, phrase="ipad", url="u")
+        )
+
+    monitor = threading.Thread(target=search, args=("monitor", 40))
+    monitor.start()
+    assert updating.wait(5)
+    chat = threading.Thread(target=search, args=("chat", 10))
+    chat.start()
+    monitor.join()
+    chat.join()
+    # each search reloads with its own radius
+    assert loads == [("monitor", 1), ("monitor", 40), ("chat", 40), ("chat", 10)]
+
+
+def test_a_search_that_waits_too_long_gives_up() -> None:
+    from ai_marketplace_monitor.shared_browser import BrowserBusyError, search_slot
+
+    with search_slot():
+        with pytest.raises(BrowserBusyError, match="another search"):
+            with search_slot(timeout=0.05):
+                pass  # pragma: no cover
+
+
+@pytest.mark.parametrize("config", [ONE_ITEM, ONE_ITEM + '\n[item.other]\nsearch_phrases = "x"\n'])
+def test_try_item_without_a_name(tmp_path: Path, config: str) -> None:
+    """An empty name means the only saved item, which must not have unsaved changes either."""
+
+    async def scenario() -> Dict[str, Any]:
+        ex = ToolExecutor(await make_ws(tmp_path, config, toolkits=_kits()))
+        ex.guides_read.add("item")
+        await _call(
+            ex,
+            "section_update",
+            section_type="item",
+            name="example",
+            values={"search_phrases": ["gopro hero"]},
+        )
+        out = await _call(ex, "try_item", item="")
+        ex.end()
+        return out
+
+    out = run_in_fresh_loop(scenario)
+    assert not out["ok"]
+    if config == ONE_ITEM:
+        assert "[item.example] has unsaved changes" in out["errors"][0], out
+    else:
+        assert out["errors"] == ["Which item? Items: example, other."]
