@@ -1494,10 +1494,6 @@
         help: "Comma-separated location names to filter by." },
       { key: "exclude_sellers", label: "Exclude sellers", type: "text", advanced: true, column: "right",
         help: "Comma-separated seller names to skip." },
-      { key: "keywords", label: "Keywords (include)", type: "text", advanced: true, column: "right",
-        help: "Boolean expression, e.g. 'drone AND (DJI OR Orqa)'" },
-      { key: "antikeywords", label: "Anti-keywords (exclude)", type: "text", advanced: true, column: "right",
-        help: "Boolean expression for exclusion." },
 
       // ---- Pricing ----
       { key: "min_price", label: "Min price", type: "text", group: "Pricing", advanced: true, column: "right",
