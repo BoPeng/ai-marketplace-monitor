@@ -8,6 +8,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    ClassVar,
     Generator,
     Generic,
     List,
@@ -560,6 +561,11 @@ TItemConfig = TypeVar("TItemConfig", bound=ItemConfig)
 
 
 class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
+    # whether searching needs aimm's browser; the monitor starts it only if an enabled
+    # marketplace does (or when the web UI's browser view is opened). A marketplace that is
+    # searched over HTTP sets False and is given no browser.
+    needs_browser: ClassVar[bool] = True
+
     def __init__(
         self: "Marketplace",
         name: str,
