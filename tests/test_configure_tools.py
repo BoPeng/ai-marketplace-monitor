@@ -2,8 +2,9 @@
 
 import json
 import sys
+import types
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, get_type_hints
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -253,16 +254,26 @@ async def test_tools_for_model_have_names_and_docs(tmp_path: Path) -> None:
     out = await tools["section_update"](
         section_type="marketplace", name="facebook", values='{"max_price": "5"}'
     )
+    # non-None defaults: strict tool backends reject parameter schemas that mix types
     assert out["ok"] and ex.calls[-1] == (
         "section_update",
         {
             "section_type": "marketplace",
             "name": "facebook",
             "values": '{"max_price": "5"}',
-            "unset": None,
-            "request": None,
+            "unset": (),
+            "request": "",
         },
     )
+
+
+async def test_section_update_parameters_stay_single_typed(tmp_path: Path) -> None:
+    # Strict tool backends reject parameter schemas that mix types (e.g. a string and
+    # null), so the model-facing parameters must stay non-Optional single types
+    ex = ready(await make_ws(tmp_path, ONE_ITEM))
+    fn = next(f for f in ex.tools_for_model() if f.__name__ == "section_update")
+    for name in ("values", "unset", "request"):
+        assert not isinstance(get_type_hints(fn)[name], types.UnionType)
 
 
 async def test_update_values_as_a_json_string(tmp_path: Path) -> None:
