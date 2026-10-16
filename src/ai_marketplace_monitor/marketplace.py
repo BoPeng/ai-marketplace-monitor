@@ -15,9 +15,11 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    cast,
 )
 
 from .listing import Listing
+from .shared_browser import BrowserBusyError, navigation_slot
 from .utils import (
     BaseConfig,
     Currency,
@@ -31,6 +33,7 @@ from .utils import (
 if TYPE_CHECKING:
     from playwright.sync_api import (  # type: ignore
         Browser,
+        BrowserContext,
         ElementHandle,
         Locator,
         Page,
@@ -560,12 +563,18 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     def __init__(
         self: "Marketplace",
         name: str,
-        browser: "Browser | None",
+        browser: "Browser | BrowserContext | None",
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
         self.name = name
+        # a browser, or the shared browser's context (see shared_browser.py)
         self.browser = browser
+        # page loads: 0 waits as long as it takes; the chat sets a limit, and fewer retries
+        self.navigation_timeout_ms = 0
+        self.navigation_retries = 10
+        # seconds to wait for the shared browser's other user; None waits as long as it takes
+        self.navigation_wait: float | None = None
         self.keyboard_monitor = keyboard_monitor
         self.translator = Translator()
         self.logger = logger
@@ -586,7 +595,9 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         if translator is not None:
             self.translator = translator
 
-    def set_browser(self: "Marketplace", browser: "Browser | None" = None) -> None:
+    def set_browser(
+        self: "Marketplace", browser: "Browser | BrowserContext | None" = None
+    ) -> None:
         if browser is not None:
             self.browser = browser
             self.page = None
@@ -610,6 +621,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         if (
             self.page
             and swap_proxy
+            and not self.shared_context  # its proxy was set at launch
             and self.config.monitor_config is not None
             and isinstance(self.config.monitor_config.proxy_server, list)
             and len(self.config.monitor_config.proxy_server) > 1
@@ -617,6 +629,8 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             self.page.close()
             self.page = None
 
+        if self.page is None and self.shared_context:
+            self.page = self._shared_page()
         if self.page is None:
             proxy = (
                 None
@@ -624,13 +638,14 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
                 else self.config.monitor_config.get_proxy_options()
             )
             session = self.saved_session()
+            browser = cast("Browser", self.browser)
             try:
-                context = self.browser.new_context(proxy=proxy, storage_state=session)
+                context = browser.new_context(proxy=proxy, storage_state=session)
             except Exception as e:
                 if session is None:
                     raise
                 # the saved session is at fault only if the browser works without it
-                context = self.browser.new_context(proxy=proxy)
+                context = browser.new_context(proxy=proxy)
                 if self.logger:
                     self.logger.warning(
                         f"""{hilight("[Login]", "fail")} The saved {self.name} session cannot be used ({e}), logging in again."""
@@ -638,6 +653,34 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
                 self.discard_session()
             self.page = context.new_page()
         return self.page
+
+    @property
+    def shared_context(self: "Marketplace") -> bool:
+        """Whether ``browser`` is the shared browser's context (see shared_browser.py)."""
+        return self.browser is not None and not hasattr(self.browser, "new_context")
+
+    def _shared_page(self: "Marketplace") -> "Page":
+        """A page in the shared context, with the saved session's cookies if not logged in."""
+        context = cast("BrowserContext", self.browser)
+        session = self.saved_session()
+        if session is not None and not self.has_login_cookie(context):
+            try:
+                context.add_cookies(cast(Any, session.get("cookies") or []))
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(
+                        f"""{hilight("[Login]", "fail")} The saved {self.name} session cannot be used ({e}), logging in again."""
+                    )
+                self.discard_session()
+        # the window opens with a blank page: use it rather than open another
+        for page in context.pages:
+            if page.url == "about:blank":
+                return page
+        return context.new_page()
+
+    def has_login_cookie(self: "Marketplace", context: "BrowserContext") -> bool:
+        """Whether the context holds this marketplace's login cookie."""
+        return False
 
     def saved_session(self: "Marketplace") -> "StorageState | None":
         """The browser state (cookies, local storage) saved by a previous login, if any."""
@@ -651,13 +694,16 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
             assert self.page is not None
             if self.logger:
                 self.logger.debug(f"{hilight('[Retrieve]', 'info')} Navigating to {url}")
-            self.page.goto(url, timeout=0)
-            self.page.wait_for_load_state("domcontentloaded")
-        except KeyboardInterrupt:
+            with navigation_slot(self.navigation_wait):
+                self.page.goto(url, timeout=self.navigation_timeout_ms)
+                self.page.wait_for_load_state("domcontentloaded")
+        except (KeyboardInterrupt, BrowserBusyError):
             raise
         except Exception as e:
-            if attempt == 10:
-                raise RuntimeError(f"Failed to navigate to {url} after 10 attempts. {e}") from e
+            if attempt >= self.navigation_retries:
+                raise RuntimeError(
+                    f"Failed to navigate to {url} after {attempt} attempts. {e}"
+                ) from e
             time.sleep(5)
             self.goto_url(url, attempt + 1)
 
