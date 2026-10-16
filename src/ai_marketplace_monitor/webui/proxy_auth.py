@@ -27,6 +27,9 @@ import secrets
 from dataclasses import dataclass, field
 from typing import Any, Mapping, NamedTuple
 
+# the default: facebook when Facebook credentials are configured, else local when
+# AIMM_WEBUI_PASSWORD is set, else facebook (open on loopback; refused when exposed)
+AUTH_AUTO = "auto"
 AUTH_FACEBOOK = "facebook"
 AUTH_LOCAL = "local"
 AUTH_PASSWORD = "password"  # the old name of AUTH_FACEBOOK, still accepted
@@ -35,6 +38,7 @@ AUTH_AUTHELIA = "authelia"
 AUTH_AUTHENTIK = "authentik"
 AUTH_CLOUDFLARE = "cloudflare"
 AUTH_MODES = (
+    AUTH_AUTO,
     AUTH_FACEBOOK,
     AUTH_LOCAL,
     AUTH_PROXY,
@@ -65,7 +69,7 @@ class Identity(NamedTuple):
 def webui_auth_mode(environ: Mapping[str, str] | None = None) -> str:
     """The AIMM_WEBUI_AUTH setting, by its current name; raises ValueError for an unknown value."""
     environ = os.environ if environ is None else environ
-    mode = environ.get("AIMM_WEBUI_AUTH", "").strip().lower() or AUTH_FACEBOOK
+    mode = environ.get("AIMM_WEBUI_AUTH", "").strip().lower() or AUTH_AUTO
     mode = _OLD_NAMES.get(mode, mode)
     if mode not in AUTH_MODES:
         raise ValueError(
@@ -92,7 +96,7 @@ class ProxyAuth:
         """None when aimm signs users in itself; raises ValueError when a mode lacks its settings."""
         environ = os.environ if environ is None else environ
         mode = webui_auth_mode(environ)
-        if mode in (AUTH_FACEBOOK, AUTH_LOCAL):
+        if mode in (AUTH_AUTO, AUTH_FACEBOOK, AUTH_LOCAL):
             return None
 
         def setting(name: str) -> str | None:
