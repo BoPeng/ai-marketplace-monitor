@@ -214,7 +214,8 @@ Anyone who can reach the URL sees the aimm sign-in page, which is protected only
 
 `AIMM_WEBUI_AUTH`, in `.env` (or with `-e` for `docker run`), chooses who signs you in to the web UI:
 
-- `facebook` (the default; `password` is its old name): aimm asks for the Facebook username and password, the same ones it logs in to Facebook with.
+- `auto` (the default): `facebook` when the Facebook username and password are set (in the config or in `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`), otherwise `local` when `AIMM_WEBUI_PASSWORD` is set. With neither, aimm refuses to start, since Docker exposes the web UI on the network. The log says which one it chose. Setups that worked before `auto` sign in as they did.
+- `facebook` (`password` is its old name): aimm asks for the Facebook username and password, the same ones it logs in to Facebook with.
 - `local`: aimm asks for a username and password of the web UI's own, `AIMM_WEBUI_USERNAME` (`admin` by default) and `AIMM_WEBUI_PASSWORD`, whatever the Facebook credentials are. aimm refuses to start without `AIMM_WEBUI_PASSWORD`. The web UI starts even before you have set the Facebook credentials, which you can then enter in its config editor. App platforms use this to show a password they generate.
 - A reverse proxy that signs users in, as below.
 
@@ -224,7 +225,8 @@ If your reverse proxy already signs users in, aimm does not need to ask for a pa
 
 | `AIMM_WEBUI_AUTH` | Each request must carry | Settings |
 | --- | --- | --- |
-| `facebook` (default) | aimm's own sign-in, with the Facebook username and password | |
+| `auto` (default) | aimm's own sign-in: as `facebook` when the Facebook username and password are set, otherwise as `local` | `AIMM_WEBUI_PASSWORD` when there is no Facebook login |
+| `facebook` | aimm's own sign-in, with the Facebook username and password | |
 | `local` | aimm's own sign-in, with the web UI's own username and password | `AIMM_WEBUI_PASSWORD` (required) and `AIMM_WEBUI_USERNAME` (`admin` by default) |
 | `authentik` | the signed token in `X-Authentik-Jwt` from Authentik's proxy outpost, issued for aimm's application | `AIMM_WEBUI_JWKS_URL`: the provider's JWKS URL, e.g. `https://auth.example.com/application/o/aimm/jwks/`. `AIMM_WEBUI_JWT_AUDIENCE`: the provider's client ID. The issuer is taken from the JWKS URL (`https://auth.example.com/application/o/aimm/`); set `AIMM_WEBUI_JWT_ISSUER` if your URL has another form |
 | `cloudflare` | the signed token in `Cf-Access-Jwt-Assertion` from Cloudflare Access | `AIMM_WEBUI_CF_TEAM`: your team name (`<team>.cloudflareaccess.com`). `AIMM_WEBUI_JWT_AUDIENCE`: the application's AUD tag |

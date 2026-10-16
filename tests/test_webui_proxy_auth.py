@@ -115,8 +115,10 @@ def authentik(keys: Keys) -> ProxyAuth:
 @pytest.mark.parametrize(
     "value, mode",
     [
-        (None, "facebook"),
-        ("", "facebook"),
+        (None, "auto"),
+        ("", "auto"),
+        ("auto", "auto"),
+        ("facebook", "facebook"),
         ("password", "facebook"),  # the old name
         ("local", "local"),
         ("proxy", "proxy"),
@@ -129,7 +131,7 @@ def test_auth_mode_from_environment(value: str | None, mode: str) -> None:
 
 def test_unknown_auth_mode_is_an_error() -> None:
     with pytest.raises(
-        ValueError, match="use facebook, local, proxy, authelia, authentik, cloudflare"
+        ValueError, match="use auto, facebook, local, proxy, authelia, authentik, cloudflare"
     ):
         webui_auth_mode({"AIMM_WEBUI_AUTH": "none"})
 

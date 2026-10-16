@@ -86,6 +86,7 @@ from .evaluations_export import MAX_LIMIT, iter_evaluations_csv
 from .found_export import iter_found_csv, iter_found_rows
 from .log_handler import LogBroadcastHandler
 from .proxy_auth import (
+    AUTH_AUTO,
     AUTH_FACEBOOK,
     AUTH_LOCAL,
     AUTH_PROXY,
@@ -184,10 +185,27 @@ class AuthState:
         # basic auth) are sent with cross-site requests too.
         self.proxy: ProxyAuth | None = None
         self.mode = AUTH_FACEBOOK
+        self.auto = False  # mode was chosen by AIMM_WEBUI_AUTH=auto (the default)
 
     @property
     def proxy_auth(self) -> bool:
         return self.proxy is not None
+
+
+def _auto_mode(config_files: List[Path]) -> str:
+    """What ``AIMM_WEBUI_AUTH=auto`` (the default) means for this setup.
+
+    The Facebook credentials when they are configured, so that installs from before ``auto``
+    sign in as they did; otherwise the web UI's own password when ``AIMM_WEBUI_PASSWORD`` is
+    set (a setup without Facebook, e.g. another marketplace only); otherwise ``facebook``,
+    which is open on loopback and refused when exposed.
+    """
+    extracted = extract_credentials(config_files)
+    if extracted.username and extracted.password:
+        return AUTH_FACEBOOK
+    if os.environ.get("AIMM_WEBUI_PASSWORD"):
+        return AUTH_LOCAL
+    return AUTH_FACEBOOK
 
 
 def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
@@ -204,6 +222,9 @@ def _resolve_auth(config: WebUIConfig) -> tuple[AuthState, StartupInfo]:
     state.exposed = exposed
     # an unsupported value is an error even on loopback, where no proxy check applies
     state.mode = webui_auth_mode()
+    if state.mode == AUTH_AUTO:
+        state.mode = _auto_mode(config.config_files)
+        state.auto = True
     local = None
     if state.mode == AUTH_LOCAL:
         # also on loopback: local mode without its password is a setup error
@@ -1123,12 +1144,22 @@ def start_webui(
     elif state.exposed and state.auth is None:
         raise RuntimeError(
             f"--webui-host {config.host} requires authentication. "
-            "Set username/password in a [marketplace.*] config section "
-            "or set FACEBOOK_USERNAME and FACEBOOK_PASSWORD environment "
-            "variables. Omit --webui-host to run on 127.0.0.1 without "
-            "a password, set AIMM_WEBUI_AUTH=local and AIMM_WEBUI_PASSWORD for "
-            "a web UI password of its own, or set AIMM_WEBUI_AUTH (proxy, authelia, "
-            "authentik or cloudflare) if a reverse proxy signs users in."
+            "Set AIMM_WEBUI_PASSWORD for a web UI password of its own "
+            "(AIMM_WEBUI_USERNAME is admin by default), or set username/password "
+            "in a [marketplace.*] config section or the FACEBOOK_USERNAME and "
+            "FACEBOOK_PASSWORD environment variables to sign in with them. Omit "
+            "--webui-host to run on 127.0.0.1 without a password, or set "
+            "AIMM_WEBUI_AUTH (proxy, authelia, authentik or cloudflare) if a reverse "
+            "proxy signs users in."
+        )
+    elif state.auto and state.auth is not None:
+        (logger or logging.getLogger("monitor")).info(
+            f"""{hilight("[WebUI]", "info")} Sign in with """
+            + (
+                "the web UI's own username and password (AIMM_WEBUI_PASSWORD)."
+                if state.mode == AUTH_LOCAL
+                else "the Facebook username and password."
+            )
         )
 
     config_service = ConfigFileService(config.config_files, logger=logger)

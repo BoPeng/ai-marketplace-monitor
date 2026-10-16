@@ -216,3 +216,60 @@ def test_local_mode_starts_without_marketplace_credentials(
     monkeypatch.setenv("AIMM_WEBUI_PASSWORD", "generated-secret")
     _, info = start_webui(config)
     assert info.username == "admin"
+
+
+# ----------------------------------------------------------------------
+# AIMM_WEBUI_AUTH=auto, the default
+# ----------------------------------------------------------------------
+
+FACEBOOK = '[marketplace.facebook]\nusername = "fb@example.com"\npassword = "fb-pw"\n'
+NO_CREDENTIALS = '[marketplace.offerup]\nsearch_city = "77002"\n'
+
+
+def _start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    content: str,
+    host: str = "0.0.0.0",  # noqa: S104
+) -> tuple:
+    from ai_marketplace_monitor.webui.log_handler import LogBroadcastHandler
+    from ai_marketplace_monitor.webui.server import WebUIConfig, WebUIServer, start_webui
+
+    monkeypatch.setattr(WebUIServer, "start", lambda self: None)
+    config = WebUIConfig(
+        host=host, config_files=[_write(tmp_path, content)], log_handler=LogBroadcastHandler()
+    )
+    server, info = start_webui(config)
+    return server, info
+
+
+@pytest.mark.parametrize("value", [None, "auto", " AUTO "])
+def test_auto_signs_in_with_facebook_credentials_when_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    """Installs from before auto sign in as they did, even with a web UI password set."""
+    if value is not None:
+        monkeypatch.setenv("AIMM_WEBUI_AUTH", value)
+    monkeypatch.setenv("AIMM_WEBUI_PASSWORD", "generated-secret")
+    server, info = _start(tmp_path, monkeypatch, FACEBOOK)
+    assert info.username == "fb@example.com"
+    assert server._state.mode == "facebook"
+
+
+def test_auto_uses_the_webui_password_without_facebook_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AIMM_WEBUI_PASSWORD", "generated-secret")
+    monkeypatch.setenv("AIMM_WEBUI_USERNAME", "me")
+    server, info = _start(tmp_path, monkeypatch, NO_CREDENTIALS)
+    assert info.username == "me"
+    assert server._state.mode == "local"  # the login page asks for the web UI's password
+
+
+def test_auto_without_any_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # open on loopback, as before
+    _, info = _start(tmp_path, monkeypatch, NO_CREDENTIALS, host="127.0.0.1")
+    assert info.username is None and not info.exposed
+    # refused when exposed, naming the web UI password first
+    with pytest.raises(RuntimeError, match="Set AIMM_WEBUI_PASSWORD"):
+        _start(tmp_path, monkeypatch, NO_CREDENTIALS)
