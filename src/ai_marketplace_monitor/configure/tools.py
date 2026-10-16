@@ -18,7 +18,9 @@ from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
 from ..facebook_location import FacebookLocations, LocationLookupError
+from ..shared_browser import shared_endpoint
 from .history import explain_listing, find_listings
+from .live import LiveBrowser
 from .toolkits import SINGLETONS, Toolkit, location, section_label
 from .ui import SetupClosedError
 from .workspace import ConfigLoadError, SectionKey, Workspace
@@ -125,6 +127,9 @@ class ToolExecutor:
     testable: Set[SectionKey] = field(default_factory=set)
     # the cache that find_listings and explain_listing read (None: aimm's own; tests set one)
     history_cache: Any = None
+    # opens Facebook pages in the monitor's browser (evaluate_listing, check_seller); made
+    # when first used
+    live: Any = None
 
     # --- state ------------------------------------------------------------------------------
     @property
@@ -138,6 +143,8 @@ class ToolExecutor:
     def end(self: "ToolExecutor", *, discarded: bool = False) -> None:
         self.done = True
         self.discarded = self.discarded or discarded
+        if self.live is not None:
+            self.live.close()
 
     # --- talking to the user ----------------------------------------------------------------
     async def read_user(self: "ToolExecutor", prompt: str = "You") -> str | None:
@@ -398,6 +405,16 @@ class ToolExecutor:
         )
         if notes:
             result["shown_to_user"] = notes
+        tried = [n for t, n in (d.key for d in pending) if t == "item"]
+        if tried and await asyncio.to_thread(shared_endpoint) is not None:
+            result["try_item"] = {
+                "items": tried,
+                "note": (
+                    "aimm can run the search of what was just saved once, now, in the monitor's "
+                    "browser, and list what it finds (search results only, no AI). Offer it "
+                    "with ask_user, in your own words; call try_item only if the user agrees."
+                ),
+            }
         if tests:
             result["test_notification"] = {
                 "sections": [{"section_type": t, "name": n} for t, n in tests],
@@ -488,6 +505,56 @@ class ToolExecutor:
 
     async def explain_listing(self: "ToolExecutor", listing: str) -> Dict[str, Any]:
         return await asyncio.to_thread(explain_listing, listing, local_cache=self.history_cache)
+
+    # --- Facebook pages, in the monitor's browser -------------------------------------------
+    def _live(self: "ToolExecutor") -> Any:
+        if self.live is None:
+            self.live = LiveBrowser(self.ws.files)
+        return self.live
+
+    async def evaluate_listing(
+        self: "ToolExecutor", listing: str, item: str, refresh: bool = False
+    ) -> Dict[str, Any]:
+        await self.ws.ui.say("Checking the listing and asking the AI...")
+        return await self._live().evaluate_listing(listing, item, refresh)
+
+    async def check_seller(
+        self: "ToolExecutor", seller: str, refresh: bool = False
+    ) -> Dict[str, Any]:
+        await self.ws.ui.say("Checking the seller...")
+        return await self._live().check_seller(seller, refresh)
+
+    async def try_item(self: "ToolExecutor", item: str) -> Dict[str, Any]:
+        item = item.strip()
+        if not item:
+            saved = list(self.ws.user_cfg.get("item", {}))
+            if len(saved) != 1:
+                return {
+                    "ok": False,
+                    "errors": [
+                        "Which item? "
+                        + (f"Items: {', '.join(saved)}." if saved else "No item is saved.")
+                    ],
+                }
+            item = saved[0]
+        if (
+            self.only is not None
+            and ("item", item) not in self.only
+            and ("item", "*") not in self.only
+        ):
+            allowed = ", ".join(section_label(t, n) for t, n in sorted(self.only))
+            return {"ok": False, "errors": [f"This session works on {allowed} only."]}
+        draft = self.ws.drafts.get(("item", item))
+        if draft is not None and draft.unsaved_changes():
+            return {
+                "ok": False,
+                "errors": [
+                    f"{section_label('item', item)} has unsaved changes: the search runs what is "
+                    "saved. Save it first."
+                ],
+            }
+        await self.ws.ui.say(f"Running the search of {section_label('item', item)} once...")
+        return await self._live().try_item(item)
 
     async def finish(
         self: "ToolExecutor", message: str, discard_unsaved: bool = False
@@ -622,7 +689,54 @@ class ToolExecutor:
                 """
                 return await self.call("explain_listing", {"listing": listing})
 
-            tools += [list_sections, find_listings, explain_listing]
+            async def evaluate_listing(
+                listing: str, item: str = "", refresh: bool = False
+            ) -> Dict[str, Any]:
+                """Rate one Facebook listing for one [item.*] section, as its search would.
+
+                One listing, one existing item: it does not search. aimm reads the listing and
+                its seller as a search would, says whether the search would exclude it before
+                the AI (keywords and other filters), and asks the item's AI to rate it. A
+                listing aimm read before is rated from its cache, without opening Facebook.
+                Otherwise aimm opens it in the monitor's browser, which takes up to a minute or
+                two and needs the monitor running on this computer, logged in to Facebook (if
+                not, it says so). Nothing is recorded and no one is notified.
+
+                Args:
+                    listing: the listing's Facebook Marketplace URL or its id.
+                    item: the item to rate it for, e.g. "gopro"; may be empty if there is only
+                        one item.
+                    refresh: true only when the user asks for a fresh look (e.g. the price
+                        changed): open the page again and ask the AI again.
+                """
+                return await self.call(
+                    "evaluate_listing", {"listing": listing, "item": item, "refresh": refresh}
+                )
+
+            async def check_seller(seller: str, refresh: bool = False) -> Dict[str, Any]:
+                """Is this seller legit? Their Marketplace profile and warning signs.
+
+                Returns when they joined Facebook, their rating and number of ratings, active
+                and sold listings, what buyers say, and warning signs. A profile read in the
+                last month comes from aimm's cache; otherwise aimm opens it in the monitor's
+                browser, which needs the monitor running on this computer, as
+                evaluate_listing does.
+
+                Args:
+                    seller: the seller's profile URL (/marketplace/profile/<id>), their id, or
+                        the URL of one of their listings.
+                    refresh: true only when the user asks for a fresh look: open the profile
+                        again.
+                """
+                return await self.call("check_seller", {"seller": seller, "refresh": refresh})
+
+            tools += [
+                list_sections,
+                find_listings,
+                explain_listing,
+                evaluate_listing,
+                check_seller,
+            ]
         tools += _section_tools(self)
         if any(t in self.ws.toolkits for t in ("notification", "user")):
 
@@ -642,6 +756,25 @@ class ToolExecutor:
                 )
 
             tools.append(test_notification)
+        if "item" in self.ws.toolkits:
+
+            async def try_item(item: str) -> Dict[str, Any]:
+                """Run a saved item's search once, now, and list what it finds.
+
+                aimm opens the item's search pages (its search phrases in its cities, with its
+                price, radius and other options, up to 4 pages) in the monitor's browser and
+                applies the filters that work on search results (title, location, price). It
+                opens no listing page and asks no AI, so it is quick and free; rate listings
+                the user picks with evaluate_listing. Needs the monitor running on this
+                computer, logged in to Facebook (if not, it says so). Runs only what is saved:
+                save the item first. Nothing is recorded and no one is notified.
+
+                Args:
+                    item: the item's name, e.g. "gopro".
+                """
+                return await self.call("try_item", {"item": item})
+
+            tools.append(try_item)
         if any(t in self.ws.toolkits for t in ("marketplace", "item", "region")):
 
             async def find_city(place: str) -> Dict[str, Any]:
@@ -702,6 +835,18 @@ class ToolExecutor:
                 return await self.find_listings(args)
             if name == "explain_listing":
                 return await self.explain_listing(str(args.get("listing", "")))
+            if name == "evaluate_listing":
+                return await self.evaluate_listing(
+                    str(args.get("listing", "")),
+                    str(args.get("item", "") or ""),
+                    args.get("refresh") is True,
+                )
+            if name == "try_item":
+                return await self.try_item(str(args.get("item", "")))
+            if name == "check_seller":
+                return await self.check_seller(
+                    str(args.get("seller", "")), args.get("refresh") is True
+                )
             section_type = str(args.get("section_type", ""))
             section_name = str(args.get("name", ""))
             if name == "test_notification":

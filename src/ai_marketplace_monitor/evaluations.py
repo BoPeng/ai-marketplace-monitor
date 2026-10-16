@@ -208,6 +208,19 @@ def record_seen(
     )
 
 
+def find_evaluation(
+    marketplace: str, listing_id: str, item: str, *, local_cache: Cache | None = None
+) -> EvaluationRecord | None:
+    """Aimm's decision about a listing for an item, or None if it has none (or it expired)."""
+    c = cache if local_cache is None else local_cache
+    if is_cache_broken(c):
+        return None
+    try:
+        return _load(c, marketplace, listing_id, item)
+    except Exception:
+        return None
+
+
 def record_evaluation(record: EvaluationRecord, *, local_cache: Cache | None = None) -> None:
     """Save a decision, replacing any earlier one for the same listing and item.
 

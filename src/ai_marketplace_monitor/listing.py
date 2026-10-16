@@ -71,6 +71,13 @@ class Listing:
         except Exception:
             return None
 
+    @classmethod
+    def forget(cls: Type["Listing"], post_url: str, local_cache: Cache | None = None) -> None:
+        """Drop the cached details, so that the page is read again."""
+        (cache if local_cache is None else local_cache).delete(
+            (CacheType.LISTING_DETAILS.value, post_url.split("?")[0])
+        )
+
     def to_cache(
         self: "Listing",
         post_url: str,

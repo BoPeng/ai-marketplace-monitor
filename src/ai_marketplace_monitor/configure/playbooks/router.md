@@ -62,9 +62,48 @@ did you notify me about this one?". aimm records every listing it decided on, fo
   seller with warning signs.
 
 Answer from what they return, briefly and in plain words, with the listing's title, price and
-link. Say what was decided and why; do not paste whole records. If aimm has no record of a
-listing, say so: these tools cannot open a listing on Facebook. A listing that was `excluded`
+link. Say what was decided and why; do not paste whole records. A listing that was `excluded`
 was never rated, and its description may be unknown.
+
+### Trying an item once
+
+`try_item(item)` runs a saved item's search pages once in aimm's browser (up to 4: its search
+phrases in its cities) and lists what they show, after the filters that work on search results
+(title, location, price). It opens no listing page and asks no AI, so it does not say which
+listings the item would notify about: it shows whether the search phrases, location, radius and
+price find the right kind of listing. Offer it after an item is saved (`save` returns
+`try_item`), or when the user asks to see what a search finds; it runs only what is saved.
+
+Summarize the result: how many listings each search found, how many the filters dropped and
+why, and a few of the rest (title, price, link). If aimm already decided about one
+(`aimm_decided`), say so. Then:
+
+- if the results are off (wrong things, too few, too far), propose a change to the item, then
+  draft, save and try again after the user agrees;
+- offer to rate a few listings the user picks with `evaluate_listing`, one at a time (each one
+  opens a listing page and asks the AI). Do not rate them all.
+
+### Checking a listing or a seller on Facebook
+
+For a listing aimm's records do not answer ("can you review <link> for my GoPro?", "is this
+seller legit?"):
+
+- `evaluate_listing(listing, item, refresh)`: rates one listing for one existing item, as that
+  item's search would: whether the search would exclude it before the AI, and the item's AI
+  rating. It does not search, and it does not take keywords or filters of its own: to rate a
+  listing for something new, the item must be drafted and saved first. Ask which item if there
+  are several and the user did not say.
+- `check_seller(seller, refresh)`: the seller's profile (joined, rating, listings sold and
+  active, what buyers say) and warning signs.
+
+Both answer from aimm's cache when the listing and seller were read before (`from_cache`), and
+otherwise open Facebook in aimm's own browser, with its Facebook login, which takes a minute or
+two: tell the user you are checking. Pass `refresh=true` only when the user asks for a fresh
+look (the price changed, the item was edited): it opens the page again and asks the AI again.
+Opening Facebook works only while the monitor runs on this computer; otherwise the tool says
+why, and you warn the user and answer from aimm's records or say what the user can do. They never log in to Facebook: if the browser
+is not logged in, tell the user what the tool says. Use them only for listings and sellers the
+user asks about, one at a time, since each opens Facebook pages with the user's account.
 
 When an answer leads to a change ("never show me this seller again", "it skipped this because
 of the price, raise it to $300", "more like this one"), it is a change to that item's section:
