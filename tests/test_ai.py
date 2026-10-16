@@ -1,6 +1,8 @@
 import base64
 import io
 import logging
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from types import SimpleNamespace
 from typing import Any, Tuple
 from unittest.mock import MagicMock
@@ -429,3 +431,286 @@ def test_summary_timeout_has_only_the_outer_retry_budget(
     assert all(
         request.extensions["timeout"]["read"] == ai_module.SUMMARY_TIMEOUT for request in attempts
     )
+
+
+@pytest.mark.parametrize(
+    "rate_limit, interval",
+    [
+        ("15/minute", 4),
+        ("60/minute", 1),
+        ("20 / minutes", 3),
+        ("1000/hour", 3.6),
+        ("1500/day", 57.6),
+        ("2/second", 0.5),
+        ("30/min", 2),
+        ("0.5/s", 2),
+    ],
+)
+def test_rate_limit_interval(rate_limit: str, interval: float) -> None:
+    assert ai_module.rate_limit_interval(rate_limit) == pytest.approx(interval)
+
+
+@pytest.mark.parametrize("rate_limit", ["15", "15/week", "0/minute", "/minute", "fast", 15])
+def test_invalid_rate_limit_is_rejected(rate_limit: Any) -> None:
+    with pytest.raises(ValueError, match="rate_limit"):
+        OpenAIConfig(name="openai-rate", api_key="test", rate_limit=rate_limit)
+
+
+class FakeClock:
+    """time.monotonic and time.sleep for the AI module, without waiting."""
+
+    def __init__(self: "FakeClock", monkeypatch: pytest.MonkeyPatch) -> None:
+        self.now = 1000.0
+        self.sleeps: list[float] = []
+        monkeypatch.setattr(ai_module.time, "monotonic", lambda: self.now)
+        monkeypatch.setattr(ai_module.time, "sleep", self.sleep)
+
+    def sleep(self: "FakeClock", seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def test_requests_are_spaced_by_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = FakeClock(monkeypatch)
+    ai = OpenAIBackend(OpenAIConfig(name="openai-rate", api_key="test", rate_limit="15/minute"))
+    assert ai.min_interval == 4
+
+    ai.wait_for_rate_limit()  # the first request does not wait
+    clock.now += 1  # the request took a second
+    ai.wait_for_rate_limit()
+    clock.now += 10  # a slow request leaves no gap to wait for
+    ai.wait_for_rate_limit()
+
+    assert clock.sleeps == [pytest.approx(3)]
+
+
+def test_no_rate_limit_never_waits(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = FakeClock(monkeypatch)
+    ai = OpenAIBackend(OpenAIConfig(name="openai-free", api_key="test"))
+    assert ai.min_interval == 0
+    ai.wait_for_rate_limit()
+    ai.wait_for_rate_limit()
+    assert clock.sleeps == []
+
+
+def test_evaluations_and_retries_are_rate_limited(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"rate-limit-test-{suffix}"
+    listing.title = f"Rate limit test {suffix}"
+    listing.image = ""
+    item_config.name = f"test-{suffix}"
+    ai = OpenAIBackend(
+        OpenAIConfig(name=f"openai-rate-{suffix}", api_key="test", rate_limit="6/minute")
+    )
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="Rating 4: Good."))]
+    )
+    create = MagicMock(side_effect=[RuntimeError("503"), response])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    ai.evaluate(listing, item_config, marketplace_config)
+    # the retry waited 5 seconds after the error, then the rest of the 10-second gap
+    assert clock.sleeps == [5, pytest.approx(5)]
+
+    # an evaluation from the cache sends no request and does not wait
+    ai.evaluate(listing, item_config, marketplace_config)
+    assert create.call_count == 2 and len(clock.sleeps) == 2
+
+
+def _rate_limited(headers: dict[str, str]) -> Exception:
+    from openai import RateLimitError
+
+    request = httpx.Request("POST", "https://api.example.com/v1/chat/completions")
+    return RateLimitError(
+        "rate limited",
+        response=httpx.Response(429, headers=headers, request=request),
+        body=None,
+    )
+
+
+def test_retry_after() -> None:
+    assert ai_module.retry_after(RuntimeError("503")) is None
+    assert ai_module.retry_after(_rate_limited({"retry-after": "12"})) == 12
+    assert ai_module.retry_after(_rate_limited({"retry-after-ms": "1500"})) == 1.5
+    assert ai_module.retry_after(_rate_limited({})) == 5
+    # an HTTP date, in the future, in the past or unreadable
+    later = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=120), usegmt=True)
+    assert ai_module.retry_after(_rate_limited({"retry-after": later})) == pytest.approx(
+        120, abs=2
+    )
+    earlier = format_datetime(datetime.now(timezone.utc) - timedelta(seconds=120), usegmt=True)
+    assert ai_module.retry_after(_rate_limited({"retry-after": earlier})) == 5
+    assert ai_module.retry_after(_rate_limited({"retry-after": "soon"})) == 5
+
+
+@pytest.mark.parametrize("backend", ["openai", "anthropic"])
+def test_sdk_does_not_retry_on_its_own(backend: str) -> None:
+    """Every request must go through rate_limit and aimm's retries."""
+    ai: ai_module.AIBackend
+    if backend == "openai":
+        ai = OpenAIBackend(OpenAIConfig(name="openai-sdk", api_key="test"))
+    else:
+        ai = AnthropicBackend(AnthropicConfig(name="claude-sdk", api_key="test"))
+    ai.connect()
+    assert ai.client.max_retries == 0
+
+
+def test_rate_limited_evaluation_waits_as_asked(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"retry-after-test-{suffix}"
+    listing.title = f"Retry after test {suffix}"
+    listing.image = ""
+    item_config.name = f"test-{suffix}"
+    ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test"))
+    response = SimpleNamespace(content=[SimpleNamespace(text="Rating 4: Good.")])
+    create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+    client = SimpleNamespace(messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    assert ai.evaluate(listing, item_config, marketplace_config).score == 4
+    assert clock.sleeps == [30]
+
+
+def test_long_rate_limit_gives_up_on_the_ai(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"quota-test-{suffix}"
+    listing.title = f"Quota test {suffix}"
+    listing.image = ""
+    item_config.name = f"test-{suffix}"
+    ai = OpenAIBackend(OpenAIConfig(name=f"gemini-{suffix}", api_key="test"))
+    create = MagicMock(side_effect=_rate_limited({"retry-after": "3600"}))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    with pytest.raises(RuntimeError, match="rate limited for another 3600 seconds"):
+        ai.evaluate(listing, item_config, marketplace_config)
+    assert create.call_count == 1 and clock.sleeps == []
+
+
+def test_anthropic_evaluate_raises_after_retries(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"anthropic-failure-test-{suffix}"
+    listing.title = f"Anthropic failure test {suffix}"
+    listing.image = ""
+    item_config.name = f"test-{suffix}"
+    ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test", max_retries=2))
+    create = MagicMock(side_effect=RuntimeError("503"))
+    client = SimpleNamespace(messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    with pytest.raises(RuntimeError, match="failed to evaluate"):
+        ai.evaluate(listing, item_config, marketplace_config)
+    assert create.call_count == 2
+
+
+def test_reloaded_agents_keep_their_last_request() -> None:
+    from ai_marketplace_monitor.monitor import MarketplaceMonitor
+
+    monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)
+    monitor.logger = None
+    monitor.ai_agents = []
+    monitor.config = SimpleNamespace(  # type: ignore[assignment]
+        ai={"openai": OpenAIConfig(name="openai", api_key="test", rate_limit="15/minute")}
+    )
+    monitor.load_ai_agents()
+    monitor.ai_agents[0].last_request = 1234.0
+
+    monitor.load_ai_agents()
+    assert monitor.ai_agents[0].last_request == 1234.0
+
+
+def test_rate_limited_summary_waits_as_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = FakeClock(monkeypatch)
+    ai = OpenAIBackend(OpenAIConfig(name="openai-summary-429", api_key="test"))
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Ok."))])
+    create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+    client = sdk_client(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    assert ai.summarize("Summarize this") == "Ok."
+    assert clock.sleeps == [30]
+
+
+@pytest.mark.parametrize("backend", ["openai", "anthropic"])
+def test_rate_limited_request_keeps_the_photo(
+    backend: str,
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    photo_get: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"photo-429-test-{suffix}"
+    listing.title = f"Photo 429 test {suffix}"
+    listing.image = "https://example.com/listing.jpg"
+    item_config.name = f"test-{suffix}"
+    ai: ai_module.AIBackend
+    client: Any
+    if backend == "openai":
+        ai = OpenAIBackend(OpenAIConfig(name=f"openai-{suffix}", api_key="test"))
+        response: Any = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="Rating 4: Good."))]
+        )
+        create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    else:
+        ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test"))
+        response = SimpleNamespace(content=[SimpleNamespace(text="Rating 4: Good.")])
+        create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+        client = SimpleNamespace(messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    assert ai.evaluate(listing, item_config, marketplace_config).score == 4
+    # the 429 is not taken for a model that cannot read images
+    assert clock.sleeps == [30]
+    assert isinstance(create.call_args.kwargs["messages"][-1]["content"], list)
+
+
+def test_long_rate_limit_with_a_photo_gives_up_at_once(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    photo_get: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"photo-quota-test-{suffix}"
+    listing.title = f"Photo quota test {suffix}"
+    listing.image = "https://example.com/listing.jpg"
+    item_config.name = f"test-{suffix}"
+    ai = OpenAIBackend(OpenAIConfig(name=f"gemini-{suffix}", api_key="test"))
+    create = MagicMock(side_effect=_rate_limited({"retry-after": "3600"}))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    with pytest.raises(RuntimeError, match="rate limited"):
+        ai.evaluate(listing, item_config, marketplace_config)
+    assert create.call_count == 1
