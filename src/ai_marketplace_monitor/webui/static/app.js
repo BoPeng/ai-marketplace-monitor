@@ -1671,6 +1671,8 @@
         help: "Override the provider (auto-detected from section name). Only needed for custom OpenAI-compatible endpoints." },
       { key: "base_url", label: "Base URL", type: "text", advanced: true,
         help: "Custom API endpoint. Required for Ollama (e.g. http://localhost:11434/v1)." },
+      { key: "rate_limit", label: "Rate limit", type: "text", advanced: true,
+        help: "Most requests the service accepts, e.g. '15/minute', '1000/hour'. Requests are spaced evenly." },
       { key: "timeout", label: "Timeout (seconds)", type: "number", advanced: true },
       { key: "max_retries", label: "Max retries", type: "number", advanced: true,
         help: "Default: 10" },

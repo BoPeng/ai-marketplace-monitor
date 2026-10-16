@@ -66,6 +66,9 @@ reference (not for Ollama), and for Ollama a `base_url` and `model`. Before savi
 ## Rules
 
 - Change `timeout` and `max_retries` only when asked.
+- Set `rate_limit` (e.g. `"15/minute"`) when the user's plan limits requests, such as a free
+  Gemini key, or the AI keeps failing for going over its limit. Say that a low limit also slows
+  down the searches.
 - The AI sees each listing's main photo by default (`use_images`). Set `use_images = false` when
   the user wants to save tokens or the model cannot read images; say that the AI then judges
   listings from their text only.

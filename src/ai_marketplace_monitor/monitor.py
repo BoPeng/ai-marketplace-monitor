@@ -183,6 +183,8 @@ class MarketplaceMonitor:
     def load_ai_agents(self: "MarketplaceMonitor") -> None:
         """Load the AI agents, replacing those of a previous config."""
         assert self.config is not None
+        # a reload must not reset rate_limit, so the new agents keep the old request times
+        last_requests = {agent.config.name: agent.last_request for agent in self.ai_agents}
         self.ai_agents = []
         for ai_config in (self.config.ai or {}).values():
             if ai_config.enabled is False:
@@ -203,6 +205,7 @@ class MarketplaceMonitor:
 
             try:
                 self.ai_agents.append(ai_class(config=ai_config, logger=self.logger))
+                self.ai_agents[-1].last_request = last_requests.get(ai_config.name)
                 # self.ai_agents[-1].connect()
                 # self.logger.info(
                 #     f"""{hilight("[AI]", "succ")} Connected to {hilight(ai_config.name)}"""

@@ -107,6 +107,41 @@ class AIResponse:
         )
 
 
+# seconds in each unit of rate_limit, e.g. "15/minute"
+RATE_UNITS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
+RATE_UNIT_ALIASES = {"s": "second", "sec": "second", "min": "minute", "h": "hour", "hr": "hour"}
+# the longest wait for a rate-limited request before aimm gives up on the AI
+MAX_RETRY_AFTER = 300
+
+
+def rate_limit_interval(rate_limit: str) -> float:
+    """Seconds between requests for a rate such as ``"15/minute"`` or ``"1000/hour"``."""
+    matched = re.fullmatch(r"\s*(\d+(?:\.\d*)?)\s*/\s*([a-z]+?)s?\s*", rate_limit.lower())
+    if matched is None:
+        raise ValueError(f"Invalid rate_limit {rate_limit!r}")
+    count, unit = float(matched.group(1)), matched.group(2)
+    unit = RATE_UNIT_ALIASES.get(unit, unit)
+    if unit not in RATE_UNITS or count <= 0:
+        raise ValueError(f"Invalid rate_limit {rate_limit!r}")
+    return RATE_UNITS[unit] / count
+
+
+def retry_after(error: Exception) -> float | None:
+    """Seconds a rate-limited (HTTP 429) request asks to wait, or None for other errors."""
+    if getattr(error, "status_code", None) != 429:
+        return None
+    headers = getattr(getattr(error, "response", None), "headers", None) or {}
+    try:
+        # OpenAI also sends milliseconds; a retry-after given as an HTTP date is ignored
+        if headers.get("retry-after-ms") is not None:
+            return float(headers["retry-after-ms"]) / 1000
+        if headers.get("retry-after") is not None:
+            return float(headers["retry-after"])
+    except ValueError:
+        pass
+    return 5
+
+
 @dataclass
 class AIConfig(BaseConfig):
     # this argument is required
@@ -119,6 +154,8 @@ class AIConfig(BaseConfig):
     timeout: int | None = None
     use_images: bool = True
     image_detail: str = "low"
+    # the most requests the service accepts, e.g. "15/minute"; sent evenly spaced
+    rate_limit: str | None = None
 
     def handle_provider(self: "AIConfig") -> None:
         if self.provider is None:
@@ -144,6 +181,19 @@ class AIConfig(BaseConfig):
             return
         if not isinstance(self.timeout, int) or self.timeout < 0:
             raise ValueError("AIConfig requires a positive integer timeout.")
+
+    def handle_rate_limit(self: "AIConfig") -> None:
+        if self.rate_limit is None:
+            return
+        try:
+            if not isinstance(self.rate_limit, str):
+                raise ValueError
+            rate_limit_interval(self.rate_limit)
+        except ValueError:
+            raise ValueError(
+                f"AIConfig rate_limit {self.rate_limit!r} should be a number of requests per "
+                'second, minute, hour or day, such as "15/minute", "1000/hour" or "1500/day".'
+            ) from None
 
     def handle_use_images(self: "AIConfig") -> None:
         if not isinstance(self.use_images, bool):
@@ -279,6 +329,45 @@ class AIBackend(Generic[TAIConfig]):
         self.config = config
         self.logger = logger
         self.client: Any = None
+        # time.monotonic() when the last request was sent, for rate_limit
+        self.last_request: float | None = None
+
+    @property
+    def min_interval(self: "AIBackend") -> float:
+        """Seconds to wait between two requests, from rate_limit; 0 if there is none."""
+        if not self.config.rate_limit:
+            return 0
+        return rate_limit_interval(self.config.rate_limit)
+
+    def wait_for_rate_limit(self: "AIBackend") -> None:
+        """Wait until min_interval has passed since the last request, then count this one.
+
+        Called right before each request to the service, retries included.
+        """
+        if self.last_request is not None and self.min_interval:
+            wait = self.last_request + self.min_interval - time.monotonic()
+            if wait > 0:
+                if self.logger:
+                    self.logger.debug(
+                        f"""{hilight("[AI]", "info")} Waiting {wait:.1f} seconds for the rate_limit {self.config.rate_limit} of {self.config.name}."""
+                    )
+                time.sleep(wait)
+        self.last_request = time.monotonic()
+
+    def retry_delay(self: "AIBackend", error: Exception) -> float:
+        """Seconds to wait before retrying a failed request.
+
+        A rate-limited request waits as long as the service asks, unless that is more than
+        MAX_RETRY_AFTER (for example a used-up daily quota): then aimm gives up on this AI.
+        """
+        delay = retry_after(error)
+        if delay is None:
+            return 5
+        if delay > MAX_RETRY_AFTER:
+            raise RuntimeError(
+                f"{self.config.name} is rate limited for another {delay:.0f} seconds"
+            ) from error
+        return delay
 
     @classmethod
     def get_config(cls: Type["AIBackend"], **kwargs: Any) -> TAIConfig:
@@ -299,6 +388,7 @@ class AIBackend(Generic[TAIConfig]):
                 time.sleep(5)
             try:
                 self.connect()
+                self.wait_for_rate_limit()
                 answer = (ask() or "").strip()
             except KeyboardInterrupt:
                 raise
@@ -511,6 +601,7 @@ class OpenAIBackend(AIBackend):
             self.connect()
             assert self.client is not None
             user_message = self._user_message(prompt, image)
+            self.wait_for_rate_limit()
             try:
                 response = self.client.chat.completions.create(
                     model=self.config.model or self.default_model,
@@ -541,9 +632,10 @@ class OpenAIBackend(AIBackend):
                         f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
                     )
                 retries += 1
+                delay = self.retry_delay(e)
                 # try to initiate a connection
                 self.client = None
-                time.sleep(5)
+                time.sleep(delay)
 
         if response is None:
             raise RuntimeError(
@@ -704,10 +796,13 @@ class AnthropicBackend(AIBackend):
         self.connect()
 
         retries = 0
+        response: Any | None = None
+        last_error: Exception | None = None
         image = self.listing_image(listing)
         while retries < self.config.max_retries:
             self.connect()
             assert self.client is not None
+            self.wait_for_rate_limit()
             try:
                 response = self.client.messages.create(
                     model=self.config.model or self.default_model,
@@ -719,6 +814,7 @@ class AnthropicBackend(AIBackend):
             except KeyboardInterrupt:
                 raise
             except Exception as e:
+                last_error = e
                 if image is not None:
                     # the model may not support images, so fall back to text-only
                     if self.logger:
@@ -732,8 +828,14 @@ class AnthropicBackend(AIBackend):
                         f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
                     )
                 retries += 1
+                delay = self.retry_delay(e)
                 self.client = None
-                time.sleep(5)
+                time.sleep(delay)
+
+        if response is None:
+            raise RuntimeError(
+                f"{self.config.name} failed to evaluate {listing.title} after {retries} retries"
+            ) from last_error
 
         answer = response.content[0].text if response.content else ""
         if self.logger:

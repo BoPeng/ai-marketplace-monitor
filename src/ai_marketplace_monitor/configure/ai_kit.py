@@ -82,6 +82,13 @@ AI_GUIDES: Tuple[FieldGuide, ...] = (
         '`"low"` (about 85 tokens), `"high"`, `"auto"` or `"original"`',
         '`"low"`',
     ),
+    FieldGuide(
+        "rate_limit",
+        "when the user's plan limits requests (e.g. a free Gemini key) or the service rejects "
+        "requests for going over its limit; requests are then sent evenly spaced",
+        'requests per second, minute, hour or day, e.g. `"15/minute"`, `"1000/hour"`',
+        "no limit",
+    ),
     FieldGuide("timeout", "only on request: seconds to wait for a reply", "integer", "none"),
     FieldGuide("max_retries", "only on request: attempts per request", "integer", "10"),
     FieldGuide("enabled", "only to turn this AI off without removing it", "`false`", "on"),
