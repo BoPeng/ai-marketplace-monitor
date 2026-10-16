@@ -253,16 +253,41 @@ async def test_tools_for_model_have_names_and_docs(tmp_path: Path) -> None:
     out = await tools["section_update"](
         section_type="marketplace", name="facebook", values='{"max_price": "5"}'
     )
+    # non-None defaults: strict tool backends reject parameter schemas that mix types
     assert out["ok"] and ex.calls[-1] == (
         "section_update",
         {
             "section_type": "marketplace",
             "name": "facebook",
             "values": '{"max_price": "5"}',
-            "unset": None,
-            "request": None,
+            "unset": (),
+            "request": "",
         },
     )
+
+
+async def test_tool_parameters_stay_single_typed(tmp_path: Path) -> None:
+    # Strict tool backends (e.g. Qwen's raw-string tool-call format) reject a parameter
+    # whose schema mixes types, such as a string or null, so check the schema the model
+    # adapter sends for every model-facing tool
+    from mirascope import llm
+
+    def mixed(schema: Any) -> List[str]:
+        if isinstance(schema, list):
+            return [m for s in schema for m in mixed(s)]
+        if not isinstance(schema, dict):
+            return []
+        found = [json.dumps(schema)] if "anyOf" in schema or "oneOf" in schema else []
+        if isinstance(schema.get("type"), list):
+            found.append(json.dumps(schema))
+        return found + [m for v in schema.values() for m in mixed(v)]
+
+    ex = ready(await make_ws(tmp_path, ONE_ITEM))
+    tools = ex.tools_for_model()
+    assert {"section_update", "find_listings"} <= {fn.__name__ for fn in tools}
+    for fn in tools:
+        schema = llm.tool(fn).parameters.model_dump(by_alias=True, exclude_none=True)
+        assert mixed(schema) == [], fn.__name__
 
 
 async def test_update_values_as_a_json_string(tmp_path: Path) -> None:

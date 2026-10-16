@@ -740,12 +740,15 @@ def _section_tools(executor: ToolExecutor) -> List[Callable[..., Awaitable[Dict[
     async def section_show(section_type: str, name: str) -> Dict[str, Any]:
         return await executor.call("section_show", {"section_type": section_type, "name": name})
 
+    # `values`, `unset` and `request` keep non-None defaults so every parameter schema
+    # stays a single type: the model adapter sends the tools with strict schemas, and
+    # strict backends reject a parameter that mixes types (e.g. a string and null)
     async def section_update(
         section_type: str,
         name: str,
         values: str = "",
-        unset: List[str] | None = None,
-        request: str | None = None,
+        unset: Tuple[str, ...] = (),
+        request: str = "",
     ) -> Dict[str, Any]:
         return await executor.call(
             "section_update",
@@ -784,8 +787,9 @@ def _section_tools(executor: ToolExecutor) -> List[Callable[..., Awaitable[Dict[
         name: the section name.
         values: the fields to set, as a JSON object in a string, e.g.
             '{{"search_city": ["houston"], "radius": [30]}}'. Empty to set nothing.
-        unset: fields to remove.
-        request: one or two sentences: what the user wants from this section, in their terms.
+        unset: fields to remove, e.g. ["radius"]. Empty to remove nothing.
+        request: one or two sentences: what the user wants from this section, in their
+            terms. Empty to leave the section's request unchanged.
     """
     section_check.__doc__ = f"""Check a section's draft: what is still required, validation
     errors, and unsaved changes.
