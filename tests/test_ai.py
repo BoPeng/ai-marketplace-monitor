@@ -622,3 +622,75 @@ def test_reloaded_agents_keep_their_last_request() -> None:
 
     monitor.load_ai_agents()
     assert monitor.ai_agents[0].last_request == 1234.0
+
+
+def test_rate_limited_summary_waits_as_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = FakeClock(monkeypatch)
+    ai = OpenAIBackend(OpenAIConfig(name="openai-summary-429", api_key="test"))
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Ok."))])
+    create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+    client = sdk_client(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    assert ai.summarize("Summarize this") == "Ok."
+    assert clock.sleeps == [30]
+
+
+@pytest.mark.parametrize("backend", ["openai", "anthropic"])
+def test_rate_limited_request_keeps_the_photo(
+    backend: str,
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    photo_get: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"photo-429-test-{suffix}"
+    listing.title = f"Photo 429 test {suffix}"
+    listing.image = "https://example.com/listing.jpg"
+    item_config.name = f"test-{suffix}"
+    ai: ai_module.AIBackend
+    client: Any
+    if backend == "openai":
+        ai = OpenAIBackend(OpenAIConfig(name=f"openai-{suffix}", api_key="test"))
+        response: Any = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="Rating 4: Good."))]
+        )
+        create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    else:
+        ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test"))
+        response = SimpleNamespace(content=[SimpleNamespace(text="Rating 4: Good.")])
+        create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
+        client = SimpleNamespace(messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    assert ai.evaluate(listing, item_config, marketplace_config).score == 4
+    # the 429 is not taken for a model that cannot read images
+    assert clock.sleeps == [30]
+    assert isinstance(create.call_args.kwargs["messages"][-1]["content"], list)
+
+
+def test_long_rate_limit_with_a_photo_gives_up_at_once(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    photo_get: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeClock(monkeypatch)
+    suffix = uuid4().hex
+    listing.id = f"photo-quota-test-{suffix}"
+    listing.title = f"Photo quota test {suffix}"
+    listing.image = "https://example.com/listing.jpg"
+    item_config.name = f"test-{suffix}"
+    ai = OpenAIBackend(OpenAIConfig(name=f"gemini-{suffix}", api_key="test"))
+    create = MagicMock(side_effect=_rate_limited({"retry-after": "3600"}))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    with pytest.raises(RuntimeError, match="rate limited"):
+        ai.evaluate(listing, item_config, marketplace_config)
+    assert create.call_count == 1

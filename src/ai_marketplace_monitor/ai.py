@@ -383,9 +383,10 @@ class AIBackend(Generic[TAIConfig]):
     def _summarize_with(self: "AIBackend", ask: Callable[[], str]) -> str:
         """Call ``ask`` up to SUMMARY_RETRIES times; its stripped, non-empty answer."""
         last_error: Exception | None = None
+        delay: float = 5
         for attempt in range(SUMMARY_RETRIES):
             if attempt:
-                time.sleep(5)
+                time.sleep(delay)
             try:
                 self.connect()
                 self.wait_for_rate_limit()
@@ -395,6 +396,7 @@ class AIBackend(Generic[TAIConfig]):
             except Exception as e:
                 last_error = e
                 self.client = None
+                delay = self.retry_delay(e)
                 continue
             if not answer:
                 raise RuntimeError(f"{self.config.name} gave an empty summary")
@@ -619,7 +621,8 @@ class OpenAIBackend(AIBackend):
                 raise
             except Exception as e:
                 last_error = e
-                if image is not None:
+                # a rate-limited request is retried as it was, after the wait below
+                if image is not None and retry_after(e) is None:
                     # the model may not support images, so fall back to text-only
                     if self.logger:
                         self.logger.warning(
@@ -815,7 +818,8 @@ class AnthropicBackend(AIBackend):
                 raise
             except Exception as e:
                 last_error = e
-                if image is not None:
+                # a rate-limited request is retried as it was, after the wait below
+                if image is not None and retry_after(e) is None:
                     # the model may not support images, so fall back to text-only
                     if self.logger:
                         self.logger.warning(
