@@ -1,6 +1,8 @@
 import base64
 import io
 import logging
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from types import SimpleNamespace
 from typing import Any, Tuple
 from unittest.mock import MagicMock
@@ -538,8 +540,26 @@ def test_retry_after() -> None:
     assert ai_module.retry_after(_rate_limited({"retry-after": "12"})) == 12
     assert ai_module.retry_after(_rate_limited({"retry-after-ms": "1500"})) == 1.5
     assert ai_module.retry_after(_rate_limited({})) == 5
-    # an HTTP date is not read
-    assert ai_module.retry_after(_rate_limited({"retry-after": "Wed, 21 Oct 2026"})) == 5
+    # an HTTP date, in the future, in the past or unreadable
+    later = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=120), usegmt=True)
+    assert ai_module.retry_after(_rate_limited({"retry-after": later})) == pytest.approx(
+        120, abs=2
+    )
+    earlier = format_datetime(datetime.now(timezone.utc) - timedelta(seconds=120), usegmt=True)
+    assert ai_module.retry_after(_rate_limited({"retry-after": earlier})) == 5
+    assert ai_module.retry_after(_rate_limited({"retry-after": "soon"})) == 5
+
+
+@pytest.mark.parametrize("backend", ["openai", "anthropic"])
+def test_sdk_does_not_retry_on_its_own(backend: str) -> None:
+    """Every request must go through rate_limit and aimm's retries."""
+    ai: ai_module.AIBackend
+    if backend == "openai":
+        ai = OpenAIBackend(OpenAIConfig(name="openai-sdk", api_key="test"))
+    else:
+        ai = AnthropicBackend(AnthropicConfig(name="claude-sdk", api_key="test"))
+    ai.connect()
+    assert ai.client.max_retries == 0
 
 
 def test_rate_limited_evaluation_waits_as_asked(

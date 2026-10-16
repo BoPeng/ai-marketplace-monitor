@@ -3,6 +3,8 @@ import io
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from enum import Enum
 from logging import Logger
 from typing import Any, Callable, ClassVar, Generic, Optional, Tuple, Type, TypeVar
@@ -131,14 +133,25 @@ def retry_after(error: Exception) -> float | None:
     if getattr(error, "status_code", None) != 429:
         return None
     headers = getattr(getattr(error, "response", None), "headers", None) or {}
-    try:
-        # OpenAI also sends milliseconds; a retry-after given as an HTTP date is ignored
-        if headers.get("retry-after-ms") is not None:
+    # OpenAI also sends milliseconds
+    if headers.get("retry-after-ms") is not None:
+        try:
             return float(headers["retry-after-ms"]) / 1000
-        if headers.get("retry-after") is not None:
-            return float(headers["retry-after"])
-    except ValueError:
-        pass
+        except ValueError:
+            pass
+    value = headers.get("retry-after")
+    if value is not None:
+        try:
+            return float(value)
+        except ValueError:
+            pass
+        # retry-after may also be an HTTP date
+        try:
+            delay = (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds()
+        except (TypeError, ValueError):
+            delay = 0
+        if delay > 0:
+            return delay
     return 5
 
 
@@ -552,6 +565,8 @@ class OpenAIBackend(AIBackend):
                 api_key=self.config.api_key,
                 base_url=self.config.base_url or self.base_url,
                 timeout=self.config.timeout,
+                # no SDK retries: every request goes through rate_limit and aimm's retries
+                max_retries=0,
                 default_headers={
                     "X-Title": "AI Marketplace Monitor",
                     "HTTP-Referer": "https://github.com/BoPeng/ai-marketplace-monitor",
@@ -762,6 +777,8 @@ class AnthropicBackend(AIBackend):
             self.client = anthropic.Anthropic(
                 api_key=self.config.api_key,
                 timeout=self.config.timeout,
+                # no SDK retries: every request goes through rate_limit and aimm's retries
+                max_retries=0,
             )
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
