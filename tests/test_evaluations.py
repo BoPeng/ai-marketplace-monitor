@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from ai_marketplace_monitor import evaluations
 from ai_marketplace_monitor.ai import AIResponse
+from ai_marketplace_monitor.channels import Channel
 from ai_marketplace_monitor.evaluations import (
     EXCLUDED,
     NOTIFIED,
@@ -450,12 +451,18 @@ def test_search_item_records_rejected_listings(eval_cache: Cache) -> None:
     assert record.reason == "rating 2 < 4: too old"
 
 
+def _channel_sends(sent: bool) -> Any:
+    """The user has one channel, which sends (or fails to send) every message."""
+    channel = Channel("fake", None, MagicMock(notify=MagicMock(return_value=sent)))
+    return patch("ai_marketplace_monitor.user.UserConfig.channels", return_value=[channel])
+
+
 def test_notify_records_notified_listings(
     eval_cache: Cache, user: User, item_config: FacebookItemConfig
 ) -> None:
     rated, unrated = _listing("1"), _listing("2")
     ratings = [AIResponse(5, "great"), AIResponse(5, AIResponse.NOT_EVALUATED)]
-    with patch("ai_marketplace_monitor.user.NotificationConfig.notify_all", return_value=True):
+    with _channel_sends(True):
         user.notify([rated, unrated], ratings, item_config, local_cache=eval_cache)
     records = {r.id: r for r in _all(eval_cache)}
     assert records["1"].stage == NOTIFIED
@@ -467,7 +474,7 @@ def test_notify_records_notified_listings(
 def test_failed_notification_records_nothing(
     eval_cache: Cache, user: User, item_config: FacebookItemConfig
 ) -> None:
-    with patch("ai_marketplace_monitor.user.NotificationConfig.notify_all", return_value=False):
+    with _channel_sends(False):
         user.notify([_listing()], [AIResponse(5, "great")], item_config, local_cache=eval_cache)
     assert _all(eval_cache) == []
 

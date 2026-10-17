@@ -18,7 +18,6 @@ from ai_marketplace_monitor import cli, user, utils
 from ai_marketplace_monitor.commands import admin
 from ai_marketplace_monitor.configure.notify import NotificationToolkit, UserToolkit
 from ai_marketplace_monitor.configure.tools import ToolExecutor
-from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.notification import (
     SAMPLE_IMAGE,
     TEST_LISTING_URL,
@@ -123,6 +122,16 @@ def config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return path
 
 
+def _notify(config: UserConfig, listing: Any, rating: Any) -> bool:
+    """What User.notify sends, without the cache."""
+    return any(
+        channel.config.notify(  # type: ignore[attr-defined]
+            [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
+        )
+        for channel in config.channels()
+    )
+
+
 # --- sending a test -----------------------------------------------------------------------
 def test_test_all_reports_each_channel_once(
     sent: List[str], temp_cache: Cache, config_path: Path
@@ -131,9 +140,9 @@ def test_test_all_reports_each_channel_once(
 
     config = Config([config_path])
     results = {r.channel: r for r in NotificationConfig.test_all(config.user["me"])}
-    assert results["pushbullet"].ok and results["pushbullet"].error is None
-    assert not results["email"].ok
-    assert results["email"].error == "STARTTLS extension not supported by server."
+    assert results["pb (pushbullet)"].ok and results["pb (pushbullet)"].error is None
+    assert not results["mail (email)"].ok
+    assert results["mail (email)"].error == "STARTTLS extension not supported by server."
     # one attempt each (the default would retry 5 times, 60 seconds apart)
     assert sorted(c.split(":")[0] for c in sent) == ["email", "pushbullet"]
     # nothing recorded: no notified listing, no counter
@@ -196,8 +205,7 @@ def test_web_does_not_return_config_errors(
 
 
 def test_email_without_recipient_is_not_a_channel() -> None:
-    config = EmailNotificationConfig(name="me", smtp_password="x")
-    assert NotificationConfig.channels(config) == []
+    assert UserConfig(name="me", smtp_password="x").channels() == []
 
 
 # --- aimm admin --test-notification -----------------------------------------------------------
@@ -206,8 +214,8 @@ def test_cli_prints_a_line_per_channel_and_fails(
 ) -> None:
     result = runner.invoke(cli.app, ["admin", "-r", str(config_path), "--test-notification"])
     assert result.exit_code == 1, result.output
-    assert "✓ me: pushbullet" in result.output
-    assert "✗ me: email: STARTTLS extension not supported by server." in result.output
+    assert "✓ me: pb (pushbullet)" in result.output
+    assert "✗ me: mail (email): STARTTLS extension not supported by server." in result.output
     assert "off" not in result.output  # a disabled user is not tested
     assert list(temp_cache.iterkeys()) == []
 
@@ -219,7 +227,7 @@ def test_cli_tests_one_user_and_succeeds(
         cli.app, ["admin", "-r", str(config_path), "--test-notification", "off"]
     )
     assert result.exit_code == 0, result.output
-    assert result.output.strip().splitlines()[-1] == "✓ off: pushbullet"
+    assert result.output.strip().splitlines()[-1] == "✓ off: pb (pushbullet)"
 
 
 def test_cli_reports_an_unknown_user(config_path: Path) -> None:
@@ -255,13 +263,13 @@ def test_web_lists_users_and_tests_one(
 ) -> None:
     client = make_client(config_path)
     users = {u["name"]: u for u in client.get("/api/notifications/users").json()["users"]}
-    assert sorted(users["me"]["channels"]) == ["email", "pushbullet"]
-    assert users["off"] == {"name": "off", "enabled": False, "channels": ["pushbullet"]}
+    assert users["me"]["channels"] == ["pb (pushbullet)", "mail (email)"]
+    assert users["off"] == {"name": "off", "enabled": False, "channels": ["pb (pushbullet)"]}
     data = client.post("/api/notifications/test", json={"user": "me"}).json()
     assert data["ok"] is False
     results = {r["channel"]: r for r in data["results"]}
-    assert results["pushbullet"] == {"channel": "pushbullet", "ok": True, "error": None}
-    assert "STARTTLS" in results["email"]["error"]
+    assert results["pb (pushbullet)"] == {"channel": "pb (pushbullet)", "ok": True, "error": None}
+    assert "STARTTLS" in results["mail (email)"]["error"]
     assert client.post("/api/notifications/test", json={"user": "nobody"}).status_code == 404
     assert client.post("/api/notifications/test", json={}).status_code == 400
     assert list(temp_cache.iterkeys()) == []
@@ -394,8 +402,10 @@ def test_configure_offers_and_runs_a_test(
 
     ex, out = in_new_loop(session())
     assert out["sent"] is True
-    assert out["results"] == [{"user": "me", "channel": "pushbullet", "ok": True, "error": None}]
-    assert "✓ pushbullet to [user.me]" in ui_of(ex.ws).said()
+    assert out["results"] == [
+        {"user": "me", "channel": "pb (pushbullet)", "ok": True, "error": None}
+    ]
+    assert "✓ pb (pushbullet) to [user.me]" in ui_of(ex.ws).said()
     assert len(sent) == 1
 
 
@@ -432,7 +442,7 @@ def test_configure_tests_only_the_saved_channel(
         return await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
 
     out = in_new_loop(session())
-    assert [r["channel"] for r in out["results"]] == ["pushbullet"]
+    assert [r["channel"] for r in out["results"]] == ["pb (pushbullet)"]
     assert sent == [s for s in sent if s.startswith("pushbullet")]
 
 
@@ -479,9 +489,7 @@ def test_a_push_test_is_a_real_notification(
     assert result.ok
     # what aimm sends for the same listing when a search finds it (User.notify)
     listing, rating = sample_listing()
-    assert NotificationConfig.notify_all(
-        config, [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
-    )
+    assert _notify(config, listing, rating)
     test, real = messages
     assert test == real
     title, body = test
@@ -516,9 +524,7 @@ def test_an_email_test_is_the_real_email_with_its_photo(
     [result] = NotificationConfig.test_all(config)
     assert result.ok, result.error
     listing, rating = sample_listing()
-    assert NotificationConfig.notify_all(
-        config, [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
-    )
+    assert _notify(config, listing, rating)
     test, real = sent_messages
     assert test["Subject"] == real["Subject"] == "Found 1 new test notification listing from aimm"
     [image] = [p for p in test.walk() if p.get_content_maintype() == "image"]

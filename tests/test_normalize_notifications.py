@@ -142,7 +142,7 @@ def test_inline_common_value_without_sections_moves_into_channel_section() -> No
     assert cfg["user"]["alice"] == {"notify_with": ["pushbullet"]}
 
 
-def test_same_type_later_section_wins() -> None:
+def test_sections_of_one_type_each_send() -> None:
     cfg = _run(
         """
     [user.alice]
@@ -156,8 +156,8 @@ def test_same_type_later_section_wins() -> None:
     telegram_token = "2:b"
     """
     )
-    assert cfg["user"]["alice"]["notify_with"] == ["tg2"]
-    assert cfg["notification"]["tg1"] == {"telegram_token": "1:a"}  # leftover kept
+    assert cfg["user"]["alice"]["notify_with"] == ["tg1", "tg2"]  # two bots, two channels
+    assert cfg["notification"]["tg1"] == {"telegram_token": "1:a"}
     assert cfg["notification"]["tg2"] == {"telegram_token": "2:b"}
 
 

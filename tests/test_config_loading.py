@@ -6,6 +6,8 @@ from typing import Any, Dict
 import pytest
 
 from ai_marketplace_monitor.config import Config, load_config_dicts
+from ai_marketplace_monitor.email_notify import EmailNotificationConfig
+from ai_marketplace_monitor.unitysvc_notify import UnitySVCNotificationConfig
 from tests.normalize_util import EXAMPLES
 
 
@@ -78,9 +80,15 @@ def test_default_template_is_a_working_config(
     assert cfg.ai["unitysvc"].model == "balanced"
     me = cfg.user["me"]
     assert me.notify_with == ["unitysvc_email", "unitysvc"]
-    assert me.smtp_server == "smtp.svcpass.com"
-    assert me.smtp_password == "svcpass_key"
-    assert me.unitysvc_api_key == "svcpass_key"
+    email, unitysvc = me.channels()
+    assert (email.name, email.config.notify_method) == ("unitysvc_email", "email")
+    assert isinstance(email.config, EmailNotificationConfig)
+    assert (email.config.smtp_server, email.config.smtp_password) == (
+        "smtp.svcpass.com",
+        "svcpass_key",
+    )
+    assert isinstance(unitysvc.config, UnitySVCNotificationConfig)
+    assert (unitysvc.name, unitysvc.config.unitysvc_api_key) == ("unitysvc", "svcpass_key")
     assert me.digest_at == "08:00"
     # channel defaults shared by both notifications are not reported as overrides
     logger.warning.assert_not_called()

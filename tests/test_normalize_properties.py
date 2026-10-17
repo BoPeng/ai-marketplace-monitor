@@ -84,7 +84,7 @@ def test_item_order_is_preserved() -> None:
 
 def test_example_config_expands() -> None:
     result = expand(load_config_dicts([EXAMPLES[1]])[1], system_cfg())
-    assert result.config["user"]["user1"]["notify_with"] == ["gmail", "pushbullet", "pushover"]
+    assert result.config["user"]["user1"]["notify_with"] == ["gmail", "pushover", "pushbullet"]
 
 
 @pytest.mark.parametrize("user_cfg", _inputs())

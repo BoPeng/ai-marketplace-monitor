@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List, Tuple, Type
@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Tuple, Type
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
+from .channels import Channel, user_channels
 from .email_notify import EmailNotificationConfig
 from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
@@ -45,6 +46,15 @@ class UserConfig(
     digest_at: str | None = None
     # notification sections that receive the digest, like notify_with; None for all of them
     digest_with: List[str] | None = None
+    # the user's channels, set by Config.expand_notifications
+    _channels: List[Channel] | None = field(default=None, repr=False, compare=False)
+
+    def channels(self: "UserConfig") -> List[Channel]:
+        """The channels the user is notified through (see ``channels.user_channels``).
+
+        Without a config (a user made on its own), the channels set up in [user.*].
+        """
+        return self._channels if self._channels is not None else user_channels(self, {})
 
     def handle_remind(self: "UserConfig") -> None:
         if self.remind is None:
@@ -225,9 +235,13 @@ class User:
             return
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
 
-        if NotificationConfig.notify_all(
-            self.config, listings, ratings, statuses, force=force, logger=self.logger
-        ):
+        sent = [
+            channel.config.notify(  # type: ignore[attr-defined]
+                listings, ratings, statuses, force=force, logger=self.logger
+            )
+            for channel in self.config.channels()
+        ]
+        if any(sent):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, rating, ns in zip(listings, ratings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:
