@@ -7,8 +7,8 @@ Values set in [user.*] alone make a channel of a type that no section the user r
 up. Alerts, the digest and test messages all go through these channels.
 """
 
-from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Type
+from dataclasses import dataclass, fields, replace
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple, Type
 
 if TYPE_CHECKING:
     from .notification import NotificationConfig
@@ -24,6 +24,17 @@ class Channel:
     # the [notification.*] section; None for a channel set up in [user.*]
     section: str | None
     config: "NotificationConfig"
+    # other sections the user receives that send the same message, sent once through this one
+    also: Tuple[str, ...] = ()
+
+    @property
+    def sections(self: "Channel") -> Tuple[str, ...]:
+        """The sections this channel sends for: none for a channel set up in [user.*]."""
+        return ((self.section,) if self.section is not None else ()) + self.also
+
+    def in_digest(self: "Channel", digest_with: List[str] | None) -> bool:
+        """Whether the channel receives the digest: all do, or ``digest_with`` names it."""
+        return digest_with is None or any(s in digest_with for s in self.sections)
 
     @property
     def label(self: "Channel") -> str:
@@ -53,11 +64,21 @@ def channel_classes() -> Dict[str, Type["NotificationConfig"]]:
 def channel_config(
     cls: Type["NotificationConfig"], user_config: Any, section: Any = None
 ) -> "NotificationConfig":
-    """A channel of type ``cls`` with the user's values, and the section's over them."""
+    """A channel of type ``cls`` with the user's values, and the section's over them.
+
+    Only the values a section sets replace the user's, not its defaults: a section with just
+    a password keeps the user's ``max_retries``.
+    """
     values: Dict[str, Any] = {f.name: getattr(user_config, f.name, None) for f in fields(cls)}
     if section is not None:
+        set_keys = vars(section).get("set_keys")
         for key, value in vars(section).items():
-            if key in values and key not in ("type", "name", "request") and value is not None:
+            if (
+                key in values
+                and key not in ("type", "name", "request")
+                and value is not None
+                and (set_keys is None or key in set_keys)
+            ):
                 values[key] = value
     return cls(**values)
 
@@ -94,8 +115,9 @@ def user_channels(user_config: Any, notifications: Mapping[str, Any]) -> List[Ch
     """The channels of a user.
 
     One per channel type of each section received, then the channels set up in [user.*]
-    alone. A channel without its required fields is left out, and so is one that is the same
-    as an earlier one (it would send the same message).
+    alone. A channel without its required fields is left out. A channel that is the same as an
+    earlier one (it would send the same message) is sent once, through the earlier one, which
+    keeps both sections (for ``digest_with``).
     """
     classes = channel_classes()
     channels: List[Channel] = []
@@ -115,6 +137,11 @@ def user_channels(user_config: Any, notifications: Mapping[str, Any]) -> List[Ch
             channels.append(Channel(label, None, config))
     out: List[Channel] = []
     for channel in channels:
-        if channel.config._has_required_fields() and all(channel.config != c.config for c in out):
+        if not channel.config._has_required_fields():
+            continue
+        same = next((i for i, c in enumerate(out) if c.config == channel.config), None)
+        if same is None:
             out.append(channel)
+        else:
+            out[same] = replace(out[same], also=out[same].also + channel.sections)
     return out

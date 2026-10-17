@@ -7,6 +7,7 @@ import pytest
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor.config import Config
+from ai_marketplace_monitor.digest import digest_channels
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.notification import sample_listing
 from ai_marketplace_monitor.pushbullet import PushbulletNotificationConfig
@@ -82,6 +83,52 @@ def test_a_section_value_wins_over_the_users(tmp_path: Path) -> None:
     [channel] = config.user["me"].channels()
     assert isinstance(channel.config, TelegramNotificationConfig)
     assert (channel.config.telegram_token, channel.config.telegram_chat_id) == ("1:bot", "-100")
+
+
+def test_only_values_a_section_sets_replace_the_users(tmp_path: Path) -> None:
+    config = _load(
+        tmp_path,
+        """
+    [user.me]
+    email = "me@example.com"
+    max_retries = 1
+    retry_delay = 0
+
+    [notification.mail]
+    smtp_password = "pw"
+
+    [notification.slow]
+    smtp_password = "pw2"
+    max_retries = 5
+    """,
+    )
+    mail, slow = config.user["me"].channels()
+    # the section's defaults (5 retries, 60 seconds apart) are not its values
+    assert (mail.config.max_retries, mail.config.retry_delay) == (1, 0)
+    # a value the section sets wins, even when it equals the default
+    assert (slow.config.max_retries, slow.config.retry_delay) == (5, 0)
+
+
+def test_identical_sections_send_once_and_keep_both_names(tmp_path: Path) -> None:
+    config = _load(
+        tmp_path,
+        """
+    [user.me]
+    notify_with = ["alerts", "daily"]
+    digest_with = ["daily"]
+    digest_at = "08:00"
+
+    [notification.alerts]
+    pushbullet_token = "same"
+
+    [notification.daily]
+    pushbullet_token = "same"
+    """,
+    )
+    [channel] = config.user["me"].channels()
+    assert (channel.name, channel.sections) == ("alerts", ("alerts", "daily"))
+    # the digest still goes to the section digest_with names
+    assert list(digest_channels(config.user["me"])) == ["alerts"]
 
 
 def test_user_settings_make_a_channel_of_a_type_no_section_sets_up(tmp_path: Path) -> None:

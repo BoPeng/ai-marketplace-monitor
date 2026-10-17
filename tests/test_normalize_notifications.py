@@ -114,7 +114,7 @@ def test_notify_with_empty_list_means_none() -> None:
     assert cfg["notification"]["gmail"] == {"smtp_password": "pw"}
 
 
-def test_inline_value_shadowed_by_section_default_is_dropped() -> None:
+def test_inline_value_applies_where_the_section_does_not_set_it() -> None:
     cfg = _run(
         """
     [user.alice]
@@ -126,7 +126,8 @@ def test_inline_value_shadowed_by_section_default_is_dropped() -> None:
     smtp_password = "pw"
     """
     )
-    assert "max_retries" not in cfg["user"]["alice"]
+    # the section's default does not replace alice's own value: it stays, and applies
+    assert cfg["user"]["alice"]["max_retries"] == 3
     assert "max_retries" not in cfg["notification"]["gmail"]
 
 

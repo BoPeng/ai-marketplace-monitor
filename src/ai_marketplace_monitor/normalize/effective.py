@@ -49,7 +49,7 @@ def channels_view(user: UserConfig) -> List[Dict[str, Any]]:
                         if k not in _CHANNEL_EXCLUDE and not k.startswith("_")
                     },
                     "type": c.config.notify_method,
-                    "digest": digest_with is None or c.section in digest_with,
+                    "digest": c.in_digest(digest_with),
                 },
                 default=str,
             )

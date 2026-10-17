@@ -239,11 +239,18 @@ class NotificationConfig(BaseConfig):
     def get_config(
         cls: Type["NotificationConfig"], **kwargs: Any
     ) -> Optional["NotificationConfig"]:
-        """Get the specific subclass name from the specified keys, for validation purposes"""
+        """Get the specific subclass name from the specified keys, for validation purposes
+
+        The section remembers the keys it was given (``set_keys``): a value it was not given
+        is a default, which does not replace a user's own value (see ``channels``).
+        """
         for subclass in cls.__subclasses__():
             acceptable_keys = {field.name for field in fields(subclass)}
             if all(name in acceptable_keys for name in kwargs.keys()):
-                return subclass(**{k: v for k, v in kwargs.items() if k != "type"})
+                section = subclass(**{k: v for k, v in kwargs.items() if k != "type"})
+                # not a field: it is not a config value, and fields are compared and copied
+                section.__dict__["set_keys"] = frozenset(kwargs) - {"name", "type"}
+                return section
             res = subclass.get_config(**kwargs)
             if res is not None:
                 return res

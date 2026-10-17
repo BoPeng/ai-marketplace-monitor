@@ -531,7 +531,7 @@ def digest_channels(user_config: Any) -> Dict[str, "NotificationConfig"]:
     return {
         channel.name: channel.config
         for channel in user_config.channels()
-        if digest_with is None or channel.section in digest_with
+        if channel.in_digest(digest_with)
     }
 
 
