@@ -1367,7 +1367,7 @@
   // and a unique auto-generated name.
 
   const duplicateSection = (section) => {
-    const schema = findFormSchema(section.name);
+    const schema = findFormSchema(section.name, section.fields);
     if (!schema) {
       alert(`No form defined for [${section.name}] — duplicate manually in the TOML editor.`);
       return;
@@ -1679,9 +1679,21 @@
     ],
   };
 
-  // Look up a schema for a section name. Exact match first, then
-  // prefix-wildcard (e.g. "item.gopro" → "item.*").
-  const findFormSchema = (sectionName) => {
+  // The type of a [marketplace.<name>] section, as aimm resolves it: its market_type,
+  // else its name if that names a marketplace, else facebook.
+  const marketplaceType = (sectionName, fields) => {
+    const name = sectionName.slice("marketplace.".length);
+    const declared = fields && typeof fields.market_type === "string" ? fields.market_type : "";
+    if (declared) return declared.toLowerCase();
+    return FORM_SCHEMAS["marketplace." + name] ? name : "facebook";
+  };
+
+  // Look up a schema for a section name. A marketplace section's form follows its type;
+  // otherwise exact match first, then prefix-wildcard (e.g. "item.gopro" → "item.*").
+  const findFormSchema = (sectionName, fields) => {
+    if (sectionName.startsWith("marketplace.")) {
+      return FORM_SCHEMAS["marketplace." + marketplaceType(sectionName, fields)] || null;
+    }
     if (FORM_SCHEMAS[sectionName]) return FORM_SCHEMAS[sectionName];
     const dot = sectionName.indexOf(".");
     if (dot >= 0) {
@@ -2164,7 +2176,7 @@
 
     // Look up the schema. If we don't have one for this section type,
     // show a "raw TOML only" message.
-    const schema = findFormSchema(sectionName);
+    const schema = findFormSchema(sectionName, fields);
     if (!schema) {
       $("#form-modal-title").textContent = `Edit [${sectionName}]`;
       $("#form-modal-hint").hidden = false;

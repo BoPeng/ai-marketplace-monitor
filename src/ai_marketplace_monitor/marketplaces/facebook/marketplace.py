@@ -87,6 +87,9 @@ class FacebookMarketplace(Marketplace):
     home_url = "https://www.facebook.com/"
 
     market_type = "facebook"
+    config_class = FacebookMarketplaceConfig
+    item_config_class = FacebookItemConfig
+    supports_regions = True
 
     @classmethod
     def listing_url(cls: Type["FacebookMarketplace"], listing_id: str) -> str:

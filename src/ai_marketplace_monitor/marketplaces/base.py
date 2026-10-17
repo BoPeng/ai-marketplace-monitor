@@ -9,6 +9,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    FrozenSet,
     Generator,
     Generic,
     List,
@@ -100,6 +101,16 @@ def site_fallbacks(cls: type) -> Mapping[Tuple[str, str], Fallback]:
             for site in f.metadata.get(ITEM_ONLY_IN, ())
         }
     )
+
+
+def option_names(cls: type) -> FrozenSet[str]:
+    """The options a section of this config class can set (its fields, but its name)."""
+    return _option_names(cast(Any, cls))
+
+
+@lru_cache(maxsize=None)
+def _option_names(cls: Any) -> FrozenSet[str]:
+    return frozenset(f.name for f in fields(cls) if f.name not in ("name", "monitor_config"))
 
 
 @lru_cache(maxsize=None)
@@ -611,14 +622,11 @@ class MarketplaceConfig(MarketItemCommonConfig):
     monitor_config: MonitorConfig | None = None
 
     def handle_market_type(self: "MarketplaceConfig") -> None:
+        # which types exist is checked by Config (marketplaces.supported_marketplaces)
         if self.market_type is None:
             return
         if not isinstance(self.market_type, str):
             raise ValueError(f"Marketplace {hilight(self.market_type)} market must be a string.")
-        if self.market_type.lower() != MarketPlace.FACEBOOK.value:
-            raise ValueError(
-                f"Marketplace {hilight(self.market_type)} market must be {MarketPlace.FACEBOOK.value}."
-            )
 
     def handle_language(self: "MarketplaceConfig") -> None:
         if self.language is None:
@@ -716,6 +724,11 @@ class SearchPage:
 class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
     # the market_type of the marketplace sections this class searches
     market_type: ClassVar[str] = ""
+    # the options of its marketplace and item sections (their dataclass fields)
+    config_class: ClassVar[Type["MarketplaceConfig"]]
+    item_config_class: ClassVar[Type["ItemConfig"]]
+    # whether its sections can use [region.*] sections (search_region)
+    supports_regions: ClassVar[bool] = False
     # seconds to wait after a search page, a listing page and a seller's profile
     search_page_delay: ClassVar[float] = 5
     listing_page_delay: ClassVar[float] = 5

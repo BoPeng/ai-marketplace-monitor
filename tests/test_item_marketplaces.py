@@ -113,3 +113,102 @@ def test_the_monitor_schedules_an_item_in_each_of_its_marketplaces(
         schedule.clear()
     assert sorted(item.marketplace for _, _, item in scheduled) == ["dallas", "houston"]
     assert all(m.name == item.marketplace for m, _, item in scheduled)
+
+
+# ------------------------------------------------------------------ options per marketplace type
+
+
+class HttpMarketplace:
+    """A marketplace type with only the shared options (no availability, category, login)."""
+
+    from ai_marketplace_monitor.marketplaces.base import ItemConfig, MarketplaceConfig
+
+    market_type = "http"
+    config_class = MarketplaceConfig
+    item_config_class = ItemConfig
+    supports_regions = False
+
+    @classmethod
+    def get_config(cls, **kwargs: Any) -> Any:
+        return cls.config_class(**kwargs)
+
+    @classmethod
+    def get_item_config(cls, **kwargs: Any) -> Any:
+        return cls.item_config_class(**kwargs)
+
+
+MIXED = """
+[marketplace.facebook]
+search_city = "houston"
+username = "u"
+password = "p"
+
+[marketplace.other]
+market_type = "http"
+search_city = "houston"
+
+[user.me]
+pushbullet_token = "x"
+"""
+
+
+def _mixed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra: str) -> Config:
+    from ai_marketplace_monitor.marketplaces import supported_marketplaces
+
+    monkeypatch.setitem(supported_marketplaces, "http", HttpMarketplace)  # type: ignore[arg-type]
+    path = tmp_path / "config.toml"
+    path.write_text(textwrap.dedent(MIXED + extra), encoding="utf-8")
+    return Config([path])
+
+
+def test_an_option_a_marketplace_does_not_have_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="sets colour, which facebook marketplaces do not have"):
+        _config(
+            tmp_path,
+            '[marketplace.austin]\nsearch_city = "austin"\ncolour = "red"\n'
+            '[item.bike]\nsearch_phrases = "bike"\nmarketplace = "dallas"\n',
+        )
+    with pytest.raises(ValueError, match="Item .*bike.* sets colour, which facebook"):
+        _config(tmp_path, '[item.bike]\nsearch_phrases = "bike"\ncolour = "red"\n')
+
+
+def test_an_option_only_some_marketplaces_have_is_used_where_it_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.warns(UserWarning, match="availability not used in marketplace other"):
+        config = _mixed(
+            tmp_path, monkeypatch, '[item.bike]\nsearch_phrases = "bike"\navailability = "in"\n'
+        )
+    targets = config.item_targets["bike"]
+    assert targets["facebook"].availability == ["in"]
+    assert not hasattr(targets["other"], "availability")
+    # no login for a marketplace that has none
+    assert not hasattr(config.marketplace["other"], "username")
+
+
+def test_an_option_no_marketplace_of_the_item_has_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(ValueError, match="sets colour, which facebook and http marketplaces"):
+        _mixed(tmp_path, monkeypatch, '[item.bike]\nsearch_phrases = "bike"\ncolour = "red"\n')
+
+
+def test_regions_are_for_facebook(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from ai_marketplace_monitor.marketplaces import supported_marketplaces
+
+    monkeypatch.setitem(supported_marketplaces, "http", HttpMarketplace)  # type: ignore[arg-type]
+    path = tmp_path / "config.toml"
+    path.write_text(
+        textwrap.dedent(
+            MIXED.replace(
+                'market_type = "http"\nsearch_city = "houston"',
+                'market_type = "http"\nsearch_region = "usa"',
+            )
+            + '[item.bike]\nsearch_phrases = "bike"\nmarketplace = "facebook"\n'
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ValueError, match="search_region, but \\[region.\\*\\] sections are for Facebook"
+    ):
+        Config([path])
