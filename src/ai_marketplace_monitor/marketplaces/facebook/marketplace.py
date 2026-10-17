@@ -88,7 +88,6 @@ class FacebookMarketplace(Marketplace):
     initial_url = "https://www.facebook.com/login/device-based/regular/login/"
     home_url = "https://www.facebook.com/"
 
-    name = "facebook"
     market_type = "facebook"
 
     @classmethod
@@ -121,7 +120,7 @@ class FacebookMarketplace(Marketplace):
         keyboard_monitor: KeyboardMonitor | None = None,
         logger: Logger | None = None,
     ) -> None:
-        assert name == self.name
+        # name is the section's: [marketplace.mymarket] can be a Facebook marketplace
         super().__init__(name, browser, keyboard_monitor, logger)
         self.page: Page | None = None
 
