@@ -133,8 +133,9 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
         for key in COMMON_OPTIONS:
             if key not in market:
                 continue
-            # an item that is also searched elsewhere still reads what it did not get
-            if any(key not in item for item in shared):
+            # an item that is also searched elsewhere still reads what it did not get, or
+            # what it sets to a value that falls back (notify = [])
+            if any(_falls_back(key, item) for item in shared):
                 continue
             del market[key]
             if has_region and key in LOCATION_KEYS and key != "search_region":

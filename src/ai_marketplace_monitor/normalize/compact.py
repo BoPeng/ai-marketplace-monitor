@@ -18,13 +18,19 @@ def _shared(key: str, group: List[Dict[str, Any]]) -> bool:
     return not (OPTION_FALLBACK.get(key) is Fallback.TRUTHY and not values[0])
 
 
+def _reads_others(item: Dict[str, Any], markets: Dict[str, Any]) -> bool:
+    """Whether an item is (or may come to be) searched in more than one marketplace."""
+    return not item.get("marketplace") or len(bound_marketplaces(item, markets)) > 1
+
+
 def _hoist(cfg: Dict[str, Any], notes: Notes) -> None:
     markets: Dict[str, Any] = cfg.get("marketplace", {})
     items: Dict[str, Any] = cfg.get("item", {})
     for market_name, market in markets.items():
         searching = [it for it in items.values() if market_name in bound_marketplaces(it, markets)]
-        # a value moved into the marketplace would also reach the other marketplaces' items
-        if any(len(bound_marketplaces(it, markets)) > 1 for it in searching):
+        # an item that also reads other marketplaces (one of several, or unscoped: also ones
+        # added later) must keep its own values there
+        if any(_reads_others(it, markets) for it in searching):
             continue
         group = searching
         if len(group) < 2:
@@ -121,6 +127,9 @@ def _drop_implicit_all_lists(cfg: Dict[str, Any], notes: Notes) -> None:
             notes[(label, "ai")] = "ai omitted: defaults to all AI backends"
 
     for name, item in cfg.get("item", {}).items():
+        # an unscoped item's list is not redundant: a marketplace added later may choose others
+        if not item.get("marketplace"):
+            continue
         targets = [markets[m] for m in bound_marketplaces(item, markets)]
         label = f"item.{name}"
         # only when the item would inherit the same in every marketplace it is searched in

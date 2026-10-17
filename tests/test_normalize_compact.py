@@ -292,6 +292,7 @@ def test_default_notify_and_ai_lists_are_removed() -> None:
     pushbullet_token = "b"
 
     [item.a]
+    marketplace = "facebook"
     search_phrases = "a"
     notify = ["alice", "bob"]
     ai = ["openai"]
@@ -506,3 +507,49 @@ def test_normalize_change_list_keeps_expand_notes() -> None:
     changes = [c for c in result.changes if c.section == "item.a" and c.key == "max_price"]
     assert changes
     assert "AI prompt" in changes[0].detail
+
+
+# ------------------------------------------------------------------ unscoped items (#479 review)
+
+HOUSTON = """
+[user.alice]
+pushbullet_token = "a"
+
+[user.bob]
+pushbullet_token = "b"
+
+[marketplace.houston]
+search_city = "houston"
+"""
+
+
+def test_an_empty_item_value_that_still_inherits_keeps_the_marketplace_value() -> None:
+    cfg = normalize(
+        parse(HOUSTON + 'notify = "alice"\n[item.bike]\nsearch_phrases = "bike"\nnotify = []\n'),
+        system_cfg(),
+    ).config
+    assert cfg["marketplace"]["houston"]["notify"] == "alice"
+
+
+def test_unscoped_items_keep_their_own_values_for_marketplaces_added_later() -> None:
+    from ai_marketplace_monitor.config import Config
+
+    two_items = (
+        '[item.a]\nsearch_phrases = "a"\nrating = 4\n[item.b]\nsearch_phrases = "b"\nrating = 4\n'
+    )
+    cfg = normalize(parse(HOUSTON + two_items), system_cfg()).config
+    assert cfg["item"]["a"]["rating"] == 4 and cfg["item"]["b"]["rating"] == 4
+    assert "rating" not in cfg["marketplace"]["houston"]
+    cfg["marketplace"]["dallas"] = {"search_city": "dallas", "rating": 2}
+    config = Config.from_dicts(system_cfg(), cfg)
+    assert config.item_targets["a"]["dallas"].rating == [4]
+
+
+def test_an_unscoped_item_keeps_a_list_equal_to_its_current_default() -> None:
+    cfg = normalize(
+        parse(
+            HOUSTON + 'notify = "alice"\n[item.bike]\nsearch_phrases = "bike"\nnotify = "alice"\n'
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["item"]["bike"]["notify"] == "alice"
