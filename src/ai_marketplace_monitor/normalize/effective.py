@@ -5,7 +5,7 @@ from dataclasses import asdict, fields
 from typing import Any, Dict, List, Tuple
 
 from ..config import Config
-from ..marketplaces.base import resolve_option
+from ..marketplaces.base import option_names, resolve_option
 from ..marketplaces.facebook import FacebookItemConfig
 from ..user import UserConfig
 from .model import _BASE_FIELDS, AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, NormalizeError, mask, plain
@@ -51,9 +51,11 @@ def _item_target_view(config: Config, item: Any) -> Dict[str, Any]:
     entry: Dict[str, Any] = {
         "enabled": _runtime_enabled(item.enabled),
     }
-    entry.update({k: getattr(item, k) for k in _ITEM_ONLY_FIELDS})
+    # the options of this item's marketplace type (an OfferUp item has no availability)
+    own = option_names(type(item))
+    entry.update({k: getattr(item, k) for k in _ITEM_ONLY_FIELDS if k in own})
     for key in COMMON_OPTIONS:
-        if key not in ("search_region", "notify", "ai"):
+        if key in own and key not in ("search_region", "notify", "ai"):
             entry[key] = resolve_option(key, item, market)
     for key in AI_PROMPT_ITEM_ONLY:
         entry[f"ai_prompt:{key}"] = resolve_option(key, item, market, site="ai_prompt")

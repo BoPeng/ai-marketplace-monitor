@@ -67,6 +67,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - Filter by price and location
 - Exclude irrelevant results and spammers
 - Support for different Facebook Marketplace layouts
+- Also searches [OfferUp](docs/README.md#offerup) (US), without an account or a browser
 
 🤖 **AI-Powered**
 

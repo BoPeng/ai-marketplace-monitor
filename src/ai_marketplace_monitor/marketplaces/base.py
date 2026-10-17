@@ -999,7 +999,15 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
                     continue
                 # currently we trust the other items from summary page a bit better
                 # so we do not copy title, description etc from the detailed result
-                for attr in ("condition", "seller", "description", "seller_id", "seller_info"):
+                for attr in (
+                    "condition",
+                    "seller",
+                    "description",
+                    "seller_id",
+                    "seller_info",
+                    "post_date",
+                    "delivery",
+                ):
                     # other attributes should be consistent
                     setattr(listing, attr, getattr(details, attr))
                 listing.name = item_config.name

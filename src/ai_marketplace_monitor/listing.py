@@ -27,6 +27,10 @@ class Listing:
     # whether the page was read for seller information: False for listings cached before
     # aimm read sellers, which are read again once (an unavailable seller panel stays True)
     seller_parsed: bool = False
+    # when it was posted (ISO 8601) and how it is delivered (local_pick_up, shipping or all),
+    # where the marketplace says; "" otherwise. Not part of the hash.
+    post_date: str = ""
+    delivery: str = ""
 
     @property
     def seller_state(self: "Listing") -> str:
@@ -48,7 +52,15 @@ class Listing:
             {
                 x: (y.split("?")[0] if x == "post_url" else y)
                 for x, y in asdict(self).items()
-                if x not in ("image", "seller_id", "seller_info", "seller_parsed")
+                if x
+                not in (
+                    "image",
+                    "seller_id",
+                    "seller_info",
+                    "seller_parsed",
+                    "post_date",
+                    "delivery",
+                )
             }
         )
 

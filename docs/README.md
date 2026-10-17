@@ -119,9 +119,9 @@ One or more sections `marketplace.name` show the options for interacting with va
 
 | Option             | Requirement | DataType | Description                                                                                                      |
 | ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `market_type`      | Optional    | String   | The type of marketplace: `facebook` (currently the only one). Without it, a section named after a marketplace type (`[marketplace.facebook]`) has that type, and any other section is a Facebook marketplace. A section sets only the options its type has. |
-| `username`         | Required    | String   | Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. aimm searches only while logged in. |
-| `password`         | Required    | String   | Facebook password. Falls back to the `FACEBOOK_PASSWORD` environment variable if not set.                       |
+| `market_type`      | Optional    | String   | The type of marketplace: `facebook` or `offerup`. Without it, a section named after a marketplace type (`[marketplace.facebook]`, `[marketplace.offerup]`) has that type, and any other section is a Facebook marketplace. A section sets only the options its type has. |
+| `username`         | Required    | String   | Facebook marketplaces: the Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. aimm searches only while logged in. |
+| `password`         | Required    | String   | Facebook marketplaces: the Facebook password. Falls back to the `FACEBOOK_PASSWORD` environment variable if not set.                       |
 | `login_wait_time`  | Deprecated  | Integer  | Ignored. aimm now waits until the Facebook login has finished, however long a CAPTCHA or security code takes.   |
 | `language`         | Optional    | String   | Language for webpages                                                                                            |
 | **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
@@ -130,6 +130,24 @@ One or more sections `marketplace.name` show the options for interacting with va
 2. aimm logs in with `username` and `password`, then waits until Facebook has finished logging in before it searches: if Facebook asks for a CAPTCHA or a security code, complete it in the browser window (in Docker, the **Browser** tab of the web UI), and searches start once you are logged in. If Facebook logs aimm out later, it waits the same way and retries the page. aimm no longer searches without logging in, which worked only some of the time. `username` and `password` can be provided in three ways (in order of priority): directly in the config file, via the `${ENV_VAR}` syntax (e.g. `password = '${MY_FB_PASS}'`), or automatically from the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables. If none are set, aimm reports a configuration error.
 3. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
 4. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
+
+#### OfferUp
+
+aimm searches [OfferUp](https://offerup.com) (US only) without an account and without a browser, through the API OfferUp's website uses. An OfferUp section needs only a location:
+
+```toml
+[marketplace.offerup]
+search_city = "77002"      # a US ZIP code, or a list of them
+radius = 30                # miles: OfferUp offers 5, 10, 20, 30 and 50 (the nearest is used)
+```
+
+- `search_city` is a US ZIP code (or several), not a Facebook location code. `city_name` names them in the log.
+- OfferUp sections take the [common options](#common-item-and-marketplace-options); `availability`, `category`, `language`, `currency`, `search_region` and the login options are Facebook's. An item searched in both an OfferUp and a Facebook section uses the Facebook-only options in the Facebook section only (aimm logs a warning).
+- OfferUp's search sorts newest first unless `sort_by` says otherwise, and filters by `condition` (`new`; `used_like_new` as open box or used; `used_good` and `used_fair` as used), `min_price` and `max_price` (in US dollars; other currencies are converted). It has no filter for a listing's age or delivery: `date_listed` and `delivery_method` are checked after aimm reads the listing.
+- aimm reads each seller's public profile (when they joined OfferUp, rating, items sold, what buyers praise, verifications such as TruYou) for the AI and the seller filters. OfferUp does not show a seller's number of active listings.
+- Without a Facebook section, aimm starts no browser (the web UI's browser view starts one on demand) and needs no Facebook credentials. The web UI then signs you in with `AIMM_WEBUI_PASSWORD` (see [Who signs you in to the web UI](docker-installation.md#who-signs-you-in-to-the-web-ui)).
+- OfferUp answers only requests from the US: elsewhere, set `proxy_server` in `[monitor]` to a US proxy. aimm spaces its requests by a few seconds; if OfferUp refuses them (HTTP 403), aimm logs it and tries again at the next search.
+- OfferUp's terms prohibit automated collection, as Facebook's do. aimm is meant for personal use.
 
 ### Users
 

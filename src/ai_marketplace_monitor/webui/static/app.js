@@ -1679,6 +1679,19 @@
     ],
   };
 
+  // OfferUp's form: the Facebook form without what OfferUp lacks (login, language,
+  // categories, availability, regions, currency); its location is a US ZIP code.
+  const OFFERUP_OMIT = ["username", "password", "login_wait_time", "language", "category", "availability", "search_region", "currency"];
+  FORM_SCHEMAS["marketplace.offerup"] = FORM_SCHEMAS["marketplace.facebook"]
+    .filter((field) => !OFFERUP_OMIT.includes(field.key))
+    .map((field) =>
+      field.key === "search_city"
+        ? { ...field, label: "ZIP code", help: "US ZIP code(s) to search around, comma-separated, e.g. '77002'." }
+        : field.key === "radius"
+          ? { ...field, help: "Miles: OfferUp offers 5, 10, 20, 30 and 50 (the nearest is used)." }
+          : field
+    );
+
   // The type of a [marketplace.<name>] section, as aimm resolves it: its market_type,
   // else its name if that names a marketplace, else facebook.
   const marketplaceType = (sectionName, fields) => {

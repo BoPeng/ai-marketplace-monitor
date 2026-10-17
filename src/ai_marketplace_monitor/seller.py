@@ -1,6 +1,6 @@
-"""Who sells a listing: what Facebook shows about the seller, and signs of an unreliable one.
+"""Who sells a listing: what the marketplace shows about the seller, and signs of an unreliable one.
 
-The listing page shows the seller's name, the year they joined Facebook and, for sellers
+On Facebook, the listing page shows the seller's name, the year they joined Facebook and, for sellers
 with ratings, the average and the number of ratings. The seller's Marketplace profile
 (``/marketplace/profile/<id>/``) adds the number of active listings and, in its "Sold" view,
 the sold ones. Profiles are cached by seller id, so each is opened at most once in a while.
@@ -50,6 +50,10 @@ class Seller:
     profile_checked: bool = False
     # when the profile was read (seconds since the epoch); None if never
     checked_at: float | None = None
+    # where the account is, for "joined <platform> in <year>"
+    platform: str = "Facebook"
+    # what the marketplace confirmed about the account: "Confirmed phone", "TruYou verified"
+    badges: List[str] = field(default_factory=list)
 
     def needs_profile(self: "Seller", now: float | None = None) -> bool:
         """Whether to read the profile: never read, or read about a month ago."""
@@ -73,7 +77,7 @@ class Seller:
         """The seller in a sentence, for the AI and (without reviews) for notifications."""
         parts = []
         if self.joined_year:
-            parts.append(f"joined Facebook in {self.joined_year}")
+            parts.append(f"joined {self.platform} in {self.joined_year}")
         if self.rating is not None and self.rating_count:
             parts.append(
                 f"rated {self.rating:g} out of 5 by {self.rating_count} buyer"
@@ -92,6 +96,8 @@ class Seller:
             )
         if self.strengths:
             parts.append("buyers appreciate: " + ", ".join(self.strengths))
+        if self.badges:
+            parts.append("badges: " + ", ".join(self.badges))
         text = ", ".join(parts)
         if reviews and self.reviews:
             text += ". Recent reviews: " + " | ".join(f'"{r}"' for r in self.reviews)
@@ -147,7 +153,7 @@ def seller_warnings(
         min_account_years and seller.joined_year and year - seller.joined_year < min_account_years
     )
     if new_account:
-        warnings.append(f"new account (joined Facebook in {seller.joined_year})")
+        warnings.append(f"new account (joined {seller.platform} in {seller.joined_year})")
     if (
         min_rating
         and seller.rating is not None
