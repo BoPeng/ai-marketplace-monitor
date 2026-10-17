@@ -120,6 +120,34 @@ def resolve_option(key: str, item: Any, marketplace: Any, site: str = "search") 
     return value or getattr(marketplace, key)
 
 
+class Condition(Enum):
+    NEW = "new"
+    USED_LIKE_NEW = "used_like_new"
+    USED_GOOD = "used_good"
+    USED_FAIR = "used_fair"
+
+
+class DateListed(Enum):
+    ANYTIME = 0
+    PAST_24_HOURS = 1
+    PAST_WEEK = 7
+    PAST_MONTH = 30
+
+
+class DeliveryMethod(Enum):
+    LOCAL_PICK_UP = "local_pick_up"
+    SHIPPING = "shipping"
+    ALL = "all"
+
+
+class SortBy(Enum):
+    SUGGESTED = "suggested"
+    NEW = "new"
+    PRICE_ASCEND = "price_ascend"
+    PRICE_DESCEND = "price_descend"
+    DISTANCE_ASCEND = "distance_ascend"
+
+
 @dataclass
 class MarketItemCommonConfig(BaseConfig):
     """Item options that can be specified in market (non-marketplace specifc)
@@ -148,6 +176,15 @@ class MarketItemCommonConfig(BaseConfig):
     prompt: str | None = option(Fallback.NOT_NONE)
     extra_prompt: str | None = option(Fallback.NOT_NONE)
     rating_prompt: str | None = option(Fallback.NOT_NONE)
+    # sellers: where they are, and the lowest rating aimm accepts
+    seller_locations: List[str] | None = option(Fallback.NOT_NONE)
+    seller_min_rating: float | None = option(Fallback.NOT_NONE)
+    # aimm's vocabulary: each marketplace translates the values into its own search, or
+    # applies them to the listing after reading it
+    condition: List[str] | None = option(Fallback.TRUTHY)
+    date_listed: List[int] | None = option(Fallback.TRUTHY)
+    delivery_method: List[str] | None = option(Fallback.TRUTHY)
+    sort_by: str | None = option(Fallback.TRUTHY)
 
     def handle_ai(self: "MarketItemCommonConfig") -> None:
         if self.ai is None:
@@ -460,6 +497,107 @@ class MarketItemCommonConfig(BaseConfig):
         if not isinstance(self.rating_prompt, str):
             raise ValueError(
                 f"Item {hilight(self.name)} requires a string rating_prompt, if specified."
+            )
+
+    def handle_seller_min_rating(self: "MarketItemCommonConfig") -> None:
+        value = self.seller_min_rating
+        if value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 5:
+            raise ValueError(
+                f"Item {hilight(self.name)} seller_min_rating must be a number from 0 to 5."
+            )
+        self.seller_min_rating = float(value)
+
+    def handle_seller_locations(self: "MarketItemCommonConfig") -> None:
+        if self.seller_locations is None:
+            return
+
+        if isinstance(self.seller_locations, str):
+            self.seller_locations = [self.seller_locations]
+        if not isinstance(self.seller_locations, list) or not all(
+            isinstance(x, str) for x in self.seller_locations
+        ):
+            raise ValueError(f"Item {hilight(self.name)} seller_locations must be a list.")
+
+    def handle_condition(self: "MarketItemCommonConfig") -> None:
+        if self.condition is None:
+            return
+        if isinstance(self.condition, Condition):
+            self.condition = [self.condition]
+        if not isinstance(self.condition, list) or not all(
+            isinstance(x, str) and x in [cond.value for cond in Condition] for x in self.condition
+        ):
+            raise ValueError(
+                f"Item {hilight(self.name)} condition must be one or more of that can be one of 'new', 'used_like_new', 'used_good', 'used_fair'."
+            )
+
+    def handle_date_listed(self: "MarketItemCommonConfig") -> None:
+        if self.date_listed is None:
+            return
+        if not isinstance(self.date_listed, list):
+            self.date_listed = [self.date_listed]
+        #
+        new_values: List[int] = []
+        for val in self.date_listed:
+            if isinstance(val, str):
+                if val.isdigit():
+                    new_values.append(int(val))
+                elif val.lower() == "all":
+                    new_values.append(DateListed.ANYTIME.value)
+                elif val.lower() == "last 24 hours":
+                    new_values.append(DateListed.PAST_24_HOURS.value)
+                elif val.lower() == "last 7 days":
+                    new_values.append(DateListed.PAST_WEEK.value)
+                elif val.lower() == "last 30 days":
+                    new_values.append(DateListed.PAST_MONTH.value)
+                else:
+                    raise ValueError(
+                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
+                    )
+            elif isinstance(val, (int, float)):
+                if int(val) not in [x.value for x in DateListed]:
+                    raise ValueError(
+                        f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
+                    )
+                new_values.append(int(val))
+            else:
+                raise ValueError(
+                    f"""Item {hilight(self.name)} date_listed must be one of 1, 7, and 30, or All, Last 24 hours, Last 7 days, Last 30 days.: {self.date_listed} provided."""
+                )
+        # new_values should have length 1 or 2
+        if len(new_values) > 2:
+            raise ValueError(
+                f"""Item {hilight(self.name)} date_listed must have one or two values."""
+            )
+        self.date_listed = new_values
+
+    def handle_delivery_method(self: "MarketItemCommonConfig") -> None:
+        if self.delivery_method is None:
+            return
+
+        if isinstance(self.delivery_method, str):
+            self.delivery_method = [self.delivery_method]
+
+        if len(self.delivery_method) > 2:
+            raise ValueError(
+                f"Item {hilight(self.name)} delivery_method must be one or two values of 'local_pick_up' and 'shipping'."
+            )
+
+        if not isinstance(self.delivery_method, list) or not all(
+            val in [x.value for x in DeliveryMethod] for val in self.delivery_method
+        ):
+            raise ValueError(
+                f"Item {hilight(self.name)} delivery_method must be one of 'local_pick_up' and 'shipping'."
+            )
+
+    def handle_sort_by(self: "MarketItemCommonConfig") -> None:
+        if self.sort_by is None:
+            return
+
+        if not isinstance(self.sort_by, str) or self.sort_by not in [x.value for x in SortBy]:
+            raise ValueError(
+                f"Item {hilight(self.name)} sort_by must be one of {', '.join(x.value for x in SortBy)}."
             )
 
 

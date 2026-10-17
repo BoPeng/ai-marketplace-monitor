@@ -46,15 +46,13 @@ if TYPE_CHECKING:
     )
 
 
+from ..base import DateListed, DeliveryMethod, SortBy
 from .config import (
     SORT_BY_PARAM,
     Availability,
     Category,
-    DateListed,
-    DeliveryMethod,
     FacebookItemConfig,
     FacebookMarketplaceConfig,
-    SortBy,
 )
 from .pages import (
     FacebookLocationDialog,
