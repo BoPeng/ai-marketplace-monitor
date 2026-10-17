@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Tuple, TypeVar
 
 from ..ai import AIResponse
-from ..config import Config, supported_marketplaces
+from ..config import Config, marketplace_class
 from ..evaluations import find_evaluation
 from ..facebook import FacebookMarketplace, FacebookSellerProfilePage
 from ..listing import Listing
@@ -218,7 +218,7 @@ class LiveBrowser:
                 continue
             if wanted is None and marketplace_config.enabled is False:
                 continue
-            if supported_marketplaces.get(marketplace_config.name) is not FacebookMarketplace:
+            if not issubclass(marketplace_class(marketplace_config), FacebookMarketplace):
                 continue
             return marketplace_config
         raise LiveUnavailableError("There is no Facebook [marketplace.*] section.")
