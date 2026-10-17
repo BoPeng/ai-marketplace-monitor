@@ -139,6 +139,11 @@ async def test_save_writes_drafts_after_one_confirmation(tmp_path: Path) -> None
         "saved": True,
         "sections": ["[marketplace.facebook]", "[marketplace.home]"],
         "note": out["note"],
+        # the new marketplace is also searched by the item that names none
+        "shown_to_user": [
+            "[item.example] names no marketplace, so it is now also searched in "
+            "[marketplace.home]. Set an item's `marketplace` to keep it to some marketplaces."
+        ],
     }
     assert "`aimm run`" in out["note"]  # the model knows nothing is searching yet
     written = tomllib.loads((tmp_path / "config.toml").read_text())

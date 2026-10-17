@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
+from ..marketplaces import supported_marketplaces
 from ..marketplaces.facebook.location import FacebookLocations, LocationLookupError
 from ..shared_browser import shared_endpoint
 from .history import explain_listing, find_listings
@@ -406,13 +407,17 @@ class ToolExecutor:
         if notes:
             result["shown_to_user"] = notes
         tried = [n for t, n in (d.key for d in pending) if t == "item"]
-        if tried and await asyncio.to_thread(shared_endpoint) is not None:
+        if tried and (
+            self._searchable_without_browser(tried)
+            or await asyncio.to_thread(shared_endpoint) is not None
+        ):
             result["try_item"] = {
                 "items": tried,
                 "note": (
-                    "aimm can run the search of what was just saved once, now, in the monitor's "
-                    "browser, and list what it finds (search results only, no AI). Offer it "
-                    "with ask_user, in your own words; call try_item only if the user agrees."
+                    "aimm can run the search of what was just saved once, now (OfferUp "
+                    "directly, Facebook in the monitor's browser while it runs), and list what "
+                    "it finds (search results only, no AI). Offer it with ask_user, in your own "
+                    "words; call try_item only if the user agrees."
                 ),
             }
         if tests:
@@ -427,6 +432,19 @@ class ToolExecutor:
                 ),
             }
         return result
+
+    def _searchable_without_browser(self: "ToolExecutor", items: List[str]) -> bool:
+        """Whether one of these items is searched in a marketplace that needs no browser."""
+        toolkit = self.ws.toolkits.get("item")
+        if toolkit is None or not hasattr(toolkit, "targets"):
+            return False
+        saved = self.ws.user_cfg.get("item", {})
+        return any(
+            market_type in supported_marketplaces
+            and not supported_marketplaces[market_type].needs_browser
+            for name in items
+            for market_type in toolkit.targets(self.ws, saved.get(name, {})).values()
+        )
 
     async def test_notification(
         self: "ToolExecutor", section_type: str, name: str
@@ -466,20 +484,31 @@ class ToolExecutor:
                     "state or country name, or a ZIP code."
                 ],
             }
-        self.ws.found_city_codes |= {p.code for p in places}
+        found = [
+            {
+                "place": p.label,
+                "detail": p.detail,
+                # each marketplace type's search_city for the place
+                "facebook": p.code,
+                "offerup": f"{p.latitude:.4f},{p.longitude:.4f}",
+            }
+            for p in places
+        ]
+        self.ws.found_city_codes |= {v for f in found for v in (f["facebook"], f["offerup"])}
         return {
             "ok": True,
-            "places": [
-                {"place": p.label, "detail": p.detail, "search_city": p.code} for p in places
-            ],
+            "places": found,
             "note": (
                 "Facebook's matches for what the user typed, best first (at most 10). Confirm "
                 "the place with the user before saving: if one clearly fits, ask whether it is "
                 "right; if several could be meant, offer them by `place` (e.g. Los Angeles, "
                 "California or Los Angeles in Mexico); if the user's place is not listed, call "
-                "find_city again with its state or country added. Then set search_city to its "
-                "`search_city` and city_name to its `place`. Places with the same `search_city` "
-                "are the same Marketplace location."
+                "find_city again with its state or country added. Then set search_city to the "
+                "value for the section's marketplace type: `facebook` for a Facebook section, "
+                "`offerup` for an OfferUp one (its coordinates; a ZIP code the user gave works "
+                "too); for an item searched in both, a table: "
+                '{ facebook = "<facebook>", offerup = "<offerup>" }. Set city_name to its '
+                "`place`. Places with the same `facebook` value are the same Marketplace location."
             ),
         }
 
@@ -692,18 +721,19 @@ class ToolExecutor:
             async def evaluate_listing(
                 listing: str, item: str = "", refresh: bool = False
             ) -> Dict[str, Any]:
-                """Rate one Facebook listing for one [item.*] section, as its search would.
+                """Rate one listing (Facebook or OfferUp) for one [item.*], as its search would.
 
                 One listing, one existing item: it does not search. aimm reads the listing and
                 its seller as a search would, says whether the search would exclude it before
                 the AI (keywords and other filters), and asks the item's AI to rate it. A
-                listing aimm read before is rated from its cache, without opening Facebook.
-                Otherwise aimm opens it in the monitor's browser, which takes up to a minute or
-                two and needs the monitor running on this computer, logged in to Facebook (if
-                not, it says so). Nothing is recorded and no one is notified.
+                listing aimm read before is rated from its cache. Otherwise: an OfferUp listing
+                is read directly; a Facebook listing is opened in the monitor's browser, which
+                takes up to a minute or two and needs the monitor running on this computer,
+                logged in to Facebook (if not, it says so). Nothing is recorded and no one is
+                notified.
 
                 Args:
-                    listing: the listing's Facebook Marketplace URL or its id.
+                    listing: the listing's URL (Facebook Marketplace or OfferUp) or its id.
                     item: the item to rate it for, e.g. "gopro"; may be empty if there is only
                         one item.
                     refresh: true only when the user asks for a fresh look (e.g. the price
@@ -714,17 +744,18 @@ class ToolExecutor:
                 )
 
             async def check_seller(seller: str, refresh: bool = False) -> Dict[str, Any]:
-                """Is this seller legit? Their Marketplace profile and warning signs.
+                """Is this seller legit? Their profile (Facebook or OfferUp) and warning signs.
 
-                Returns when they joined Facebook, their rating and number of ratings, active
-                and sold listings, what buyers say, and warning signs. A profile read in the
-                last month comes from aimm's cache; otherwise aimm opens it in the monitor's
-                browser, which needs the monitor running on this computer, as
-                evaluate_listing does.
+                Returns when they joined, their rating and number of ratings, listings sold
+                (and active, on Facebook), what buyers say, and warning signs. A profile read
+                in the last month comes from aimm's cache; otherwise an OfferUp profile is read
+                directly, and a Facebook profile is opened in the monitor's browser, which
+                needs the monitor running on this computer, as evaluate_listing does.
 
                 Args:
-                    seller: the seller's profile URL (/marketplace/profile/<id>), their id, or
-                        the URL of one of their listings.
+                    seller: the seller's profile URL (Facebook /marketplace/profile/<id>,
+                        OfferUp offerup.com/p/<id>), their id, or the URL of one of their
+                        listings.
                     refresh: true only when the user asks for a fresh look: open the profile
                         again.
                 """
@@ -761,13 +792,14 @@ class ToolExecutor:
             async def try_item(item: str) -> Dict[str, Any]:
                 """Run a saved item's search once, now, and list what it finds.
 
-                aimm opens the item's search pages (its search phrases in its cities, with its
-                price, radius and other options, up to 4 pages) in the monitor's browser and
-                applies the filters that work on search results (title, location, price). It
-                opens no listing page and asks no AI, so it is quick and free; rate listings
-                the user picks with evaluate_listing. Needs the monitor running on this
-                computer, logged in to Facebook (if not, it says so). Runs only what is saved:
-                save the item first. Nothing is recorded and no one is notified.
+                aimm runs the item's searches (its search phrases in its cities, with its price,
+                radius and other options, up to 4 pages in all) in each marketplace it is
+                searched in, and applies the filters that work on search results (title,
+                location, price). It opens no listing page and asks no AI, so it is quick and
+                free; rate listings the user picks with evaluate_listing. OfferUp is searched
+                directly; Facebook needs the monitor running on this computer, logged in to
+                Facebook (if not, it says so). Runs only what is saved: save the item first.
+                Nothing is recorded and no one is notified.
 
                 Args:
                     item: the item's name, e.g. "gopro".

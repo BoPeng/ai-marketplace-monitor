@@ -8,7 +8,8 @@ import warnings
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
-from ..marketplaces.base import DEFAULT_RATING
+from ..marketplaces import marketplace_type, supported_marketplaces
+from ..marketplaces.base import DEFAULT_RATING, option_names
 from ..marketplaces.facebook import (
     Availability,
     Category,
@@ -42,23 +43,33 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "enabled", "only when the user wants to pause this marketplace", "`false`", "enabled"
     ),
-    FieldGuide("market_type", "always Facebook; do not set", '`"facebook"`', "facebook"),
+    FieldGuide(
+        "market_type",
+        "the marketplace: `facebook` (Facebook Marketplace; aimm logs in with the user's "
+        "Facebook account and uses a browser) or `offerup` (OfferUp, US only; no account, no "
+        "browser). Set it for a section not named after its marketplace, e.g. "
+        "[marketplace.houston] searching OfferUp; a section named facebook or offerup needs none",
+        '`"facebook"` or `"offerup"`',
+        "the section's name if it names a marketplace (facebook, offerup), else facebook",
+    ),
     FieldGuide(
         "language",
-        "only when listings are not in English; must be a translation name from the context",
+        "Facebook only: only when listings are not in English; must be a translation name "
+        "from the context",
         'a translation name, e.g. `"es"`',
         "English",
     ),
     FieldGuide(
         "login_wait_time",
-        "deprecated and ignored (aimm waits until the login finishes); never set it, and "
+        "Facebook only, deprecated and ignored (aimm waits until the login finishes); never set it, and "
         "remove it when the section has it",
         "do not set",
         "aimm waits until the login finishes",
     ),
     FieldGuide(
         "username",
-        "required, since aimm searches only while logged in to Facebook; set it unless the "
+        "Facebook only; required, since aimm searches only while logged in to Facebook; set "
+        "it unless the "
         "user keeps it in the FACEBOOK_USERNAME environment variable",
         '`"${FACEBOOK_USERNAME}"`',
         "read from FACEBOOK_USERNAME; required",
@@ -66,7 +77,8 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "password",
-        "required, since aimm searches only while logged in to Facebook; set it unless the "
+        "Facebook only; required, since aimm searches only while logged in to Facebook; set "
+        "it unless the "
         "user keeps it in the FACEBOOK_PASSWORD environment variable",
         '`"${FACEBOOK_PASSWORD}"`',
         "read from FACEBOOK_PASSWORD; required",
@@ -74,12 +86,13 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "search_city",
-        "Facebook's code for the location (a name or a numeric ID): from find_city with the "
-        "city or ZIP code the user names, or after /marketplace/ in a Marketplace URL the "
-        "user pastes; never guessed from a city name",
-        'list of codes, e.g. `["houston"]` or `["111979382146893"]`; for an item searched in '
-        'marketplaces of different types, tables by type, e.g. `[{ facebook = "houston", '
-        'offerup = "77096" }]`',
+        "where to search, in the section's marketplace format, from find_city with the city or "
+        "ZIP code the user names (never guessed): Facebook, its code for the place (find_city's "
+        "`facebook`, or after /marketplace/ in a Marketplace URL the user pastes); OfferUp, a "
+        "US ZIP code the user gives or the place's coordinates (find_city's `offerup`)",
+        'list, e.g. `["houston"]` or `["111979382146893"]` (Facebook), `["77096"]` or '
+        '`["29.7604,-95.3698"]` (OfferUp); for an item searched in marketplaces of different '
+        'types, tables by type, e.g. `[{ facebook = "houston", offerup = "29.7604,-95.3698" }]`',
         "required unless search_region is set",
     ),
     FieldGuide(
@@ -90,14 +103,15 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "radius",
-        "how far around each city to search, in the unit Facebook shows (miles in the US); "
-        "Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and 500",
+        "how far around each city to search, in miles (in the unit Facebook shows elsewhere); "
+        "the nearest choice is used: Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and "
+        "500, OfferUp 5, 10, 20, 30 and 50",
         "list of integers, one per city or one for all, e.g. `[40]`",
         "Facebook's default",
     ),
     FieldGuide(
         "currency",
-        "only when the city uses a currency other than its default",
+        "Facebook only: only when the city uses a currency other than its default",
         'list of currency codes, one per city, e.g. `["USD"]`',
         "the city's currency",
     ),
@@ -139,7 +153,7 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "availability",
-        "whether to include listings that are out of stock",
+        "Facebook only: whether to include listings that are out of stock",
         f"list of {_values(Availability)}.{_TWO_VALUES}",
         "all",
     ),
@@ -163,7 +177,7 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "category",
-        "only if everything searched here is in one Facebook category",
+        "Facebook only: only if everything searched here is in one Facebook category",
         f"one of {_values(Category)}",
         "all categories",
     ),
@@ -244,8 +258,14 @@ def notify_level(rating: Any) -> str:
 class MarketplaceToolkit(Toolkit):
     section_type = "marketplace"
     playbook = "marketplace"
+    # Facebook's options include every other marketplace's: the guide lists them all, and a
+    # section is checked against its own type's (validate)
     config_class = FacebookMarketplaceConfig
     guides = MARKETPLACE_GUIDES
+
+    def __init__(self: "MarketplaceToolkit") -> None:
+        # the type chosen for a new section whose name does not say it (choose_target)
+        self.new_types: Dict[str, str] = {}
 
     def summary(self: "MarketplaceToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
         loc = location(values)
@@ -268,6 +288,8 @@ class MarketplaceToolkit(Toolkit):
     def view(self: "MarketplaceToolkit", ws: "Workspace", name: str) -> SectionDraft:
         market = ws.user_cfg.get("marketplace", {}).get(name)
         values = {k: copy.deepcopy(v) for k, v in (market or {}).items() if k != "request"}
+        if market is None and name in self.new_types:
+            values["market_type"] = self.new_types[name]
         return SectionDraft(
             section_type="marketplace",
             name=name,
@@ -294,9 +316,22 @@ class MarketplaceToolkit(Toolkit):
     def validate(self: "MarketplaceToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
         errors: List[str] = []
         try:
+            market_type = marketplace_type(draft.name, draft.values)
+        except ValueError as e:
+            return [_plain(e)]
+        if market_type not in supported_marketplaces:
+            return [f"`market_type` must be one of {', '.join(supported_marketplaces)}."]
+        config_class = supported_marketplaces[market_type].config_class
+        others = sorted(set(draft.values) - option_names(config_class))
+        if others:
+            return [
+                f"{', '.join(f'`{k}`' for k in others)}: {market_type} marketplaces do not have "
+                "these options (they are Facebook's); unset them."
+            ]
+        try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                FacebookMarketplaceConfig(name=draft.name, **draft.values)
+                config_class(name=draft.name, **draft.values)
         except Exception as e:
             return [_plain(e)]
         if draft.values.get("city_name") != draft.original.get("city_name") and draft.values.get(
@@ -308,7 +343,7 @@ class MarketplaceToolkit(Toolkit):
                     "city as it is."
                 )
             ]
-        guessed = ws.unconfirmed_cities(draft.values)
+        guessed = ws.unconfirmed_cities(draft.values, [market_type])
         if guessed:
             return guessed
         context = self.context(ws)
@@ -349,6 +384,25 @@ class MarketplaceToolkit(Toolkit):
         if items and all(any(item.get(k) for k in location) for item in items.values()):
             return []
         return ["location: set search_city (with radius) or search_region"]
+
+    def after_save(self: "MarketplaceToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
+        """A new marketplace is also searched by the items that name no marketplace."""
+        if not draft.is_new:
+            return []
+        unscoped = [
+            n for n, item in ws.user_cfg.get("item", {}).items() if not item.get("marketplace")
+        ]
+        # the config is reloaded after this: it lists the marketplaces from before the save
+        others = [n for n in ws.user_cfg.get("marketplace", {}) if n != draft.name]
+        if not unscoped or not others:
+            return []
+        names = ", ".join(f"[item.{n}]" for n in unscoped)
+        return [
+            f"{names} {'names' if len(unscoped) == 1 else 'name'} no marketplace, so "
+            f"{'it is' if len(unscoped) == 1 else 'they are'} now also searched in "
+            f"[marketplace.{draft.name}]. Set an item's `marketplace` to keep it to some "
+            "marketplaces."
+        ]
 
     # --- showing ---------------------------------------------------------------------------
     def describe(self: "MarketplaceToolkit", draft: SectionDraft) -> str:
@@ -401,13 +455,27 @@ class MarketplaceToolkit(Toolkit):
         return "\n\n".join([head, f"```toml\n{body}```" if body else "(no settings)"])
 
     async def _new_name(self: "MarketplaceToolkit", ui: SetupUI, ws: "Workspace") -> str:
+        market_type = await ui.choose(
+            "Which marketplace?",
+            [
+                Choice(
+                    "facebook", "Facebook Marketplace (aimm logs in with your Facebook account)"
+                ),
+                Choice("offerup", "OfferUp (US only; no account needed)"),
+            ],
+            default="facebook",
+        )
         taken = set(ws.user_cfg.get("marketplace", {}))
-        if "facebook" not in taken:
-            return "facebook"
-        suggestion = next(f"facebook_{i}" for i in range(2, 100) if f"facebook_{i}" not in taken)
+        if market_type not in taken:
+            return market_type  # named after its type: no market_type needed
+        suggestion = next(
+            f"{market_type}_{i}" for i in range(2, 100) if f"{market_type}_{i}" not in taken
+        )
         while True:
             name = (await ui.ask_text("Name for the new marketplace", suggestion)).strip()
             if _NAME.match(name) and name not in taken:
+                if marketplace_type(name, {}) != market_type:
+                    self.new_types[name] = market_type
                 return name
             await ui.say(
                 "Use letters, digits, '_' or '-', and a name not already in use.", kind="warning"

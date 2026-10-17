@@ -220,10 +220,20 @@ async def test_start_menu_lists_marketplaces_without_item_details(tmp_path: Path
 async def test_start_menu_quit_new_and_names(tmp_path: Path) -> None:
     ws = await make_ws(tmp_path, ONE_ITEM, ["__quit__"])
     assert await T.choose_target(ws.ui, ws, None) is None
-    ws = await make_ws(tmp_path, ONE_ITEM, ["__new__", "bad name", ""])
+    # which marketplace first; a free name after its type needs no market_type
+    ws = await make_ws(tmp_path, ONE_ITEM, ["__new__", "facebook", "bad name", ""])
     assert await T.choose_target(ws.ui, ws, None) == "facebook_2"
-    ws = await make_ws(tmp_path, BASE)
+    ws = await make_ws(tmp_path, BASE, ["facebook"])
     assert await T.choose_target(ws.ui, ws, None) == "facebook"
+    ws = await make_ws(tmp_path, ONE_ITEM, ["__new__", "offerup"])
+    assert await T.choose_target(ws.ui, ws, None) == "offerup"
+    # another name: aimm sets its market_type
+    ws = await make_ws(tmp_path, ONE_ITEM, ["__new__", "facebook"])
+    toolkit = MarketplaceToolkit()
+    ws.user_cfg["marketplace"]["offerup"] = {"search_city": "77002"}
+    ws.ui.answers = ["__new__", "offerup", "houston_ou"]  # type: ignore[attr-defined]
+    assert await toolkit.choose_target(ws.ui, ws, None) == "houston_ou"
+    assert toolkit.view(ws, "houston_ou").values == {"market_type": "offerup"}
     assert await T.choose_target(ws.ui, ws, "home") == "home"
     assert "[marketplace.home] is new." in ui_of(ws).said()
 
@@ -252,3 +262,42 @@ def test_notify_level_shows_the_rating_and_how_to_get_more() -> None:
     assert notify_level([5]) == more.format("5+", 4)
     assert notify_level([1]) == "notifies AI rating 1+"
     assert notify_level([3, 4]) == "notifies AI rating 3+ on the first search, 4+ after"
+
+
+# --- other marketplaces (#472) --------------------------------------------------------------
+
+
+async def test_an_offerup_section_takes_a_zip_code_or_found_coordinates(tmp_path: Path) -> None:
+    ws = await make_ws(tmp_path, ONE_ITEM)
+    draft = T.view(ws, "offerup")
+    draft.values = {"search_city": ["77096"], "radius": [30]}
+    [error] = T.validate(ws, draft)
+    assert "for offerup is not a ZIP code the user gave nor coordinates from find_city" in error
+    ws.user_said.append("search near 77096 please")
+    assert T.validate(ws, draft) == []
+    draft.values = {"search_city": ["29.7604,-95.3698"]}
+    assert "nor coordinates from find_city" in T.validate(ws, draft)[0]
+    ws.found_city_codes.add("29.7604,-95.3698")
+    assert T.validate(ws, draft) == []
+
+
+async def test_an_offerup_section_has_no_facebook_options(tmp_path: Path) -> None:
+    ws = await make_ws(tmp_path, ONE_ITEM)
+    ws.user_said.append("77096")
+    draft = T.view(ws, "offerup")
+    draft.values = {"search_city": ["77096"], "availability": ["in"]}
+    [error] = T.validate(ws, draft)
+    assert "`availability`: offerup marketplaces do not have these options" in error
+    # another name, with market_type
+    draft = T.view(ws, "houston")
+    draft.values = {"market_type": "offerup", "search_city": ["houston"]}
+    assert "is not a ZIP code or coordinates" in T.validate(ws, draft)[0]
+
+
+async def test_a_new_marketplace_is_noted_for_unscoped_items(tmp_path: Path) -> None:
+    ws = await make_ws(tmp_path, ONE_ITEM)
+    draft = T.view(ws, "offerup")
+    draft.values = {"search_city": ["77096"]}
+    [note] = T.after_save(ws, draft)
+    assert "[item.example] names no marketplace" in note and "[marketplace.offerup]" in note
+    assert T.after_save(ws, T.view(ws, "facebook")) == []  # not new

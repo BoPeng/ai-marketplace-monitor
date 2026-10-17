@@ -561,3 +561,27 @@ def test_offerup_takes_its_values_from_tables_and_regions(tmp_path: Path) -> Non
     )
     assert config.marketplace["offerup"].search_city == ["77002", "75201"]
     assert config.marketplace["near"].search_city == ["77096"]
+
+
+@pytest.mark.parametrize(
+    ("value", "where"),
+    [
+        ('"29.7604,-95.3698"', {"lat": "29.7604", "lon": "-95.3698"}),
+        ('"29.7604, -95.3698"', {"lat": "29.7604", "lon": "-95.3698"}),
+        ('"77002"', {"zipcode": "77002"}),
+    ],
+)
+def test_search_city_can_be_coordinates(tmp_path: Path, value: str, where: Dict[str, str]) -> None:
+    config = _config(tmp_path, f"[marketplace.offerup]\nsearch_city = {value}\n")
+    marketplace = OfferUpMarketplace("offerup", None)
+    marketplace.configure(config.marketplace["offerup"])
+    item = config.item_targets["bike"]["offerup"]
+    params = _params(marketplace.search_pages(item)[0].url)
+    assert {k: params[k] for k in where} == where
+    assert not ({"lat", "zipcode"} - set(where)) & set(params)
+
+
+@pytest.mark.parametrize("value", ['"houston"', '"95.1,200"', '"1234"'])
+def test_search_city_that_is_neither(tmp_path: Path, value: str) -> None:
+    with pytest.raises(ValueError, match="is not a ZIP code or coordinates"):
+        _config(tmp_path, f"[marketplace.offerup]\nsearch_city = {value}\n")

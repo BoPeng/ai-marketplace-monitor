@@ -30,7 +30,7 @@ from ..base import (
     resolve_option,
 )
 from .client import OfferUpBlockedError, OfferUpClient
-from .config import OfferUpItemConfig, OfferUpMarketplaceConfig
+from .config import OfferUpItemConfig, OfferUpMarketplaceConfig, coordinates
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser, BrowserContext  # type: ignore
@@ -196,7 +196,9 @@ class OfferUpMarketplace(Marketplace):
         for i, zipcode in enumerate(zips):
             radius = nearest_radius(radii[i]) if i < len(radii) and radii[i] else None
             for phrase in item_config.search_phrases:
-                params = {"q": phrase, "zipcode": zipcode, **options}
+                point = coordinates(zipcode)
+                where = {"lat": point[0], "lon": point[1]} if point else {"zipcode": zipcode}
+                params = {"q": phrase, **where, **options}
                 if radius:
                     params["radius"] = radius
                 pages.append(
