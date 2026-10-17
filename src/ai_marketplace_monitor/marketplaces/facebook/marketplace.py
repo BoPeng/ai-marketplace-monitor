@@ -46,15 +46,13 @@ if TYPE_CHECKING:
     )
 
 
+from ..base import DateListed, DeliveryMethod, SortBy
 from .config import (
     SORT_BY_PARAM,
     Availability,
     Category,
-    DateListed,
-    DeliveryMethod,
     FacebookItemConfig,
     FacebookMarketplaceConfig,
-    SortBy,
 )
 from .pages import (
     FacebookLocationDialog,
@@ -89,6 +87,9 @@ class FacebookMarketplace(Marketplace):
     home_url = "https://www.facebook.com/"
 
     market_type = "facebook"
+    config_class = FacebookMarketplaceConfig
+    item_config_class = FacebookItemConfig
+    supports_regions = True
 
     @classmethod
     def listing_url(cls: Type["FacebookMarketplace"], listing_id: str) -> str:

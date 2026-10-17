@@ -67,6 +67,7 @@ def _monitor(
             for name, (market_type, enabled) in marketplaces.items()
         },
         item={},
+        item_targets={},
         user={},
     )
     monitor.browser = None

@@ -154,7 +154,15 @@ ai = ["openai"]
         "marketplace": {"facebook": {}},
         "user": {"user1": {}},
         "notification": {"pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}},
-        "item": {"name": {"search_city": "dallas", "search_phrases": "search word one"}},
+        # an explicit marketplace is kept: without it, the item would also search
+        # marketplaces added later
+        "item": {
+            "name": {
+                "marketplace": "facebook",
+                "search_city": "dallas",
+                "search_phrases": "search word one",
+            }
+        },
     }
 
 
@@ -172,17 +180,13 @@ def test_expand_config_prints_expanded_toml_from_config_file_alias(
     assert result.exit_code == 0
     assert Path(cfg).read_text() == content
     parsed = tomllib.loads(result.stdout)
-    assert parsed["marketplace"]["facebook"] == {}
+    # the item names no marketplace: it inherits from every one, so nothing moves into it
+    assert parsed["marketplace"]["facebook"] == {"search_city": "dallas"}
     assert parsed["user"]["user1"]["notify_with"] == ["pushbullet"]
     assert parsed["notification"] == {
         "pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
     }
-    assert parsed["item"]["name"] == {
-        "marketplace": "facebook",
-        "notify": ["user1"],
-        "search_city": "dallas",
-        "search_phrases": "search word one",
-    }
+    assert parsed["item"]["name"] == {"search_phrases": "search word one"}
 
 
 def test_config_print_modes_are_mutually_exclusive(

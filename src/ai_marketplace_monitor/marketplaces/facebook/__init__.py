@@ -1,16 +1,13 @@
 """Facebook Marketplace."""
 
+from ..base import Condition, DateListed, DeliveryMethod, SortBy
 from .config import (
     SORT_BY_PARAM,
     Availability,
     Category,
-    Condition,
-    DateListed,
-    DeliveryMethod,
     FacebookItemConfig,
     FacebookMarketItemCommonConfig,
     FacebookMarketplaceConfig,
-    SortBy,
 )
 from .location import FacebookLocations, LocationLookupError, Place
 from .marketplace import SESSION_FILE, FacebookMarketplace, SearchPage

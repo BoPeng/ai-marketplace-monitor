@@ -9,17 +9,16 @@ from ai_marketplace_monitor.config import Config, load_config_dicts
 from tests.normalize_util import EXAMPLES
 
 
+def _plain(value: Any) -> Any:
+    if is_dataclass(value) and not isinstance(value, type):
+        return asdict(value)
+    if isinstance(value, dict):  # e.g. item_targets: {item: {marketplace: config}}
+        return {name: _plain(v) for name, v in value.items()}
+    return vars(value)
+
+
 def _snapshot(cfg: Config) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for key, value in vars(cfg).items():
-        if is_dataclass(value) and not isinstance(value, type):
-            out[key] = asdict(value)
-        else:
-            out[key] = {
-                name: asdict(v) if is_dataclass(v) and not isinstance(v, type) else vars(v)
-                for name, v in value.items()
-            }
-    return out
+    return {key: _plain(value) for key, value in vars(cfg).items()}
 
 
 @pytest.mark.parametrize("path", EXAMPLES, ids=lambda p: p.name)

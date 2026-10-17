@@ -63,9 +63,13 @@ def test_hand_written_marketplace_value_moves_down_when_an_item_differs() -> Non
     search_interval = "1h"
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
 
     [item.b]
+
+    marketplace = "facebook"
     search_phrases = "b"
     search_interval = "2h"
     """
@@ -76,7 +80,7 @@ def test_hand_written_marketplace_value_moves_down_when_an_item_differs() -> Non
 
 def test_single_item_is_not_hoisted() -> None:
     cfg = _normalize(
-        '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n'
+        '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nmarketplace = "facebook"\nsearch_phrases = "a"\n'
     )
     assert cfg["marketplace"]["facebook"] == {}
     assert cfg["item"]["a"]["search_city"] == "houston"
@@ -115,9 +119,13 @@ def test_prices_never_hoisted() -> None:
     max_price = "300"
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
 
     [item.b]
+
+    marketplace = "facebook"
     search_phrases = "b"
     """
     )
@@ -133,9 +141,13 @@ def test_location_keys_hoisted_only_as_a_unit() -> None:
     radius = 50
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
 
     [item.b]
+
+    marketplace = "facebook"
     search_phrases = "b"
     search_city = "dallas"
     radius = 50
@@ -205,7 +217,8 @@ def test_sections_with_different_request_are_not_merged() -> None:
 
 def test_changes_are_relative_to_the_input() -> None:
     text = (
-        USERS + '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n'
+        USERS
+        + '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nmarketplace = "facebook"\nsearch_phrases = "a"\n'
     )
     result = normalize(parse(text), system_cfg())
     sections = {c.section for c in result.changes}
@@ -217,10 +230,14 @@ TWO_ITEMS = """
 search_city = "houston"
 
 [item.a]
+
+marketplace = "facebook"
 search_phrases = "a"
 {extra}
 
 [item.b]
+
+marketplace = "facebook"
 search_phrases = "b"
 {extra}
 """
@@ -275,6 +292,7 @@ def test_default_notify_and_ai_lists_are_removed() -> None:
     pushbullet_token = "b"
 
     [item.a]
+    marketplace = "facebook"
     search_phrases = "a"
     notify = ["alice", "bob"]
     ai = ["openai"]
@@ -369,42 +387,28 @@ def test_notify_with_override_is_kept_when_not_all_notifications() -> None:
     assert cfg["user"]["alice"]["notify_with"] == ["pushbullet"]
 
 
-def test_default_marketplace_binding_is_compacted() -> None:
-    implicit = normalize(
-        parse(
-            USERS
-            + """
+def test_an_item_without_marketplace_keeps_searching_every_marketplace() -> None:
+    """Unscoped items search every marketplace: binding them to one would change that."""
+    two = (
+        USERS
+        + """
     [marketplace.facebook]
     search_city = "houston"
 
     [marketplace.second]
     search_city = "dallas"
 
-    [item.a]
-    search_phrases = "a"
     """
-        ),
-        system_cfg(),
-    ).config
+    )
+    implicit = normalize(parse(two + '[item.a]\nsearch_phrases = "a"\n'), system_cfg()).config
+    assert "marketplace" not in implicit["item"]["a"]
+    # each marketplace keeps its own location: the item reads both
+    assert implicit["marketplace"]["facebook"]["search_city"] == "houston"
+    assert implicit["marketplace"]["second"]["search_city"] == "dallas"
     explicit = normalize(
-        parse(
-            USERS
-            + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.a]
-    marketplace = "facebook"
-    search_phrases = "a"
-    """
-        ),
-        system_cfg(),
+        parse(two + '[item.a]\nmarketplace = "facebook"\nsearch_phrases = "a"\n'), system_cfg()
     ).config
-    assert explicit == implicit
-    assert "marketplace" not in explicit["item"]["a"]
+    assert explicit["item"]["a"]["marketplace"] == "facebook"
 
 
 def test_non_default_marketplace_binding_is_kept() -> None:
@@ -493,6 +497,8 @@ def test_normalize_change_list_keeps_expand_notes() -> None:
     max_price = 100
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
     """
         ),
@@ -501,3 +507,49 @@ def test_normalize_change_list_keeps_expand_notes() -> None:
     changes = [c for c in result.changes if c.section == "item.a" and c.key == "max_price"]
     assert changes
     assert "AI prompt" in changes[0].detail
+
+
+# ------------------------------------------------------------------ unscoped items (#479 review)
+
+HOUSTON = """
+[user.alice]
+pushbullet_token = "a"
+
+[user.bob]
+pushbullet_token = "b"
+
+[marketplace.houston]
+search_city = "houston"
+"""
+
+
+def test_an_empty_item_value_that_still_inherits_keeps_the_marketplace_value() -> None:
+    cfg = normalize(
+        parse(HOUSTON + 'notify = "alice"\n[item.bike]\nsearch_phrases = "bike"\nnotify = []\n'),
+        system_cfg(),
+    ).config
+    assert cfg["marketplace"]["houston"]["notify"] == "alice"
+
+
+def test_unscoped_items_keep_their_own_values_for_marketplaces_added_later() -> None:
+    from ai_marketplace_monitor.config import Config
+
+    two_items = (
+        '[item.a]\nsearch_phrases = "a"\nrating = 4\n[item.b]\nsearch_phrases = "b"\nrating = 4\n'
+    )
+    cfg = normalize(parse(HOUSTON + two_items), system_cfg()).config
+    assert cfg["item"]["a"]["rating"] == 4 and cfg["item"]["b"]["rating"] == 4
+    assert "rating" not in cfg["marketplace"]["houston"]
+    cfg["marketplace"]["dallas"] = {"search_city": "dallas", "rating": 2}
+    config = Config.from_dicts(system_cfg(), cfg)
+    assert config.item_targets["a"]["dallas"].rating == [4]
+
+
+def test_an_unscoped_item_keeps_a_list_equal_to_its_current_default() -> None:
+    cfg = normalize(
+        parse(
+            HOUSTON + 'notify = "alice"\n[item.bike]\nsearch_phrases = "bike"\nnotify = "alice"\n'
+        ),
+        system_cfg(),
+    ).config
+    assert cfg["item"]["bike"]["notify"] == "alice"

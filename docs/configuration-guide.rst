@@ -653,7 +653,7 @@ Replace `${PROXY_SERVER}`, `${PROXY_USERNAME}`, and `${PROXY_PASSWORD}` with you
 Multiple Marketplaces
 =====================
 
-Although Facebook is currently the only supported marketplace, you can create multiple marketplace configurations such as ``marketplace.city1`` and ``marketplace.city2`` with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. You will need to add the ``marketplace`` option in the item sections to link these items to the appropriate marketplace configuration.
+Although Facebook is currently the only supported marketplace, you can create multiple marketplace configurations such as ``marketplace.city1`` and ``marketplace.city2`` with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. An item is searched in every marketplace section unless its ``marketplace`` option names the ones to use.
 
 For example:
 
@@ -664,13 +664,14 @@ For example:
     seller_locations = ['houston', 'sugarland']
 
     [marketplace.nationwide]
-    marketplace = 'facebook'
+    market_type = 'facebook'
     search_region = 'usa'
     seller_locations = []
     delivery_method = 'shipping'
 
     [item.default_item]
-    search_phrases = 'local item for default market "facebook"'
+    marketplace = 'facebook'
+    search_phrases = 'local item, searched only in "facebook"'
 
     [item.rare_item1]
     marketplace = 'nationwide'
@@ -681,8 +682,9 @@ For example:
     search_phrases = 'rare item2'
 
 .. note::
-   - The ``marketplace='facebook'`` setting is not needed for the marketplace named ``facebook`` (the first one), but is required for the ``nationwide`` marketplace to specify which marketplace type to use.
-   - If no ``marketplace`` is defined for an item, it will use the first defined marketplace, which is ``facebook`` in this example.
+   - An item without ``marketplace`` is searched in every marketplace section, including ones you add later. ``marketplace`` keeps it to one section, or to a list of them (``marketplace = ['facebook', 'nationwide']``).
+   - An item searched in several sections uses each section's location, so it cannot set its own ``search_city``, ``search_region``, ``radius``, ``city_name`` or ``currency``.
+   - A section's type comes from ``market_type``; without it, from its name if that names a marketplace (``facebook``), and otherwise it is a Facebook marketplace. ``nationwide`` above is a Facebook marketplace with a different location and options.
 
 First and Subsequent Searches
 =============================

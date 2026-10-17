@@ -37,13 +37,18 @@ def _user_view(user: UserConfig) -> Dict[str, Any]:
     )
 
 
-def _item_view(config: Config, name: str) -> Dict[str, Any]:
-    item = config.item[name]
-    # Config.get_item_config always binds an item to one marketplace
+def _item_view(config: Config, name: str) -> Dict[str, Dict[str, Any]]:
+    """What the item does in each marketplace it is searched in."""
+    return {
+        market: _item_target_view(config, item)
+        for market, item in config.item_targets[name].items()
+    }
+
+
+def _item_target_view(config: Config, item: Any) -> Dict[str, Any]:
     assert item.marketplace is not None
     market = config.marketplace[item.marketplace]
     entry: Dict[str, Any] = {
-        "marketplace": item.marketplace,
         "enabled": _runtime_enabled(item.enabled),
     }
     entry.update({k: getattr(item, k) for k in _ITEM_ONLY_FIELDS})
@@ -79,7 +84,7 @@ def effective_view(config: Config) -> Dict[str, Any]:
             n: {"locale": t.locale, "dictionary": t.dictionary}
             for n, t in config.translator.items()
         },
-        "item": {name: _item_view(config, name) for name in config.item},
+        "item": {name: _item_view(config, name) for name in config.item_targets},
     }
     return json.loads(json.dumps(view, default=str))
 
@@ -97,11 +102,12 @@ def _diff(a: Any, b: Any, path: KeyPath = ()) -> List[Tuple[KeyPath, Any, Any]]:
 
 
 def _is_allowed(path: KeyPath, after_view: Dict[str, Any]) -> bool:
-    if len(path) != 3 or path[0] != "item" or not path[2].startswith("ai_prompt:"):
+    # item, its name, a marketplace it is searched in, ai_prompt:<key>
+    if len(path) != 4 or path[0] != "item" or not path[3].startswith("ai_prompt:"):
         return False
-    key = path[2].split(":", 1)[1]
-    entry = after_view["item"][path[1]]
-    return key in AI_PROMPT_ITEM_ONLY and entry[path[2]] == entry[key]
+    key = path[3].split(":", 1)[1]
+    entry = after_view["item"][path[1]].get(path[2], {})
+    return key in AI_PROMPT_ITEM_ONLY and entry.get(path[3]) == entry.get(key)
 
 
 def _mask_deep(value: Any) -> Any:

@@ -452,71 +452,68 @@ class MarketplaceMonitor:
                 translator=self._select_translator(marketplace_config.language),
             )
 
-            for item_config in self.config.item.values():
-                if item_config.enabled is False:
+            for targets in self.config.item_targets.values():
+                item_config = targets.get(marketplace_config.name)
+                if item_config is None or item_config.enabled is False:
                     continue
 
-                if (
-                    item_config.marketplace is None
-                    or item_config.marketplace == marketplace_config.name
-                ):
-                    # wait for some time before next search
-                    # interval (in minutes) can be defined both for the marketplace
-                    # if there is any configuration file change, stop sleeping and search again
-                    scheduled = None
-                    start_at_list = resolve_option("start_at", item_config, marketplace_config)
-                    if start_at_list is not None and start_at_list:
-                        for start_at in start_at_list:
-                            if start_at.startswith("*:*:"):
-                                # '*:*:12' to ':12'
-                                if self.logger:
-                                    self.logger.info(
-                                        f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
-                                    )
-                                scheduled = schedule.every().minute.at(start_at[3:])
-                            elif start_at.startswith("*:"):
-                                # '*:12:12' or  '*:12'
-                                if self.logger:
-                                    self.logger.info(
-                                        f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
-                                    )
-                                scheduled = schedule.every().hour.at(
-                                    start_at[1:] if start_at.count(":") == 1 else start_at[2:]
+                # wait for some time before next search
+                # interval (in minutes) can be defined both for the marketplace
+                # if there is any configuration file change, stop sleeping and search again
+                scheduled = None
+                start_at_list = resolve_option("start_at", item_config, marketplace_config)
+                if start_at_list is not None and start_at_list:
+                    for start_at in start_at_list:
+                        if start_at.startswith("*:*:"):
+                            # '*:*:12' to ':12'
+                            if self.logger:
+                                self.logger.info(
+                                    f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every minute at {start_at[3:]}s"""
                                 )
-                            else:
-                                # '12:12:12' or '12:12'
-                                if self.logger:
-                                    self.logger.info(
-                                        f"""{hilight("[Schedule]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
-                                    )
-                                scheduled = schedule.every().day.at(start_at)
-                    else:
-                        search_interval = max(
-                            resolve_option("search_interval", item_config, marketplace_config)
-                            or 30 * 60,
-                            1,
-                        )
-                        # without an explicit maximum, jitter scales with the interval
-                        max_search_interval = max(
-                            resolve_option("max_search_interval", item_config, marketplace_config)
-                            or int(search_interval * 1.5),
-                            search_interval,
-                        )
-                        if self.logger:
-                            self.logger.info(
-                                f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {"" if search_interval == max_search_interval else f"to {humanize.naturaldelta(max_search_interval)}"}"""
+                            scheduled = schedule.every().minute.at(start_at[3:])
+                        elif start_at.startswith("*:"):
+                            # '*:12:12' or  '*:12'
+                            if self.logger:
+                                self.logger.info(
+                                    f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every hour at {start_at[1:]}m"""
+                                )
+                            scheduled = schedule.every().hour.at(
+                                start_at[1:] if start_at.count(":") == 1 else start_at[2:]
                             )
-                        scheduled = schedule.every(search_interval).to(max_search_interval).seconds
-                    if scheduled is None:
-                        raise ValueError(
-                            f"Cannot determine a schedule for {item_config.name} from configuration file."
+                        else:
+                            # '12:12:12' or '12:12'
+                            if self.logger:
+                                self.logger.info(
+                                    f"""{hilight("[Schedule]", "ss")} Scheduling to search for {item_config.name} every day at {start_at}"""
+                                )
+                            scheduled = schedule.every().day.at(start_at)
+                else:
+                    search_interval = max(
+                        resolve_option("search_interval", item_config, marketplace_config)
+                        or 30 * 60,
+                        1,
+                    )
+                    # without an explicit maximum, jitter scales with the interval
+                    max_search_interval = max(
+                        resolve_option("max_search_interval", item_config, marketplace_config)
+                        or int(search_interval * 1.5),
+                        search_interval,
+                    )
+                    if self.logger:
+                        self.logger.info(
+                            f"""{hilight("[Schedule]", "info")} Scheduling to search for {item_config.name} every {humanize.naturaldelta(search_interval)} {"" if search_interval == max_search_interval else f"to {humanize.naturaldelta(max_search_interval)}"}"""
                         )
-                    scheduled.do(
-                        self.search_item,
-                        marketplace_config,
-                        marketplace,
-                        item_config,
-                    ).tag(item_config.name)
+                    scheduled = schedule.every(search_interval).to(max_search_interval).seconds
+                if scheduled is None:
+                    raise ValueError(
+                        f"Cannot determine a schedule for {item_config.name} from configuration file."
+                    )
+                scheduled.do(
+                    self.search_item,
+                    marketplace_config,
+                    marketplace,
+                    item_config,
+                ).tag(item_config.name)
 
         self.schedule_digests()
 
@@ -899,9 +896,15 @@ class MarketplaceMonitor:
                         name = Prompt.ask(
                             f"""Enter name of {hilight("search item")}""", choices=item_names
                         )
-                    item_config = self.config.item[name or item_names[0]]
+                    item_name = name or item_names[0]
                 else:
-                    item_config = self.config.item[for_item]
+                    item_name = for_item
+                # the item as it is searched in this marketplace (disabled or not); skip the
+                # marketplaces it is not searched in
+                target = self.config.item_targets.get(item_name, {}).get(marketplace_config.name)
+                if target is None:
+                    continue
+                item_config = target
 
                 # do not search, get the item details directly
                 listing, _, _, rating = inspect_listing(

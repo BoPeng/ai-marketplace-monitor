@@ -30,6 +30,8 @@ def test_common_options_move_into_items_and_lists_become_explicit() -> None:
     login_wait_time = 60
 
     [item.bike]
+
+    marketplace = "facebook"
     search_phrases = "bike"
     """
     )
@@ -53,7 +55,7 @@ def test_marketplace_empty_notify_means_all_users() -> None:
     cfg = _expand(
         USERS
         + '[marketplace.facebook]\nsearch_city = "houston"\nnotify = []\n'
-        + '[item.bike]\nsearch_phrases = "bike"\n'
+        + '[item.bike]\nmarketplace = "facebook"\nsearch_phrases = "bike"\n'
     )
     assert cfg["item"]["bike"]["notify"] == ["alice", "bob"]
 
@@ -67,6 +69,8 @@ def test_truthy_rule_replaces_empty_item_value() -> None:
     notify = "alice"
 
     [item.bike]
+
+    marketplace = "facebook"
     search_phrases = "bike"
     notify = []
     """
@@ -106,6 +110,8 @@ def test_marketplace_price_reaches_ai_prompt_and_is_reported() -> None:
     max_price = "300"
 
     [item.bike]
+
+    marketplace = "facebook"
     search_phrases = "bike"
     """
         ),
@@ -121,7 +127,7 @@ def test_marketplace_price_reaches_ai_prompt_and_is_reported() -> None:
 def test_bundled_region_is_referenced_not_copied() -> None:
     cfg = _expand(
         USERS
-        + '[marketplace.facebook]\nsearch_region = "usa"\n[item.bike]\nsearch_phrases = "bike"\n'
+        + '[marketplace.facebook]\nsearch_region = "usa"\n[item.bike]\nmarketplace = "facebook"\nsearch_phrases = "bike"\n'
     )
     assert cfg["item"]["bike"]["search_region"] == "usa"
     assert "region" not in cfg
@@ -153,59 +159,90 @@ def test_own_city_inheriting_region_radius_raises() -> None:
         search_region = "usa"
 
         [item.bike]
+
+        marketplace = "facebook"
         search_phrases = "bike"
         search_city = "dallas"
         """
         )
 
 
-def test_item_binds_to_first_marketplace() -> None:
+TWO_MARKETS = """
+    [marketplace.facebook]
+    search_city = "houston"
+    radius = 30
+    rating = 4
+
+    [marketplace.second]
+    search_city = "dallas"
+    radius = 30
+    rating = 4
+    """
+
+
+def test_an_item_without_marketplace_is_left_to_inherit() -> None:
+    """It inherits from every marketplace, also ones added later: nothing is copied into it."""
+    cfg = _expand(USERS + TWO_MARKETS + '[item.bike]\nsearch_phrases = "bike"\n')
+    assert cfg["item"]["bike"] == {"search_phrases": "bike"}
+    assert cfg["marketplace"]["facebook"]["search_city"] == "houston"
+    assert cfg["marketplace"]["facebook"]["rating"] == 4
+    assert cfg["marketplace"]["second"]["search_city"] == "dallas"
+
+
+def test_an_item_without_marketplace_still_accepts_a_new_marketplace() -> None:
+    """Normalizing one marketplace's config must not make the item's location its own."""
+    from ai_marketplace_monitor.config import Config
+
+    one = (
+        USERS
+        + '[marketplace.facebook]\nsearch_city = "houston"\n[item.bike]\nsearch_phrases = "bike"\n'
+    )
+    normalized = normalize(parse(one), system_cfg()).config
+    normalized["marketplace"]["dallas"] = {"search_city": "dallas"}
+    config = Config.from_dicts(system_cfg(), normalized)
+    assert list(config.item_targets["bike"]) == ["facebook", "dallas"]
+
+
+def test_items_of_marketplaces_that_notify_differently_keep_inheriting() -> None:
+    cfg = (
+        USERS
+        + """
+    [ai.one]
+    provider = "openai"
+    api_key = "sk-1"
+
+    [ai.two]
+    provider = "openai"
+    api_key = "sk-2"
+
+    [marketplace.houston]
+    search_city = "houston"
+    notify = "alice"
+    ai = "one"
+
+    [marketplace.dallas]
+    search_city = "dallas"
+    notify = "bob"
+    ai = "two"
+
+    [item.bike]
+    search_phrases = "bike"
+    marketplace = ["houston", "dallas"]
+    """
+    )
+    expanded = _expand(cfg)
+    assert "notify" not in expanded["item"]["bike"] and "ai" not in expanded["item"]["bike"]
+    assert expanded["marketplace"]["houston"]["notify"] == "alice"
+    normalize(parse(cfg), system_cfg())  # loads and behaves the same
+
+
+def test_an_item_of_one_marketplace_is_made_self_contained() -> None:
     cfg = _expand(
-        USERS
-        + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.bike]
-    search_phrases = "bike"
-    """
+        USERS + TWO_MARKETS + '[item.bike]\nmarketplace = "second"\nsearch_phrases = "bike"\n'
     )
-    assert cfg["item"]["bike"]["search_city"] == "houston"
-    assert cfg["item"]["bike"]["marketplace"] == "facebook"
-
-
-def test_explicit_default_marketplace_matches_implicit_binding() -> None:
-    implicit = _expand(
-        USERS
-        + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.bike]
-    search_phrases = "bike"
-    """
-    )
-    explicit = _expand(
-        USERS
-        + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.bike]
-    marketplace = "facebook"
-    search_phrases = "bike"
-    """
-    )
-    assert explicit == implicit
+    bike = cfg["item"]["bike"]
+    assert bike["marketplace"] == "second"
+    assert bike["search_city"] == "dallas" and bike["rating"] == 4
 
 
 def test_translation_passes_through() -> None:
@@ -242,6 +279,8 @@ def test_marketplace_region_overrides_its_own_city() -> None:
     radius = 5
 
     [item.bike]
+
+    marketplace = "facebook"
     search_phrases = "bike"
     """
         ),

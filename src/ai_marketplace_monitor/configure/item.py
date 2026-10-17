@@ -62,9 +62,9 @@ _OWN_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "marketplace",
-        "the marketplace section this item searches; set only if there are several",
-        'a marketplace name from can_reference, e.g. `"facebook"`',
-        "the first marketplace",
+        "the marketplace sections this item searches; set only to keep it to some of them",
+        'a marketplace name from can_reference, e.g. `"facebook"`, or a list of names',
+        "every marketplace, including ones added later",
     ),
     FieldGuide("enabled", "only when the user wants to pause this item", "`false`", "enabled"),
 )
@@ -151,9 +151,12 @@ class ItemToolkit(Toolkit):
 
     # --- the item's marketplace -------------------------------------------------------------
     def bound_marketplace(self: "ItemToolkit", ws: "Workspace", values: Dict[str, Any]) -> str:
-        """The marketplace an item searches: its own setting, else the first one."""
-        if isinstance(values.get("marketplace"), str) and values["marketplace"]:
-            return values["marketplace"]
+        """The (first) marketplace an item searches: its own setting, else the first one."""
+        value = values.get("marketplace")
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, list) and value and isinstance(value[0], str):
+            return value[0]
         names = list(ws.user_cfg.get("marketplace", {}))
         names += [n for t, n in ws.drafts if t == "marketplace" and n not in names]
         return names[0] if names else "facebook"

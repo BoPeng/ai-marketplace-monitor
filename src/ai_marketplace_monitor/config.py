@@ -1,11 +1,12 @@
 import copy
 import sys
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from itertools import chain
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Generic, List, Tuple
+from typing import Any, Dict, Generic, List, Tuple, Type, cast
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -21,8 +22,14 @@ from .ai import (
     TAIConfig,
     UnitySVCBackend,
 )
-from .marketplaces import marketplace_type, supported_marketplaces
-from .marketplaces.base import TItemConfig, TMarketplaceConfig
+from .marketplaces import item_marketplaces, marketplace_type, supported_marketplaces
+from .marketplaces.base import (
+    Marketplace,
+    TItemConfig,
+    TMarketplaceConfig,
+    location_keys,
+    option_names,
+)
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
@@ -100,7 +107,10 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     user: Dict[str, UserConfig] = field(init=False)
     notification: Dict[str, NotificationConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
+    # each item's config, for the first marketplace it is searched in
     item: Dict[str, TItemConfig] = field(init=False)
+    # each item's config for each marketplace it is searched in: {item: {marketplace: config}}
+    item_targets: Dict[str, Dict[str, TItemConfig]] = field(init=False)
     translator: Dict[str, Translator] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
 
@@ -145,7 +155,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.get_marketplace_config(config)
         self.get_user_config(config)
         self.get_region_config(config)
-        self.get_item_config(config)
+        self.get_item_config(config, logger)
         self.validate_users()
         self.validate_ais()
         if not partial:
@@ -215,6 +225,17 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     f"Marketplace {hilight(market_type)} is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
                 )
             market_class = supported_marketplaces[market_type]
+            unsupported = sorted(set(marketplace_config) - option_names(market_class.config_class))
+            if unsupported:
+                raise ValueError(
+                    f"Marketplace {hilight(marketplace_name)} sets {', '.join(unsupported)}, which "
+                    f"{market_type} marketplaces do not have."
+                )
+            if "search_region" in marketplace_config and not market_class.supports_regions:
+                raise ValueError(
+                    f"Marketplace {hilight(marketplace_name)} sets search_region, but [region.*] "
+                    f"sections are for Facebook; {market_type} marketplaces cannot use them."
+                )
             self.marketplace[marketplace_name] = market_class.get_config(
                 name=marketplace_name,
                 monitor_config=self.monitor,
@@ -239,33 +260,89 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for region_name, region_config in config.get("region", {}).items():
             self.region[region_name] = RegionConfig(name=region_name, **region_config)
 
-    def get_item_config(self: "Config", config: Dict[str, Any]) -> None:
+    @staticmethod
+    def _check_item_options(
+        item_name: str,
+        values: Dict[str, Any],
+        classes: Dict[str, Type[Marketplace]],
+        logger: Logger | None,
+    ) -> None:
+        """Options no marketplace of the item has are errors; some of them, a warning.
+
+        An option that only some of the item's marketplaces have is used where it exists and
+        left out elsewhere.
+        """
+        if not classes:
+            return
+        missing = {
+            m: set(values) - option_names(market_class.item_config_class)
+            for m, market_class in classes.items()
+        }
+        nowhere = sorted(set.intersection(*missing.values()))
+        if nowhere:
+            types = sorted({c.market_type for c in classes.values()})
+            raise ValueError(
+                f"Item {hilight(item_name)} sets {', '.join(nowhere)}, which "
+                f"{' and '.join(types)} marketplaces do not have."
+            )
+        for marketplace_name, keys in missing.items():
+            if not keys:
+                continue
+            message = (
+                f"Item {item_name}: {', '.join(sorted(keys))} not used in marketplace "
+                f"{marketplace_name} ({classes[marketplace_name].market_type} marketplaces do "
+                "not have it)."
+            )
+            if logger:
+                logger.warning(f"""{hilight("[Config]", "fail")} {message}""")
+            else:
+                warnings.warn(message, stacklevel=2)
+        if "search_region" in values:
+            for marketplace_name, market_class in classes.items():
+                if not market_class.supports_regions:
+                    raise ValueError(
+                        f"Item {hilight(item_name)} sets search_region, but [region.*] sections "
+                        f"are for Facebook; marketplace {marketplace_name} cannot use them."
+                    )
+
+    def get_item_config(
+        self: "Config", config: Dict[str, Any], logger: Logger | None = None
+    ) -> None:
         # check for required fields in each user
 
         self.item = {}
+        self.item_targets = {}
+        markets: Dict[str, Any] = config.get("marketplace", {})
         for item_name, item_config in config.get("item", {}).items():
-            # if marketplace is specified, it must exist
-            if "marketplace" in item_config:
-                if item_config["marketplace"] not in config.get("marketplace", {}):
+            targets = item_marketplaces(item_name, item_config, markets)
+            classes = {m: supported_marketplaces[marketplace_type(m, markets[m])] for m in targets}
+            if len(targets) > 1:
+                location = {
+                    k
+                    for c in classes.values()
+                    for k in location_keys(cast(Any, c.item_config_class))
+                }
+                own = [key for key in item_config if key in location]
+                if own:
                     raise ValueError(
-                        f"Item {hilight(item_name)} specifies a marketplace that does not exist."
+                        f"Item {hilight(item_name)} sets {', '.join(own)} but is searched in "
+                        f"marketplaces {', '.join(targets)}, which have their own locations. "
+                        f"Set marketplace = {targets[0]!r} (or another one) in the item, or "
+                        "move the location to the marketplace sections."
                     )
-
-            for marketplace_name, markerplace_config in config.get("marketplace", {}).items():
-                market_class = supported_marketplaces[
-                    marketplace_type(marketplace_name, markerplace_config)
-                ]
-                if (
-                    "marketplace" not in item_config
-                    or item_config["marketplace"] == marketplace_name
-                ):
-                    # use the first available marketplace
-                    self.item[item_name] = market_class.get_item_config(
-                        name=item_name,
-                        marketplace=marketplace_name,
-                        **{x: y for x, y in item_config.items() if x != "marketplace"},
-                    )
-                    break
+            values = {x: y for x, y in item_config.items() if x != "marketplace"}
+            self._check_item_options(item_name, values, classes, logger)
+            built: Dict[str, TItemConfig] = {}
+            for marketplace_name, market_class in classes.items():
+                allowed = option_names(market_class.item_config_class)
+                built[marketplace_name] = market_class.get_item_config(
+                    name=item_name,
+                    marketplace=marketplace_name,
+                    **{k: copy.deepcopy(v) for k, v in values.items() if k in allowed},
+                )
+            if built:
+                self.item_targets[item_name] = built
+                self.item[item_name] = next(iter(built.values()))
 
     def validate_sections(
         self: "Config", config: Dict[str, Any], *, partial: bool = False
@@ -295,6 +372,8 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for marketplace in self.marketplace.values():
             if marketplace.enabled is False:
                 continue
+            if "username" not in option_names(type(marketplace)):
+                continue  # a marketplace searched without logging in
             username = getattr(marketplace, "username", None)
             password = getattr(marketplace, "password", None)
             if not username or not password:
@@ -369,9 +448,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     f"enabled notification the user receives ({', '.join(received) or 'none'})."
                 )
 
+    def item_configs(self: "Config") -> List[TItemConfig]:
+        """Every item's config for every marketplace it is searched in."""
+        return [config for targets in self.item_targets.values() for config in targets.values()]
+
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist
-        for config in chain(self.marketplace.values(), self.item.values()):
+        for config in chain(self.marketplace.values(), self.item_configs()):
             if config.search_region is None:
                 continue
             config.city_name = []
@@ -405,14 +488,11 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for marketplace_config in self.marketplace.values():
             if marketplace_config.enabled is False:
                 continue
-            for item_config in self.item.values():
-                if item_config.enabled is False:
+            for targets in self.item_targets.values():
+                item_config = targets.get(marketplace_config.name)
+                if item_config is None or item_config.enabled is False:
                     continue
-                if (
-                    item_config.marketplace is None
-                    or item_config.marketplace == marketplace_config.name
-                ):
-                    if not item_config.search_city and not marketplace_config.search_city:
-                        raise ValueError(
-                            f"No search_city or search_region is specified for {item_config.name} or market {marketplace_config.name}"
-                        )
+                if not item_config.search_city and not marketplace_config.search_city:
+                    raise ValueError(
+                        f"No search_city or search_region is specified for {item_config.name} or market {marketplace_config.name}"
+                    )
