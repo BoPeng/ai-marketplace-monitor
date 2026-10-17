@@ -198,7 +198,7 @@ def _tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, place: str, fake: Fak
         out = await ex.call("find_city", {"place": place})
         saved = None
         if out.get("ok"):
-            code = out["places"][-1]["search_city"]
+            code = out["places"][-1]["facebook"]
             saved = await ex.call(
                 "section_update",
                 {
@@ -218,10 +218,14 @@ def test_find_city_lists_the_places_for_the_user_to_choose(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ws, out, saved = _tool(tmp_path, monkeypatch, "Los Angeles, TX", FakeFacebook())
-    assert out["ok"] and [p["search_city"] for p in out["places"]] == [
+    assert out["ok"] and [p["facebook"] for p in out["places"]] == [
         "113623475314526",
         "487995858630733",
     ]
+    # OfferUp searches around the place's coordinates
+    lat, lon = (float(x) for x in out["places"][0]["offerup"].split(","))
+    assert -90 <= lat <= 90 and -180 <= lon <= 180
+    assert out["places"][0]["offerup"] in ws.found_city_codes
     assert out["places"][1]["place"] == "Los Angeles, La Salle County, Texas"
     assert {"113623475314526", "487995858630733"} <= ws.found_city_codes
     assert saved["ok"], saved  # the guard against made-up codes accepts a found code
@@ -312,7 +316,8 @@ def test_los_angeles_tx_is_saved_with_its_code(
     assert found["places"][0] == {
         "place": "Los Angeles Subdivision, Texas",
         "detail": "City",
-        "search_city": "113623475314526",
+        "facebook": "113623475314526",
+        "offerup": "27.0000,-97.9000",
     }
     assert outcome is Outcome.SAVED
     marketplace = tomllib.loads(written)["marketplace"]["facebook"]
@@ -354,7 +359,7 @@ def test_a_name_alone_is_confirmed_from_facebooks_places(
         "Los Angeles, California",
         "Los Ángeles, Chile",
     ]
-    assert model.results("find_city")[1]["places"][0]["search_city"] == "113623475314526"
+    assert model.results("find_city")[1]["places"][0]["facebook"] == "113623475314526"
     marketplace = tomllib.loads(written)["marketplace"]["facebook"]
     assert marketplace["search_city"] in ("113623475314526", ["113623475314526"]), written
 

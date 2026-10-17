@@ -53,9 +53,19 @@ not parse is matched as literal text and will rarely match.
 
 ### Where and how far
 
-`section_show` returns `inherited_from_marketplace`: what the item uses from its marketplace.
+`section_show` returns `inherited_from_marketplace`: what the item uses from its marketplace,
+and `searched_in`: every marketplace the item is searched in, with its type (`facebook`,
+`offerup`). An item without `marketplace` is searched in every marketplace; set `marketplace`
+(a name or a list) only if the user wants it on some of them.
 Set a location field on the item only if this item should differ (another city, a different
-distance, a whole region); otherwise leave it to the marketplace.
+distance, a whole region); otherwise leave it to the marketplaces.
+
+The location is in each marketplace's format, so an item searched in marketplaces of different
+types (Facebook and OfferUp) gives each its own value: look the place up with `find_city`,
+confirm it, and set a table, `search_city = [{ facebook = "<facebook>", offerup = "<offerup>" }]`
+(OfferUp's value may also be a ZIP code the user gave). An item searched in two marketplaces of
+the same type cannot set its own location: it would search the same place twice; set
+`marketplace` to one of them, or leave the location to the marketplaces.
 
 If `marketplace_exists` is false, the item cannot be searched yet: create the marketplace
 (`section_update` with `section_type="marketplace"`), following the marketplace task, with the

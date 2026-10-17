@@ -27,6 +27,10 @@ which `find_city` looks up from a city or ZIP code), how to notify the user (`[n
 `[user.*]`), and something to search for (`[item.*]`). When starting from scratch, set them up in
 that order: marketplace, then notification, then suggest adding an item.
 
+For the marketplace, ask which one the user wants, unless they said: Facebook Marketplace (aimm
+logs in with their Facebook account), OfferUp (US only, no account), or both (one section each;
+their items search both). Name a section after its marketplace (`facebook`, `offerup`).
+
 When the user's request already names an item ("watch for a GoPro under $200"), first note what
 else is missing. Keep what they said for the item, set up the missing marketplace location and
 notification (briefly telling them why), then complete the item's search criteria. Save the
@@ -37,8 +41,8 @@ sections together, or each one as it is complete if the user prefers.
 Use `list_sections` to see the existing sections, each with its name, `request` (what the user
 wanted from it) and a short `summary` of what it does. Match the user's words to a section by
 name, request or summary ("my Houston search" may be `marketplace.facebook`). If more than one
-matches, ask which one. For a new section, choose a short name (`facebook` for the first
-marketplace) or ask.
+matches, ask which one. For a new section, choose a short name (`facebook` or `offerup` for the
+first marketplace of each) or ask.
 
 ### Making the change
 

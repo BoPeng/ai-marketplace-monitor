@@ -7,8 +7,11 @@ import warnings
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
+from ..marketplaces import marketplace_type, supported_marketplaces
+from ..marketplaces.base import option_names
 from ..marketplaces.facebook import FacebookItemConfig
 from ..normalize import NormalizeError, expand
+from ..normalize.pushdown import bound_marketplaces
 from .marketplace import _NAME, MARKETPLACE_GUIDES, MarketplaceToolkit, _plain
 from .toolkits import FieldGroup, FieldGuide, SectionDraft, Toolkit, listed, location
 from .ui import Choice, SetupUI
@@ -135,6 +138,8 @@ def _number(value: Any) -> bool:
 class ItemToolkit(Toolkit):
     section_type = "item"
     playbook = "item"
+    # Facebook's item options include every other marketplace's; validate checks an item as
+    # each marketplace type it is searched in reads it
     config_class = FacebookItemConfig
     guides = ITEM_GUIDES
     _market = MarketplaceToolkit()
@@ -161,6 +166,24 @@ class ItemToolkit(Toolkit):
         names += [n for t, n in ws.drafts if t == "marketplace" and n not in names]
         return names[0] if names else "facebook"
 
+    def targets(self: "ItemToolkit", ws: "Workspace", values: Dict[str, Any]) -> Dict[str, str]:
+        """The marketplaces the item searches, with their types (drafts included)."""
+        markets: Dict[str, Any] = dict(ws.config_with_drafts().get("marketplace", {}))
+        for (section_type, name), draft in ws.drafts.items():
+            if section_type == "marketplace" and name not in markets:
+                markets[name] = draft.values
+        out = {}
+        for name in bound_marketplaces(values, markets) if markets else []:
+            try:
+                out[name] = marketplace_type(name, markets.get(name) or {})
+            except ValueError:
+                out[name] = "facebook"
+        return out
+
+    def _types(self: "ItemToolkit", ws: "Workspace", values: Dict[str, Any]) -> List[str]:
+        types = list(dict.fromkeys(self.targets(ws, values).values()))
+        return [t for t in types if t in supported_marketplaces] or ["facebook"]
+
     def _shared(self: "ItemToolkit") -> List[str]:
         return [f for f in self.field_names() if self.group(f) is not FieldGroup.OWN]
 
@@ -175,6 +198,8 @@ class ItemToolkit(Toolkit):
             "marketplace": name,
             "marketplace_exists": market is not None,
             "inherited_from_marketplace": inherited,
+            # every marketplace it is searched in, by type (facebook, offerup)
+            "searched_in": self.targets(ws, draft.values),
         }
 
     def companions(self: "ItemToolkit", ws: "Workspace", name: str) -> List[Tuple[str, str]]:
@@ -206,13 +231,30 @@ class ItemToolkit(Toolkit):
         placeholder = not values.get("search_phrases")
         if placeholder:
             values["search_phrases"] = ["_"]
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                FacebookItemConfig(name=draft.name, **values)
-        except Exception as e:
-            return [_plain(e)]
-        guessed = ws.unconfirmed_cities(draft.values)
+        types = self._types(ws, draft.values)
+        # checked as each marketplace type it is searched in reads it
+        supported = set().union(
+            *(option_names(supported_marketplaces[t].item_config_class) for t in types)
+        )
+        others = sorted(set(values) - supported - {"marketplace"})
+        if others:
+            return [
+                f"{', '.join(f'`{k}`' for k in others)}: not options of {' or '.join(types)} "
+                "items; unset them."
+            ]
+        for market_type in types:
+            item_class = supported_marketplaces[market_type].item_config_class
+            own = option_names(item_class)
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    item_class(
+                        name=draft.name,
+                        **{k: v for k, v in values.items() if k in own and k != "marketplace"},
+                    )
+            except Exception as e:
+                return [_plain(e)]
+        guessed = ws.unconfirmed_cities(draft.values, types)
         if guessed:
             return guessed
         context = self.context(ws)

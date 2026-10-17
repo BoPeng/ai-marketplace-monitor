@@ -466,20 +466,31 @@ class ToolExecutor:
                     "state or country name, or a ZIP code."
                 ],
             }
-        self.ws.found_city_codes |= {p.code for p in places}
+        found = [
+            {
+                "place": p.label,
+                "detail": p.detail,
+                # each marketplace type's search_city for the place
+                "facebook": p.code,
+                "offerup": f"{p.latitude:.4f},{p.longitude:.4f}",
+            }
+            for p in places
+        ]
+        self.ws.found_city_codes |= {v for f in found for v in (f["facebook"], f["offerup"])}
         return {
             "ok": True,
-            "places": [
-                {"place": p.label, "detail": p.detail, "search_city": p.code} for p in places
-            ],
+            "places": found,
             "note": (
                 "Facebook's matches for what the user typed, best first (at most 10). Confirm "
                 "the place with the user before saving: if one clearly fits, ask whether it is "
                 "right; if several could be meant, offer them by `place` (e.g. Los Angeles, "
                 "California or Los Angeles in Mexico); if the user's place is not listed, call "
-                "find_city again with its state or country added. Then set search_city to its "
-                "`search_city` and city_name to its `place`. Places with the same `search_city` "
-                "are the same Marketplace location."
+                "find_city again with its state or country added. Then set search_city to the "
+                "value for the section's marketplace type: `facebook` for a Facebook section, "
+                "`offerup` for an OfferUp one (its coordinates; a ZIP code the user gave works "
+                "too); for an item searched in both, a table: "
+                '{ facebook = "<facebook>", offerup = "<offerup>" }. Set city_name to its '
+                "`place`. Places with the same `facebook` value are the same Marketplace location."
             ),
         }
 

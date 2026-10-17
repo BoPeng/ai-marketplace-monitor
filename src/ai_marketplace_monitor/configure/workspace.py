@@ -9,7 +9,7 @@ import re
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, Iterable, List, Set, Tuple
 
 from ..config import load_config_dicts
 from ..normalize import NormalizeError, expand
@@ -31,6 +31,21 @@ _NOT_A_LOCATION = {
     "saved",
     "notifications",
 }
+
+
+_ZIP = re.compile(r"\b[0-9]{5}\b")
+
+
+def _location_values(value: Any, market_type: str) -> Set[str]:
+    """The values a section of this marketplace type takes from a search_city value."""
+    values = value if isinstance(value, list) else [value]
+    out = set()
+    for v in values:
+        if isinstance(v, dict):
+            v = next((x for k, x in v.items() if str(k).lower() == market_type), None)
+        if v not in (None, ""):
+            out.add(str(v).strip())
+    return out
 
 
 def _codes(value: Any) -> Set[str]:
@@ -128,18 +143,47 @@ class Workspace:
             }
         return codes | self.found_city_codes
 
-    def unconfirmed_cities(self: "Workspace", values: Dict[str, Any]) -> List[str]:
-        """An error if `search_city` has a code the user did not give (see known_city_codes)."""
-        guessed = sorted(_codes(values.get("search_city")) - self.known_city_codes())
-        if not guessed:
-            return []
-        error = (
-            f"`search_city` {guessed} is not from find_city or a Facebook Marketplace URL the "
-            "user pasted. Never guess a location code: look the place up with find_city, or "
-            "ask the user to open Facebook Marketplace, set the location and distance, search "
-            "for anything, and paste the URL of the results page."
-        )
-        return [error]
+    def known_locations(self: "Workspace", market_type: str) -> Set[str]:
+        """Location values of a marketplace type that the user gave or aimm looked up.
+
+        Facebook: its codes (known_city_codes). OfferUp: ZIP codes the user typed, values in the
+        config, and the coordinates find_city returned.
+        """
+        if market_type == "facebook":
+            return self.known_city_codes()
+        known: Set[str] = set(self.found_city_codes)
+        for section_type in ("marketplace", "item", "region"):
+            for section in self.user_cfg.get(section_type, {}).values():
+                if isinstance(section, dict):
+                    known |= _location_values(section.get("search_city"), market_type)
+        for text in self.user_said:
+            known |= set(_ZIP.findall(text))
+        return known
+
+    def unconfirmed_cities(
+        self: "Workspace", values: Dict[str, Any], market_types: Iterable[str] = ("facebook",)
+    ) -> List[str]:
+        """Errors for `search_city` values the user did not give, per marketplace type."""
+        errors = []
+        for market_type in dict.fromkeys(market_types):
+            wanted = _location_values(values.get("search_city"), market_type)
+            guessed = sorted(wanted - self.known_locations(market_type))
+            if not guessed:
+                continue
+            if market_type == "facebook":
+                errors.append(
+                    f"`search_city` {guessed} is not from find_city or a Facebook Marketplace URL "
+                    "the user pasted. Never guess a location code: look the place up with "
+                    "find_city, or ask the user to open Facebook Marketplace, set the location "
+                    "and distance, search for anything, and paste the URL of the results page."
+                )
+            else:
+                errors.append(
+                    f"`search_city` {guessed} for {market_type} is not a ZIP code the user gave "
+                    "nor coordinates from find_city. Ask for the ZIP code, or look the place up "
+                    f"with find_city and use its `{market_type}` value."
+                )
+        return errors
 
     def section(self: "Workspace", section_type: str, name: str) -> Dict[str, Any] | None:
         """A section as drafted in this session, else as saved (None if neither)."""
