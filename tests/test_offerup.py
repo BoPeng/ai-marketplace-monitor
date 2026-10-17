@@ -448,3 +448,101 @@ def test_the_monitor_proxy_is_used(tmp_path: Path) -> None:
 def test_offerup_config_classes() -> None:
     assert OfferUpMarketplace.config_class is OfferUpMarketplaceConfig
     assert OfferUpMarketplace.item_config_class is OfferUpItemConfig
+
+
+# ------------------------------------------------------------------ review fixes (#480)
+
+
+def test_a_zip_code_has_ascii_digits(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="is not a ZIP code"):
+        _config(tmp_path, '[marketplace.offerup]\nsearch_city = "٧٧٠٠٢"\n')
+
+
+def test_proxy_credentials_are_quoted(tmp_path: Path) -> None:
+    config = _config(
+        tmp_path,
+        '[monitor]\nproxy_server = "http://proxy.example:8080"\nproxy_username = "me@home"\n'
+        'proxy_password = "p:a/s@s"\n[marketplace.offerup]\nsearch_city = "77002"\n',
+    )
+    marketplace = OfferUpMarketplace("offerup", None)
+    marketplace.configure(config.marketplace["offerup"])
+    assert (
+        marketplace.client.proxies["https"] == "http://me%40home:p%3Aa%2Fs%40s@proxy.example:8080"
+    )
+
+
+@pytest.mark.parametrize(
+    ("post_date", "excluded"),
+    [
+        ("not a date", False),  # unreadable: not held against the listing
+        ((datetime.now() - timedelta(days=10)).isoformat(), True),  # naive: read as UTC
+        ("", False),
+    ],
+)
+def test_an_unreadable_or_naive_post_date(tmp_path: Path, post_date: str, excluded: bool) -> None:
+    marketplace, item = _marketplace(
+        tmp_path, item='[item.bike]\nsearch_phrases = "bike"\ndate_listed = 7\n'
+    )
+    item.searched_count = 1
+    listing = marketplace._listing(
+        _details(postDate=post_date), OfferUpMarketplace.listing_url(LID)
+    )
+    assert (marketplace.exclusion_reason(listing, item) is not None) is excluded
+
+
+def test_an_offerup_config_can_be_normalized() -> None:
+    from ai_marketplace_monitor.normalize import expand, normalize
+    from tests.normalize_util import parse, system_cfg
+
+    text = '[marketplace.offerup]\nsearch_city = "77002"\n[item.bike]\nsearch_phrases = "bike"\n[user.me]\npushbullet_token = "x"\n'
+    assert (
+        expand(parse(text), system_cfg()).config["marketplace"]["offerup"]["search_city"]
+        == "77002"
+    )
+    normalize(parse(text), system_cfg())
+    bound = text.replace(
+        'search_phrases = "bike"', 'search_phrases = "bike"\nmarketplace = "offerup"'
+    )
+    assert expand(parse(bound), system_cfg()).config["item"]["bike"]["search_city"] == "77002"
+
+
+def test_aimm_check_uses_the_marketplace_of_the_listing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai_marketplace_monitor import monitor as mon
+
+    path = tmp_path / "config.toml"
+    path.write_text(
+        textwrap.dedent(
+            '[marketplace.facebook]\nsearch_city = "houston"\nusername = "u"\npassword = "p"\n'
+            '[marketplace.offerup]\nsearch_city = "77002"\n'
+            '[item.bike]\nsearch_phrases = "bike"\n[user.me]\npushbullet_token = "x"\n'
+        ),
+        encoding="utf-8",
+    )
+    config = Config([path])
+    monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
+    monitor.config = config
+    monitor.browser = None
+    monitor.logger = None
+    monitor.keyboard_monitor = None
+    monitor.ai_agents = []
+    monkeypatch.setattr(mon.MarketplaceMonitor, "active_marketplaces", {})
+    monkeypatch.setattr(monitor, "load_config_file", lambda: config)
+    monkeypatch.setattr(monitor, "load_ai_agents", lambda: None)
+    monkeypatch.setattr(monitor, "_launch_browser", lambda: pytest.fail("no browser for OfferUp"))
+    checked: List[str] = []
+
+    def inspect(marketplace: Any, url: str, item: Any, market: Any, *args: Any) -> Any:
+        from ai_marketplace_monitor.ai import AIResponse
+
+        checked.append(f"{type(marketplace).__name__} {item.marketplace}")
+        listing = (
+            marketplace._listing(_details(), url) if hasattr(marketplace, "_listing") else None
+        )
+        return listing, False, None, AIResponse(5, AIResponse.NOT_EVALUATED)
+
+    monkeypatch.setattr(mon, "inspect_listing", inspect)
+    monkeypatch.setattr(mon.User, "notification_status", lambda self, listing: None)
+    monitor.check_items([f"https://offerup.com/item/detail/{LID}"], for_item="bike")
+    assert checked == ["OfferUpMarketplace offerup"]  # not the Facebook section first

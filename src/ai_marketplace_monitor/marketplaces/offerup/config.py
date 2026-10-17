@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from ...utils import hilight
 from ..base import ItemConfig, MarketplaceConfig
 
-ZIP_CODE = re.compile(r"\d{5}")
+# five ASCII digits: \d would also match other scripts' digits
+ZIP_CODE = re.compile(r"[0-9]{5}")
 
 
 class OfferUpLocation:

@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 from logging import Logger
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type
-from urllib.parse import parse_qsl, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 
 from currency_converter import CurrencyConverter  # type: ignore
 
@@ -88,6 +88,17 @@ def _price(value: Any) -> str:
     return f"${text}" if text and not text.startswith("$") else text
 
 
+def _posted(post_date: str) -> datetime | None:
+    """When a listing was posted, in UTC; None if unknown or unreadable."""
+    if not post_date:
+        return None
+    try:
+        posted = datetime.fromisoformat(post_date.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return posted if posted.tzinfo else posted.replace(tzinfo=timezone.utc)
+
+
 def _first_or_later(key: str, item_config: Any, marketplace_config: Any) -> Any:
     """An option with a first and a later value (date_listed, delivery_method)."""
     values = resolve_option(key, item_config, marketplace_config)
@@ -133,7 +144,10 @@ class OfferUpMarketplace(Marketplace):
             server = proxy["server"]
             if proxy.get("username") and proxy.get("password") and "://" in server:
                 scheme, rest = server.split("://", 1)
-                server = f"{scheme}://{proxy['username']}:{proxy['password']}@{rest}"
+                # quoted: a character such as @ or : in a password would change the URL
+                user = quote(str(proxy["username"]), safe="")
+                password = quote(str(proxy["password"]), safe="")
+                server = f"{scheme}://{user}:{password}@{rest}"
             proxies = {"http": server, "https": server}
         self.client.proxies = proxies
 
@@ -330,8 +344,8 @@ class OfferUpMarketplace(Marketplace):
         if reason is not None or not description_available:
             return reason
         days = _first_or_later("date_listed", item_config, self.config)
-        if days and item.post_date:
-            posted = datetime.fromisoformat(item.post_date.replace("Z", "+00:00"))
+        posted = _posted(item.post_date)
+        if days and posted is not None:
             age = (datetime.now(timezone.utc) - posted).total_seconds() / 86400
             if age > int(days):
                 if self.logger:

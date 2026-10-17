@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from logging import Logger
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, List, Tuple
+from typing import Any, ClassVar, Dict, Iterable, List, Tuple, Type
 
 import humanize
 import inflect
@@ -852,28 +852,34 @@ class MarketplaceMonitor:
 
         self.load_ai_agents()
 
-        post_urls = []
+        # each listing, with the marketplace type whose listing it is
+        post_urls: List[Tuple[str, Type[Marketplace]]] = []
         for post_url in items or []:
             # a listing id, or the URL of a listing of a supported marketplace
             for market_class in supported_marketplaces.values():
                 lid = market_class.listing_id(post_url)
                 if lid:
-                    post_urls.append(market_class.listing_url(lid))
+                    post_urls.append((market_class.listing_url(lid), market_class))
                     break
             else:
-                raise ValueError(f"URL {post_url} is not a valid Facebook Marketplace URL.")
+                raise ValueError(
+                    f"{post_url} is not a listing (or the URL of a listing) of a supported "
+                    f"marketplace: {', '.join(supported_marketplaces)}."
+                )
 
         if not post_urls:
             raise ValueError("No URLs to check.")
 
         # Open a new browser page.
-        for post_url in post_urls or []:
+        for post_url, url_class in post_urls:
             # check if item in config
             assert self.config is not None
 
-            # which marketplace to check it?
+            # which marketplace to check it? those of the listing's type
             for marketplace_config in self.config.marketplace.values():
                 if marketplace_config.enabled is False:
+                    continue
+                if marketplace_class(marketplace_config) is not url_class:
                     continue
                 marketplace = self._active_marketplace(marketplace_config, start_browser=False)
 
