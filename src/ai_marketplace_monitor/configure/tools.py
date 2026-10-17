@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
+from ..marketplaces import supported_marketplaces
 from ..marketplaces.facebook.location import FacebookLocations, LocationLookupError
 from ..shared_browser import shared_endpoint
 from .history import explain_listing, find_listings
@@ -406,13 +407,17 @@ class ToolExecutor:
         if notes:
             result["shown_to_user"] = notes
         tried = [n for t, n in (d.key for d in pending) if t == "item"]
-        if tried and await asyncio.to_thread(shared_endpoint) is not None:
+        if tried and (
+            self._searchable_without_browser(tried)
+            or await asyncio.to_thread(shared_endpoint) is not None
+        ):
             result["try_item"] = {
                 "items": tried,
                 "note": (
-                    "aimm can run the search of what was just saved once, now, in the monitor's "
-                    "browser, and list what it finds (search results only, no AI). Offer it "
-                    "with ask_user, in your own words; call try_item only if the user agrees."
+                    "aimm can run the search of what was just saved once, now (OfferUp "
+                    "directly, Facebook in the monitor's browser while it runs), and list what "
+                    "it finds (search results only, no AI). Offer it with ask_user, in your own "
+                    "words; call try_item only if the user agrees."
                 ),
             }
         if tests:
@@ -427,6 +432,19 @@ class ToolExecutor:
                 ),
             }
         return result
+
+    def _searchable_without_browser(self: "ToolExecutor", items: List[str]) -> bool:
+        """Whether one of these items is searched in a marketplace that needs no browser."""
+        toolkit = self.ws.toolkits.get("item")
+        if toolkit is None or not hasattr(toolkit, "targets"):
+            return False
+        saved = self.ws.user_cfg.get("item", {})
+        return any(
+            market_type in supported_marketplaces
+            and not supported_marketplaces[market_type].needs_browser
+            for name in items
+            for market_type in toolkit.targets(self.ws, saved.get(name, {})).values()
+        )
 
     async def test_notification(
         self: "ToolExecutor", section_type: str, name: str

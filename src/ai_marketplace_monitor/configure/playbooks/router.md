@@ -71,12 +71,16 @@ was never rated, and its description may be unknown.
 
 ### Trying an item once
 
-`try_item(item)` runs a saved item's search pages once in aimm's browser (up to 4: its search
-phrases in its cities) and lists what they show, after the filters that work on search results
+`try_item(item)` runs a saved item's search pages once (up to 4: its search phrases in its
+cities, in each marketplace it is searched in; OfferUp directly, Facebook in the monitor's
+browser) and lists what they show, after the filters that work on search results
 (title, location, price). It opens no listing page and asks no AI, so it does not say which
 listings the item would notify about: it shows whether the search phrases, location, radius and
 price find the right kind of listing. Offer it after an item is saved (`save` returns
 `try_item`), or when the user asks to see what a search finds; it runs only what is saved.
+
+If a marketplace's search could not run (`unavailable`, for example Facebook while the monitor
+is not running), say so; the other marketplaces' results still count.
 
 Summarize the result: how many listings each search found, how many the filters dropped and
 why, and a few of the rest (title, price, link). If aimm already decided about one

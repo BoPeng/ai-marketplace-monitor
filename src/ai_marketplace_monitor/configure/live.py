@@ -39,6 +39,7 @@ from ..marketplaces.base import DEFAULT_RATING, Marketplace, resolve_option
 from ..marketplaces.facebook import FacebookMarketplace
 from ..marketplaces.facebook.seller import seller_id_from_url
 from ..marketplaces.offerup import OfferUpMarketplace
+from ..marketplaces.offerup.client import OfferUpError
 from ..marketplaces.offerup.marketplace import SELLER_PREFIX as OFFERUP_SELLER
 from ..seller import Seller, seller_warnings
 from ..shared_browser import BrowserBusyError, shared_endpoint
@@ -77,6 +78,14 @@ NOT_LOGGED_IN = (
     "waiting for a CAPTCHA or a security code, the user finishes the login where aimm says (in "
     "the web UI, the browser view). The chat never logs in itself."
 )
+
+
+def _not_run(marketplace_config: Any, pages: List[Any]) -> List[Dict[str, Any]]:
+    """Search pages that try_item does not read."""
+    return [
+        {"marketplace": marketplace_config.name, "phrase": s.phrase, "city": s.city_name or s.city}
+        for s in pages
+    ]
 
 
 class LiveUnavailableError(RuntimeError):
@@ -289,6 +298,12 @@ class LiveBrowser:
             return
         yield self._direct(marketplace_config)
 
+    def _offline(self: "LiveBrowser", config: Config, marketplace_config: Any) -> Any:
+        """A marketplace that opens no page: Facebook reads only aimm's cache."""
+        if marketplace_class(marketplace_config).needs_browser:
+            return self._marketplace(config, marketplace_config)
+        return self._direct(marketplace_config)
+
     def _direct(self: "LiveBrowser", marketplace_config: Any) -> Any:
         """A marketplace that needs no browser (OfferUp), as the monitor configures it."""
         market_class = marketplace_class(marketplace_config)
@@ -361,11 +376,7 @@ class LiveBrowser:
         url = market_class.listing_url(lid)
         started = time.monotonic()
         if not refresh and _known_listing(url):
-            cached = (
-                self._marketplace(config, marketplace_config)
-                if market_class.needs_browser
-                else self._direct(marketplace_config)
-            )
+            cached = self._offline(config, marketplace_config)
             listing, from_cache, excluded, answer = inspect_listing(
                 cached,
                 url,
@@ -442,38 +453,48 @@ class LiveBrowser:
                 f"[item.{item_config.name}] is not searched in any marketplace."
             )
         budget = TRY_SEARCHES
+        unavailable: List[Dict[str, str]] = []
+        budget = TRY_SEARCHES
         for marketplace_config in targets:
             target = self._target(config, item_config, marketplace_config)
-            with self._session(config, marketplace_config) as marketplace:
-                pages = marketplace.search_pages(target)
-                for search in pages[:budget]:
-                    listings = marketplace.read_search_page(search)
-                    searches.append(
-                        {
-                            "marketplace": marketplace_config.name,
-                            "phrase": search.phrase,
-                            "city": search.city_name or search.city,
-                            "radius": search.radius,
-                            "found": len(listings),
-                        }
-                    )
-                    for listing in listings:
-                        url = listing.post_url.split("?")[0]
-                        if url not in found:
-                            found[url] = listing
-                            # the search's filters on what a search page shows
-                            reasons[url] = marketplace.exclusion_reason(
-                                listing, target, description_available=False
-                            )
-                not_run += [
-                    {
-                        "marketplace": marketplace_config.name,
-                        "phrase": s.phrase,
-                        "city": s.city_name or s.city,
-                    }
-                    for s in pages[budget:]
-                ]
-                budget = max(0, budget - len(pages))
+            if budget == 0:
+                # out of searches: list this marketplace's pages without opening a session
+                pages = self._offline(config, marketplace_config).search_pages(target)
+                not_run += _not_run(marketplace_config, pages)
+                continue
+            try:
+                with self._session(config, marketplace_config) as marketplace:
+                    pages = marketplace.search_pages(target)
+                    for search in pages[:budget]:
+                        listings = marketplace.read_search_page(search)
+                        searches.append(
+                            {
+                                "marketplace": marketplace_config.name,
+                                "phrase": search.phrase,
+                                "city": search.city_name or search.city,
+                                "radius": search.radius,
+                                "found": len(listings),
+                            }
+                        )
+                        for listing in listings:
+                            url = listing.post_url.split("?")[0]
+                            if url not in found:
+                                found[url] = listing
+                                # the search's filters on what a search page shows
+                                reasons[url] = marketplace.exclusion_reason(
+                                    listing, target, description_available=False
+                                )
+                    not_run += _not_run(marketplace_config, pages[budget:])
+                    budget = max(0, budget - len(pages))
+            except Exception as e:
+                # one marketplace failing (not logged in, blocked) does not stop the others
+                if not isinstance(e, (LiveUnavailableError, BrowserBusyError, OfferUpError)):
+                    logger.debug("try_item failed in %s", marketplace_config.name, exc_info=True)
+                unavailable.append({"marketplace": marketplace_config.name, "error": str(e)})
+        if unavailable and not searches:
+            raise LiveUnavailableError(
+                "; ".join(f"[marketplace.{u['marketplace']}] {u['error']}" for u in unavailable)
+            )
         excluded_by: Dict[str, int] = {}
         kept: List[Dict[str, Any]] = []
         for url, listing in found.items():
@@ -506,6 +527,7 @@ class LiveBrowser:
             "item": item_config.name,
             "searches": searches,
             "searches_not_run": not_run,
+            "unavailable": unavailable,
             "found": len(found),
             "excluded": sum(excluded_by.values()),
             "excluded_by": dict(sorted(excluded_by.items(), key=lambda x: -x[1])[:5]),
@@ -522,7 +544,8 @@ class LiveBrowser:
                 "decided about a listing for this item. Summarize for the user and show a few "
                 "listings; offer evaluate_listing for the ones they pick, one at a time. If the "
                 "results look wrong, propose a change to the item (search_phrases, "
-                "antikeywords, price, radius). Nothing is recorded and no one is notified. "
+                "antikeywords, price, radius). `unavailable`: marketplaces whose search could "
+                "not run, and why; tell the user. Nothing is recorded and no one is notified. "
                 + UNTRUSTED_NOTE
             ),
         }

@@ -1981,6 +1981,28 @@
 
   };
 
+  // Split a comma-separated search_city, keeping OfferUp's "lat,lon" pairs whole:
+  // "29.76,-95.37, 77002" is ["29.76,-95.37", "77002"].
+  const splitCities = (text) => {
+    const parts = text.split(",").map((s) => s.trim()).filter(Boolean);
+    const isNumber = (s) => /^-?\d+(\.\d+)?$/.test(s);
+    const cities = [];
+    for (let i = 0; i < parts.length; i++) {
+      const lat = parts[i];
+      const lon = parts[i + 1];
+      if (
+        lon !== undefined && isNumber(lat) && isNumber(lon) &&
+        Math.abs(parseFloat(lat)) <= 90 && Math.abs(parseFloat(lon)) <= 180
+      ) {
+        cities.push(`${lat},${lon}`);
+        i++;
+      } else {
+        cities.push(lat);
+      }
+    }
+    return cities;
+  };
+
   // Collect form field values into a {key: coerced_value} dict.
   const collectFormValues = () => {
     const form = $("#section-form");
@@ -2022,10 +2044,11 @@
         if (isNaN(value)) { errors.push(`${fieldDef.label} must be a number.`); return; }
       } else if (newVal.includes(",") && fieldDef.type === "text") {
         const original = formContext.fields[fieldDef.key];
-        if (Array.isArray(original) || newVal.includes(",")) {
-          value = newVal.split(",").map((s) => s.trim()).filter(Boolean);
+        if (fieldDef.key === "search_city") {
+          const cities = splitCities(newVal);
+          value = cities.length === 1 && !Array.isArray(original) ? cities[0] : cities;
         } else {
-          value = newVal;
+          value = newVal.split(",").map((s) => s.trim()).filter(Boolean);
         }
       } else {
         value = newVal;

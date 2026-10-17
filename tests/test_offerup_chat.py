@@ -197,3 +197,121 @@ def test_an_item_not_searched_on_facebook_cannot_rate_a_facebook_listing(tmp_pat
         listing="https://www.facebook.com/marketplace/item/1/",
     )
     assert not out["ok"] and "is not searched in a Facebook marketplace" in out["errors"][0]
+
+
+def _bike_listing() -> Listing:
+    return Listing(
+        marketplace="facebook",
+        name="",
+        id="1",
+        title="Giant bike",
+        image="",
+        price="$200",
+        post_url="https://www.facebook.com/marketplace/item/1/",
+        location="Houston, TX",
+        seller="",
+        condition="",
+        description="",
+    )
+
+
+BOTH = (
+    BASE
+    + '\n[marketplace.facebook]\nsearch_city = "houston"\n'
+    + '[marketplace.offerup]\nsearch_city = "77002"\n[item.bike]\nsearch_phrases = "bike"\n'
+)
+
+
+def test_offerup_is_tried_when_facebook_cannot_be(tmp_path: Path, fake_offerup: List[str]) -> None:
+    """Without the monitor's browser, the Facebook search is reported and OfferUp's still runs."""
+    out = _run(tmp_path, BOTH, "try_item", item="bike")
+    assert out["ok"], out
+    assert [s["marketplace"] for s in out["searches"]] == ["offerup"]
+    assert [u["marketplace"] for u in out["unavailable"]] == ["facebook"]
+    assert "cannot be shared" in out["unavailable"][0]["error"]
+    assert fake_offerup == ["search bike"]
+
+
+def test_try_item_fails_only_if_every_marketplace_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai_marketplace_monitor.marketplaces.offerup import client
+
+    def blocked(self: Any, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        raise client.OfferUpBlockedError("OfferUp refused the request (403).")
+
+    monkeypatch.setattr(OfferUpClient, "search", blocked)
+    out = _run(tmp_path, BOTH, "try_item", item="bike")
+    assert not out["ok"]
+    assert "[marketplace.facebook]" in out["errors"][0]
+    assert "[marketplace.offerup] OfferUp refused" in out["errors"][0]
+
+
+def test_no_session_is_opened_once_the_searches_are_spent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_offerup: List[str]
+) -> None:
+    class FakeFacebook:
+        def search_pages(self, item: Any) -> List[SearchPage]:
+            return [
+                SearchPage(city="houston", city_name="Houston", radius=40, phrase=p, url="u")
+                for p in ("a", "b", "c", "d")
+            ]
+
+        def read_search_page(self, search: SearchPage) -> List[Listing]:
+            return [_bike_listing()]
+
+        def exclusion_reason(
+            self, listing: Any, item: Any, description_available: bool = True
+        ) -> None:
+            return None
+
+    @contextmanager
+    def fake_session(self: Any, config: Any, marketplace_config: Any) -> Iterator[Any]:
+        yield FakeFacebook()
+
+    sessions: List[str] = []
+    session = live.LiveBrowser._session
+
+    @contextmanager
+    def counted(self: Any, config: Any, marketplace_config: Any) -> Iterator[Any]:
+        sessions.append(marketplace_config.name)
+        with session(self, config, marketplace_config) as marketplace:
+            yield marketplace
+
+    monkeypatch.setattr(live.LiveBrowser, "_facebook", fake_session)
+    monkeypatch.setattr(live.LiveBrowser, "_session", counted)
+    text = BOTH.replace('search_phrases = "bike"', 'search_phrases = ["a", "b", "c", "d"]')
+    out = _run(tmp_path, text, "try_item", item="bike")
+    assert out["ok"], out
+    assert sessions == ["facebook"]
+    assert len(out["searches"]) == 4
+    assert [(s["marketplace"], s["phrase"]) for s in out["searches_not_run"]] == [
+        ("offerup", p) for p in ("a", "b", "c", "d")
+    ]
+    assert fake_offerup == []
+
+
+def test_saving_an_offerup_item_offers_to_try_it_without_the_monitor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai_marketplace_monitor.configure import tools
+
+    monkeypatch.setattr(tools, "shared_endpoint", lambda: None)
+
+    async def scenario() -> Dict[str, Any]:
+        ex = ToolExecutor(await make_ws(tmp_path, OFFERUP_ONLY, ["yes"], toolkits=_kits()))
+        ex.guides_read.add("item")
+        await _call(
+            ex,
+            "section_update",
+            section_type="item",
+            name="bike",
+            values={"search_phrases": ["trek bike"]},
+        )
+        out = await _call(ex, "save")
+        ex.end()
+        return out
+
+    out = run_in_fresh_loop(scenario)
+    assert out.get("saved"), out
+    assert out["try_item"]["items"] == ["bike"]
