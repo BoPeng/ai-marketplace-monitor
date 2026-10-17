@@ -3,7 +3,7 @@
 import copy
 from typing import Any, Dict, Optional, Set, Tuple
 
-from ..marketplace import Fallback
+from ..marketplaces.base import Fallback
 from .model import (
     AI_PROMPT_ITEM_ONLY,
     COMMON_OPTIONS,

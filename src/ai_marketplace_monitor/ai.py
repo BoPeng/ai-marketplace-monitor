@@ -14,7 +14,7 @@ from diskcache import Cache  # type: ignore
 from PIL import Image
 
 from .listing import Listing
-from .marketplace import TItemConfig, TMarketplaceConfig, resolve_option
+from .marketplaces.base import TItemConfig, TMarketplaceConfig, resolve_option
 from .utils import BaseConfig, CacheType, CounterItem, cache, counter, hilight
 
 

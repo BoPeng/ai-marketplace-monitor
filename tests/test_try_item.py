@@ -9,20 +9,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ai_marketplace_monitor import facebook
 from ai_marketplace_monitor.configure import live, tools
 from ai_marketplace_monitor.configure.item import ItemToolkit
 from ai_marketplace_monitor.configure.marketplace import MarketplaceToolkit
 from ai_marketplace_monitor.configure.toolkits import Toolkit
 from ai_marketplace_monitor.configure.tools import ToolExecutor
 from ai_marketplace_monitor.evaluations import EvaluationRecord, record_evaluation
-from ai_marketplace_monitor.facebook import (
+from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import (
     FacebookItemConfig,
     FacebookMarketplace,
     FacebookMarketplaceConfig,
     SearchPage,
 )
-from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 from tests.configure_util import ONE_ITEM, make_ws, run_in_fresh_loop
 
 

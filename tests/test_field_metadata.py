@@ -5,13 +5,16 @@ from dataclasses import fields
 import pytest
 
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
-from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
-from ai_marketplace_monitor.marketplace import (
+from ai_marketplace_monitor.marketplaces.base import (
     Fallback,
     location_keys,
     option_fallbacks,
     resolve_option,
     site_fallbacks,
+)
+from ai_marketplace_monitor.marketplaces.facebook import (
+    FacebookItemConfig,
+    FacebookMarketplaceConfig,
 )
 from ai_marketplace_monitor.notification import (
     CHANNEL,

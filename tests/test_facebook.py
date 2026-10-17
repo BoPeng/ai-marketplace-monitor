@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 from pytest_playwright.pytest_playwright import CreateContextCallback  # type: ignore
 
-import ai_marketplace_monitor.facebook as facebook_module
-from ai_marketplace_monitor.facebook import FacebookSearchResultPage, parse_listing
+import ai_marketplace_monitor.marketplaces.facebook.pages as facebook_module
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import FacebookSearchResultPage, parse_listing
 
 
 def test_search_page(

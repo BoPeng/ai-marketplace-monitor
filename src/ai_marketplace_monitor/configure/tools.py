@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Sequence, Set, Tuple
 
-from ..facebook_location import FacebookLocations, LocationLookupError
+from ..marketplaces.facebook.location import FacebookLocations, LocationLookupError
 from ..shared_browser import shared_endpoint
 from .history import explain_listing, find_listings
 from .live import LiveBrowser

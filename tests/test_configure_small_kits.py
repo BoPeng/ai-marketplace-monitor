@@ -123,12 +123,20 @@ async def test_a_built_in_region_can_be_changed_in_part(tmp_path: Path) -> None:
 
 # --- [translation.*] --------------------------------------------------------------------------
 def test_labels_are_the_ones_aimm_looks_for() -> None:
-    source = Path(ai_marketplace_monitor.__file__).parent / "facebook.py"
-    used = set(
-        re.findall(
+    # the Facebook pages (marketplace, pages, seller) and the generic seller module
+    package = Path(ai_marketplace_monitor.__file__).parent
+    sources = [
+        *sorted((package / "marketplaces" / "facebook").glob("*.py")),
+        package / "seller.py",
+    ]
+    used = {
+        label
+        for source in sources
+        for label in re.findall(
             r"""translator\(\s*(?:"([^"]+)"|'([^']+)')""", source.read_text(encoding="utf-8")
         )
-    )
+    }
+    assert used, "no translator(...) calls found: the files moved?"
     used_labels = {a or b for a, b in used} - {"**unspecified**"}
     assert used_labels <= set(LABELS)
 

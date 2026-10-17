@@ -188,7 +188,7 @@ unfixable = [
 [tool.ruff.lint.flake8-bugbear]
 # field factories that only wrap dataclasses.field(...) with metadata (RUF009)
 extend-immutable-calls = [
-  "ai_marketplace_monitor.marketplace.option",
+  "ai_marketplace_monitor.marketplaces.base.option",
   "ai_marketplace_monitor.notification.notification_field",
 ]
 

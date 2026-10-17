@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-from ..marketplace import FALLBACK, LOCATION
+from ..marketplaces.base import FALLBACK, LOCATION
 
 if TYPE_CHECKING:
     from .ui import SetupUI

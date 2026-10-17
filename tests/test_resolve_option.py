@@ -1,13 +1,16 @@
 from dataclasses import dataclass, fields
 from typing import Any
 
-from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketItemCommonConfig
-from ai_marketplace_monitor.marketplace import (
+from ai_marketplace_monitor.marketplaces.base import (
     Fallback,
     MarketItemCommonConfig,
     option,
     option_fallbacks,
     resolve_option,
+)
+from ai_marketplace_monitor.marketplaces.facebook import (
+    FacebookItemConfig,
+    FacebookMarketItemCommonConfig,
 )
 from ai_marketplace_monitor.utils import BaseConfig
 

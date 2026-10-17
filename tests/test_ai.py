@@ -26,8 +26,11 @@ from ai_marketplace_monitor.ai import (
     fetch_listing_image,
     token_usage,
 )
-from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import (
+    FacebookItemConfig,
+    FacebookMarketplaceConfig,
+)
 
 
 @pytest.mark.skipif(True, reason="Condition met, skipping this test")

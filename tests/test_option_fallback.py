@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ai_marketplace_monitor.ai import AIResponse, OllamaBackend, OllamaConfig
-from ai_marketplace_monitor.facebook import (
+from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import (
     FacebookItemConfig,
     FacebookMarketplace,
     FacebookMarketplaceConfig,
 )
-from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.monitor import MarketplaceMonitor
 
 
@@ -39,9 +39,11 @@ def _search_urls(
     with (
         patch.object(mp, "goto_url", side_effect=urls.append),
         patch.object(mp, "set_search_radius", side_effect=radii.append),
-        patch("ai_marketplace_monitor.facebook.FacebookSearchResultPage") as page_cls,
-        patch("ai_marketplace_monitor.facebook.time.sleep"),
-        patch("ai_marketplace_monitor.facebook.counter"),
+        patch(
+            "ai_marketplace_monitor.marketplaces.facebook.marketplace.FacebookSearchResultPage"
+        ) as page_cls,
+        patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.time.sleep"),
+        patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.counter"),
     ):
         page_cls.return_value.get_listings.return_value = []
         list(mp.search(item))

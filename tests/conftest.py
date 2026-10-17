@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from ai_marketplace_monitor import facebook, shared_browser
+from ai_marketplace_monitor import shared_browser
+from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
 
 @pytest.fixture(autouse=True)

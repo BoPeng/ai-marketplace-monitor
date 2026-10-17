@@ -10,8 +10,11 @@ from typing import Any, Dict, List
 
 import pytest
 
-from ai_marketplace_monitor import facebook
-from ai_marketplace_monitor.facebook import FacebookMarketplace, FacebookMarketplaceConfig
+from ai_marketplace_monitor.marketplaces.facebook import (
+    FacebookMarketplace,
+    FacebookMarketplaceConfig,
+)
+from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
 STATE = {"cookies": [{"name": "c_user", "value": "1"}], "origins": []}
 HOME = "https://www.facebook.com/"

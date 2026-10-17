@@ -7,14 +7,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ai_marketplace_monitor import facebook
-from ai_marketplace_monitor.facebook import (
+from ai_marketplace_monitor.marketplaces.facebook import (
     FacebookItemConfig,
     FacebookMarketplace,
     FacebookMarketplaceConfig,
     nearest_radius,
     radius_from_label,
 )
+from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
 
 def test_the_radius_on_the_location_button_and_in_the_dialog() -> None:
@@ -201,7 +201,7 @@ def test_a_recovered_login_reapplies_the_radius(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_radius_options_can_render_after_the_dropdown_opens(new_context: Any) -> None:
-    from ai_marketplace_monitor.facebook import FacebookLocationDialog
+    from ai_marketplace_monitor.marketplaces.facebook import FacebookLocationDialog
 
     page = new_context().new_page()
     page.set_content(

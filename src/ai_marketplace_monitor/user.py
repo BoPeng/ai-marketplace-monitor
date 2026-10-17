@@ -10,7 +10,7 @@ from .ai import AIResponse  # type: ignore
 from .email_notify import EmailNotificationConfig
 from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
-from .marketplace import TItemConfig
+from .marketplaces.base import TItemConfig
 from .notification import TEST_TIMEOUT, ChannelResult, NotificationConfig, NotificationStatus
 from .ntfy import NtfyNotificationConfig
 from .pushbullet import PushbulletNotificationConfig

@@ -12,7 +12,10 @@ from diskcache import Cache  # type: ignore
 from ai_marketplace_monitor import digest as dg
 from ai_marketplace_monitor import digest_summary as ds
 from ai_marketplace_monitor import monitor as mon
-from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
+from ai_marketplace_monitor.marketplaces.facebook import (
+    FacebookItemConfig,
+    FacebookMarketplaceConfig,
+)
 
 UNTIL = datetime(2026, 10, 8, 8, 0).timestamp()
 SINCE = UNTIL - dg.DIGEST_PERIOD

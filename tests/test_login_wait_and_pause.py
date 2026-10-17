@@ -11,10 +11,13 @@ import pytest
 import schedule
 from fastapi.testclient import TestClient
 
-from ai_marketplace_monitor import facebook
 from ai_marketplace_monitor import monitor as monitor_module
 from ai_marketplace_monitor.control import control
-from ai_marketplace_monitor.facebook import FacebookMarketplace, FacebookMarketplaceConfig
+from ai_marketplace_monitor.marketplaces.facebook import (
+    FacebookMarketplace,
+    FacebookMarketplaceConfig,
+)
+from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 from ai_marketplace_monitor.monitor import MarketplaceMonitor
 
 LOGIN_URL = "https://www.facebook.com/login/device-based/regular/login/?login_attempt=1"

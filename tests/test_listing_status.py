@@ -9,7 +9,6 @@ import pytest
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor import evaluations
-from ai_marketplace_monitor import facebook as fb
 from ai_marketplace_monitor import monitor as mon
 from ai_marketplace_monitor.evaluations import (
     AVAILABLE,
@@ -22,6 +21,7 @@ from ai_marketplace_monitor.evaluations import (
     record_evaluation,
 )
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import marketplace as fb
 from ai_marketplace_monitor.utils import Translator
 
 

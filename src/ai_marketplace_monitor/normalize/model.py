@@ -7,17 +7,17 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from rich.text import Text
 
 from ..ai import AIConfig
-from ..facebook import (
-    FacebookItemConfig,
-    FacebookMarketItemCommonConfig,
-    FacebookMarketplaceConfig,
-)
-from ..marketplace import (
+from ..marketplaces.base import (
     Fallback,
     MarketItemCommonConfig,
     location_keys,
     option_fallbacks,
     site_fallbacks,
+)
+from ..marketplaces.facebook import (
+    FacebookItemConfig,
+    FacebookMarketItemCommonConfig,
+    FacebookMarketplaceConfig,
 )
 from ..region import RegionConfig
 from ..user import UserConfig

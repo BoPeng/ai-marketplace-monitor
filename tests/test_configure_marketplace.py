@@ -12,13 +12,13 @@ from ai_marketplace_monitor.configure.marketplace import (
 )
 from ai_marketplace_monitor.configure.playbooks import load_playbook
 from ai_marketplace_monitor.configure.toolkits import FieldGroup
-from ai_marketplace_monitor.facebook import (
+from ai_marketplace_monitor.marketplaces.base import FALLBACK, LOCATION
+from ai_marketplace_monitor.marketplaces.facebook import (
     Condition,
     DeliveryMethod,
     FacebookMarketplaceConfig,
     SortBy,
 )
-from ai_marketplace_monitor.marketplace import FALLBACK, LOCATION
 from tests.configure_util import BASE, ONE_ITEM, make_ws, ui_of, url
 
 T = MarketplaceToolkit()

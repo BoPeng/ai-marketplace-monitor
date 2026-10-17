@@ -15,12 +15,7 @@ from rich.prompt import Prompt
 
 from . import COMMUNITY_MESSAGE
 from .ai import AIBackend, AIResponse
-from .config import (
-    Config,
-    marketplace_class,
-    resolve_config_files,
-    supported_ai_backends,
-)
+from .config import Config, resolve_config_files, supported_ai_backends
 from .control import control
 from .digest import latest_cutoff, pending_digest_channels, send_due_digest
 from .evaluations import (
@@ -33,7 +28,8 @@ from .evaluations import (
     set_history_days,
 )
 from .listing import Listing
-from .marketplace import (
+from .marketplaces import marketplace_class
+from .marketplaces.base import (
     DEFAULT_RATING,
     Marketplace,
     TItemConfig,

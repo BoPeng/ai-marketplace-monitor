@@ -27,12 +27,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Tuple, TypeVar
 
 from ..ai import AIResponse
-from ..config import Config, marketplace_class
+from ..config import Config
 from ..evaluations import find_evaluation
-from ..facebook import FacebookMarketplace, FacebookSellerProfilePage
 from ..listing import Listing
-from ..marketplace import DEFAULT_RATING, resolve_option
-from ..seller import Seller, seller_id_from_url, seller_warnings
+from ..marketplaces import marketplace_class
+from ..marketplaces.base import DEFAULT_RATING, resolve_option
+from ..marketplaces.facebook import FacebookMarketplace, FacebookSellerProfilePage
+from ..marketplaces.facebook.seller import seller_id_from_url
+from ..seller import Seller, seller_warnings
 from ..shared_browser import BrowserBusyError, shared_endpoint
 from .history import (
     COMMENT_CHARS,

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from ai_marketplace_monitor.config import Config
-from ai_marketplace_monitor.facebook import FacebookItemConfig
+from ai_marketplace_monitor.marketplaces.facebook import FacebookItemConfig
 
 BASE = """
 [marketplace.facebook]
