@@ -3,7 +3,7 @@ import re
 import threading
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from enum import Enum
 from logging import Logger
 from typing import (
@@ -12,7 +12,6 @@ from typing import (
     ClassVar,
     DefaultDict,
     Deque,
-    Iterator,
     List,
     Optional,
     Tuple,
@@ -61,7 +60,7 @@ SAMPLE_IMAGE = PACKAGE_DIR / "sample_listing.jpg"
 
 @dataclass
 class ChannelResult:
-    """Whether a test message went out through one channel (e.g. ``email``), and why not."""
+    """Whether a test message went out through one channel (by its name, e.g. ``gmail``)."""
 
     channel: str
     ok: bool
@@ -148,12 +147,13 @@ class _ChannelTest:
 
     def __init__(
         self: "_ChannelTest",
+        name: str,
         channel: "NotificationConfig",
         listings: List[Listing],
         ratings: List[AIResponse],
         logger: Logger | None,
     ) -> None:
-        self.name = channel.notify_method
+        self.name = name
         self.log = _TestLog(logger)
         # a logger of its own (not registered), so that tests at the same time do not mix
         self.logger = logging.Logger(f"aimm.test.{self.name}", logging.DEBUG)
@@ -250,63 +250,9 @@ class NotificationConfig(BaseConfig):
         return None
 
     @classmethod
-    def notify_all(
-        cls: type["NotificationConfig"], config: "NotificationConfig", *args, **kwargs: Any
-    ) -> bool:
-        """Call the notify method of all subclasses"""
-        succ = []
-        for subclass in cls.__subclasses__():
-            flds = {f.name for f in fields(subclass)}
-            subclass_obj = subclass(**{k: getattr(config, k) for k in flds})
-            if hasattr(subclass_obj, "notify") and subclass.__name__ not in [
-                "UserConfig",
-                "PushNotificationConfig",
-            ]:
-                assert hasattr(subclass_obj, "notify")
-                succ.append(subclass_obj.notify(*args, **kwargs))
-            # subclases
-            if hasattr(subclass_obj, "notify_all"):
-                succ.append(subclass.notify_all(config, *args, **kwargs))
-        return any(succ)
-
-    @classmethod
-    def _channel_classes(
-        cls: type["NotificationConfig"],
-    ) -> Iterator[type["NotificationConfig"]]:
-        """The classes that send through one channel (email, pushbullet, ...), as notify_all."""
-        seen = set()
-        for subclass in cls.__subclasses__():
-            if subclass.__name__ not in ("UserConfig", "PushNotificationConfig") and hasattr(
-                subclass, "notify"
-            ):
-                seen.add(subclass)
-                yield subclass
-            for sub in subclass._channel_classes():
-                if sub not in seen:
-                    seen.add(sub)
-                    yield sub
-
-    @classmethod
-    def channels(
-        cls: type["NotificationConfig"], config: "NotificationConfig", **overrides: Any
-    ) -> List["NotificationConfig"]:
-        """The channels set up in ``config`` (a user with its notifications merged in).
-
-        A channel without its required fields is not set up for this user and is left out.
-        """
-        out = []
-        for subclass in cls._channel_classes():
-            flds = {f.name for f in fields(subclass) if not f.name.startswith("_")}
-            values = {k: getattr(config, k) for k in flds if hasattr(config, k)}
-            channel = subclass(**{**values, **overrides})
-            if channel._has_required_fields():
-                out.append(channel)
-        return out
-
-    @classmethod
     def test_all(
         cls: type["NotificationConfig"],
-        config: "NotificationConfig",
+        config: Any,
         listings: List[Listing] | None = None,
         ratings: List[AIResponse] | None = None,
         *,
@@ -314,20 +260,30 @@ class NotificationConfig(BaseConfig):
         timeout: float = TEST_TIMEOUT,
         logger: Logger | None = None,
     ) -> List[ChannelResult]:
-        """Send a test message through each channel of ``config``; one result per channel.
+        """Send a test message through each channel of a user (or one channel); one result each.
 
         Unlike ``User.notify``, nothing is written to the cache. Each channel makes one attempt
         (no retries); the channels send at the same time and have ``timeout`` seconds in all.
         ``listings`` default to ``sample_listing()``; ``channels`` limits the test to these
-        channels (``notify_method``, e.g. ``["email"]``).
+        channel types (``notify_method``, e.g. ``["email"]``).
         """
         if listings is None or ratings is None:
             listing, rating = sample_listing()
             listings, ratings = [listing], [rating]
+        from .channels import Channel
+
+        # a user's channels, or one channel on its own
+        targets = (
+            config.channels()
+            if hasattr(config, "channels")
+            else [Channel(config.notify_method, None, config)]
+        )
         tests = [
-            _ChannelTest(channel, listings, ratings, logger)
-            for channel in cls.channels(config, max_retries=1)
-            if channels is None or channel.notify_method in channels
+            _ChannelTest(
+                channel.label, replace(channel.config, max_retries=1), listings, ratings, logger
+            )
+            for channel in targets
+            if channels is None or channel.config.notify_method in channels
         ]
         deadline = time.monotonic() + timeout
         return [test.result(deadline - time.monotonic(), timeout) for test in tests]

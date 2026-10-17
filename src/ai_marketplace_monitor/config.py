@@ -22,6 +22,7 @@ from .ai import (
     TAIConfig,
     UnitySVCBackend,
 )
+from .channels import user_channels
 from .marketplaces import item_marketplaces, marketplace_type, supported_marketplaces
 from .marketplaces.base import (
     Marketplace,
@@ -399,40 +400,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     )
 
     def expand_notifications(self: "Config", logger: Logger | None = None) -> None:
+        """Set up each user's channels: one for each notification section the user receives."""
         for config in self.user.values():
             self.validate_digest_with(config)
-            for notification_name in (
-                config.notify_with if config.notify_with is not None else self.notification.keys()
-            ):
-                notification_types = set()
+            for notification_name in config.notify_with or []:
                 if notification_name not in self.notification:
                     raise ValueError(
                         f"User {hilight(config.name)} specifies an undefined notification method {notification_name}."
                     )
-                notification_config = self.notification[notification_name]
-                #
-                if notification_config.enabled is False:
-                    continue
-                # add values of notification_config to user config
-                if notification_config.__class__.__name__ in notification_types:
-                    if logger:
-                        logger.warning(
-                            f"Ignore additional notification {hilight(notification_name)} with type {notification_config.__class__.__name__} for user {config.name}."
-                        )
-                    continue
-                else:
-                    notification_types.add(notification_config.__class__.__name__)
-
-                for key, value in notification_config.__dict__.items():
-                    # name is the notification name and should not override username
-                    if key not in ("type", "name", "request") and value is not None:
-                        # defaults shared by every channel (retries, rate limits) are no conflict
-                        if getattr(config, key) not in (None, value):
-                            if logger:
-                                logger.warning(
-                                    f"Overriding {hilight(key)} for user {config.name} with value {value} from notification {hilight(notification_name)}."
-                                )
-                        setattr(config, key, value)
+            config._channels = user_channels(config, self.notification)
 
     def validate_digest_with(self: "Config", config: UserConfig) -> None:
         """The digest goes to some of the notifications that the user receives."""

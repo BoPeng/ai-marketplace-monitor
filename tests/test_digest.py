@@ -429,21 +429,18 @@ def test_digest_with_is_validated(config_file: Callable[[str], str]) -> None:
 
 
 def test_digest_channels(config_file: Callable[[str], str]) -> None:
-    # by default, every channel the user is notified with
+    # by default, every channel the user is notified with: each section on its own
     config = load(config_file)
-    assert sorted(dg.digest_channels(config.user["me"], config.notification)) == [
-        "email",
-        "telegram",
-    ]
+    assert list(dg.digest_channels(config.user["me"])) == ["gmail", "unitysvc_email", "tg"]
     # one of two email sections
     config = load(config_file, 'digest_with = ["gmail"]')
-    channels = dg.digest_channels(config.user["me"], config.notification)
+    channels = dg.digest_channels(config.user["me"])
     assert list(channels) == ["gmail"]
     gmail = channels["gmail"]
     assert isinstance(gmail, EmailNotificationConfig)
     assert (gmail.smtp_server, gmail.email) == ("smtp.gmail.com", ["me@example.com"])
     config = load(config_file, 'digest_with = ["unitysvc_email", "tg"]')
-    channels = dg.digest_channels(config.user["me"], config.notification)
+    channels = dg.digest_channels(config.user["me"])
     assert list(channels) == ["unitysvc_email", "tg"]
     unitysvc_email = channels["unitysvc_email"]
     assert isinstance(unitysvc_email, EmailNotificationConfig)
@@ -590,13 +587,9 @@ def test_send_due_digest_with_sections(
     sent: Sent, temp_cache: Cache, config_file: Callable[[str], str]
 ) -> None:
     config = load(config_file, 'digest_with = ["tg"]')
-    add_digest(
-        config.user["me"], temp_cache, DAY1.replace(hour=7), notifications=config.notification
-    )
+    add_digest(config.user["me"], temp_cache, DAY1.replace(hour=7))
     now = datetime(2026, 10, 8, 9)
-    assert dg.send_due_digest(
-        config.user["me"], config.notification, now=now, local_cache=temp_cache
-    )
+    assert dg.send_due_digest(config.user["me"], now=now, local_cache=temp_cache)
     assert [channel for channel, _, _ in sent] == ["telegram"]
 
 
@@ -707,7 +700,7 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
     calls: List[str] = []
     monkeypatch.setattr(
         "ai_marketplace_monitor.monitor.send_due_digest",
-        lambda config, notifications, **kwargs: calls.append(config.name),
+        lambda config, **kwargs: calls.append(config.name),
     )
     users = {"me": user(), "other": UserConfig(name="other")}
     monitor = MarketplaceMonitor.__new__(MarketplaceMonitor)

@@ -37,7 +37,8 @@ def test_effective_view_resolves_defaults() -> None:
     assert bike["max_price"] == "300"
     assert bike["ai_prompt:max_price"] is None
     assert "name" not in bike["notify"]["alice"]
-    assert bike["notify"]["alice"]["email"] == ["alice@example.com"]
+    [channel] = bike["notify"]["alice"]["channels"]
+    assert channel["type"] == "email" and channel["email"] == ["alice@example.com"]
 
 
 def test_identical_configs_are_equivalent() -> None:

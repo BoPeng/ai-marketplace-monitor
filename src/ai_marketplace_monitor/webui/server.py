@@ -50,7 +50,6 @@ from ..configure.flow import (
 from ..configure.ui import JsonSetupUI, SetupClosedError
 from ..control import control
 from ..evaluations import SORT_KEYS, STAGES, filter_evaluations, iter_evaluations
-from ..notification import NotificationConfig
 from ..update_check import (
     can_restart,
     check,
@@ -593,7 +592,7 @@ def create_app(
     # Settings: test notifications, clear the cache
     # ------------------------------------------------------------------
     def load_users() -> Dict[str, UserConfig] | None:
-        """The users of the config as the monitor reads it (notifications merged in).
+        """The users of the config as the monitor reads it (with their channels).
 
         None if the config cannot be loaded (the error is logged).
         """
@@ -622,7 +621,7 @@ def create_app(
                 {
                     "name": name,
                     "enabled": user.enabled is not False,
-                    "channels": [c.notify_method for c in NotificationConfig.channels(user)],
+                    "channels": [c.label for c in user.channels()],
                 }
                 for name, user in users.items()
             ],

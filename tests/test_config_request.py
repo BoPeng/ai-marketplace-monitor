@@ -4,6 +4,7 @@ import pytest
 
 from ai_marketplace_monitor.config import Config
 from ai_marketplace_monitor.marketplaces.facebook import FacebookItemConfig
+from ai_marketplace_monitor.telegram import TelegramNotificationConfig
 
 BASE = """
 [marketplace.facebook]
@@ -53,9 +54,11 @@ def test_request_accepted_on_every_base_config_section(tmp_path: Path) -> None:
 
 
 def test_notification_request_is_not_merged_into_user(tmp_path: Path) -> None:
-    # alice has no notify_with, so notification.tg is merged into her at load time
+    # alice has no notify_with, so she receives notification.tg
     cfg = _load(tmp_path, BASE)
-    assert cfg.user["alice"].telegram_token == "123:abc"
+    tg = next(c for c in cfg.user["alice"].channels() if c.section == "tg")
+    assert isinstance(tg.config, TelegramNotificationConfig)
+    assert tg.config.telegram_token == "123:abc"
     assert cfg.user["alice"].request == "Alice gets pushbullet"
 
 

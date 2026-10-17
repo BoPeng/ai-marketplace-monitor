@@ -58,7 +58,7 @@ MASK = "<REDACTED>"
 
 # dataclass fields that never appear as config keys (runtime state, or the
 # translation `dictionary`, whose entries are the section's remaining keys)
-_RUNTIME_FIELDS = {"searched_count", "monitor_config", "dictionary"}
+_RUNTIME_FIELDS = {"searched_count", "monitor_config", "dictionary", "_channels"}
 _FIELD_ORDER: Dict[str, List[str]] = {
     section: [f.name for f in fields(cls) if f.name not in _RUNTIME_FIELDS]
     for section, cls in {

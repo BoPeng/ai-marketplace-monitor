@@ -570,15 +570,12 @@ class MarketplaceMonitor:
         if user_name not in self.config.user:
             return
         user_config = self.config.user[user_name]
-        if user_config.digest_at and pending_digest_channels(
-            user_config, self.config.notification
-        ):
+        if user_config.digest_at and pending_digest_channels(user_config):
             # the check runs just after the cutoff; its findings belong to this digest
             cutoff = latest_cutoff(user_config.digest_at, datetime.now()).timestamp()
             self.refresh_listing_status(as_of=cutoff)
         send_due_digest(
             user_config,
-            self.config.notification,
             logger=self.logger,
             summarize=self.summarize_item if self.ai_agents else None,
             item_configs=self.config.item,
