@@ -65,9 +65,10 @@ def _normalize_notified(value: Any) -> Tuple[str, Optional[str], Optional[str]]:
 
 def _fallback_url(marketplace: str, listing_id: str) -> str:
     """Reconstruct a listing URL when its details are no longer cached."""
-    if marketplace == "facebook":
-        return f"https://www.facebook.com/marketplace/item/{listing_id}/"
-    return ""
+    from ..marketplaces import supported_marketplaces
+
+    market_class = supported_marketplaces.get(marketplace)
+    return market_class.listing_url(listing_id) if market_class is not None else ""
 
 
 def _sanitize(value: str) -> str:

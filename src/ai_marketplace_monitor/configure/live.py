@@ -32,7 +32,7 @@ from ..evaluations import find_evaluation
 from ..listing import Listing
 from ..marketplaces import marketplace_class
 from ..marketplaces.base import DEFAULT_RATING, resolve_option
-from ..marketplaces.facebook import FacebookMarketplace, FacebookSellerProfilePage
+from ..marketplaces.facebook import FacebookMarketplace
 from ..marketplaces.facebook.seller import seller_id_from_url
 from ..seller import Seller, seller_warnings
 from ..shared_browser import BrowserBusyError, shared_endpoint
@@ -106,7 +106,7 @@ def _seller_view(seller: Seller) -> Dict[str, Any]:
     return {
         "name": seller.name,
         "id": seller.id,
-        "profile": f"https://www.facebook.com/marketplace/profile/{seller.id}/",
+        "profile": FacebookMarketplace.seller_url(seller.id),
         "summary": _cut(seller.summary(), SELLER_CHARS),
         "warnings": seller_warnings(seller),
         "profile_read": seller.profile_checked,
@@ -284,7 +284,7 @@ class LiveBrowser:
         item_config = self._item(config, item)
         marketplace_config = self._marketplace_config(config, item_config)
         agents = make_ai_agents(config, logger)
-        url = f"https://www.facebook.com/marketplace/item/{lid}/"
+        url = FacebookMarketplace.listing_url(lid)
         started = time.monotonic()
         if not refresh and _known_listing(url):
             listing, from_cache, excluded, answer = inspect_listing(
@@ -428,7 +428,7 @@ class LiveBrowser:
 
     def _check_seller(self: "LiveBrowser", sid: str, lid: str, refresh: bool) -> Dict[str, Any]:
         if lid and not refresh:
-            known = Listing.from_cache(f"https://www.facebook.com/marketplace/item/{lid}/")
+            known = Listing.from_cache(FacebookMarketplace.listing_url(lid))
             if known is not None and known.seller_id:
                 sid, lid = known.seller_id, ""
         cached = Seller.from_cache(sid) if sid and not refresh else None
@@ -440,7 +440,7 @@ class LiveBrowser:
             if lid:
                 # any item: it only names the counter of listings read
                 item_config = self._item(config, next(iter(config.item), ""))
-                url = f"https://www.facebook.com/marketplace/item/{lid}/"
+                url = FacebookMarketplace.listing_url(lid)
                 listing, _ = marketplace.get_listing_details(url, item_config)
                 sid = listing.seller_id
                 if not sid:
@@ -469,11 +469,7 @@ class LiveBrowser:
         seller = Seller.from_cache(sid) or Seller(id=sid)
         if not refresh and not seller.needs_profile():
             return seller, True
-        assert marketplace.page is not None
-        marketplace.goto_url(f"https://www.facebook.com/marketplace/profile/{sid}/")
-        profile = FacebookSellerProfilePage(
-            marketplace.page, marketplace.translator, logger
-        ).parse(sid)
+        profile = marketplace.read_seller_profile(sid)
         seller.update(profile)
         seller.profile_checked = True
         seller.checked_at = time.time()

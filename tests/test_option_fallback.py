@@ -44,6 +44,7 @@ def _search_urls(
         ) as page_cls,
         patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.time.sleep"),
         patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.counter"),
+        patch("ai_marketplace_monitor.marketplaces.base.counter"),
     ):
         page_cls.return_value.get_listings.return_value = []
         list(mp.search(item))

@@ -414,6 +414,7 @@ def test_search_records_excluded_listings(eval_cache: Cache) -> None:
         ) as page_cls,
         patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.time.sleep"),
         patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.counter"),
+        patch("ai_marketplace_monitor.marketplaces.base.counter"),
         patch.object(mp, "get_listing_details", return_value=(near, True)),
     ):
         page_cls.return_value.get_listings.return_value = [far, near]

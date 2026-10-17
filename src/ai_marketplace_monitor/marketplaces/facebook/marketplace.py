@@ -5,28 +5,21 @@ import os
 import re
 import tempfile
 import time
-from dataclasses import asdict, dataclass
 from itertools import repeat
 from logging import Logger
-from typing import TYPE_CHECKING, Any, Generator, List, Tuple, Type, cast
-from urllib.parse import quote, urlparse
+from typing import TYPE_CHECKING, Any, List, Tuple, Type, cast
+from urllib.parse import quote, urlparse, urlsplit
 
 from currency_converter import CurrencyConverter  # type: ignore
 
 from ...control import control
 from ...evaluations import (
-    EXCLUDED,
     EvaluationRecord,
-    record_evaluation,
-    record_seen,
     update_evaluation,
 )
 from ...listing import Listing
 from ...seller import (
-    MIN_RATINGS_FOR_RATING,
     Seller,
-    seller_status,
-    seller_warnings,
 )
 from ...shared_browser import search_slot
 from ...utils import (
@@ -36,11 +29,11 @@ from ...utils import (
     amm_home,
     counter,
     hilight,
-    is_substring,
 )
 from ..base import (
     ItemConfig,
     Marketplace,
+    SearchPage,
     resolve_option,
 )
 
@@ -91,22 +84,35 @@ SESSION_FILE = amm_home / "facebook-session.json"
 STATUS_CHECK_DELAY = 5
 
 
-@dataclass
-class SearchPage:
-    """One search of an item: a phrase in a city, with its URL."""
-
-    city: str
-    city_name: str | None
-    radius: int | None
-    phrase: str
-    url: str
-
-
 class FacebookMarketplace(Marketplace):
     initial_url = "https://www.facebook.com/login/device-based/regular/login/"
     home_url = "https://www.facebook.com/"
 
     name = "facebook"
+    market_type = "facebook"
+
+    @classmethod
+    def listing_url(cls: Type["FacebookMarketplace"], listing_id: str) -> str:
+        return f"https://www.facebook.com/marketplace/item/{listing_id}/"
+
+    @classmethod
+    def listing_id(cls: Type["FacebookMarketplace"], listing: str) -> str:
+        """The listing id of a Facebook Marketplace item URL or of an id, or '' if there is none."""
+        listing = listing.strip()
+        if listing.isdigit():
+            return listing
+        url = urlsplit(listing if "://" in listing else f"https://{listing}")
+        host = (url.hostname or "").lower()
+        if url.scheme not in ("http", "https") or not (
+            host == "facebook.com" or host.endswith(".facebook.com")
+        ):
+            return ""
+        match = re.fullmatch(r"/marketplace/item/(\d+)/?", url.path)
+        return match.group(1) if match else ""
+
+    @classmethod
+    def seller_url(cls: Type["FacebookMarketplace"], seller_id: str) -> str:
+        return f"https://www.facebook.com/marketplace/profile/{seller_id}/"
 
     def __init__(
         self: "FacebookMarketplace",
@@ -537,102 +543,22 @@ class FacebookMarketplace(Marketplace):
                 ).get_listings()
             return found_listings
 
-    def search(
-        self: "FacebookMarketplace", item_config: FacebookItemConfig
-    ) -> Generator[Listing, None, None]:
+    def prepare_search(self: "FacebookMarketplace") -> None:
         if not self.page:
             self.login()
             assert self.page is not None
 
-        pages = self.search_pages(item_config)
-        # increase the searched_count to differentiate first and subsequent searches
-        item_config.searched_count += 1
-        # there is a small chance that search by different keywords and city will return the same items.
-        found = {}
-        for search in pages:
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Search]", "info")} Searching {item_config.marketplace} for """
-                    f"""{hilight(item_config.name)} from {hilight(search.city_name or search.city)}"""
-                    + (
-                        f" with radius={search.radius}"
-                        if search.radius
-                        else " with default radius"
-                    )
-                )
-
-            if control.is_paused():
-                return
-            found_listings = self.read_search_page(search)
-            time.sleep(5)
-            if not found_listings and self.logger:
-                self.logger.warning(
-                    f"""{hilight("[Search]", "fail")} No search results for {search.phrase} from {search.city}"""
-                )
-
-            counter.increment(CounterItem.SEARCH_PERFORMED, item_config.name)
-
-            # go to each item and get the description
-            # if we have not done that before
-            for listing in found_listings:
-                if listing.post_url.split("?")[0] in found:
-                    continue
-                if control.is_paused() or (
-                    self.keyboard_monitor is not None and self.keyboard_monitor.is_paused()
-                ):
-                    return
-                counter.increment(CounterItem.LISTING_EXAMINED, item_config.name)
-                found[listing.post_url.split("?")[0]] = True
-                # a listing aimm decided on before: still listed, maybe at a new price
-                record_seen("facebook", listing.id, item_config.name, listing.price)
-                # filter by title (title_keywords, antikeywords) and location before opening the
-                # listing; keywords wait for the description.
-                if self._exclude(listing, item_config, description_available=False):
-                    continue
-                try:
-                    details, from_cache = self.get_listing_details(
-                        listing.post_url,
-                        item_config,
-                        price=listing.price,
-                        title=listing.title,
-                    )
-                    if not from_cache:
-                        time.sleep(5)
-                except KeyboardInterrupt:
-                    raise
-                except Exception as e:
-                    if self.logger:
-                        self.logger.error(
-                            f"""{hilight("[Retrieve]", "fail")} Failed to get item details: {e}"""
-                        )
-                    continue
-                # currently we trust the other items from summary page a bit better
-                # so we do not copy title, description etc from the detailed result
-                for attr in ("condition", "seller", "description", "seller_id", "seller_info"):
-                    # other attributes should be consistent
-                    setattr(listing, attr, getattr(details, attr))
-                listing.name = item_config.name
-                if self.logger:
-                    self.logger.debug(
-                        f"""{hilight("[Retrieve]", "succ")} New item "{listing.title}" from {listing.post_url} is sold by "{listing.seller}" and with description "{listing.description[:100]}..." """
-                    )
-
-                # Warn if we never managed to extract a description for keyword-based filtering
-                if (
-                    (not listing.description or len(listing.description.strip()) == 0)
-                    and item_config.keywords
-                    and len(item_config.keywords) > 0
-                    and self.logger
-                ):
-                    self.logger.debug(
-                        f"""{hilight("[Error]", "fail")} Failed to extract description for {hilight(listing.title)} at {listing.post_url}. Keyword filtering will only apply to title."""
-                    )
-
-                if not self._exclude(listing, item_config):
-                    self.add_seller_info(listing, item_config)
-                    # the cached or profile rating may exclude the seller (seller_min_rating)
-                    if not self._exclude(listing, item_config):
-                        yield listing
+    def read_seller_profile(
+        self: "FacebookMarketplace", seller_id: str, item_config: ItemConfig | None = None
+    ) -> Seller:
+        """Open the seller's Marketplace profile and read it."""
+        if self.page is None:
+            self.login()
+        assert self.page is not None
+        self.goto_url(self.seller_url(seller_id))
+        if item_config is not None:
+            counter.increment(CounterItem.LISTING_QUERY, item_config.name)
+        return FacebookSellerProfilePage(self.page, self.translator, self.logger).parse(seller_id)
 
     def get_listing_details(
         self: "FacebookMarketplace",
@@ -672,147 +598,6 @@ class FacebookMarketplace(Marketplace):
             )
         details.to_cache(post_url)
         return details, False
-
-    def add_seller_info(
-        self: "FacebookMarketplace",
-        listing: Listing,
-        item_config: FacebookItemConfig,
-        refresh: bool = False,
-    ) -> None:
-        """Complete what the listing page showed about the seller, and list warning signs.
-
-        The seller's profile (active and sold listings) is opened only for listings that
-        passed the other filters, and at most once a month per seller (see Seller.to_cache),
-        unless ``refresh`` asks to read it again.
-        """
-        if not listing.seller_id:
-            return
-        seller = Seller.from_cache(listing.seller_id) or Seller(id=listing.seller_id)
-        seller.update(Seller(**(listing.seller_info.get("seller") or {"id": listing.seller_id})))
-        if refresh or seller.needs_profile():
-            try:
-                if self.page is None:
-                    self.login()
-                assert self.page is not None
-                self.goto_url(f"https://www.facebook.com/marketplace/profile/{seller.id}/")
-                counter.increment(CounterItem.LISTING_QUERY, item_config.name)
-                profile = FacebookSellerProfilePage(self.page, self.translator, self.logger).parse(
-                    seller.id
-                )
-                seller.update(profile)
-                seller.profile_checked = True
-                seller.checked_at = time.time()
-                time.sleep(5)
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                if self.logger:
-                    self.logger.info(
-                        f"""{hilight("[Seller]", "fail")} Could not read the profile of seller {seller.id}, who is not verified: {e}"""
-                    )
-        seller.to_cache()
-        warnings = seller_warnings(seller)
-        listing.seller_info = {
-            "seller": asdict(seller),
-            "summary": seller.summary(),
-            "warnings": warnings,
-        }
-        if self.logger:
-            self.logger.info(
-                f"""{hilight("[Seller]", "fail" if warnings or not seller.profile_checked else "succ")} {hilight(listing.title)}, seller {seller_status(listing.seller_info)}"""
-            )
-
-    def check_listing(
-        self: "FacebookMarketplace",
-        item: Listing,
-        item_config: FacebookItemConfig,
-        description_available: bool = True,
-    ) -> bool:
-        return self.exclusion_reason(item, item_config, description_available) is None
-
-    def exclusion_reason(
-        self: "FacebookMarketplace",
-        item: Listing,
-        item_config: FacebookItemConfig,
-        description_available: bool = True,
-    ) -> str | None:
-        """Why the listing is excluded before the AI sees it, or None if it is not."""
-        # get antikeywords from both item_config or config
-        antikeywords = item_config.antikeywords
-        text = item.title + " " + item.description
-        if antikeywords and (is_substring(antikeywords, text, logger=self.logger)):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} due to {hilight("excluded keywords", "fail")}: {", ".join(antikeywords)}"""
-                )
-            matched = [x for x in antikeywords if is_substring(x, text)] or antikeywords
-            return f"excluded keyword: {', '.join(matched)}"
-
-        # title_keywords need only the title, so they also apply before the listing is opened
-        title_keywords = item_config.title_keywords
-        if title_keywords and not is_substring(title_keywords, item.title, logger=self.logger):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required title keywords", "fail")}."""
-                )
-            return f"missing required title keywords: {', '.join(title_keywords)}"
-
-        # if the return description does not contain any of the search keywords
-        keywords = item_config.keywords
-        if (
-            description_available
-            and keywords
-            and not (
-                is_substring(keywords, item.title + "  " + item.description, logger=self.logger)
-            )
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} {hilight("without required keywords", "fail")} in title and description."""
-                )
-            return f"missing required keywords: {', '.join(keywords)}"
-
-        # get locations from either marketplace config or item config
-        allowed_locations = resolve_option("seller_locations", item_config, self.config) or []
-        if allowed_locations and not is_substring(
-            allowed_locations, item.location, logger=self.logger
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight("out of area", "fail")} item {hilight(item.title)} from location {hilight(item.location)}"""
-                )
-            return f"out of area: {item.location}"
-
-        # get exclude_sellers from both item_config or config
-        exclude_sellers = resolve_option("exclude_sellers", item_config, self.config) or []
-        if (
-            item.seller
-            and exclude_sellers
-            and is_substring(exclude_sellers, item.seller, logger=self.logger)
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight("banned seller", "failed")} {hilight(item.seller)}"""
-                )
-            return f"banned seller: {item.seller}"
-
-        # the listing page shows the seller's rating; one or two ratings are not held against them
-        min_rating = resolve_option("seller_min_rating", item_config, self.config)
-        seller = (item.seller_info or {}).get("seller") or {}
-        rating, count = seller.get("rating"), seller.get("rating_count") or 0
-        if (
-            min_rating
-            and rating is not None
-            and count >= MIN_RATINGS_FOR_RATING
-            and rating < min_rating
-        ):
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Skip]", "fail")} Exclude {hilight(item.title)} sold by {hilight(item.seller)}, {hilight("rated", "fail")} {rating:g} out of 5 by {count} buyers"""
-                )
-            return f"seller rated {rating:g} out of 5"
-
-        return None
 
     def check_status(
         self: "FacebookMarketplace", records: List[EvaluationRecord], as_of: float | None = None
@@ -869,21 +654,3 @@ class FacebookMarketplace(Marketplace):
             if self.logger:
                 self.logger.info(f"""{hilight("[Status]", "info")} {record.title}: {state}""")
         return read
-
-    def _exclude(
-        self: "FacebookMarketplace",
-        listing: Listing,
-        item_config: FacebookItemConfig,
-        description_available: bool = True,
-    ) -> bool:
-        """Check the listing; record and count it if it is excluded."""
-        reason = self.exclusion_reason(listing, item_config, description_available)
-        if reason is None:
-            return False
-        counter.increment(CounterItem.EXCLUDED_LISTING, item_config.name)
-        record_evaluation(
-            EvaluationRecord.from_listing(
-                listing, item=item_config.name, stage=EXCLUDED, reason=reason
-            )
-        )
-        return True

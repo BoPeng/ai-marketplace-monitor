@@ -28,7 +28,7 @@ from .evaluations import (
     set_history_days,
 )
 from .listing import Listing
-from .marketplaces import marketplace_class
+from .marketplaces import marketplace_class, supported_marketplaces
 from .marketplaces.base import (
     DEFAULT_RATING,
     Marketplace,
@@ -826,12 +826,14 @@ class MarketplaceMonitor:
 
         post_urls = []
         for post_url in items or []:
-            if post_url.isnumeric():
-                post_url = f"https://www.facebook.com/marketplace/item/{post_url}/"
-
-            if not post_url.startswith("https://www.facebook.com/marketplace/item"):
+            # a listing id, or the URL of a listing of a supported marketplace
+            for market_class in supported_marketplaces.values():
+                lid = market_class.listing_id(post_url)
+                if lid:
+                    post_urls.append(market_class.listing_url(lid))
+                    break
+            else:
                 raise ValueError(f"URL {post_url} is not a valid Facebook Marketplace URL.")
-            post_urls.append(post_url)
 
         if not post_urls:
             raise ValueError("No URLs to check.")
