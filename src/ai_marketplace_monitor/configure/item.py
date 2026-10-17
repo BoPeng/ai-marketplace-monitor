@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
-from ..facebook import FacebookItemConfig
+from ..marketplaces.facebook import FacebookItemConfig
 from ..normalize import NormalizeError, expand
 from .marketplace import _NAME, MARKETPLACE_GUIDES, MarketplaceToolkit, _plain
 from .toolkits import FieldGroup, FieldGuide, SectionDraft, Toolkit, listed, location

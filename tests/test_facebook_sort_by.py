@@ -1,6 +1,6 @@
 import pytest
 
-from ai_marketplace_monitor.facebook import SORT_BY_PARAM, FacebookItemConfig, SortBy
+from ai_marketplace_monitor.marketplaces.facebook import SORT_BY_PARAM, FacebookItemConfig, SortBy
 
 
 def _item_config(sort_by: str | None = None) -> FacebookItemConfig:

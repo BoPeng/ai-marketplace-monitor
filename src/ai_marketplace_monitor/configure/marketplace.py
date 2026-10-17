@@ -8,7 +8,8 @@ import warnings
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
-from ..facebook import (
+from ..marketplaces.base import DEFAULT_RATING
+from ..marketplaces.facebook import (
     Availability,
     Category,
     Condition,
@@ -17,7 +18,6 @@ from ..facebook import (
     FacebookMarketplaceConfig,
     SortBy,
 )
-from ..marketplace import DEFAULT_RATING
 from ..normalize import NormalizeError, expand
 from ..normalize.pushdown import bound_marketplace
 from .toolkits import FieldGuide, SectionDraft, Toolkit, location

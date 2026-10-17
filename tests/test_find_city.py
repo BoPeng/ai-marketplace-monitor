@@ -17,7 +17,7 @@ else:  # pragma: no cover
 
 from ai_marketplace_monitor.configure import tools as tools_module
 from ai_marketplace_monitor.configure.tools import ToolExecutor
-from ai_marketplace_monitor.facebook_location import (
+from ai_marketplace_monitor.marketplaces.facebook.location import (
     FacebookLocations,
     LocationLookupError,
     Place,

@@ -10,15 +10,13 @@ import pytest
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor.listing import Listing
-from ai_marketplace_monitor.seller import (
-    Seller,
+from ai_marketplace_monitor.marketplaces.facebook.seller import (
     parse_seller_panel,
     parse_seller_profile,
     seller_id_from_url,
-    seller_status,
-    seller_warnings,
     sold_grid_count,
 )
+from ai_marketplace_monitor.seller import Seller, seller_status, seller_warnings
 from ai_marketplace_monitor.utils import Translator
 
 # the shapes Facebook used on 2026-10-10 (names made up)
@@ -320,7 +318,10 @@ def test_cached_listings_without_seller_fields_still_load(tmp_path: Path) -> Non
 
 def test_the_ai_prompt_describes_the_seller_and_its_warning_signs() -> None:
     from ai_marketplace_monitor.ai import OpenAIBackend, OpenAIConfig
-    from ai_marketplace_monitor.facebook import FacebookItemConfig, FacebookMarketplaceConfig
+    from ai_marketplace_monitor.marketplaces.facebook import (
+        FacebookItemConfig,
+        FacebookMarketplaceConfig,
+    )
 
     backend = OpenAIBackend(OpenAIConfig(name="openai", api_key="sk-test"))
     item = FacebookItemConfig(name="ipad", search_phrases=["ipad"])
@@ -363,7 +364,10 @@ def test_the_ai_prompt_describes_the_seller_and_its_warning_signs() -> None:
 def _marketplace(local: Cache, **kwargs: Any) -> Any:
     from unittest.mock import MagicMock
 
-    from ai_marketplace_monitor.facebook import FacebookMarketplace, FacebookMarketplaceConfig
+    from ai_marketplace_monitor.marketplaces.facebook import (
+        FacebookMarketplace,
+        FacebookMarketplaceConfig,
+    )
 
     mp = FacebookMarketplace(name="facebook", browser=MagicMock(), logger=None)
     mp.configure(FacebookMarketplaceConfig(name="facebook", search_city=["houston"], **kwargs))
@@ -372,7 +376,7 @@ def _marketplace(local: Cache, **kwargs: Any) -> Any:
 
 
 def _item_config(**kwargs: Any) -> Any:
-    from ai_marketplace_monitor.facebook import FacebookItemConfig
+    from ai_marketplace_monitor.marketplaces.facebook import FacebookItemConfig
 
     return FacebookItemConfig(name="ipad", search_phrases=["ipad"], **kwargs)
 
@@ -399,7 +403,7 @@ def test_an_unread_profile_is_logged(tmp_path: Path, monkeypatch: pytest.MonkeyP
     from unittest.mock import MagicMock
 
     import ai_marketplace_monitor.seller as seller_module
-    from ai_marketplace_monitor import facebook
+    from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(seller_module, "cache", local)
@@ -432,7 +436,7 @@ def test_seller_information_is_completed_from_the_profile_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import ai_marketplace_monitor.seller as seller_module
-    from ai_marketplace_monitor import facebook
+    from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(seller_module, "cache", local)
@@ -470,7 +474,7 @@ def test_a_month_old_profile_is_read_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import ai_marketplace_monitor.seller as seller_module
-    from ai_marketplace_monitor import facebook
+    from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(seller_module, "cache", local)
@@ -503,7 +507,7 @@ def test_a_profile_rating_can_exclude_the_seller(
 ) -> None:
     """A rating known only from the profile (or the cache) is checked after enrichment."""
     import ai_marketplace_monitor.seller as seller_module
-    from ai_marketplace_monitor import facebook
+    from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(seller_module, "cache", local)
@@ -529,7 +533,7 @@ def test_a_failed_profile_keeps_what_the_listing_showed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import ai_marketplace_monitor.seller as seller_module
-    from ai_marketplace_monitor import facebook
+    from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(seller_module, "cache", local)
@@ -672,7 +676,7 @@ def test_listings_cached_before_seller_reading_are_read_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import ai_marketplace_monitor.listing as listing_module
-    from ai_marketplace_monitor import facebook
+    from ai_marketplace_monitor.marketplaces.facebook import marketplace as facebook
 
     local = Cache(str(tmp_path))
     monkeypatch.setattr(listing_module, "cache", local)
@@ -698,7 +702,7 @@ def test_listings_cached_before_seller_reading_are_read_again(
 
 def test_an_answer_before_the_profile_is_not_reused_after_it(tmp_path: Path) -> None:
     from ai_marketplace_monitor.ai import AIResponse
-    from ai_marketplace_monitor.facebook import FacebookMarketplaceConfig
+    from ai_marketplace_monitor.marketplaces.facebook import FacebookMarketplaceConfig
 
     local = Cache(str(tmp_path))
     item = _item_config()
@@ -759,7 +763,7 @@ class _FakeSoldPage:
     ],
 )
 def test_the_sold_grid_is_read_once_loaded(states: list, expected: Any) -> None:
-    from ai_marketplace_monitor.facebook import FacebookSellerProfilePage
+    from ai_marketplace_monitor.marketplaces.facebook import FacebookSellerProfilePage
 
     page = FacebookSellerProfilePage(_FakeSoldPage(states))  # type: ignore[arg-type]
     assert page.get_sold_listings() == expected

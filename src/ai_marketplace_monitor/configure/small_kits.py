@@ -29,7 +29,7 @@ from .ui import SetupUI
 if TYPE_CHECKING:
     from .workspace import Workspace
 
-# the Facebook page labels aimm looks for (see the translator(...) calls in facebook.py and seller.py)
+# the Facebook page labels aimm looks for (the translator(...) calls in marketplaces/facebook/)
 LABELS: Tuple[str, ...] = (
     "Collection of Marketplace items",
     "Browse Marketplace",

@@ -30,12 +30,12 @@ from ai_marketplace_monitor.evaluations import (
     record_seen,
     update_evaluation,
 )
-from ai_marketplace_monitor.facebook import (
+from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import (
     FacebookItemConfig,
     FacebookMarketplace,
     FacebookMarketplaceConfig,
 )
-from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.monitor import MarketplaceMonitor
 from ai_marketplace_monitor.user import User
 from ai_marketplace_monitor.utils import BrokenCache, CacheType, MonitorConfig
@@ -409,9 +409,12 @@ def test_search_records_excluded_listings(eval_cache: Cache) -> None:
     near = _listing("2")
     with (
         patch.object(mp, "goto_url"),
-        patch("ai_marketplace_monitor.facebook.FacebookSearchResultPage") as page_cls,
-        patch("ai_marketplace_monitor.facebook.time.sleep"),
-        patch("ai_marketplace_monitor.facebook.counter"),
+        patch(
+            "ai_marketplace_monitor.marketplaces.facebook.marketplace.FacebookSearchResultPage"
+        ) as page_cls,
+        patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.time.sleep"),
+        patch("ai_marketplace_monitor.marketplaces.facebook.marketplace.counter"),
+        patch("ai_marketplace_monitor.marketplaces.base.counter"),
         patch.object(mp, "get_listing_details", return_value=(near, True)),
     ):
         page_cls.return_value.get_listings.return_value = [far, near]

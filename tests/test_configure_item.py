@@ -16,7 +16,7 @@ from ai_marketplace_monitor.configure.item import ITEM_GUIDES, ItemToolkit
 from ai_marketplace_monitor.configure.marketplace import MarketplaceToolkit
 from ai_marketplace_monitor.configure.toolkits import FieldGroup
 from ai_marketplace_monitor.configure.tools import Outcome, ToolExecutor
-from ai_marketplace_monitor.facebook import FacebookItemConfig
+from ai_marketplace_monitor.marketplaces.facebook import FacebookItemConfig
 from tests.configure_util import BASE, ONE_ITEM, FakeModel, make_ws, ui_of, url
 
 T = ItemToolkit()

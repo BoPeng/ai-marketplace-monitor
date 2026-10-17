@@ -36,13 +36,6 @@ ai\_marketplace\_monitor.email\_notify module
    :show-inheritance:
    :undoc-members:
 
-ai\_marketplace\_monitor.facebook module
-----------------------------------------
-
-.. automodule:: ai_marketplace_monitor.facebook
-   :members:
-   :show-inheritance:
-   :undoc-members:
 
 ai\_marketplace\_monitor.listing module
 ---------------------------------------
@@ -52,10 +45,50 @@ ai\_marketplace\_monitor.listing module
    :show-inheritance:
    :undoc-members:
 
-ai\_marketplace\_monitor.marketplace module
--------------------------------------------
+ai\_marketplace\_monitor.marketplaces.base module
+-------------------------------------------------
 
-.. automodule:: ai_marketplace_monitor.marketplace
+.. automodule:: ai_marketplace_monitor.marketplaces.base
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+ai\_marketplace\_monitor.marketplaces.facebook.config module
+------------------------------------------------------------
+
+.. automodule:: ai_marketplace_monitor.marketplaces.facebook.config
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+ai\_marketplace\_monitor.marketplaces.facebook.location module
+--------------------------------------------------------------
+
+.. automodule:: ai_marketplace_monitor.marketplaces.facebook.location
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+ai\_marketplace\_monitor.marketplaces.facebook.marketplace module
+-----------------------------------------------------------------
+
+.. automodule:: ai_marketplace_monitor.marketplaces.facebook.marketplace
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+ai\_marketplace\_monitor.marketplaces.facebook.pages module
+-----------------------------------------------------------
+
+.. automodule:: ai_marketplace_monitor.marketplaces.facebook.pages
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+ai\_marketplace\_monitor.marketplaces.facebook.seller module
+------------------------------------------------------------
+
+.. automodule:: ai_marketplace_monitor.marketplaces.facebook.seller
    :members:
    :show-inheritance:
    :undoc-members:

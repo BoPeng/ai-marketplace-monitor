@@ -5,8 +5,8 @@ from dataclasses import asdict, fields
 from typing import Any, Dict, List, Tuple
 
 from ..config import Config
-from ..facebook import FacebookItemConfig
-from ..marketplace import resolve_option
+from ..marketplaces.base import resolve_option
+from ..marketplaces.facebook import FacebookItemConfig
 from ..user import UserConfig
 from .model import _BASE_FIELDS, AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, NormalizeError, mask, plain
 

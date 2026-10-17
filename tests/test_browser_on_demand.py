@@ -14,7 +14,7 @@ from ai_marketplace_monitor import config as aimm_config
 from ai_marketplace_monitor import monitor as mon
 from ai_marketplace_monitor.config import marketplace_type
 from ai_marketplace_monitor.control import control
-from ai_marketplace_monitor.facebook import FacebookMarketplace
+from ai_marketplace_monitor.marketplaces.facebook import FacebookMarketplace
 from ai_marketplace_monitor.utils import SleepStatus, doze
 
 
@@ -169,7 +169,8 @@ def test_market_type_must_be_a_string() -> None:
 
 def test_a_section_with_any_name_is_searched(tmp_path: Path) -> None:
     """[marketplace.mymarket] is a Facebook marketplace, found by its type, not its name."""
-    from ai_marketplace_monitor.config import Config, marketplace_class
+    from ai_marketplace_monitor.config import Config
+    from ai_marketplace_monitor.marketplaces import marketplace_class
 
     config_file = tmp_path / "config.toml"
     config_file.write_text(

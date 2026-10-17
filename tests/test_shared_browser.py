@@ -497,7 +497,10 @@ def test_the_chat_uses_the_monitors_login_in_a_tab_of_its_own(
 def test_the_monitor_seeds_the_shared_browser_with_the_saved_session(
     shared_chromium: Any, facebook_session_file: Path
 ) -> None:
-    from ai_marketplace_monitor.facebook import FacebookMarketplace, FacebookMarketplaceConfig
+    from ai_marketplace_monitor.marketplaces.facebook import (
+        FacebookMarketplace,
+        FacebookMarketplaceConfig,
+    )
 
     facebook_session_file.write_text(
         json.dumps(

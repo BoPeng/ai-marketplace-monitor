@@ -12,16 +12,15 @@ results mark them as data for the model, never instructions.
 
 from __future__ import annotations
 
-import re
 import time
 from datetime import datetime
 from typing import Any, Dict, List
-from urllib.parse import urlsplit
 
 from diskcache import Cache  # type: ignore
 
 from ..evaluations import STAGES, EvaluationRecord, filter_evaluations, iter_evaluations
 from ..listing import Listing
+from ..marketplaces.facebook import FacebookMarketplace
 from ..seller import Seller, seller_warnings
 from ..utils import cache, is_cache_broken
 
@@ -57,17 +56,7 @@ def _when(epoch: float) -> str | None:
 
 def listing_id(listing: str) -> str:
     """The listing id of a Facebook Marketplace item URL or of an id, or '' if there is none."""
-    listing = listing.strip()
-    if listing.isdigit():
-        return listing
-    url = urlsplit(listing if "://" in listing else f"https://{listing}")
-    host = (url.hostname or "").lower()
-    if url.scheme not in ("http", "https") or not (
-        host == "facebook.com" or host.endswith(".facebook.com")
-    ):
-        return ""
-    match = re.fullmatch(r"/marketplace/item/(\d+)/?", url.path)
-    return match.group(1) if match else ""
+    return FacebookMarketplace.listing_id(listing)
 
 
 UNREADABLE = (
@@ -194,7 +183,7 @@ def _seller(
     return {
         "name": seller.name or seller_name,
         "id": seller.id,
-        "profile": f"https://www.facebook.com/marketplace/profile/{seller.id}/",
+        "profile": FacebookMarketplace.seller_url(seller.id),
         "summary": _cut(seller.summary(), SELLER_CHARS),
         "warnings": seller_warnings(seller),
         "profile_read": _when(seller.checked_at or 0) if seller.profile_checked else None,
@@ -216,7 +205,7 @@ def explain_listing(listing: str, *, local_cache: Cache | None = None) -> Dict[s
         return {"ok": False, "errors": [UNREADABLE]}
     records = [r for r in all_records if r.id == lid]
     records.sort(key=lambda r: r.time, reverse=True)
-    url = records[0].url if records else f"https://www.facebook.com/marketplace/item/{lid}/"
+    url = records[0].url if records else FacebookMarketplace.listing_url(lid)
     details = Listing.from_cache(url, local_cache=local_cache)
     if not records and details is None:
         return {

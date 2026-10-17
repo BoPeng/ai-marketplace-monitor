@@ -2,12 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ai_marketplace_monitor.facebook import (
-    FacebookItemConfig,
-    FacebookMarketplace,
-    _clean_facebook_description,
-)
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import FacebookItemConfig, FacebookMarketplace
+from ai_marketplace_monitor.marketplaces.facebook.pages import _clean_facebook_description
 
 
 @pytest.fixture

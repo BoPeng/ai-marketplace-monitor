@@ -5,8 +5,8 @@ import time
 from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor.ai import AIResponse  # type: ignore
-from ai_marketplace_monitor.facebook import FacebookItemConfig
 from ai_marketplace_monitor.listing import Listing
+from ai_marketplace_monitor.marketplaces.facebook import FacebookItemConfig
 from ai_marketplace_monitor.notification import NotificationStatus
 from ai_marketplace_monitor.user import User
 
