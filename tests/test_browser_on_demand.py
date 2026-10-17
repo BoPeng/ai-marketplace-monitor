@@ -22,10 +22,15 @@ class HttpMarketplace:
     """A marketplace searched over HTTP, such as OfferUp (#467)."""
 
     needs_browser = False
+    market_type = "offerup"
 
     def __init__(self, name: str = "", browser: Any = None, *args: Any) -> None:
         self.name = name
         self.browser = browser
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
 
     def set_browser(self, browser: Any) -> None:
         self.browser = browser
@@ -36,6 +41,7 @@ class HttpMarketplace:
 
 class BrowserMarketplace(HttpMarketplace):
     needs_browser = True
+    market_type = "fb"
 
 
 @pytest.fixture(autouse=True)
@@ -284,3 +290,56 @@ def test_the_browser_view_asks_for_the_browser(
             ) as ws:
                 ws.receive_bytes()
     assert control.browser_requested.is_set()
+
+
+# ------------------------------------------------------------------ #476 review findings
+
+
+def test_a_facebook_marketplace_can_have_any_section_name() -> None:
+    from ai_marketplace_monitor.configure.live import ChatFacebookMarketplace
+
+    assert FacebookMarketplace("mymarket", None).name == "mymarket"
+    assert ChatFacebookMarketplace("mymarket", None, None, None).name == "mymarket"
+
+
+def test_a_section_whose_type_changes_gets_a_new_marketplace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor = _monitor(monkeypatch, {"home": ("offerup", None)})
+    monkeypatch.setattr(monitor, "load_config_file", lambda: monitor.config)
+    monkeypatch.setattr(monitor, "load_ai_agents", lambda: None)
+    monitor.keyboard_monitor = None
+    monkeypatch.setattr(monitor, "_launch_browser", lambda: "the browser")
+    monkeypatch.setitem(aimm_config.supported_marketplaces, "fb", BrowserMarketplace)  # type: ignore[arg-type]
+    monitor.schedule_jobs()
+    old = monitor.active_marketplaces["home"]
+    assert type(old) is HttpMarketplace and old.browser is None
+
+    monitor.schedule_jobs()  # reloaded, unchanged: the same marketplace
+    assert monitor.active_marketplaces["home"] is old
+
+    assert monitor.config is not None
+    monitor.config.marketplace["home"].market_type = "fb"  # e.g. market_type = "facebook"
+    monitor.schedule_jobs()
+    new = monitor.active_marketplaces["home"]
+    assert type(new) is BrowserMarketplace and new.browser == "the browser"
+    assert old.stopped
+
+
+def test_aimm_check_gives_the_browser_to_each_marketplace_that_needs_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor = _monitor(monkeypatch, {})
+    launched: List[str] = []
+
+    def launch() -> str:
+        launched.append("browser")
+        return "the browser"
+
+    monkeypatch.setattr(monitor, "_launch_browser", launch)
+    first, second, http = BrowserMarketplace("a"), BrowserMarketplace("b"), HttpMarketplace("c")
+    for marketplace in (first, second, http):
+        monitor._browser_for_check(marketplace)  # type: ignore[arg-type]
+    assert launched == ["browser"]  # started once
+    assert first.browser == second.browser == "the browser"  # also the one created after it
+    assert http.browser is None

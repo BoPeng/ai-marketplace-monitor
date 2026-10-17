@@ -172,6 +172,50 @@ class MarketplaceMonitor:
             if marketplace.needs_browser:
                 marketplace.set_browser(self.browser)
 
+    def _active_marketplace(
+        self: "MarketplaceMonitor", marketplace_config: Any, start_browser: bool
+    ) -> Marketplace:
+        """The marketplace of a section, kept across config reloads.
+
+        A section whose type changed (``market_type``) gets a new marketplace of its new class.
+        With ``start_browser``, a new marketplace that searches with the browser gets it,
+        started if needed; otherwise it gets the browser when it needs it (``aimm check``).
+        """
+        market_class = marketplace_class(marketplace_config)
+        marketplace = self.active_marketplaces.get(marketplace_config.name)
+        if marketplace is not None and type(marketplace) is market_class:
+            return marketplace
+        if marketplace is not None:
+            marketplace.stop()
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Config]", "info")} {hilight(marketplace_config.name)} is now a {market_class.market_type} marketplace."""
+                )
+        if start_browser and market_class.needs_browser:
+            # e.g. a Facebook marketplace added to a config that needed no browser
+            self.ensure_browser(f"for {hilight(marketplace_config.name)}")
+        marketplace = market_class(
+            marketplace_config.name,
+            self.browser if start_browser and market_class.needs_browser else None,
+            self.keyboard_monitor if start_browser else None,
+            self.logger,
+        )
+        self.active_marketplaces[marketplace_config.name] = marketplace
+        return marketplace
+
+    def _browser_for_check(self: "MarketplaceMonitor", marketplace: Marketplace) -> None:
+        """Give the browser, started if needed, to a marketplace that opens a listing page."""
+        if not marketplace.needs_browser:
+            return
+        if self.browser is None:
+            if self.logger:
+                self.logger.info(
+                    f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
+                )
+            self.browser = self._launch_browser()
+        if marketplace.browser is None:
+            marketplace.set_browser(self.browser)
+
     def browser_for_view(self: "MarketplaceMonitor") -> None:
         """Start the browser that the web UI's browser view asked for.
 
@@ -400,20 +444,7 @@ class MarketplaceMonitor:
         for marketplace_config in self.config.marketplace.values():
             if marketplace_config.enabled is False:
                 continue
-            market_class = marketplace_class(marketplace_config)
-            if marketplace_config.name in self.active_marketplaces:
-                marketplace = self.active_marketplaces[marketplace_config.name]
-            else:
-                if market_class.needs_browser:
-                    # e.g. a Facebook marketplace added to a config that needed no browser
-                    self.ensure_browser(f"for {hilight(marketplace_config.name)}")
-                marketplace = market_class(
-                    marketplace_config.name,
-                    self.browser if market_class.needs_browser else None,
-                    self.keyboard_monitor,
-                    self.logger,
-                )
-                self.active_marketplaces[marketplace_config.name] = marketplace
+            marketplace = self._active_marketplace(marketplace_config, start_browser=True)
 
             # Configure might have been changed
             marketplace.configure(
@@ -847,12 +878,7 @@ class MarketplaceMonitor:
             for marketplace_config in self.config.marketplace.values():
                 if marketplace_config.enabled is False:
                     continue
-                market_class = marketplace_class(marketplace_config)
-                if marketplace_config.name in self.active_marketplaces:
-                    marketplace = self.active_marketplaces[marketplace_config.name]
-                else:
-                    marketplace = market_class(marketplace_config.name, None, None, self.logger)
-                    self.active_marketplaces[marketplace_config.name] = marketplace
+                marketplace = self._active_marketplace(marketplace_config, start_browser=False)
 
                 # Configure might have been changed
                 marketplace.configure(
@@ -862,13 +888,7 @@ class MarketplaceMonitor:
 
                 # do we need a browser?
                 if listing_needs_browser(post_url):
-                    if self.browser is None:
-                        if self.logger:
-                            self.logger.info(
-                                f"""{hilight("[Search]", "info")} Starting a browser because the item was not checked before."""
-                            )
-                        self.browser = self._launch_browser()
-                        marketplace.set_browser(self.browser)
+                    self._browser_for_check(marketplace)
 
                 # ignore enabled
                 if for_item is None:
