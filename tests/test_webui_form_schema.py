@@ -50,7 +50,6 @@ def test_the_offerup_form_offers_only_offerup_options() -> None:
             "language",
             "category",
             "availability",
-            "search_region",
             "currency",
         ]
     )
@@ -61,3 +60,4 @@ def test_the_offerup_form_offers_only_offerup_options() -> None:
     # nothing OfferUp lacks is left in its form
     facebook_only = {f.name for f in dataclasses.fields(FacebookMarketplaceConfig)} - fields
     assert facebook_only <= set(omitted) | {"market_type", "request", "enabled", "monitor_config"}
+    assert "search_region" in keys  # regions list their cities by type

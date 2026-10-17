@@ -1680,8 +1680,8 @@
   };
 
   // OfferUp's form: the Facebook form without what OfferUp lacks (login, language,
-  // categories, availability, regions, currency); its location is a US ZIP code.
-  const OFFERUP_OMIT = ["username", "password", "login_wait_time", "language", "category", "availability", "search_region", "currency"];
+  // categories, availability, currency); its location is a US ZIP code.
+  const OFFERUP_OMIT = ["username", "password", "login_wait_time", "language", "category", "availability", "currency"];
   FORM_SCHEMAS["marketplace.offerup"] = FORM_SCHEMAS["marketplace.facebook"]
     .filter((field) => !OFFERUP_OMIT.includes(field.key))
     .map((field) =>
@@ -1691,6 +1691,19 @@
           ? { ...field, help: "Miles: OfferUp offers 5, 10, 20, 30 and 50 (the nearest is used)." }
           : field
     );
+
+  // search_city may hold tables of values by marketplace type
+  const isTableValue = (v) =>
+    (v !== null && typeof v === "object" && !Array.isArray(v)) ||
+    (Array.isArray(v) && v.some((x) => x !== null && typeof x === "object"));
+  const tableSummary = (v) =>
+    (Array.isArray(v) ? v : [v])
+      .map((e) =>
+        e !== null && typeof e === "object"
+          ? Object.entries(e).map(([k, x]) => `${k}: ${x}`).join(" / ")
+          : String(e)
+      )
+      .join(", ");
 
   // The type of a [marketplace.<name>] section, as aimm resolves it: its market_type,
   // else its name if that names a marketplace, else facebook.
@@ -1858,9 +1871,13 @@
 
       let input;
       const rawVal = fields[fieldDef.key];
+      // A table (search_city = { facebook = "houston", offerup = "77096" }) is shown, not
+      // edited: the form keeps it as it is.
+      const table = isTableValue(rawVal);
       // Flatten arrays to comma-separated for text fields.
-      const currentVal =
-        Array.isArray(rawVal) ? rawVal.join(", ") : rawVal ?? "";
+      const currentVal = table
+        ? tableSummary(rawVal)
+        : Array.isArray(rawVal) ? rawVal.join(", ") : rawVal ?? "";
       // For checkboxes, track which values are currently selected.
       const checkedSet = new Set(
         Array.isArray(rawVal) ? rawVal.map(String) : currentVal ? [String(currentVal)] : []
@@ -1914,6 +1931,11 @@
         if (fieldDef.type === "number") {
           input.min = "0";
           input.step = "1";
+        }
+        if (table) {
+          input.disabled = true;
+          input.dataset.table = "1";
+          input.title = "A table of values by marketplace: edit it in the TOML editor.";
         }
       }
       if (fieldDef.type !== "checkboxes") {
@@ -1970,6 +1992,12 @@
       const input = form.querySelector(`[data-key="${fieldDef.key}"]`);
       if (!input) return;
 
+      // a table the form shows but does not edit: kept as it is
+      if (input.dataset.table) {
+        values[fieldDef.key] = formContext.fields[fieldDef.key];
+        return;
+      }
+
       let newVal;
       if (fieldDef.type === "checkboxes") {
         const checked = Array.from(input.querySelectorAll("input:checked")).map(
@@ -2008,12 +2036,19 @@
   };
 
   // Generate a TOML section block as text for "add" mode.
+  const tomlString = (v) => `"${String(v).replace(/"/g, '\\"')}"`;
+  const tomlInlineTable = (obj) =>
+    `{ ${Object.entries(obj).map(([k, v]) => `${k} = ${tomlString(v)}`).join(", ")} }`;
   const generateSectionToml = (sectionFullName, values) => {
     const lines = [`[${sectionFullName}]`];
     for (const [key, val] of Object.entries(values)) {
-      if (Array.isArray(val)) {
+      if (val && typeof val === "object" && !Array.isArray(val)) {
+        lines.push(`${key} = ${tomlInlineTable(val)}`);
+      } else if (Array.isArray(val)) {
         const items = val.map((v) =>
-          typeof v === "number" ? String(v) : `"${String(v).replace(/"/g, '\\"')}"`
+          typeof v === "number"
+            ? String(v)
+            : v && typeof v === "object" ? tomlInlineTable(v) : tomlString(v)
         );
         lines.push(`${key} = [${items.join(", ")}]`);
       } else if (typeof val === "number") {
@@ -2139,7 +2174,7 @@
       const editErrors = [];
       formContext.schema.forEach((fieldDef) => {
         if (fieldDef.advanced && !showAdvanced) return;
-        if (fieldDef.key in values) {
+        if (fieldDef.key in values && !isTableValue(values[fieldDef.key])) {
           try {
             buffer = window.tomlEdit.edit(
               buffer, formContext.sectionName + "." + fieldDef.key, values[fieldDef.key]

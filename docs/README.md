@@ -141,8 +141,8 @@ search_city = "77002"      # a US ZIP code, or a list of them
 radius = 30                # miles: OfferUp offers 5, 10, 20, 30 and 50 (the nearest is used)
 ```
 
-- `search_city` is a US ZIP code (or several), not a Facebook location code. `city_name` names them in the log.
-- OfferUp sections take the [common options](#common-item-and-marketplace-options); `availability`, `category`, `language`, `currency`, `search_region` and the login options are Facebook's. An item searched in both an OfferUp and a Facebook section uses the Facebook-only options in the Facebook section only (aimm logs a warning).
+- `search_city` is a US ZIP code (or several), not a Facebook location code; `city_name` names them in the log. To search the same place on Facebook and OfferUp, give a table: `search_city = { facebook = "houston", offerup = "77096" }`. A region can serve OfferUp when its cities have `offerup` values (the built-in regions have Facebook codes only).
+- OfferUp sections take the [common options](#common-item-and-marketplace-options); `availability`, `category`, `language`, `currency` and the login options are Facebook's. An item searched in both an OfferUp and a Facebook section uses the Facebook-only options in the Facebook section only (aimm logs a warning).
 - OfferUp's search sorts newest first unless `sort_by` says otherwise, and filters by `condition` (`new`; `used_like_new` as open box or used; `used_good` and `used_fair` as used), `min_price` and `max_price` (in US dollars; other currencies are converted). It has no filter for a listing's age or delivery: `date_listed` and `delivery_method` are checked after aimm reads the listing.
 - aimm reads each seller's public profile (when they joined OfferUp, rating, items sold, what buyers praise, verifications such as TruYou) for the AI and the seller filters. OfferUp does not show a seller's number of active listings.
 - Without a Facebook section, aimm starts no browser (the web UI's browser view starts one on demand) and needs no Facebook credentials. The web UI then signs you in with `AIMM_WEBUI_PASSWORD` (see [Who signs you in to the web UI](docker-installation.md#who-signs-you-in-to-the-web-ui)).
@@ -387,7 +387,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `extra_prompt`        | Optional          | String              | Additional prompt that will be inserted between regular and rating prompt                                                                                   |
 | `ranking_prompt`      | Optional          | String              | Ranking prompt that instruct how AI rates the listings                                                                                                      |
 | `rating`              | Optional          | Integer/List        | Notify users with listings with rating at or higher than specified rating. Default to 4.                                                                    |
-| `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
+| `search_city`         | Required          | String/Table/List   | One or more places to search around, in the marketplace's own format (for Facebook, the location code from the URL of your search query). A place can also be a table of values by marketplace type, `{ facebook = "houston", offerup = "77096" }`: each marketplace takes its own, so one item can search the same place in sections of different types. Required for marketplace or item if `search_region` is unspecified. |
 | `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`. With `search_interval = X`, the actual interval is random between X and 1.5X unless `max_search_interval` is also set. Defaults to `30m`. |
 | `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. Regions are for Facebook marketplaces. |
 | `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
@@ -412,7 +412,7 @@ One or more sections of `[region.region_name]`, which defines regions to search.
 
 | Parameter     | Required/Optional | Data Type    | Description                                                                 |
 | ------------- | ----------------- | ------------ | --------------------------------------------------------------------------- |
-| `search_city` | Required          | String/List  | One or more cities with names used by Facebook.                             |
+| `search_city` | Required          | String/Table/List | One or more cities: Facebook's location codes, or tables of values by marketplace type (`{ facebook = "houston", offerup = "77002" }`); a section using the region takes the values of its type. |
 | `full_name`   | Optional          | String       | A display name for the region.                                              |
 | `radius`      | Optional          | Integer/List | Radius in the unit Facebook shows; `500`, the largest choice, for large regions. |
 | `currency`    | Optional          | Integer/List | Currency used for the region.                                               |
@@ -422,6 +422,7 @@ Note that
 
 1. `radius` is in the unit Facebook shows (miles in the US, km elsewhere), and `500` is the largest radius Facebook offers. You can specify different `radius` for different `search_city`.
 2. Options `full_name` and `city_name` are for documentation and logging purposes only.
+3. With tables, a region can serve marketplaces of different types; every city needs a value for each type of section that uses the region. `city_name` defaults to each city's first value.
 
 ### Translators
 

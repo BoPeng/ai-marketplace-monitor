@@ -113,6 +113,8 @@ class OfferUpMarketplace(Marketplace):
     config_class = OfferUpMarketplaceConfig
     item_config_class = OfferUpItemConfig
     needs_browser = False
+    # regions list their cities by type: { facebook = "houston", offerup = "77002" }
+    supports_regions = True
     # the client spaces its requests (client.MIN_GAP): no extra waits
     search_page_delay = listing_page_delay = profile_page_delay = 0
 

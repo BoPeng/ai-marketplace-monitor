@@ -77,7 +77,9 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
         "Facebook's code for the location (a name or a numeric ID): from find_city with the "
         "city or ZIP code the user names, or after /marketplace/ in a Marketplace URL the "
         "user pastes; never guessed from a city name",
-        'list of codes, e.g. `["houston"]` or `["111979382146893"]`',
+        'list of codes, e.g. `["houston"]` or `["111979382146893"]`; for an item searched in '
+        'marketplaces of different types, tables by type, e.g. `[{ facebook = "houston", '
+        'offerup = "77096" }]`',
         "required unless search_region is set",
     ),
     FieldGuide(

@@ -138,7 +138,8 @@ def test_an_offerup_section_needs_no_login_and_rejects_facebook_options(tmp_path
         ValueError, match="sets availability, which offerup marketplaces do not have"
     ):
         _config(tmp_path, '[marketplace.offerup]\nsearch_city = "77002"\navailability = "in"\n')
-    with pytest.raises(ValueError, match="search_region, but"):
+    # a built-in region lists Facebook's codes only: the error names the region
+    with pytest.raises(ValueError, match="Region .*usa.*, used by .*mine.*: .*not a ZIP code"):
         _config(tmp_path, '[marketplace.mine]\nmarket_type = "offerup"\nsearch_region = "usa"\n')
 
 
@@ -546,3 +547,17 @@ def test_aimm_check_uses_the_marketplace_of_the_listing(
     monkeypatch.setattr(mon.User, "notification_status", lambda self, listing: None)
     monitor.check_items([f"https://offerup.com/item/detail/{LID}"], for_item="bike")
     assert checked == ["OfferUpMarketplace offerup"]  # not the Facebook section first
+
+
+def test_offerup_takes_its_values_from_tables_and_regions(tmp_path: Path) -> None:
+    config = _config(
+        tmp_path,
+        '[region.texas]\nsearch_city = [{ facebook = "houston", offerup = "77002" }, '
+        '{ facebook = "dallas", offerup = 75201 }]\n'
+        '[marketplace.offerup]\nsearch_region = "texas"\n'
+        '[marketplace.near]\nmarket_type = "offerup"\n'
+        'search_city = { facebook = "houston", offerup = "77096" }\n',
+        '[item.bike]\nsearch_phrases = "bike"\n',
+    )
+    assert config.marketplace["offerup"].search_city == ["77002", "75201"]
+    assert config.marketplace["near"].search_city == ["77096"]
