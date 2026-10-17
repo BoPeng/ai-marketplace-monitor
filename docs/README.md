@@ -119,7 +119,7 @@ One or more sections `marketplace.name` show the options for interacting with va
 
 | Option             | Requirement | DataType | Description                                                                                                      |
 | ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `market_type`      | Optional    | String   | The supported marketplace. Currently, only `facebook` is supported.                                              |
+| `market_type`      | Optional    | String   | The type of marketplace: `facebook` (currently the only one). Without it, a section named after a marketplace type (`[marketplace.facebook]`) has that type, and any other section is a Facebook marketplace. A section sets only the options its type has. |
 | `username`         | Required    | String   | Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. aimm searches only while logged in. |
 | `password`         | Required    | String   | Facebook password. Falls back to the `FACEBOOK_PASSWORD` environment variable if not set.                       |
 | `login_wait_time`  | Deprecated  | Integer  | Ignored. aimm now waits until the Facebook login has finished, however long a CAPTCHA or security code takes.   |
@@ -371,7 +371,7 @@ The following options that can specified for both `marketplace` sections and `it
 | `rating`              | Optional          | Integer/List        | Notify users with listings with rating at or higher than specified rating. Default to 4.                                                                    |
 | `search_city`         | Required          | String/List         | One or more search cities, obtained from the URL of your search query. Required for marketplace or item if `search_region` is unspecified.                  |
 | `search_interval`     | Optional          | String              | Minimal interval between searches, should be specified in formats such as `1d`, `5h`, or `1h 30m`. With `search_interval = X`, the actual interval is random between X and 1.5X unless `max_search_interval` is also set. Defaults to `30m`. |
-| `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. |
+| `search_region`       | Optional          | String/List         | Search over multiple locations to cover an entire region. `regions` should be one or more pre-defined regions or regions defined in the configuration file. Regions are for Facebook marketplaces. |
 | `seller_locations`    | Optional          | String/List         | Only allow searched items from these locations.                                                                                                             |
 | `seller_min_rating`   | Optional          | Number              | Exclude sellers rated below this (0 to 5) by at least 3 buyers. Sellers without ratings are kept and judged by the AI. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information). |
 | `sort_by`             | Optional          | String              | Order of search results. One of `suggested`, `new`, `price_ascend`, `price_descend`, and `distance_ascend`.                                                 |
