@@ -1,4 +1,7 @@
-"""Facebook pages for the configure chat, opened in the monitor's browser.
+"""Listings and sellers for the configure chat: Facebook in the monitor's browser, OfferUp over HTTP.
+
+A marketplace that needs no browser (OfferUp) is read directly, whether the monitor runs or not.
+For Facebook:
 
 The monitor shares its Chromium (see ``shared_browser.py``). The chat connects to it with its
 own Playwright connection, in a thread of its own (Playwright's sync API cannot run in the
@@ -20,20 +23,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Tuple, Type, TypeVar
 
 from ..ai import AIResponse
 from ..config import Config
 from ..evaluations import find_evaluation
 from ..listing import Listing
-from ..marketplaces import marketplace_class
-from ..marketplaces.base import DEFAULT_RATING, resolve_option
+from ..marketplaces import marketplace_class, supported_marketplaces
+from ..marketplaces.base import DEFAULT_RATING, Marketplace, resolve_option
 from ..marketplaces.facebook import FacebookMarketplace
 from ..marketplaces.facebook.seller import seller_id_from_url
+from ..marketplaces.offerup import OfferUpMarketplace
+from ..marketplaces.offerup.marketplace import SELLER_PREFIX as OFFERUP_SELLER
 from ..seller import Seller, seller_warnings
 from ..shared_browser import BrowserBusyError, shared_endpoint
 from .history import (
@@ -42,7 +48,6 @@ from .history import (
     SELLER_CHARS,
     TITLE_CHARS,
     UNTRUSTED_NOTE,
-    listing_id,
 )
 
 if TYPE_CHECKING:
@@ -102,11 +107,38 @@ def _cut(text: Any, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def listing_ref(listing: str) -> Tuple[Type[Marketplace], str] | None:
+    """The marketplace type of a listing URL or id, and the listing's id; None if neither."""
+    for market_class in supported_marketplaces.values():
+        lid = market_class.listing_id(listing)
+        if lid:
+            return market_class, lid
+    return None
+
+
+def seller_ref(seller: str) -> Tuple[Type[Marketplace], str, str] | None:
+    """The marketplace type of a seller reference, the seller's id, or a listing's id."""
+    seller = seller.strip()
+    if seller.startswith(OFFERUP_SELLER):
+        return OfferUpMarketplace, seller, ""
+    match = re.search(r"offerup\.com/p/(\d+)", seller)
+    if match:
+        return OfferUpMarketplace, f"{OFFERUP_SELLER}{match.group(1)}", ""
+    sid = seller if seller.isdigit() else seller_id_from_url(seller)
+    if sid:
+        return FacebookMarketplace, sid, ""
+    ref = listing_ref(seller)
+    return (ref[0], "", ref[1]) if ref else None
+
+
 def _seller_view(seller: Seller) -> Dict[str, Any]:
+    market_class = (
+        OfferUpMarketplace if seller.id.startswith(OFFERUP_SELLER) else FacebookMarketplace
+    )
     return {
         "name": seller.name,
         "id": seller.id,
-        "profile": FacebookMarketplace.seller_url(seller.id),
+        "profile": market_class.seller_url(seller.id),
         "summary": _cut(seller.summary(), SELLER_CHARS),
         "warnings": seller_warnings(seller),
         "profile_read": seller.profile_checked,
@@ -145,16 +177,18 @@ class LiveBrowser:
     async def evaluate_listing(
         self: "LiveBrowser", listing: str, item: str, refresh: bool = False
     ) -> Dict[str, Any]:
-        lid = listing_id(listing)
-        if not lid:
+        ref = listing_ref(listing)
+        if ref is None:
             return {
                 "ok": False,
                 "errors": [
-                    "Give a listing id or a Facebook Marketplace URL (/marketplace/item/<id>)."
+                    "Give a listing id or URL: Facebook Marketplace (/marketplace/item/<id>) or "
+                    "OfferUp (offerup.com/item/detail/<id>)."
                 ],
             }
+        market_class, lid = ref
         try:
-            return await self._run(lambda: self._evaluate(lid, item, refresh))
+            return await self._run(lambda: self._evaluate(market_class, lid, item, refresh))
         except (LiveUnavailableError, BrowserBusyError) as e:
             return {"ok": False, "errors": [str(e)]}
         except Exception as e:
@@ -164,19 +198,18 @@ class LiveBrowser:
     async def check_seller(
         self: "LiveBrowser", seller: str, refresh: bool = False
     ) -> Dict[str, Any]:
-        seller = seller.strip()
-        sid = seller if seller.isdigit() else seller_id_from_url(seller)
-        lid = "" if sid else listing_id(seller)
-        if not sid and not lid:
+        ref = seller_ref(seller)
+        if ref is None:
             return {
                 "ok": False,
                 "errors": [
-                    "Give a seller's profile URL (/marketplace/profile/<id>), their id, or the "
-                    "URL of one of their listings."
+                    "Give a seller's profile URL (Facebook /marketplace/profile/<id>, OfferUp "
+                    "offerup.com/p/<id>), their id, or the URL of one of their listings."
                 ],
             }
+        market_class, sid, lid = ref
         try:
-            return await self._run(lambda: self._check_seller(sid, lid, refresh))
+            return await self._run(lambda: self._check_seller(market_class, sid, lid, refresh))
         except (LiveUnavailableError, BrowserBusyError) as e:
             return {"ok": False, "errors": [str(e)]}
         except Exception as e:
@@ -213,17 +246,55 @@ class LiveBrowser:
             raise LiveUnavailableError(f"No item {item!r}; items: {', '.join(names)}.")
         return config.item[item]
 
-    def _marketplace_config(self: "LiveBrowser", config: Config, item_config: Any | None) -> Any:
-        wanted = getattr(item_config, "marketplace", None)
+    def _marketplace_config(
+        self: "LiveBrowser",
+        config: Config,
+        item_config: Any | None,
+        market_class: Type[Marketplace] = FacebookMarketplace,
+    ) -> Any:
+        """A section of this marketplace type: one the item is searched in, if an item."""
+        targets = config.item_targets.get(item_config.name, {}) if item_config else None
         for marketplace_config in config.marketplace.values():
-            if wanted is not None and marketplace_config.name != wanted:
+            if targets is not None and marketplace_config.name not in targets:
                 continue
-            if wanted is None and marketplace_config.enabled is False:
+            if targets is None and marketplace_config.enabled is False:
                 continue
-            if not issubclass(marketplace_class(marketplace_config), FacebookMarketplace):
+            if not issubclass(marketplace_class(marketplace_config), market_class):
                 continue
             return marketplace_config
-        raise LiveUnavailableError("There is no Facebook [marketplace.*] section.")
+        label = (
+            "Facebook"
+            if issubclass(market_class, FacebookMarketplace)
+            else market_class.market_type
+        )
+        if item_config is not None:
+            raise LiveUnavailableError(
+                f"[item.{item_config.name}] is not searched in a {label} marketplace."
+            )
+        raise LiveUnavailableError(f"There is no {label} [marketplace.*] section.")
+
+    def _target(
+        self: "LiveBrowser", config: Config, item_config: Any, marketplace_config: Any
+    ) -> Any:
+        """The item's config as it is searched in this marketplace."""
+        return config.item_targets[item_config.name][marketplace_config.name]
+
+    @contextmanager
+    def _session(self: "LiveBrowser", config: Config, marketplace_config: Any) -> Iterator[Any]:
+        """A marketplace to read pages with: Facebook in the shared browser, others directly."""
+        market_class = marketplace_class(marketplace_config)
+        if market_class.needs_browser:
+            with self._facebook(config, marketplace_config) as marketplace:
+                yield marketplace
+            return
+        yield self._direct(marketplace_config)
+
+    def _direct(self: "LiveBrowser", marketplace_config: Any) -> Any:
+        """A marketplace that needs no browser (OfferUp), as the monitor configures it."""
+        market_class = marketplace_class(marketplace_config)
+        marketplace = market_class(marketplace_config.name, None, None, logger)
+        marketplace.configure(marketplace_config)
+        return marketplace
 
     def _marketplace(
         self: "LiveBrowser",
@@ -277,18 +348,26 @@ class LiveBrowser:
             finally:
                 browser.close()  # disconnects; the monitor's browser keeps running
 
-    def _evaluate(self: "LiveBrowser", lid: str, item: str, refresh: bool) -> Dict[str, Any]:
+    def _evaluate(
+        self: "LiveBrowser", market_class: Type[Marketplace], lid: str, item: str, refresh: bool
+    ) -> Dict[str, Any]:
         from ..monitor import inspect_listing, make_ai_agents
 
         config = self._config()
         item_config = self._item(config, item)
-        marketplace_config = self._marketplace_config(config, item_config)
+        marketplace_config = self._marketplace_config(config, item_config, market_class)
+        item_config = self._target(config, item_config, marketplace_config)
         agents = make_ai_agents(config, logger)
-        url = FacebookMarketplace.listing_url(lid)
+        url = market_class.listing_url(lid)
         started = time.monotonic()
         if not refresh and _known_listing(url):
+            cached = (
+                self._marketplace(config, marketplace_config)
+                if market_class.needs_browser
+                else self._direct(marketplace_config)
+            )
             listing, from_cache, excluded, answer = inspect_listing(
-                self._marketplace(config, marketplace_config),
+                cached,
                 url,
                 item_config,
                 marketplace_config,
@@ -296,7 +375,7 @@ class LiveBrowser:
                 logger,
             )
         else:
-            with self._facebook(config, marketplace_config) as marketplace:
+            with self._session(config, marketplace_config) as marketplace:
                 listing, from_cache, excluded, answer = inspect_listing(
                     marketplace, url, item_config, marketplace_config, agents, logger, refresh
                 )
@@ -348,30 +427,53 @@ class LiveBrowser:
     def _try_item(self: "LiveBrowser", item: str) -> Dict[str, Any]:
         config = self._config()
         item_config = self._item(config, item)
-        marketplace_config = self._marketplace_config(config, item_config)
         started = time.monotonic()
         searches: List[Dict[str, Any]] = []
+        not_run: List[Dict[str, Any]] = []
         found: Dict[str, Listing] = {}
         reasons: Dict[str, str | None] = {}
-        with self._facebook(config, marketplace_config) as marketplace:
-            pages = marketplace.search_pages(item_config)
-            for search in pages[:TRY_SEARCHES]:
-                listings = marketplace.read_search_page(search)
-                searches.append(
+        targets = [
+            config.marketplace[name]
+            for name in config.item_targets.get(item_config.name, {})
+            if config.marketplace[name].enabled is not False
+        ]
+        if not targets:
+            raise LiveUnavailableError(
+                f"[item.{item_config.name}] is not searched in any marketplace."
+            )
+        budget = TRY_SEARCHES
+        for marketplace_config in targets:
+            target = self._target(config, item_config, marketplace_config)
+            with self._session(config, marketplace_config) as marketplace:
+                pages = marketplace.search_pages(target)
+                for search in pages[:budget]:
+                    listings = marketplace.read_search_page(search)
+                    searches.append(
+                        {
+                            "marketplace": marketplace_config.name,
+                            "phrase": search.phrase,
+                            "city": search.city_name or search.city,
+                            "radius": search.radius,
+                            "found": len(listings),
+                        }
+                    )
+                    for listing in listings:
+                        url = listing.post_url.split("?")[0]
+                        if url not in found:
+                            found[url] = listing
+                            # the search's filters on what a search page shows
+                            reasons[url] = marketplace.exclusion_reason(
+                                listing, target, description_available=False
+                            )
+                not_run += [
                     {
-                        "phrase": search.phrase,
-                        "city": search.city_name or search.city,
-                        "radius": search.radius,
-                        "found": len(listings),
+                        "marketplace": marketplace_config.name,
+                        "phrase": s.phrase,
+                        "city": s.city_name or s.city,
                     }
-                )
-                for listing in listings:
-                    found.setdefault(listing.post_url.split("?")[0], listing)
-            # the search's filters on what a search page shows (title, location, price)
-            for url, listing in found.items():
-                reasons[url] = marketplace.exclusion_reason(
-                    listing, item_config, description_available=False
-                )
+                    for s in pages[budget:]
+                ]
+                budget = max(0, budget - len(pages))
         excluded_by: Dict[str, int] = {}
         kept: List[Dict[str, Any]] = []
         for url, listing in found.items():
@@ -379,9 +481,10 @@ class LiveBrowser:
             if reason is not None:
                 excluded_by[reason] = excluded_by.get(reason, 0) + 1
                 continue
-            decided = find_evaluation("facebook", listing.id, item_config.name)
+            decided = find_evaluation(listing.marketplace, listing.id, item_config.name)
             kept.append(
                 {
+                    "marketplace": listing.marketplace,
                     "id": listing.id,
                     "url": url,
                     "title": _cut(listing.title, TITLE_CHARS),
@@ -402,9 +505,7 @@ class LiveBrowser:
             "ok": True,
             "item": item_config.name,
             "searches": searches,
-            "searches_not_run": [
-                {"phrase": s.phrase, "city": s.city_name or s.city} for s in pages[TRY_SEARCHES:]
-            ],
+            "searches_not_run": not_run,
             "found": len(found),
             "excluded": sum(excluded_by.values()),
             "excluded_by": dict(sorted(excluded_by.items(), key=lambda x: -x[1])[:5]),
@@ -426,21 +527,23 @@ class LiveBrowser:
             ),
         }
 
-    def _check_seller(self: "LiveBrowser", sid: str, lid: str, refresh: bool) -> Dict[str, Any]:
+    def _check_seller(
+        self: "LiveBrowser", market_class: Type[Marketplace], sid: str, lid: str, refresh: bool
+    ) -> Dict[str, Any]:
         if lid and not refresh:
-            known = Listing.from_cache(FacebookMarketplace.listing_url(lid))
+            known = Listing.from_cache(market_class.listing_url(lid))
             if known is not None and known.seller_id:
                 sid, lid = known.seller_id, ""
         cached = Seller.from_cache(sid) if sid and not refresh else None
         if cached is not None and not cached.needs_profile():
             return self._seller_result(cached, True)
         config = self._config()
-        marketplace_config = self._marketplace_config(config, None)
-        with self._facebook(config, marketplace_config) as marketplace:
+        marketplace_config = self._marketplace_config(config, None, market_class)
+        with self._session(config, marketplace_config) as marketplace:
             if lid:
                 # any item: it only names the counter of listings read
                 item_config = self._item(config, next(iter(config.item), ""))
-                url = FacebookMarketplace.listing_url(lid)
+                url = market_class.listing_url(lid)
                 listing, _ = marketplace.get_listing_details(url, item_config)
                 sid = listing.seller_id
                 if not sid:
@@ -464,7 +567,7 @@ class LiveBrowser:
         }
 
     def _read_seller(
-        self: "LiveBrowser", marketplace: ChatFacebookMarketplace, sid: str, refresh: bool
+        self: "LiveBrowser", marketplace: Any, sid: str, refresh: bool
     ) -> Tuple[Seller, bool]:
         seller = Seller.from_cache(sid) or Seller(id=sid)
         if not refresh and not seller.needs_profile():

@@ -703,18 +703,19 @@ class ToolExecutor:
             async def evaluate_listing(
                 listing: str, item: str = "", refresh: bool = False
             ) -> Dict[str, Any]:
-                """Rate one Facebook listing for one [item.*] section, as its search would.
+                """Rate one listing (Facebook or OfferUp) for one [item.*], as its search would.
 
                 One listing, one existing item: it does not search. aimm reads the listing and
                 its seller as a search would, says whether the search would exclude it before
                 the AI (keywords and other filters), and asks the item's AI to rate it. A
-                listing aimm read before is rated from its cache, without opening Facebook.
-                Otherwise aimm opens it in the monitor's browser, which takes up to a minute or
-                two and needs the monitor running on this computer, logged in to Facebook (if
-                not, it says so). Nothing is recorded and no one is notified.
+                listing aimm read before is rated from its cache. Otherwise: an OfferUp listing
+                is read directly; a Facebook listing is opened in the monitor's browser, which
+                takes up to a minute or two and needs the monitor running on this computer,
+                logged in to Facebook (if not, it says so). Nothing is recorded and no one is
+                notified.
 
                 Args:
-                    listing: the listing's Facebook Marketplace URL or its id.
+                    listing: the listing's URL (Facebook Marketplace or OfferUp) or its id.
                     item: the item to rate it for, e.g. "gopro"; may be empty if there is only
                         one item.
                     refresh: true only when the user asks for a fresh look (e.g. the price
@@ -725,17 +726,18 @@ class ToolExecutor:
                 )
 
             async def check_seller(seller: str, refresh: bool = False) -> Dict[str, Any]:
-                """Is this seller legit? Their Marketplace profile and warning signs.
+                """Is this seller legit? Their profile (Facebook or OfferUp) and warning signs.
 
-                Returns when they joined Facebook, their rating and number of ratings, active
-                and sold listings, what buyers say, and warning signs. A profile read in the
-                last month comes from aimm's cache; otherwise aimm opens it in the monitor's
-                browser, which needs the monitor running on this computer, as
-                evaluate_listing does.
+                Returns when they joined, their rating and number of ratings, listings sold
+                (and active, on Facebook), what buyers say, and warning signs. A profile read
+                in the last month comes from aimm's cache; otherwise an OfferUp profile is read
+                directly, and a Facebook profile is opened in the monitor's browser, which
+                needs the monitor running on this computer, as evaluate_listing does.
 
                 Args:
-                    seller: the seller's profile URL (/marketplace/profile/<id>), their id, or
-                        the URL of one of their listings.
+                    seller: the seller's profile URL (Facebook /marketplace/profile/<id>,
+                        OfferUp offerup.com/p/<id>), their id, or the URL of one of their
+                        listings.
                     refresh: true only when the user asks for a fresh look: open the profile
                         again.
                 """
@@ -772,13 +774,14 @@ class ToolExecutor:
             async def try_item(item: str) -> Dict[str, Any]:
                 """Run a saved item's search once, now, and list what it finds.
 
-                aimm opens the item's search pages (its search phrases in its cities, with its
-                price, radius and other options, up to 4 pages) in the monitor's browser and
-                applies the filters that work on search results (title, location, price). It
-                opens no listing page and asks no AI, so it is quick and free; rate listings
-                the user picks with evaluate_listing. Needs the monitor running on this
-                computer, logged in to Facebook (if not, it says so). Runs only what is saved:
-                save the item first. Nothing is recorded and no one is notified.
+                aimm runs the item's searches (its search phrases in its cities, with its price,
+                radius and other options, up to 4 pages in all) in each marketplace it is
+                searched in, and applies the filters that work on search results (title,
+                location, price). It opens no listing page and asks no AI, so it is quick and
+                free; rate listings the user picks with evaluate_listing. OfferUp is searched
+                directly; Facebook needs the monitor running on this computer, logged in to
+                Facebook (if not, it says so). Runs only what is saved: save the item first.
+                Nothing is recorded and no one is notified.
 
                 Args:
                     item: the item's name, e.g. "gopro".

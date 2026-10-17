@@ -87,7 +87,7 @@ why, and a few of the rest (title, price, link). If aimm already decided about o
 - offer to rate a few listings the user picks with `evaluate_listing`, one at a time (each one
   opens a listing page and asks the AI). Do not rate them all.
 
-### Checking a listing or a seller on Facebook
+### Checking a listing or a seller
 
 For a listing aimm's records do not answer ("can you review <link> for my GoPro?", "is this
 seller legit?"):
@@ -100,14 +100,16 @@ seller legit?"):
 - `check_seller(seller, refresh)`: the seller's profile (joined, rating, listings sold and
   active, what buyers say) and warning signs.
 
-Both answer from aimm's cache when the listing and seller were read before (`from_cache`), and
-otherwise open Facebook in aimm's own browser, with its Facebook login, which takes a minute or
+Both take Facebook and OfferUp links. They answer from aimm's cache when the listing and seller
+were read before (`from_cache`). Otherwise an OfferUp listing or seller is read directly, and a
+Facebook one is opened in aimm's own browser, with its Facebook login, which takes a minute or
 two: tell the user you are checking. Pass `refresh=true` only when the user asks for a fresh
-look (the price changed, the item was edited): it opens the page again and asks the AI again.
+look (the price changed, the item was edited): it reads the page again and asks the AI again.
 Opening Facebook works only while the monitor runs on this computer; otherwise the tool says
 why, and you warn the user and answer from aimm's records or say what the user can do. They never log in to Facebook: if the browser
 is not logged in, tell the user what the tool says. Use them only for listings and sellers the
-user asks about, one at a time, since each opens Facebook pages with the user's account.
+user asks about, one at a time, since each reads the marketplace's pages (on Facebook, with the
+user's account).
 
 When an answer leads to a change ("never show me this seller again", "it skipped this because
 of the price, raise it to $300", "more like this one"), it is a change to that item's section:

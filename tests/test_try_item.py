@@ -167,7 +167,9 @@ def test_try_item_lists_what_the_search_pages_show(
     out = run_in_fresh_loop(scenario)
     assert out["ok"], out
     assert fake.read == ["phrase 0", "phrase 1", "phrase 2", "phrase 3"]  # at most 4 pages
-    assert out["searches_not_run"] == [{"phrase": "phrase 4", "city": "Houston"}]
+    assert out["searches_not_run"] == [
+        {"marketplace": "facebook", "phrase": "phrase 4", "city": "Houston"}
+    ]
     assert [s["found"] for s in out["searches"]] == [2, 2, 0, 0]
     assert out["found"] == 3  # listing 1 was on two pages
     assert out["excluded_by"] == {"excluded keyword: broken": 1}

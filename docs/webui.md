@@ -123,8 +123,8 @@ https://www.facebook.com/marketplace/item/… skipped?". It answers from the sam
 the reason or the AI's comment, the listing's description and the seller's warning signs, and
 can then change the item ("never show this seller again").
 
-After you add or change an item, the chat can run its search once, while the monitor runs, and
-show what it finds: how many listings each search phrase found, which ones the item's filters
+After you add or change an item, the chat can run its search once, in each marketplace the item
+is searched in (Facebook while the monitor runs; OfferUp at any time), and show what it finds: how many listings each search phrase found, which ones the item's filters
 drop and why, and the rest, with links. Only the search results are read (no listing pages and
 no AI), so it is quick and shows whether the search phrases, location, radius and price find
 the right things. You can then have the chat rate the listings you pick.
@@ -132,9 +132,10 @@ the right things. You can then have the chat rate the listings you pick.
 The chat can also rate one listing for one of your items, the way that item's search would
 ("would you buy https://www.facebook.com/marketplace/item/… for my GoPro?"), and check a seller
 ("is this seller trustworthy?"). It does not search: to look for something new, add an item
-first. A listing or seller aimm has read before is answered from aimm's cache; otherwise, and
-when you ask for a fresh look, the chat opens Facebook in the monitor's browser, with your
-login, while the monitor runs. For this, aimm launches Chromium with a DevTools port on `127.0.0.1` that the
+first. Both take Facebook and OfferUp links. A listing or seller aimm has read before is
+answered from aimm's cache; otherwise, and when you ask for a fresh look, the chat reads an
+OfferUp listing or seller directly, and opens a Facebook one in the monitor's browser, with
+your login, while the monitor runs. For this, aimm launches Chromium with a DevTools port on `127.0.0.1` that the
 chat (in the web UI, or `aimm configure` on the same computer) connects to. The port has no
 password: other users of the same computer could connect to it and use the browser, logged in
 to your Facebook account. In Docker, `127.0.0.1` is the container's own, so only the web UI's
