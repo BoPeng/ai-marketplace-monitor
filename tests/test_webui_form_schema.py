@@ -33,3 +33,18 @@ def test_form_fields_are_options_of_their_section(section: str, config_class: ty
     assert keys
     fields = {f.name for f in dataclasses.fields(config_class)}
     assert [key for key in keys if key not in fields] == []
+
+
+def test_the_offerup_form_offers_only_offerup_options() -> None:
+    """The OfferUp form is the Facebook form without OFFERUP_OMIT (see app.js)."""
+    from ai_marketplace_monitor.marketplaces.offerup import OfferUpMarketplaceConfig
+
+    source = APP_JS.read_text(encoding="utf-8")
+    omitted = re.findall(r'"(\w+)"', re.search(r"OFFERUP_OMIT = \[(.*?)\]", source).group(1))  # type: ignore[union-attr]
+    keys = [k for k in _form_keys("marketplace.facebook") if k not in omitted]
+    fields = {f.name for f in dataclasses.fields(OfferUpMarketplaceConfig)}
+    assert "search_city" in keys
+    assert [key for key in keys if key not in fields] == []
+    # nothing OfferUp lacks is left in its form
+    facebook_only = {f.name for f in dataclasses.fields(FacebookMarketplaceConfig)} - fields
+    assert facebook_only <= set(omitted) | {"market_type", "request", "enabled", "monitor_config"}
