@@ -1680,8 +1680,8 @@
   };
 
   // OfferUp's form: the Facebook form without what OfferUp lacks (login, language,
-  // categories, availability, regions, currency); its location is a US ZIP code.
-  const OFFERUP_OMIT = ["username", "password", "login_wait_time", "language", "category", "availability", "search_region", "currency"];
+  // categories, availability, currency); its location is a US ZIP code.
+  const OFFERUP_OMIT = ["username", "password", "login_wait_time", "language", "category", "availability", "currency"];
   FORM_SCHEMAS["marketplace.offerup"] = FORM_SCHEMAS["marketplace.facebook"]
     .filter((field) => !OFFERUP_OMIT.includes(field.key))
     .map((field) =>

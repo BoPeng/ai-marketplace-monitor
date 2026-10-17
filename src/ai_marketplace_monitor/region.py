@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, List
 
-from .marketplaces.base import is_location
+from .marketplaces.base import _as_text, is_location
 from .utils import BaseConfig, Currency, hilight
 
 
@@ -21,8 +21,10 @@ class RegionConfig(BaseConfig):
     currency: List[str] = field(default_factory=list)
 
     def handle_search_city(self: "RegionConfig") -> None:
-        if isinstance(self.search_city, (str, dict)):
+        if isinstance(self.search_city, (str, int, dict)):
             self.search_city = [self.search_city]
+        if isinstance(self.search_city, list):
+            self.search_city = [_as_text(x) for x in self.search_city]
         if not isinstance(self.search_city, list) or not all(
             is_location(x) for x in self.search_city
         ):

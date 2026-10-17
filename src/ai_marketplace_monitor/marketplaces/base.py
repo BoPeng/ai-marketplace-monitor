@@ -119,6 +119,15 @@ def location_keys(cls: type) -> Tuple[str, ...]:
     return tuple(f.name for f in fields(cls) if f.metadata.get(LOCATION))
 
 
+def _as_text(value: Any) -> Any:
+    """Whole numbers in a search_city entry (or its table) as text."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _as_text(v) for k, v in value.items()}
+    return value
+
+
 def is_location(value: Any) -> bool:
     """A search_city entry: a value, or a table of values by marketplace type."""
     if isinstance(value, str):
@@ -299,6 +308,8 @@ class MarketItemCommonConfig(BaseConfig):
         if self.search_city is None:
             return
         entries = self.search_city if isinstance(self.search_city, list) else [self.search_city]
+        # a code written as a number (a ZIP code, or Facebook's numeric codes) is its text
+        entries = [_as_text(x) for x in entries]
         # an empty list is allowed: an item's falls back to its marketplace's
         if not all(is_location(x) for x in entries):
             raise ValueError(

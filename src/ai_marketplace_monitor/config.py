@@ -490,7 +490,12 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                             f"Region {hilight(region)}, used by {hilight(config.name)}, has no "
                             f"{type(config).location_type} value for {entry}."
                         )
-                    config.check_search_city(search_city)
+                    try:
+                        config.check_search_city(search_city)
+                    except ValueError as e:
+                        raise ValueError(
+                            f"Region {hilight(region)}, used by {hilight(config.name)}: {e}"
+                        ) from e
                     if search_city not in config.search_city:
                         config.search_city.append(search_city)
                         config.city_name.append(city_name)
