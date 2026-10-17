@@ -34,8 +34,15 @@ _NOT_A_LOCATION = {
 
 
 def _codes(value: Any) -> Set[str]:
+    """The Facebook location codes of a search_city value (a table's facebook entry)."""
     values = value if isinstance(value, list) else [value]
-    return {str(v) for v in values if v}
+    codes = set()
+    for v in values:
+        if isinstance(v, dict):
+            v = next((x for k, x in v.items() if str(k).lower() == "facebook"), None)
+        if v:
+            codes.add(str(v))
+    return codes
 
 
 class ConfigLoadError(Exception):

@@ -119,6 +119,27 @@ def location_keys(cls: type) -> Tuple[str, ...]:
     return tuple(f.name for f in fields(cls) if f.metadata.get(LOCATION))
 
 
+def is_location(value: Any) -> bool:
+    """A search_city entry: a value, or a table of values by marketplace type."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    return (
+        isinstance(value, dict)
+        and bool(value)
+        and all(isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in value.items())
+    )
+
+
+def location_value(entry: Any, market_type: str) -> str | None:
+    """The value of a search_city entry for a marketplace type; None if a table lacks it."""
+    if isinstance(entry, str):
+        return entry.strip()
+    for key, value in entry.items():
+        if key.lower() == market_type:
+            return value.strip()
+    return None
+
+
 def resolve_option(key: str, item: Any, marketplace: Any, site: str = "search") -> Any:
     """Value of a common option for an item, falling back to its marketplace."""
     cls: Any = type(item)  # a dataclass type, hashable for the lru_cache lookups
@@ -166,6 +187,9 @@ class MarketItemCommonConfig(BaseConfig):
     This class defines and processes options that can be specified
     in both marketplace and item sections, generic to all marketplaces
     """
+
+    # the marketplace type whose value a section takes from a search_city table
+    location_type: ClassVar[str] = ""
 
     ai: List[str] | None = option(Fallback.NOT_NONE)
     exclude_sellers: List[str] | None = option(Fallback.NOT_NONE)
@@ -267,37 +291,34 @@ class MarketItemCommonConfig(BaseConfig):
             )
 
     def handle_search_city(self: "MarketItemCommonConfig") -> None:
+        """A place, or a list of them; a place is a value or a table of values by type.
+
+        A table (``{ facebook = "houston", offerup = "77096" }``) gives each marketplace type
+        its own value; a section takes the one of its type (``location_type``).
+        """
         if self.search_city is None:
             return
-
-        if isinstance(self.search_city, str):
-            self.search_city = [self.search_city]
-
-        if not isinstance(self.search_city, list) or not all(
-            isinstance(x, str) for x in self.search_city
-        ):
+        entries = self.search_city if isinstance(self.search_city, list) else [self.search_city]
+        # an empty list is allowed: an item's falls back to its marketplace's
+        if not all(is_location(x) for x in entries):
             raise ValueError(
-                f"Item {hilight(self.name)} search_city must be a string or list of string."
+                f"Item {hilight(self.name)} search_city must be a string, a table of strings "
+                '(e.g. { facebook = "houston", offerup = "77096" }), or a list of them.'
             )
-
-        # Validate format of each search_city entry
-        for city in self.search_city:
-            # Check if the city contains only lowercase letters and numbers
-            if not city.replace("_", "").replace("-", "").isalnum() or any(
-                c.isupper() for c in city
-            ):
-                # Provide helpful guidance on obtaining the correct format
+        cities = []
+        for entry in entries:
+            city = location_value(entry, self.location_type)
+            if city is None:
                 raise ValueError(
-                    f"Item {hilight(self.name)} search_city '{city}' has incorrect format.\n"
-                    f"Expected: lowercase letters and numbers only (e.g., 'sanfrancisco', 'newyork', 'toronto').\n"
-                    f"To get the correct value:\n"
-                    f"  1. Visit Facebook Marketplace\n"
-                    f"  2. Perform a search in your desired location\n"
-                    f"  3. Look at the URL: https://www.facebook.com/marketplace/XXXXX/search?query=...\n"
-                    f"  4. Use the XXXXX value (the text after 'marketplace/') as your search_city\n"
-                    f"Example: If URL is https://www.facebook.com/marketplace/sanfrancisco/search?query=item\n"
-                    f"         Then search_city = 'sanfrancisco'"
+                    f"{hilight(self.name)} search_city {entry} has no value for "
+                    f"{self.location_type or 'this'} marketplaces."
                 )
+            self.check_search_city(city)
+            cities.append(city)
+        self.search_city = cities
+
+    def check_search_city(self: "MarketItemCommonConfig", city: str) -> None:
+        """Check one place in this marketplace's format (none by default)."""
 
     def handle_city_name(self: "MarketItemCommonConfig") -> None:
         if self.city_name is None:

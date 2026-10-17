@@ -137,8 +137,12 @@ def _mentions_reference(value: Any) -> bool:
 
 
 def listed(value: Any) -> List[str]:
-    """A string-or-list field as a list of strings."""
-    return [str(v) for v in value] if isinstance(value, list) else [str(value)] if value else []
+    """A string-or-list field as a list of strings (a table as "houston / 77096")."""
+
+    def text(v: Any) -> str:
+        return " / ".join(str(x) for x in v.values()) if isinstance(v, dict) else str(v)
+
+    return [text(v) for v in value] if isinstance(value, list) else [text(value)] if value else []
 
 
 def location(values: Dict[str, Any]) -> str | None:

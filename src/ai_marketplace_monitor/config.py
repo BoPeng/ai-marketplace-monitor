@@ -28,6 +28,7 @@ from .marketplaces.base import (
     TItemConfig,
     TMarketplaceConfig,
     location_keys,
+    location_value,
     option_names,
 )
 from .notification import NotificationConfig
@@ -316,7 +317,10 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for item_name, item_config in config.get("item", {}).items():
             targets = item_marketplaces(item_name, item_config, markets)
             classes = {m: supported_marketplaces[marketplace_type(m, markets[m])] for m in targets}
-            if len(targets) > 1:
+            types = [c.market_type for c in classes.values()]
+            # a location of its own is fine in sections of different types, each of which takes
+            # its value (search_city tables), but not in two of one type: the same place twice
+            if len(set(types)) < len(types):
                 location = {
                     k
                     for c in classes.values()
@@ -463,20 +467,30 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             config.currency = []
 
             for region in config.search_region:
-                region_config: RegionConfig = self.region[region]
                 if region not in self.region:
                     raise ValueError(
                         f"Region {hilight(region)} specified in {hilight(config.name)} does not exist."
                     )
+                region_config: RegionConfig = self.region[region]
                 if region_config.enabled is False:
                     continue
                 # avoid duplicated addition of search_city
-                for search_city, city_name, radius, currency in zip(
+                for entry, city_name, radius, currency in zip(
                     region_config.search_city or [],
                     region_config.city_name or [],
                     region_config.radius or [],
-                    region_config.currency or [],
+                    # a region without currency (only the built-in ones set it) has none for
+                    # each city: an empty list would make zip() yield no city at all
+                    region_config.currency or [cast(Any, None)] * len(region_config.search_city),
                 ):
+                    # this section's value of the city (a region may list them by type)
+                    search_city = location_value(entry, type(config).location_type)
+                    if search_city is None:
+                        raise ValueError(
+                            f"Region {hilight(region)}, used by {hilight(config.name)}, has no "
+                            f"{type(config).location_type} value for {entry}."
+                        )
+                    config.check_search_city(search_city)
                     if search_city not in config.search_city:
                         config.search_city.append(search_city)
                         config.city_name.append(city_name)

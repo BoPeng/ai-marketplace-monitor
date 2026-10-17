@@ -3,7 +3,7 @@
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import ClassVar, List
 
 from ...utils import (
     BaseConfig,
@@ -58,6 +58,28 @@ SORT_BY_PARAM = {
 }
 
 
+class FacebookLocation:
+    """Facebook's search_city: its location codes (from a Marketplace URL or find_city)."""
+
+    location_type: ClassVar[str] = "facebook"
+    name: str
+
+    def check_search_city(self: "FacebookLocation", city: str) -> None:
+        # lowercase letters and numbers only
+        if not city.replace("_", "").replace("-", "").isalnum() or any(c.isupper() for c in city):
+            raise ValueError(
+                f"Item {hilight(self.name)} search_city '{city}' has incorrect format.\n"
+                f"Expected: lowercase letters and numbers only (e.g., 'sanfrancisco', 'newyork', 'toronto').\n"
+                f"To get the correct value:\n"
+                f"  1. Visit Facebook Marketplace\n"
+                f"  2. Perform a search in your desired location\n"
+                f"  3. Look at the URL: https://www.facebook.com/marketplace/XXXXX/search?query=...\n"
+                f"  4. Use the XXXXX value (the text after 'marketplace/') as your search_city\n"
+                f"Example: If URL is https://www.facebook.com/marketplace/sanfrancisco/search?query=item\n"
+                f"         Then search_city = 'sanfrancisco'"
+            )
+
+
 @dataclass
 class FacebookMarketItemCommonConfig(BaseConfig):
     """Options of Facebook marketplace and item sections that other marketplaces lack.
@@ -94,7 +116,9 @@ class FacebookMarketItemCommonConfig(BaseConfig):
 
 
 @dataclass
-class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfig):
+class FacebookMarketplaceConfig(
+    FacebookLocation, MarketplaceConfig, FacebookMarketItemCommonConfig
+):
     """Options specific to facebook marketplace
 
     This class defines and processes options that can be specified
@@ -142,5 +166,5 @@ class FacebookMarketplaceConfig(MarketplaceConfig, FacebookMarketItemCommonConfi
 
 
 @dataclass
-class FacebookItemConfig(ItemConfig, FacebookMarketItemCommonConfig):
+class FacebookItemConfig(FacebookLocation, ItemConfig, FacebookMarketItemCommonConfig):
     pass

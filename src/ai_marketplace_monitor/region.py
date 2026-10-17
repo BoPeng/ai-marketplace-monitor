@@ -1,25 +1,35 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List
 
+from .marketplaces.base import is_location
 from .utils import BaseConfig, Currency, hilight
+
+
+def _label(entry: Any) -> str:
+    """A city's default name: its value, or a table's first value."""
+    return (entry if isinstance(entry, str) else next(iter(entry.values()))).capitalize()
 
 
 @dataclass
 class RegionConfig(BaseConfig):
-    search_city: List[str] = field(default_factory=list)
+    # values, or tables of values by marketplace type ({ facebook = "houston", offerup =
+    # "77002" }); each section that uses the region takes the values of its type
+    search_city: List[Any] = field(default_factory=list)
     full_name: str = ""
     radius: List[int] = field(default_factory=list)
     city_name: List[str] = field(default_factory=list)
     currency: List[str] = field(default_factory=list)
 
     def handle_search_city(self: "RegionConfig") -> None:
-        if isinstance(self.search_city, str):
+        if isinstance(self.search_city, (str, dict)):
             self.search_city = [self.search_city]
-        # check if search_city is a list of strings
         if not isinstance(self.search_city, list) or not all(
-            isinstance(x, str) for x in self.search_city
+            is_location(x) for x in self.search_city
         ):
-            raise ValueError(f"Region {self.name} search_city must be a list of strings.")
+            raise ValueError(
+                f"Region {self.name} search_city must be a list of strings or of tables of "
+                'strings by marketplace type (e.g. { facebook = "houston", offerup = "77002" }).'
+            )
 
     def handle_radius(self: "RegionConfig") -> None:
         if isinstance(self.radius, int):
@@ -43,7 +53,7 @@ class RegionConfig(BaseConfig):
         if not self.city_name:
             if not self.search_city:
                 return
-            self.city_name = [x.capitalize() for x in self.search_city]
+            self.city_name = [_label(x) for x in self.search_city]
             return
 
         # check if city_name is a list of strings
