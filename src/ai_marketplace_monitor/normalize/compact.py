@@ -94,8 +94,12 @@ def _drop_explicit_defaults(cfg: Dict[str, Any], notes: Notes) -> None:
         if ai.get("max_retries") == 10:
             del ai["max_retries"]
             notes[(f"ai.{name}", "max_retries")] = "max_retries omitted: defaults to 10"
+    from ..config import marketplace_type
+
     for name, market in cfg.get("marketplace", {}).items():
-        if market.get("market_type") == "facebook":
+        # only when the section would still be a Facebook marketplace without it (a section
+        # named after another marketplace would not)
+        if market.get("market_type") == "facebook" and marketplace_type(name, {}) == "facebook":
             del market["market_type"]
             notes[(f"marketplace.{name}", "market_type")] = (
                 "market_type omitted: defaults to facebook"

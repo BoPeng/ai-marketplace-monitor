@@ -5,7 +5,7 @@ from enum import Enum
 from itertools import chain
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Generic, List, Tuple
+from typing import Any, Dict, Generic, List, Mapping, Tuple, Type
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -22,7 +22,7 @@ from .ai import (
     UnitySVCBackend,
 )
 from .facebook import FacebookMarketplace
-from .marketplace import TItemConfig, TMarketplaceConfig
+from .marketplace import Marketplace, TItemConfig, TMarketplaceConfig
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
@@ -36,7 +36,29 @@ from .utils import (
     merge_dicts,
 )
 
-supported_marketplaces = {"facebook": FacebookMarketplace}
+supported_marketplaces: Dict[str, Type[Marketplace]] = {"facebook": FacebookMarketplace}
+
+
+def marketplace_type(name: str, section: Mapping[str, Any]) -> str:
+    """The type of a ``[marketplace.<name>]`` section, as given in the config file.
+
+    Its ``market_type`` if it sets one; otherwise its name, if that names a supported
+    marketplace (``[marketplace.facebook]``); otherwise ``facebook``. Section names are free:
+    ``[marketplace.mymarket]`` is a Facebook marketplace unless it says otherwise.
+    """
+    market_type = section.get("market_type")
+    if market_type is None or market_type == "":
+        return name if name in supported_marketplaces else "facebook"
+    if not isinstance(market_type, str):
+        raise ValueError(f"Marketplace {hilight(name)} market_type must be a string.")
+    return market_type.lower()
+
+
+def marketplace_class(marketplace_config: Any) -> Type[Marketplace]:
+    """The class of a parsed marketplace section (its resolved ``market_type``)."""
+    return supported_marketplaces[marketplace_config.market_type or "facebook"]
+
+
 supported_ai_backends = {
     "deepseek": DeepSeekBackend,
     "gemini": GeminiBackend,
@@ -210,14 +232,16 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         # check for required fields in each marketplace
         self.marketplace = {}
         for marketplace_name, marketplace_config in config.get("marketplace", {}).items():
-            market_type = marketplace_config.get("market_type", "facebook")
+            market_type = marketplace_type(marketplace_name, marketplace_config)
             if market_type not in supported_marketplaces:
                 raise ValueError(
                     f"Marketplace {hilight(market_type)} is not supported. Supported marketplaces are: {supported_marketplaces.keys()}"
                 )
-            marketplace_class = supported_marketplaces[market_type]
-            self.marketplace[marketplace_name] = marketplace_class.get_config(
-                name=marketplace_name, monitor_config=self.monitor, **marketplace_config
+            market_class = supported_marketplaces[market_type]
+            self.marketplace[marketplace_name] = market_class.get_config(
+                name=marketplace_name,
+                monitor_config=self.monitor,
+                **{**marketplace_config, "market_type": market_type},
             )
             lan = self.marketplace[marketplace_name].language
             if lan is None:
@@ -251,15 +275,15 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     )
 
             for marketplace_name, markerplace_config in config.get("marketplace", {}).items():
-                marketplace_class = supported_marketplaces[
-                    markerplace_config.get("market_type", "facebook")
+                market_class = supported_marketplaces[
+                    marketplace_type(marketplace_name, markerplace_config)
                 ]
                 if (
                     "marketplace" not in item_config
                     or item_config["marketplace"] == marketplace_name
                 ):
                     # use the first available marketplace
-                    self.item[item_name] = marketplace_class.get_item_config(
+                    self.item[item_name] = market_class.get_item_config(
                         name=item_name,
                         marketplace=marketplace_name,
                         **{x: y for x, y in item_config.items() if x != "marketplace"},

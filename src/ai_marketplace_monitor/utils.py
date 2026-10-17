@@ -8,6 +8,7 @@ import random
 import re
 import shutil
 import sqlite3
+import threading
 import time
 from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
@@ -189,6 +190,7 @@ class SleepStatus(Enum):
     NOT_DISRUPTED = 0
     BY_KEYBOARD = 1
     BY_FILE_CHANGE = 2
+    BY_REQUEST = 3  # the ``wake`` event of doze was set
 
 
 def aimm_event(kind: str, **fields: Any) -> Dict[str, Any]:
@@ -774,7 +776,10 @@ class ChangeHandler(FileSystemEventHandler):
 
 
 def doze(
-    duration: int, files: List[Path] | None = None, keyboard_monitor: KeyboardMonitor | None = None
+    duration: int,
+    files: List[Path] | None = None,
+    keyboard_monitor: KeyboardMonitor | None = None,
+    wake: threading.Event | None = None,
 ) -> SleepStatus:
     """Sleep for a specified duration while monitoring the change of files.
 
@@ -782,6 +787,7 @@ def doze(
         0: if doze was done naturally.
         1: if doze was disrupted by keyboard
         2: if doze was disrupted by file change
+        3: if ``wake`` was set
     """
     event_handler = ChangeHandler([str(x) for x in (files or [])])
     observers = []
@@ -802,6 +808,8 @@ def doze(
         while time.time() - start_time < duration:
             if event_handler.changed:
                 return SleepStatus.BY_FILE_CHANGE
+            if wake is not None and wake.is_set():
+                return SleepStatus.BY_REQUEST
             time.sleep(1)
             if keyboard_monitor and not keyboard_monitor.is_sleeping():
                 return SleepStatus.BY_KEYBOARD

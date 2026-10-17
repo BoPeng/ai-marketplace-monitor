@@ -17,9 +17,9 @@ from . import COMMUNITY_MESSAGE
 from .ai import AIBackend, AIResponse
 from .config import (
     Config,
+    marketplace_class,
     resolve_config_files,
     supported_ai_backends,
-    supported_marketplaces,
 )
 from .control import control
 from .digest import latest_cutoff, pending_digest_channels, send_due_digest
@@ -149,6 +149,48 @@ class MarketplaceMonitor:
                         )
                 doze(60, self.config_files, self.keyboard_monitor)
                 continue
+
+    def _browser_needed(self: "MarketplaceMonitor") -> bool:
+        """Whether an enabled marketplace searches with aimm's browser (Facebook does)."""
+        if self.config is None:
+            return False
+        return any(
+            marketplace_class(marketplace_config).needs_browser
+            for marketplace_config in self.config.marketplace.values()
+            if marketplace_config.enabled is not False
+        )
+
+    def ensure_browser(self: "MarketplaceMonitor", reason: str = "") -> None:
+        """Start the browser if it is not running, and give it to the marketplaces that need it.
+
+        In the monitor's thread: the browser's Playwright objects belong to it.
+        """
+        control.browser_requested.clear()
+        if self.browser is not None:
+            return
+        if reason and self.logger:
+            self.logger.info(f"""{hilight("[Browser]", "info")} Starting the browser {reason}.""")
+        self.browser = self._launch_browser()
+        control.browser_running = True
+        for marketplace in self.active_marketplaces.values():
+            if marketplace.needs_browser:
+                marketplace.set_browser(self.browser)
+
+    def browser_for_view(self: "MarketplaceMonitor") -> None:
+        """Start the browser that the web UI's browser view asked for.
+
+        A browser that cannot start is logged, not raised: the view asked for it, and the
+        marketplaces that search without it keep searching.
+        """
+        try:
+            self.ensure_browser("for the browser view")
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            if self.logger:
+                self.logger.error(
+                    f"""{hilight("[Browser]", "fail")} The browser for the browser view could not be started: {e}"""
+                )
 
     def _launch_browser(self: "MarketplaceMonitor") -> "Browser | BrowserContext":
         """Launch a browser, preferring Chromium if available, otherwise any installed browser.
@@ -362,12 +404,18 @@ class MarketplaceMonitor:
         for marketplace_config in self.config.marketplace.values():
             if marketplace_config.enabled is False:
                 continue
-            marketplace_class = supported_marketplaces[marketplace_config.name]
+            market_class = marketplace_class(marketplace_config)
             if marketplace_config.name in self.active_marketplaces:
                 marketplace = self.active_marketplaces[marketplace_config.name]
             else:
-                marketplace = marketplace_class(
-                    marketplace_config.name, self.browser, self.keyboard_monitor, self.logger
+                if market_class.needs_browser:
+                    # e.g. a Facebook marketplace added to a config that needed no browser
+                    self.ensure_browser(f"for {hilight(marketplace_config.name)}")
+                marketplace = market_class(
+                    marketplace_config.name,
+                    self.browser if market_class.needs_browser else None,
+                    self.keyboard_monitor,
+                    self.logger,
                 )
                 self.active_marketplaces[marketplace_config.name] = marketplace
 
@@ -636,9 +684,13 @@ class MarketplaceMonitor:
         check_in_background(self.logger, self.config.monitor.check_updates)
         if self.logger:
             self.logger.info(f"""{hilight("[Community]", "info")} {COMMUNITY_MESSAGE}""")
-        self.browser = self._launch_browser()
-        #
-        assert self.browser is not None
+        if self._browser_needed():
+            self.ensure_browser()
+        elif self.logger:
+            self.logger.info(
+                f"""{hilight("[Browser]", "info")} No marketplace needs a browser, so none is"""
+                " started. It starts when you open the browser view of the web UI."
+            )
         while True:
             self.handle_stop()
             self.schedule_jobs()
@@ -650,8 +702,11 @@ class MarketplaceMonitor:
                     )
                 if self.handle_stop():
                     continue
-                if doze(60, self.config_files, self.keyboard_monitor) == SleepStatus.BY_KEYBOARD:
+                res = doze(60, self.config_files, self.keyboard_monitor, control.browser_requested)
+                if res == SleepStatus.BY_KEYBOARD:
                     self.keyboard_monitor.set_paused(True)
+                elif res == SleepStatus.BY_REQUEST:
+                    self.browser_for_view()
                 continue
             # run all jobs at the first time, then on their own schedule
             # we could have used schedule.run_all() but we would like to check if
@@ -725,6 +780,7 @@ class MarketplaceMonitor:
                     min(max(5, int(idle_seconds)), 60 * 60),
                     self.config_files,
                     self.keyboard_monitor,
+                    control.browser_requested,
                 )
                 if res == SleepStatus.BY_FILE_CHANGE:
                     # if configuration file has been changed, clear all scheduled jobs and restart
@@ -739,6 +795,8 @@ class MarketplaceMonitor:
                         break
                 elif res == SleepStatus.BY_KEYBOARD:
                     self.keyboard_monitor.set_paused(True)
+                elif res == SleepStatus.BY_REQUEST:
+                    self.browser_for_view()
 
                 if self.handle_stop():
                     break
@@ -791,13 +849,11 @@ class MarketplaceMonitor:
             for marketplace_config in self.config.marketplace.values():
                 if marketplace_config.enabled is False:
                     continue
-                marketplace_class = supported_marketplaces[marketplace_config.name]
+                market_class = marketplace_class(marketplace_config)
                 if marketplace_config.name in self.active_marketplaces:
                     marketplace = self.active_marketplaces[marketplace_config.name]
                 else:
-                    marketplace = marketplace_class(
-                        marketplace_config.name, None, None, self.logger
-                    )
+                    marketplace = market_class(marketplace_config.name, None, None, self.logger)
                     self.active_marketplaces[marketplace_config.name] = marketplace
 
                 # Configure might have been changed

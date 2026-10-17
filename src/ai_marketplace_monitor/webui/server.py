@@ -911,6 +911,9 @@ def create_app(
         @app.websocket("/ws/vnc")
         @guarded_websocket
         async def ws_vnc(websocket: WebSocket) -> None:
+            # the monitor starts its browser now if no marketplace needed one; the view shows
+            # it once it is up
+            control.request_browser()
             await websocket.accept(
                 subprotocol=_select_vnc_subprotocol(
                     websocket.headers.get("sec-websocket-protocol")

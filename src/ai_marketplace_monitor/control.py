@@ -1,7 +1,8 @@
 """Run-time state shared by the monitor and the web UI, which run in the same process.
 
 The web UI pauses and resumes searches here, and reads whether the monitor is waiting for
-the user to finish logging in to Facebook. Nothing is saved: a restart resumes searching.
+the user to finish logging in to Facebook, and asks for the browser when it is not running.
+Nothing is saved: a restart resumes searching.
 """
 
 from __future__ import annotations
@@ -18,6 +19,15 @@ class MonitorControl:
         self._running.set()
         self.waiting_for_login = False
         self.login_hint = ""  # where to finish logging in, while waiting_for_login
+        # set by the web UI's browser view when the monitor has not started a browser (no
+        # marketplace needs one); the monitor, which owns the browser, starts it
+        self.browser_requested = threading.Event()
+        self.browser_running = False
+
+    def request_browser(self: "MonitorControl") -> None:
+        """Ask the monitor to start its browser; nothing to do if it is running."""
+        if not self.browser_running:
+            self.browser_requested.set()
 
     def pause(self: "MonitorControl") -> None:
         with self._lock:
