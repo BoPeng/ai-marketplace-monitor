@@ -63,9 +63,13 @@ def test_hand_written_marketplace_value_moves_down_when_an_item_differs() -> Non
     search_interval = "1h"
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
 
     [item.b]
+
+    marketplace = "facebook"
     search_phrases = "b"
     search_interval = "2h"
     """
@@ -76,7 +80,7 @@ def test_hand_written_marketplace_value_moves_down_when_an_item_differs() -> Non
 
 def test_single_item_is_not_hoisted() -> None:
     cfg = _normalize(
-        '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n'
+        '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nmarketplace = "facebook"\nsearch_phrases = "a"\n'
     )
     assert cfg["marketplace"]["facebook"] == {}
     assert cfg["item"]["a"]["search_city"] == "houston"
@@ -115,9 +119,13 @@ def test_prices_never_hoisted() -> None:
     max_price = "300"
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
 
     [item.b]
+
+    marketplace = "facebook"
     search_phrases = "b"
     """
     )
@@ -133,9 +141,13 @@ def test_location_keys_hoisted_only_as_a_unit() -> None:
     radius = 50
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
 
     [item.b]
+
+    marketplace = "facebook"
     search_phrases = "b"
     search_city = "dallas"
     radius = 50
@@ -205,7 +217,8 @@ def test_sections_with_different_request_are_not_merged() -> None:
 
 def test_changes_are_relative_to_the_input() -> None:
     text = (
-        USERS + '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nsearch_phrases = "a"\n'
+        USERS
+        + '[marketplace.facebook]\nsearch_city = "houston"\n[item.a]\nmarketplace = "facebook"\nsearch_phrases = "a"\n'
     )
     result = normalize(parse(text), system_cfg())
     sections = {c.section for c in result.changes}
@@ -217,10 +230,14 @@ TWO_ITEMS = """
 search_city = "houston"
 
 [item.a]
+
+marketplace = "facebook"
 search_phrases = "a"
 {extra}
 
 [item.b]
+
+marketplace = "facebook"
 search_phrases = "b"
 {extra}
 """
@@ -479,6 +496,8 @@ def test_normalize_change_list_keeps_expand_notes() -> None:
     max_price = 100
 
     [item.a]
+
+    marketplace = "facebook"
     search_phrases = "a"
     """
         ),

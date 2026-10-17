@@ -65,13 +65,20 @@ def _location_keys(
 
 
 def push_down(cfg: Dict[str, Any]) -> Notes:
-    """Make every item self-contained; return change notes keyed by (section, key)."""
+    """Make items self-contained; return change notes keyed by (section, key).
+
+    An item without ``marketplace`` is left as it is: it inherits from every marketplace,
+    also ones added later, so a value copied into it would override theirs. Its marketplaces
+    keep what it inherits.
+    """
     notes: Notes = {}
     markets: Dict[str, Any] = cfg.get("marketplace", {})
     users = list(cfg.get("user", {}))
     ais = list(cfg.get("ai", {}))
     for item_name, item in cfg.get("item", {}).items():
         label = f"item.{item_name}"
+        if not item.get("marketplace"):
+            continue
         targets = bound_marketplaces(item, markets)
         if len(targets) == 1:
             market_name = targets[0]
@@ -100,10 +107,11 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
                 item[key] = copy.deepcopy(values[0])
                 extra = " (now also used in the AI prompt)" if key in AI_PROMPT_ITEM_ONLY else ""
                 notes[(label, key)] = f"{key} copied from marketplaces {', '.join(targets)}{extra}"
-        if not item.get("notify"):
+        # all users or AI backends only where none of its marketplaces chooses some
+        if not item.get("notify") and not any(markets[m].get("notify") for m in targets):
             item["notify"] = list(users)
             notes[(label, "notify")] = "notify made explicit: all users"
-        if "ai" not in item and ais:
+        if "ai" not in item and ais and not any("ai" in markets[m] for m in targets):
             item["ai"] = list(ais)
             notes[(label, "ai")] = "ai made explicit: all AI backends"
     searching: Dict[str, List[Dict[str, Any]]] = {name: [] for name in markets}
@@ -114,7 +122,13 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
         # a marketplace without items keeps its options as defaults for future items
         if not searching[market_name]:
             continue
-        shared = [it for it in searching[market_name] if len(bound_marketplaces(it, markets)) > 1]
+        # items that read from more than this marketplace: unscoped ones (also from
+        # marketplaces added later) and ones of several
+        shared = [
+            it
+            for it in searching[market_name]
+            if not it.get("marketplace") or len(bound_marketplaces(it, markets)) > 1
+        ]
         has_region = "search_region" in market
         for key in COMMON_OPTIONS:
             if key not in market:

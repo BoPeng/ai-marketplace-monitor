@@ -653,7 +653,7 @@ Replace `${PROXY_SERVER}`, `${PROXY_USERNAME}`, and `${PROXY_PASSWORD}` with you
 Multiple Marketplaces
 =====================
 
-Although Facebook is currently the only supported marketplace, you can create multiple marketplace configurations such as ``marketplace.city1`` and ``marketplace.city2`` with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. You will need to add the ``marketplace`` option in the item sections to link these items to the appropriate marketplace configuration.
+Although Facebook is currently the only supported marketplace, you can create multiple marketplace configurations such as ``marketplace.city1`` and ``marketplace.city2`` with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. An item is searched in every marketplace section unless its ``marketplace`` option names the ones to use.
 
 For example:
 
@@ -664,7 +664,7 @@ For example:
     seller_locations = ['houston', 'sugarland']
 
     [marketplace.nationwide]
-    marketplace = 'facebook'
+    market_type = 'facebook'
     search_region = 'usa'
     seller_locations = []
     delivery_method = 'shipping'

@@ -6,7 +6,7 @@ from enum import Enum
 from itertools import chain
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, Generic, List, Tuple, Type
+from typing import Any, Dict, Generic, List, Tuple, Type, cast
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -24,7 +24,6 @@ from .ai import (
 )
 from .marketplaces import item_marketplaces, marketplace_type, supported_marketplaces
 from .marketplaces.base import (
-    ItemConfig,
     Marketplace,
     TItemConfig,
     TMarketplaceConfig,
@@ -316,8 +315,14 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         markets: Dict[str, Any] = config.get("marketplace", {})
         for item_name, item_config in config.get("item", {}).items():
             targets = item_marketplaces(item_name, item_config, markets)
+            classes = {m: supported_marketplaces[marketplace_type(m, markets[m])] for m in targets}
             if len(targets) > 1:
-                own = [key for key in location_keys(ItemConfig) if key in item_config]
+                location = {
+                    k
+                    for c in classes.values()
+                    for k in location_keys(cast(Any, c.item_config_class))
+                }
+                own = [key for key in item_config if key in location]
                 if own:
                     raise ValueError(
                         f"Item {hilight(item_name)} sets {', '.join(own)} but is searched in "
@@ -326,7 +331,6 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                         "move the location to the marketplace sections."
                     )
             values = {x: y for x, y in item_config.items() if x != "marketplace"}
-            classes = {m: supported_marketplaces[marketplace_type(m, markets[m])] for m in targets}
             self._check_item_options(item_name, values, classes, logger)
             built: Dict[str, TItemConfig] = {}
             for marketplace_name, market_class in classes.items():

@@ -896,9 +896,15 @@ class MarketplaceMonitor:
                         name = Prompt.ask(
                             f"""Enter name of {hilight("search item")}""", choices=item_names
                         )
-                    item_config = self.config.item[name or item_names[0]]
+                    item_name = name or item_names[0]
                 else:
-                    item_config = self.config.item[for_item]
+                    item_name = for_item
+                # the item as it is searched in this marketplace (disabled or not); skip the
+                # marketplaces it is not searched in
+                target = self.config.item_targets.get(item_name, {}).get(marketplace_config.name)
+                if target is None:
+                    continue
+                item_config = target
 
                 # do not search, get the item details directly
                 listing, _, _, rating = inspect_listing(
