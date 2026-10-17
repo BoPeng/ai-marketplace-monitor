@@ -1,7 +1,7 @@
 """Move common options from marketplaces into the items bound to them."""
 
 import copy
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..marketplaces.base import Fallback
 from .model import (
@@ -13,11 +13,21 @@ from .model import (
 )
 
 Notes = Dict[Tuple[str, Optional[str]], str]
+_ABSENT = object()
+
+
+def bound_marketplaces(item_raw: Dict[str, Any], marketplaces: Dict[str, Any]) -> List[str]:
+    """Marketplaces an item is searched in: its `marketplace` (a name or a list), else all."""
+    value = item_raw.get("marketplace")
+    if not value:
+        return list(marketplaces)
+    return [value] if isinstance(value, str) else list(dict.fromkeys(value))
 
 
 def bound_marketplace(item_raw: Dict[str, Any], marketplaces: Dict[str, Any]) -> str:
-    """Marketplace an item is searched in: its `marketplace` key, else the first one."""
-    return item_raw.get("marketplace") or next(iter(marketplaces))
+    """The first marketplace an item is searched in."""
+    bound = bound_marketplaces(item_raw, marketplaces)
+    return bound[0] if bound else next(iter(marketplaces))
 
 
 def _falls_back(key: str, item_raw: Dict[str, Any]) -> bool:
@@ -62,35 +72,55 @@ def push_down(cfg: Dict[str, Any]) -> Notes:
     ais = list(cfg.get("ai", {}))
     for item_name, item in cfg.get("item", {}).items():
         label = f"item.{item_name}"
-        market_name = bound_marketplace(item, markets)
-        market = markets[market_name]
-        if "marketplace" not in item:
-            item["marketplace"] = market_name
-            notes[(label, "marketplace")] = f"marketplace made explicit: {market_name}"
-        location = _location_keys(item_name, item, market_name, market)
-        for key in COMMON_OPTIONS:
-            if key in LOCATION_KEYS:
-                copy_it = key in location
-            else:
-                copy_it = key in market and _falls_back(key, item)
-            if copy_it:
-                item[key] = copy.deepcopy(market[key])
+        targets = bound_marketplaces(item, markets)
+        if len(targets) == 1:
+            market_name = targets[0]
+            market = markets[market_name]
+            location = _location_keys(item_name, item, market_name, market)
+            for key in COMMON_OPTIONS:
+                if key in LOCATION_KEYS:
+                    copy_it = key in location
+                else:
+                    copy_it = key in market and _falls_back(key, item)
+                if copy_it:
+                    item[key] = copy.deepcopy(market[key])
+                    extra = (
+                        " (now also used in the AI prompt)" if key in AI_PROMPT_ITEM_ONLY else ""
+                    )
+                    notes[(label, key)] = f"{key} copied from marketplace.{market_name}{extra}"
+        else:
+            # searched in several marketplaces: only what they all set alike can move into the
+            # item; their locations stay theirs
+            for key in COMMON_OPTIONS:
+                if key in LOCATION_KEYS or not _falls_back(key, item):
+                    continue
+                values = [markets[m].get(key, _ABSENT) for m in targets]
+                if values[0] is _ABSENT or any(v != values[0] for v in values):
+                    continue
+                item[key] = copy.deepcopy(values[0])
                 extra = " (now also used in the AI prompt)" if key in AI_PROMPT_ITEM_ONLY else ""
-                notes[(label, key)] = f"{key} copied from marketplace.{market_name}{extra}"
+                notes[(label, key)] = f"{key} copied from marketplaces {', '.join(targets)}{extra}"
         if not item.get("notify"):
             item["notify"] = list(users)
             notes[(label, "notify")] = "notify made explicit: all users"
         if "ai" not in item and ais:
             item["ai"] = list(ais)
             notes[(label, "ai")] = "ai made explicit: all AI backends"
-    bound = {bound_marketplace(item, markets) for item in cfg.get("item", {}).values()}
+    searching: Dict[str, List[Dict[str, Any]]] = {name: [] for name in markets}
+    for item in cfg.get("item", {}).values():
+        for market_name in bound_marketplaces(item, markets):
+            searching[market_name].append(item)
     for market_name, market in markets.items():
         # a marketplace without items keeps its options as defaults for future items
-        if market_name not in bound:
+        if not searching[market_name]:
             continue
+        shared = [it for it in searching[market_name] if len(bound_marketplaces(it, markets)) > 1]
         has_region = "search_region" in market
         for key in COMMON_OPTIONS:
             if key not in market:
+                continue
+            # an item that is also searched elsewhere still reads what it did not get
+            if any(key not in item for item in shared):
                 continue
             del market[key]
             if has_region and key in LOCATION_KEYS and key != "search_region":

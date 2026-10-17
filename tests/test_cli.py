@@ -154,7 +154,15 @@ ai = ["openai"]
         "marketplace": {"facebook": {}},
         "user": {"user1": {}},
         "notification": {"pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}},
-        "item": {"name": {"search_city": "dallas", "search_phrases": "search word one"}},
+        # an explicit marketplace is kept: without it, the item would also search
+        # marketplaces added later
+        "item": {
+            "name": {
+                "marketplace": "facebook",
+                "search_city": "dallas",
+                "search_phrases": "search word one",
+            }
+        },
     }
 
 
@@ -178,7 +186,6 @@ def test_expand_config_prints_expanded_toml_from_config_file_alias(
         "pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
     }
     assert parsed["item"]["name"] == {
-        "marketplace": "facebook",
         "notify": ["user1"],
         "search_city": "dallas",
         "search_phrases": "search word one",

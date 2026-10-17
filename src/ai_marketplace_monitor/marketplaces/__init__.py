@@ -4,13 +4,18 @@
 section's type is resolved by ``marketplace_type``.
 """
 
-from typing import Any, Dict, Mapping, Type
+from typing import Any, Dict, List, Mapping, Type
 
 from ..utils import hilight
 from .base import Marketplace
 from .facebook import FacebookMarketplace
 
-__all__ = ["marketplace_class", "marketplace_type", "supported_marketplaces"]
+__all__ = [
+    "item_marketplaces",
+    "marketplace_class",
+    "marketplace_type",
+    "supported_marketplaces",
+]
 
 supported_marketplaces: Dict[str, Type[Marketplace]] = {"facebook": FacebookMarketplace}
 
@@ -33,3 +38,28 @@ def marketplace_type(name: str, section: Mapping[str, Any]) -> str:
 def marketplace_class(marketplace_config: Any) -> Type[Marketplace]:
     """The class of a parsed marketplace section (its resolved ``market_type``)."""
     return supported_marketplaces[marketplace_config.market_type or "facebook"]
+
+
+def item_marketplaces(
+    name: str, section: Mapping[str, Any], marketplaces: Mapping[str, Any]
+) -> List[str]:
+    """The marketplace sections an ``[item.<name>]`` section is searched in.
+
+    Its ``marketplace``, a section name or a list of them; without it, every marketplace
+    section (including ones added later).
+    """
+    value = section.get("marketplace")
+    if value is None or value == "":
+        return list(marketplaces)
+    names = [value] if isinstance(value, str) else value
+    if not isinstance(names, list) or not names or not all(isinstance(x, str) for x in names):
+        raise ValueError(
+            f"Item {hilight(name)} marketplace must be a marketplace name or a list of them."
+        )
+    for marketplace in names:
+        if marketplace not in marketplaces:
+            raise ValueError(
+                f"Item {hilight(name)} specifies a marketplace that does not exist: "
+                f"{hilight(marketplace)}."
+            )
+    return list(dict.fromkeys(names))

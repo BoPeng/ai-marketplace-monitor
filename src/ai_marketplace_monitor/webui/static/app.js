@@ -1568,7 +1568,7 @@
       { key: "description", label: "Description (helps AI)", type: "textarea", column: "left",
         help: "Free-text description of what you want. The AI uses this to evaluate listings." },
       { key: "marketplace", label: "Marketplace", type: "text", column: "left", advanced: true,
-        help: "Which [marketplace.*] to search. Default: first defined marketplace." },
+        help: "Comma-separated [marketplace.*] names to search. Default: every marketplace, also ones added later." },
 
       // Right: overrides from marketplace defaults
       { key: "search_city", label: "Search city", type: "text", column: "right",

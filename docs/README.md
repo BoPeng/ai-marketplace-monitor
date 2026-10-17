@@ -334,7 +334,7 @@ One or more `item.item_name` where `item_name` is the name of the item.
 | `keywords`         | Optional    | String/List | Excludes listings whose titles and description do not contain any of the keywords.                                                                                                             |
 | `title_keywords`   | Optional    | String/List | Like `keywords`, but matched against the title only, so listings are skipped before aimm opens them. Faster, but misses listings with short titles.                                              |
 | `antikeywords`     | Optional    | String/List | Excludes listings whose titles or descriptions contain any of the specified keywords.                                                                                                          |
-| `marketplace`      | Optional    | String      | Name of the marketplace, default to `facebook` that points to a `marketplace.facebook` sectiion.                                                                                               |
+| `marketplace`      | Optional    | String/List | The marketplace sections the item is searched in: a name or a list of names. Without it, the item is searched in every marketplace section, including ones added later. An item searched in several sections uses their locations and cannot set its own. |
 | **Common options** |             |             | Options listed below. These options, if specified in the item section, will override options in the marketplace section.                                                                       |
 
 Marketplaces may return listings that are completely unrelated to search search_phrases, but can also

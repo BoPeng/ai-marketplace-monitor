@@ -369,42 +369,28 @@ def test_notify_with_override_is_kept_when_not_all_notifications() -> None:
     assert cfg["user"]["alice"]["notify_with"] == ["pushbullet"]
 
 
-def test_default_marketplace_binding_is_compacted() -> None:
-    implicit = normalize(
-        parse(
-            USERS
-            + """
+def test_an_item_without_marketplace_keeps_searching_every_marketplace() -> None:
+    """Unscoped items search every marketplace: binding them to one would change that."""
+    two = (
+        USERS
+        + """
     [marketplace.facebook]
     search_city = "houston"
 
     [marketplace.second]
     search_city = "dallas"
 
-    [item.a]
-    search_phrases = "a"
     """
-        ),
-        system_cfg(),
-    ).config
+    )
+    implicit = normalize(parse(two + '[item.a]\nsearch_phrases = "a"\n'), system_cfg()).config
+    assert "marketplace" not in implicit["item"]["a"]
+    # each marketplace keeps its own location: the item reads both
+    assert implicit["marketplace"]["facebook"]["search_city"] == "houston"
+    assert implicit["marketplace"]["second"]["search_city"] == "dallas"
     explicit = normalize(
-        parse(
-            USERS
-            + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.a]
-    marketplace = "facebook"
-    search_phrases = "a"
-    """
-        ),
-        system_cfg(),
+        parse(two + '[item.a]\nmarketplace = "facebook"\nsearch_phrases = "a"\n'), system_cfg()
     ).config
-    assert explicit == implicit
-    assert "marketplace" not in explicit["item"]["a"]
+    assert explicit["item"]["a"]["marketplace"] == "facebook"
 
 
 def test_non_default_marketplace_binding_is_kept() -> None:

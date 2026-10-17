@@ -159,53 +159,37 @@ def test_own_city_inheriting_region_radius_raises() -> None:
         )
 
 
-def test_item_binds_to_first_marketplace() -> None:
+TWO_MARKETS = """
+    [marketplace.facebook]
+    search_city = "houston"
+    radius = 30
+    rating = 4
+
+    [marketplace.second]
+    search_city = "dallas"
+    radius = 30
+    rating = 4
+    """
+
+
+def test_an_item_without_marketplace_is_searched_in_every_marketplace() -> None:
+    cfg = _expand(USERS + TWO_MARKETS + '[item.bike]\nsearch_phrases = "bike"\n')
+    bike = cfg["item"]["bike"]
+    assert "marketplace" not in bike  # still every marketplace, also ones added later
+    # what both set alike moves into the item; each keeps its own location
+    assert bike["rating"] == 4 and "search_city" not in bike and "radius" not in bike
+    assert "rating" not in cfg["marketplace"]["facebook"]
+    assert cfg["marketplace"]["facebook"]["search_city"] == "houston"
+    assert cfg["marketplace"]["second"]["search_city"] == "dallas"
+
+
+def test_an_item_of_one_marketplace_is_made_self_contained() -> None:
     cfg = _expand(
-        USERS
-        + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.bike]
-    search_phrases = "bike"
-    """
+        USERS + TWO_MARKETS + '[item.bike]\nmarketplace = "second"\nsearch_phrases = "bike"\n'
     )
-    assert cfg["item"]["bike"]["search_city"] == "houston"
-    assert cfg["item"]["bike"]["marketplace"] == "facebook"
-
-
-def test_explicit_default_marketplace_matches_implicit_binding() -> None:
-    implicit = _expand(
-        USERS
-        + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.bike]
-    search_phrases = "bike"
-    """
-    )
-    explicit = _expand(
-        USERS
-        + """
-    [marketplace.facebook]
-    search_city = "houston"
-
-    [marketplace.second]
-    search_city = "dallas"
-
-    [item.bike]
-    marketplace = "facebook"
-    search_phrases = "bike"
-    """
-    )
-    assert explicit == implicit
+    bike = cfg["item"]["bike"]
+    assert bike["marketplace"] == "second"
+    assert bike["search_city"] == "dallas" and bike["rating"] == 4
 
 
 def test_translation_passes_through() -> None:

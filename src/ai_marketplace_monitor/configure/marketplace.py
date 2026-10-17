@@ -19,7 +19,7 @@ from ..marketplaces.facebook import (
     SortBy,
 )
 from ..normalize import NormalizeError, expand
-from ..normalize.pushdown import bound_marketplace
+from ..normalize.pushdown import bound_marketplaces
 from .toolkits import FieldGuide, SectionDraft, Toolkit, location
 from .ui import Choice, SetupUI
 
@@ -254,13 +254,13 @@ class MarketplaceToolkit(Toolkit):
     def items(
         self: "MarketplaceToolkit", cfg: Dict[str, Any], name: str
     ) -> Dict[str, Dict[str, Any]]:
-        """Items that search this marketplace (their own ``marketplace``, else the first one)."""
+        """Items that search this marketplace: those that name it, and those that name none."""
         markets = dict(cfg.get("marketplace", {}))
         markets.setdefault(name, {})
         return {
             item_name: item
             for item_name, item in cfg.get("item", {}).items()
-            if bound_marketplace(item, markets) == name
+            if name in bound_marketplaces(item, markets)
         }
 
     def view(self: "MarketplaceToolkit", ws: "Workspace", name: str) -> SectionDraft:
@@ -322,7 +322,9 @@ class MarketplaceToolkit(Toolkit):
             unknown = [v for v in wanted if v not in context[kind]]
             if unknown:
                 errors.append(f"`{key}` names {unknown}, which are not in can_reference.{kind}.")
-        if errors:
+        if errors or self.missing(ws, draft):
+            # `missing` asks for the location first: until then, the items that search every
+            # marketplace would fail the whole config for want of it
             return errors
         try:
             # the whole config must still load (e.g. an item's cities against a new radius)

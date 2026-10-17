@@ -21,8 +21,8 @@ from .ai import (
     TAIConfig,
     UnitySVCBackend,
 )
-from .marketplaces import marketplace_type, supported_marketplaces
-from .marketplaces.base import TItemConfig, TMarketplaceConfig
+from .marketplaces import item_marketplaces, marketplace_type, supported_marketplaces
+from .marketplaces.base import ItemConfig, TItemConfig, TMarketplaceConfig, location_keys
 from .notification import NotificationConfig
 from .region import RegionConfig
 from .user import User, UserConfig
@@ -100,7 +100,10 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     user: Dict[str, UserConfig] = field(init=False)
     notification: Dict[str, NotificationConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
+    # each item's config, for the first marketplace it is searched in
     item: Dict[str, TItemConfig] = field(init=False)
+    # each item's config for each marketplace it is searched in: {item: {marketplace: config}}
+    item_targets: Dict[str, Dict[str, TItemConfig]] = field(init=False)
     translator: Dict[str, Translator] = field(init=False)
     region: Dict[str, RegionConfig] = field(init=False)
 
@@ -243,29 +246,31 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         # check for required fields in each user
 
         self.item = {}
+        self.item_targets = {}
+        markets: Dict[str, Any] = config.get("marketplace", {})
         for item_name, item_config in config.get("item", {}).items():
-            # if marketplace is specified, it must exist
-            if "marketplace" in item_config:
-                if item_config["marketplace"] not in config.get("marketplace", {}):
+            targets = item_marketplaces(item_name, item_config, markets)
+            if len(targets) > 1:
+                own = [key for key in location_keys(ItemConfig) if key in item_config]
+                if own:
                     raise ValueError(
-                        f"Item {hilight(item_name)} specifies a marketplace that does not exist."
+                        f"Item {hilight(item_name)} sets {', '.join(own)} but is searched in "
+                        f"marketplaces {', '.join(targets)}, which have their own locations. "
+                        f"Set marketplace = {targets[0]!r} (or another one) in the item, or "
+                        "move the location to the marketplace sections."
                     )
-
-            for marketplace_name, markerplace_config in config.get("marketplace", {}).items():
+            values = {x: y for x, y in item_config.items() if x != "marketplace"}
+            built: Dict[str, TItemConfig] = {}
+            for marketplace_name in targets:
                 market_class = supported_marketplaces[
-                    marketplace_type(marketplace_name, markerplace_config)
+                    marketplace_type(marketplace_name, markets[marketplace_name])
                 ]
-                if (
-                    "marketplace" not in item_config
-                    or item_config["marketplace"] == marketplace_name
-                ):
-                    # use the first available marketplace
-                    self.item[item_name] = market_class.get_item_config(
-                        name=item_name,
-                        marketplace=marketplace_name,
-                        **{x: y for x, y in item_config.items() if x != "marketplace"},
-                    )
-                    break
+                built[marketplace_name] = market_class.get_item_config(
+                    name=item_name, marketplace=marketplace_name, **copy.deepcopy(values)
+                )
+            if built:
+                self.item_targets[item_name] = built
+                self.item[item_name] = next(iter(built.values()))
 
     def validate_sections(
         self: "Config", config: Dict[str, Any], *, partial: bool = False
@@ -369,9 +374,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     f"enabled notification the user receives ({', '.join(received) or 'none'})."
                 )
 
+    def item_configs(self: "Config") -> List[TItemConfig]:
+        """Every item's config for every marketplace it is searched in."""
+        return [config for targets in self.item_targets.values() for config in targets.values()]
+
     def expand_regions(self: "Config") -> None:
         # if region is specified in other section, they must exist
-        for config in chain(self.marketplace.values(), self.item.values()):
+        for config in chain(self.marketplace.values(), self.item_configs()):
             if config.search_region is None:
                 continue
             config.city_name = []
@@ -405,14 +414,11 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         for marketplace_config in self.marketplace.values():
             if marketplace_config.enabled is False:
                 continue
-            for item_config in self.item.values():
-                if item_config.enabled is False:
+            for targets in self.item_targets.values():
+                item_config = targets.get(marketplace_config.name)
+                if item_config is None or item_config.enabled is False:
                     continue
-                if (
-                    item_config.marketplace is None
-                    or item_config.marketplace == marketplace_config.name
-                ):
-                    if not item_config.search_city and not marketplace_config.search_city:
-                        raise ValueError(
-                            f"No search_city or search_region is specified for {item_config.name} or market {marketplace_config.name}"
-                        )
+                if not item_config.search_city and not marketplace_config.search_city:
+                    raise ValueError(
+                        f"No search_city or search_region is specified for {item_config.name} or market {marketplace_config.name}"
+                    )

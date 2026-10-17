@@ -28,8 +28,9 @@ search_phrases = "bike"
 
 def test_effective_view_resolves_defaults() -> None:
     view = effective_view(Config.from_dicts(system_cfg(), parse(BASE)))
-    bike = view["item"]["bike"]
-    assert bike["marketplace"] == "facebook"
+    # what the item does in each marketplace it is searched in
+    assert list(view["item"]["bike"]) == ["facebook"]
+    bike = view["item"]["bike"]["facebook"]
     assert bike["search_city"] == ["houston"]
     assert set(bike["notify"]) == {"alice", "bob"}
     assert bike["ai"] == ["openai"]
@@ -46,7 +47,7 @@ def test_identical_configs_are_equivalent() -> None:
 def test_behavior_change_raises_with_path() -> None:
     after = parse(BASE)
     after["item"]["bike"]["notify"] = ["alice"]
-    with pytest.raises(NormalizeError, match=r"item\.bike\.notify"):
+    with pytest.raises(NormalizeError, match=r"item\.bike\.facebook\.notify"):
         check_equivalent(system_cfg(), parse(BASE), after)
 
 
@@ -64,7 +65,7 @@ def test_ai_prompt_price_difference_is_allowed_when_it_matches_search() -> None:
     after = parse(BASE)
     after["item"]["bike"]["max_price"] = "300"
     allowed = check_equivalent(system_cfg(), parse(BASE), after)
-    assert allowed == ["item.bike.ai_prompt:max_price"]
+    assert allowed == ["item.bike.facebook.ai_prompt:max_price"]
 
 
 def test_ai_prompt_price_difference_not_matching_search_raises() -> None:

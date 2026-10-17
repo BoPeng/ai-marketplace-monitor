@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from ..marketplaces.base import Fallback
 from .model import AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, LOCATION_KEYS, OPTION_FALLBACK
-from .pushdown import Notes, bound_marketplace
+from .pushdown import Notes, bound_marketplaces
 
 _ABSENT = object()
 
@@ -22,7 +22,11 @@ def _hoist(cfg: Dict[str, Any], notes: Notes) -> None:
     markets: Dict[str, Any] = cfg.get("marketplace", {})
     items: Dict[str, Any] = cfg.get("item", {})
     for market_name, market in markets.items():
-        group = [it for it in items.values() if bound_marketplace(it, markets) == market_name]
+        searching = [it for it in items.values() if market_name in bound_marketplaces(it, markets)]
+        # a value moved into the marketplace would also reach the other marketplaces' items
+        if any(len(bound_marketplaces(it, markets)) > 1 for it in searching):
+            continue
+        group = searching
         if len(group) < 2:
             continue
         keys = [
@@ -59,19 +63,6 @@ def _merge_notifications(cfg: Dict[str, Any], notes: Notes) -> None:
             if isinstance(user.get(key), list):
                 merged = (replace.get(n, n) for n in user[key])
                 user[key] = list(dict.fromkeys(merged))
-
-
-def _remove_default_marketplace_bindings(cfg: Dict[str, Any], notes: Notes) -> None:
-    markets: Dict[str, Any] = cfg.get("marketplace", {})
-    if not markets:
-        return
-    default_market = next(iter(markets))
-    for item_name, item in cfg.get("item", {}).items():
-        if item.get("marketplace") == default_market:
-            del item["marketplace"]
-            notes[(f"item.{item_name}", "marketplace")] = (
-                f"marketplace omitted: defaults to {default_market}"
-            )
 
 
 def _drop_explicit_defaults(cfg: Dict[str, Any], notes: Notes) -> None:
@@ -130,12 +121,13 @@ def _drop_implicit_all_lists(cfg: Dict[str, Any], notes: Notes) -> None:
             notes[(label, "ai")] = "ai omitted: defaults to all AI backends"
 
     for name, item in cfg.get("item", {}).items():
-        market = markets[bound_marketplace(item, markets)]
+        targets = [markets[m] for m in bound_marketplaces(item, markets)]
         label = f"item.{name}"
-        if item.get("notify") == _default_item_notify(market, users):
+        # only when the item would inherit the same in every marketplace it is searched in
+        if targets and all(item.get("notify") == _default_item_notify(m, users) for m in targets):
             del item["notify"]
             notes[(label, "notify")] = "notify omitted: inherits the same users"
-        if item.get("ai") == _default_item_ai(market, ais):
+        if targets and all(item.get("ai") == _default_item_ai(m, ais) for m in targets):
             del item["ai"]
             notes[(label, "ai")] = "ai omitted: inherits the same AI backends"
 
@@ -158,7 +150,6 @@ def compact(expanded: Dict[str, Any]) -> Tuple[Dict[str, Any], Notes]:
     notes: Notes = {}
     _hoist(cfg, notes)
     _merge_notifications(cfg, notes)
-    _remove_default_marketplace_bindings(cfg, notes)
     _drop_explicit_defaults(cfg, notes)
     _drop_implicit_all_lists(cfg, notes)
     return cfg, notes
