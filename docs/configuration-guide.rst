@@ -30,7 +30,19 @@ aimm searches Facebook Marketplace, which needs a Facebook account for aimm to l
      - the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC
      - ``[notification.telegram]``, Pushbullet, Pushover or ntfy, with their tokens in your configuration
 
-With UnitySVC, one API key (``UNITYSVC_API_KEY``) covers all three, and the keys of your own accounts (BYOK) stay in your UnitySVC account instead of aimm's configuration. Each service is set up on its own, so you can mix the options. Without UnitySVC, each service needs its own account, and every part of aimm works that way too. The sections below follow the same order: UnitySVC first, then your own keys through UnitySVC, then the options without UnitySVC. UnitySVC is run by the maintainer of aimm.
+With UnitySVC, one API key (``UNITYSVC_API_KEY``) covers all three, and the keys of your own accounts (BYOK) stay in your UnitySVC account instead of aimm's configuration. Each service is set up on its own, so you can mix the options. Without UnitySVC, each service needs its own account, and every part of aimm works that way too. The sections below follow the same order: UnitySVC first, then your own keys through UnitySVC, then the options without UnitySVC.
+
+Why UnitySVC
+============
+
+aimm has adopted `UnitySVC <https://unitysvc.com/>`_, a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (``UNITYSVC_API_KEY``). UnitySVC is run by the maintainer of aimm. We recommend it because:
+
+- **aimm no longer has to integrate every provider.** Instead of carrying the code, settings and dependencies of each AI provider and notification service, aimm talks to one gateway. New models and the 100+ notification services UnitySVC reaches become available to aimm without a new version of aimm.
+- **Deploying aimm is simpler.** A Docker or app-store installation needs a single secret to rate listings, email them with their photos and alert your phone.
+- **Your credentials stay in one place.** The keys of your own accounts, such as an OpenAI key, a Telegram bot token or an SMTP password, are saved once in your UnitySVC account instead of in aimm's configuration file or environment. They are not copied to every machine that runs aimm, and you can change or revoke one without touching aimm.
+- **You can keep the accounts you already have.** With your own keys (BYOK), UnitySVC forwards each request to your account, and that provider bills you as before. The email and notification services aimm uses by default are free, and UnitySVC's own AI is paid per use.
+
+aimm continues to support the services it already integrates without UnitySVC: OpenAI, Anthropic, Gemini, DeepSeek and a local Ollama for AI, any SMTP server for email, and Telegram, Pushbullet, Pushover and ntfy for notifications. New AI providers and notification channels are reached through UnitySVC instead of being added to aimm.
 
 Setting Up AI
 =============
