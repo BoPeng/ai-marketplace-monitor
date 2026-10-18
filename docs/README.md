@@ -401,7 +401,7 @@ A `[notification.NAME]` section is one phone or chat channel. It sends a short t
 | ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
 | `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
 | `unitysvc_service`  | Optional    | String   | The UnitySVC service that sends the message. The default, `notify`, sends it to your inbox on the UnitySVC website and to every destination set in your UnitySVC notification preferences. Use a service path such as `labs/msg-to-discord` to send to that one service only. |
-| `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
+| `message_format`    | Optional    | String   | `plain_text` (default) or `markdown`.                                                |
 
 ```toml
 [notification.unitysvc]
