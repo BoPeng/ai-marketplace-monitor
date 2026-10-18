@@ -265,6 +265,32 @@ To send to one specific UnitySVC service instead, set ``unitysvc_service`` to it
     unitysvc_service = 'labs/msg-to-discord'
     message_format = 'markdown'
 
+The channels aimm supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep ``notify``), or send to it directly with ``unitysvc_service``:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Instead of
+     - UnitySVC service
+     - Secrets to save in UnitySVC
+     - ``unitysvc_service``
+   * - Telegram
+     - ``labs/msg-to-telegram``
+     - ``TELEGRAM_BOT_TOKEN``, ``TELEGRAM_CHAT_ID``
+     - ``labs/msg-to-telegram``
+   * - ntfy
+     - ``labs/msg-to-ntfy``
+     - ``NTFY_TOPIC``, and ``_NTFY_BASE`` for your own ntfy server
+     - ``labs/msg-to-ntfy``
+   * - Pushover
+     - ``labs/msg-to-pushover``
+     - ``PUSHOVER_TOKEN``, ``PUSHOVER_USER_KEY``; then enroll in the service once
+     - ``e/<enrollment code>``
+   * - Pushbullet
+     - ``labs/msg-to-pushbullet``
+     - ``PUSHBULLET_ACCESSTOKEN``; then enroll in the service once
+     - ``e/<enrollment code>``
+
 To send each alert to several of your accounts at once, for example Discord, Telegram and SMS, set them all as destinations in your UnitySVC notification preferences, or create a UnitySVC **broadcast** with up to 10 targets. You can save the broadcast as your notification destination and keep the default ``notify`` service, or send to it directly:
 
 .. code-block:: toml

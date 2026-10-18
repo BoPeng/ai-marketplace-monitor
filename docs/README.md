@@ -400,6 +400,17 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 
 Without a destination of your own, `notify` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Keep `[notification.unitysvc]` as it is, and choose your own account as the notification destination in UnitySVC: for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
 
+The channels aimm supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep `notify`), or send to it directly with `unitysvc_service`:
+
+| Instead of | UnitySVC service | Secrets to save in UnitySVC | `unitysvc_service` |
+| --- | --- | --- | --- |
+| Telegram | `labs/msg-to-telegram` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `labs/msg-to-telegram` |
+| ntfy | `labs/msg-to-ntfy` | `NTFY_TOPIC`, and `_NTFY_BASE` for your own ntfy server | `labs/msg-to-ntfy` |
+| Pushover | `labs/msg-to-pushover` | `PUSHOVER_TOKEN`, `PUSHOVER_USER_KEY`; then enroll in the service once | `e/<enrollment code>` |
+| Pushbullet | `labs/msg-to-pushbullet` | `PUSHBULLET_ACCESSTOKEN`; then enroll in the service once | `e/<enrollment code>` |
+
+Their free channels deliver with your own account; a paid `gateway-plus` channel adds more destinations of the same service per enrollment.
+
 To send each alert to several of your accounts at once, for example Discord, Telegram and SMS, either set them all as destinations in your UnitySVC notification preferences, or create a UnitySVC **broadcast** (a name and up to 10 targets, such as these services or their enrollments) and use it: save it as your notification destination and keep `notify`, or send to it directly with `unitysvc_service = "b/<broadcast name>"`:
 
 ```toml
