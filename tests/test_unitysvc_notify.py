@@ -242,3 +242,10 @@ notify_with = "unitysvc"
     assert call["url"] == "https://api.svcpass.com/notify"
     assert call["headers"] == {"Authorization": f"Bearer {KEY}"}
     assert "Road bike" in call["json"]["body"]
+
+
+def test_html_is_not_a_message_format() -> None:
+    with pytest.raises(ValueError, match="message_format must be 'plain_text' or 'markdown'"):
+        UnitySVCNotificationConfig(
+            name="me", unitysvc_api_key="svcpass_test", message_format="html"
+        )

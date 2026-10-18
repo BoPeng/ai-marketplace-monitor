@@ -13,7 +13,7 @@ DEFAULT_UNITYSVC_BASE_URL = "https://api.svcpass.com"
 DEFAULT_UNITYSVC_SERVICE = "notify"
 # UnitySVC stores notification titles in a 255-character column
 MAX_TITLE_LENGTH = 255
-MESSAGE_FORMATS = {"plain_text": "text", "markdown": "markdown", "html": "html"}
+MESSAGE_FORMATS = {"plain_text": "text", "markdown": "markdown"}
 UNITYSVC_TOKEN_RE = re.compile(r"svcpass_[A-Za-z0-9_-]+")
 REDACTED = "<redacted>"
 
