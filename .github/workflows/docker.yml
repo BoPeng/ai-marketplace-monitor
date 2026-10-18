@@ -93,7 +93,9 @@ jobs:
           VERSION: ${{ inputs.latest }}
           DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
         run: |
-          images="ghcr.io/${{ github.repository_owner }}/ai-marketplace-monitor"
+          # image names are lowercase (metadata-action lowercases them for the build)
+          owner=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          images="ghcr.io/${owner}/ai-marketplace-monitor"
           if [ -n "$DOCKERHUB_USERNAME" ]; then
             images="$images docker.io/$DOCKERHUB_USERNAME/ai-marketplace-monitor"
           fi
