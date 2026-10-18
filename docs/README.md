@@ -409,7 +409,7 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 ```
 
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
-- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching AIMM's configuration. It delivers plain text only, so AIMM sends it plain text, and `markdown` takes effect only with a specific service.
+- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching AIMM's configuration.
 - Each message also carries the first listing's link (tapping the notification opens it) and the listings' photos (up to 10). Services that support them show them; others ignore them and deliver the text. See UnitySVC's [msg format](https://unitysvc.com/topics/msg-format).
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 
