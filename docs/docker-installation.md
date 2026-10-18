@@ -183,7 +183,7 @@ On first start, aimm creates `config.toml` in the mounted directory (`data/confi
 
 - logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`, and searches around Houston (`search_city`)
 - rates listings with UnitySVC AI (`[ai.unitysvc]`, model `balanced`, which also reads listing photos)
-- sends each match as an email with photos (`[email.unitysvc]`) to the address registered with UnitySVC, and as a short message (`[notification.unitysvc]`) to your UnitySVC inbox and the destination you saved in UnitySVC (Discord, Slack, SMS, phone push, ...)
+- sends each match as an email with photos (`[email.unitysvc]`) to the address registered with UnitySVC, and as a short message (`[notification.unitysvc]`) to your UnitySVC inbox and the destination you saved in UnitySVC (Discord, Slack, SMS, phone push, ...). Until you choose a destination of your own in UnitySVC, these short messages reach only your inbox on the UnitySVC website.
 - sends a daily digest by email at 08:00 (`digest_at` in `[email.unitysvc]`)
 - searches for an example item, `[item.example]`
 
