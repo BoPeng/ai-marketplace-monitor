@@ -415,8 +415,8 @@ class ToolExecutor:
             result["try_item"] = {
                 "items": tried,
                 "note": (
-                    "aimm can run the search of what was just saved once, now (OfferUp "
-                    "directly, Facebook in the monitor's browser while it runs), and list what "
+                    "aimm can run the search of what was just saved once, now (Facebook in the "
+                    "monitor's browser while it runs), and list what "
                     "it finds (search results only, no AI). Offer it with ask_user, in your own "
                     "words; call try_item only if the user agrees."
                 ),
@@ -491,11 +491,10 @@ class ToolExecutor:
                 "detail": p.detail,
                 # each marketplace type's search_city for the place
                 "facebook": p.code,
-                "offerup": f"{p.latitude:.4f},{p.longitude:.4f}",
             }
             for p in places
         ]
-        self.ws.found_city_codes |= {v for f in found for v in (f["facebook"], f["offerup"])}
+        self.ws.found_city_codes |= {f["facebook"] for f in found}
         return {
             "ok": True,
             "places": found,
@@ -505,11 +504,9 @@ class ToolExecutor:
                 "right; if several could be meant, offer them by `place` (e.g. Los Angeles, "
                 "California or Los Angeles in Mexico); if the user's place is not listed, call "
                 "find_city again with its state or country added. Then set search_city to the "
-                "value for the section's marketplace type: `facebook` for a Facebook section, "
-                "`offerup` for an OfferUp one (its coordinates; a ZIP code the user gave works "
-                "too); for an item searched in both, a table: "
-                '{ facebook = "<facebook>", offerup = "<offerup>" }. Set city_name to its '
-                "`place`. Places with the same `facebook` value are the same Marketplace location."
+                "value for the section's marketplace type: `facebook` for a Facebook section. "
+                "Set city_name to its `place`. Places with the same `facebook` value are the "
+                "same Marketplace location."
             ),
         }
 
@@ -722,19 +719,18 @@ class ToolExecutor:
             async def evaluate_listing(
                 listing: str, item: str = "", refresh: bool = False
             ) -> Dict[str, Any]:
-                """Rate one listing (Facebook or OfferUp) for one [item.*], as its search would.
+                """Rate one Facebook listing for one [item.*], as its search would.
 
                 One listing, one existing item: it does not search. aimm reads the listing and
                 its seller as a search would, says whether the search would exclude it before
                 the AI (keywords and other filters), and asks the item's AI to rate it. A
-                listing aimm read before is rated from its cache. Otherwise: an OfferUp listing
-                is read directly; a Facebook listing is opened in the monitor's browser, which
-                takes up to a minute or two and needs the monitor running on this computer,
+                listing aimm read before is rated from its cache. Otherwise the listing is
+                opened in the monitor's browser, which takes up to a minute or two and needs the monitor running on this computer,
                 logged in to Facebook (if not, it says so). Nothing is recorded and no one is
                 notified.
 
                 Args:
-                    listing: the listing's URL (Facebook Marketplace or OfferUp) or its id.
+                    listing: the listing's URL (Facebook Marketplace) or its id.
                     item: the item to rate it for, e.g. "gopro"; may be empty if there is only
                         one item.
                     refresh: true only when the user asks for a fresh look (e.g. the price
@@ -745,18 +741,16 @@ class ToolExecutor:
                 )
 
             async def check_seller(seller: str, refresh: bool = False) -> Dict[str, Any]:
-                """Is this seller legit? Their profile (Facebook or OfferUp) and warning signs.
+                """Is this seller legit? Their Facebook profile and warning signs.
 
                 Returns when they joined, their rating and number of ratings, listings sold
                 (and active, on Facebook), what buyers say, and warning signs. A profile read
-                in the last month comes from aimm's cache; otherwise an OfferUp profile is read
-                directly, and a Facebook profile is opened in the monitor's browser, which
-                needs the monitor running on this computer, as evaluate_listing does.
+                in the last month comes from aimm's cache; otherwise the profile is opened in
+                the monitor's browser, which needs the monitor running on this computer, as evaluate_listing does.
 
                 Args:
-                    seller: the seller's profile URL (Facebook /marketplace/profile/<id>,
-                        OfferUp offerup.com/p/<id>), their id, or the URL of one of their
-                        listings.
+                    seller: the seller's profile URL (Facebook /marketplace/profile/<id>), their
+                        id, or the URL of one of their listings.
                     refresh: true only when the user asks for a fresh look: open the profile
                         again.
                 """
@@ -797,8 +791,8 @@ class ToolExecutor:
                 radius and other options, up to 4 pages in all) in each marketplace it is
                 searched in, and applies the filters that work on search results (title,
                 location, price). It opens no listing page and asks no AI, so it is quick and
-                free; rate listings the user picks with evaluate_listing. OfferUp is searched
-                directly; Facebook needs the monitor running on this computer, logged in to
+                free; rate listings the user picks with evaluate_listing. Facebook needs the
+                monitor running on this computer, logged in to
                 Facebook (if not, it says so). Runs only what is saved: save the item first.
                 Nothing is recorded and no one is notified.
 

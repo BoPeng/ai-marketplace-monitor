@@ -2,7 +2,7 @@
 readme = "README.md"
 name = "ai-marketplace-monitor"
 version = "0.10.16"
-description = "An AI-based tool for monitoring Facebook Marketplace and OfferUp"
+description = "An AI-based tool for monitoring Facebook Marketplace"
 authors = [{ name = "Bo Peng", email = "ben.bob@gmail.com" }]
 requires-python = ">=3.10"
 keywords = ["ai-marketplace-monitor"]
@@ -86,6 +86,7 @@ docs = [
   "sphinx-copybutton>=0.5.2",
   "sphinxext-opengraph>=0.9.0",
   "linkify-it-py>=2.0.0",
+  "sphinxcontrib-mermaid>=1.0.0",
 ]
 
 [tool.coverage.paths]

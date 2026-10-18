@@ -1,6 +1,6 @@
 # AI Marketplace Monitor
 
-AI Marketplace Monitor (aimm) watches Facebook Marketplace and OfferUp for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.
+AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want, rates each new listing with AI, and notifies you of good deals by email, phone, Discord, Slack, Telegram and more.
 
 ## Getting started
 

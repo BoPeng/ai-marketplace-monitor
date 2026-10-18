@@ -49,8 +49,8 @@ Login and Authentication Issues
 If Facebook shows CAPTCHA after CAPTCHA and the login never finishes, turn on two-factor
 authentication for your Facebook account (in Facebook's Accounts Center, under Password and
 security). Facebook then asks you to confirm the login on your phone, with its app or a
-code, and users found that this ends the repeated CAPTCHAs. Once you are logged in, aimm
-saves the session (see below), so it does not need to log in again when it restarts. aimm
+code, and users found that this ends the repeated CAPTCHAs. Once you are logged in, AIMM
+saves the session (see below), so it does not need to log in again when it restarts. AIMM
 also suggests this in its log, and in the web UI's login banner, when a login takes long.
 
 **Two-factor authentication required**
@@ -58,11 +58,11 @@ also suggests this in its log, and in the web UI's login banner, when a login ta
 *Solution:*
 - Complete 2FA manually in the browser window
 - Consider using app passwords where supported
-- aimm saves the session after the login, so the next run does not log in again
+- AIMM saves the session after the login, so the next run does not log in again
 
 **The saved Facebook session**
 
-After each login, aimm saves the browser's Facebook session (its cookies) in
+After each login, AIMM saves the browser's Facebook session (its cookies) in
 ``facebook-session.json`` in its data folder (``~/.ai-marketplace-monitor``, or ``/data``
 in Docker), and the next run uses it instead of logging in again. Each new login can make
 Facebook ask for a CAPTCHA, a security code or your approval of the login, so a restart
@@ -70,10 +70,10 @@ no longer does.
 
 - The file gives access to your Facebook account, like your password. Only your user can
   read it; do not share it or copy it to another machine.
-- aimm checks that the session still works when it starts, and logs in again if Facebook
+- AIMM checks that the session still works when it starts, and logs in again if Facebook
   has ended it. A session saved for another username is not used.
-- To log in from scratch, for example if Facebook keeps showing the login page, stop aimm,
-  delete the file and start aimm again. In Docker, delete it while the container runs,
+- To log in from scratch, for example if Facebook keeps showing the login page, stop AIMM,
+  delete the file and start AIMM again. In Docker, delete it while the container runs,
   then restart the container::
 
       docker compose exec aimm rm /data/facebook-session.json
@@ -102,7 +102,7 @@ Browser and Playwright Issues
 *Solution:*
 - Restart the monitor
 - Check system resources (RAM, CPU)
-- On a machine without a screen, run aimm in Docker, which provides a virtual display
+- On a machine without a screen, run AIMM in Docker, which provides a virtual display
 
 Notification Problems
 --------------------

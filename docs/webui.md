@@ -9,15 +9,15 @@ AI Marketplace Monitor includes a built-in web interface for editing your config
 The web UI provides:
 
 - **TOML Config Editor** with syntax highlighting, powered by CodeMirror
-- **Assistant** chat that sets up and changes the configuration with the same AI-assisted tools as `aimm configure`, answers questions about the listings aimm found, and helps with problems
+- **Assistant** chat that sets up and changes the configuration with the same AI-assisted tools as `aimm configure`, answers questions about the listings AIMM found, and helps with problems
 - **Add / Edit / Delete** config sections (items, AI backends, users, marketplaces) through guided forms
 - **Live Log Streaming** with filtering by level (all, problems, or errors) and text search; click a line to see its details
-- **Listings** view of every listing aimm evaluated, with its AI rating and the decision: notified, rejected by AI, or excluded (see [Listings](#listings))
-- **Version** of the running aimm (`vX.Y.Z`) in the header, next to the app name; click it to open Settings, About
+- **Listings** view of every listing AIMM evaluated, with its AI rating and the decision: notified, rejected by AI, or excluded (see [Listings](#listings))
+- **Version** of the running AIMM (`vX.Y.Z`) in the header, next to the app name; click it to open Settings, About
 - **⏸ / ▶** button in the header: ⏸ stops the monitor after the current listing, for when you need its browser to yourself, and ▶ starts it again and searches all items right away. You don't need it to apply config changes (see [Getting Started](#getting-started)). ▶ refuses to start while the configuration is invalid. The browser, and so your Facebook login, is kept
-- **Login banner** while aimm waits for you to finish logging in to Facebook (a CAPTCHA or a security code). It says where to complete it; in Docker, its **Open browser** button (like **Browser** in the header) opens aimm's browser in a new tab
+- **Login banner** while AIMM waits for you to finish logging in to Facebook (a CAPTCHA or a security code). It says where to complete it; in Docker, its **Open browser** button (like **Browser** in the header) opens AIMM's browser in a new tab
 - **⚙ Settings** at the right end of the header (see below): the version and updates, test notifications, the cache, Export CSV and Logout
-- **⬆ aimm X available** in the header when a newer release is out; it opens Settings, About
+- **⬆ AIMM X available** in the header when a newer release is out; it opens Settings, About
 - **Auto-validation** of your config as you type
 
 ## Getting Started
@@ -48,7 +48,7 @@ On localhost, **no password is required**. Open the URL in your browser and star
 The **Assistant** pane runs the same AI-assisted chat as `aimm configure`. It can:
 
 - set up a search, notifications or an AI service, and change any setting;
-- answer questions about what aimm found, such as "what did you find this week?" or "why
+- answer questions about what AIMM found, such as "what did you find this week?" or "why
   was this listing skipped?" (see [Listings](#listings));
 - help with problems, such as Facebook asking for CAPTCHA after CAPTCHA.
 
@@ -65,10 +65,10 @@ right away.
 The **⚙** button at the right end of the header opens Settings:
 
 - **About**: the running version and whether a newer release is out. In Docker, an
-  **Update** button installs it in the container and restarts aimm; elsewhere, it shows the
+  **Update** button installs it in the container and restarts AIMM; elsewhere, it shows the
   upgrade command and a link to the changelog.
-- **Notifications**: one row per user with a **Send test** button. aimm sends a sample
-  listing titled "aimm test notification" through each of the user's channels, once, in
+- **Notifications**: one row per user with a **Send test** button. AIMM sends a sample
+  listing titled "AIMM test notification" through each of the user's channels, once, in
   the channel's real format (HTML email with a photo, text or Markdown for chat and phone),
   and
   shows ✓ or ✗ with the error for each channel. It is a real message (metered channels such
@@ -78,8 +78,8 @@ The **⚙** button at the right end of the header opens Settings:
   records, counters, update check, evaluation history), with a **Clear** button for each type and **Clear all**.
   Clearing notified records means listings you were already notified about can be sent
   again; clearing AI ratings means new AI calls. A cache that cannot be read can only be
-  cleared as a whole: aimm removes its files, then restarts in Docker (elsewhere, restart
-  aimm yourself).
+  cleared as a whole: AIMM removes its files, then restarts in Docker (elsewhere, restart
+  AIMM yourself).
 - **Account**: **Export CSV** downloads all found (notified) listings — link, price, rating,
   and details — as a CSV file; **Logout** signs out (only when a password is required).
 
@@ -96,7 +96,7 @@ details, such as the item, listing and AI score.
 
 ### Listings
 
-A table of every listing aimm evaluated in the last 30 days, newest first, with:
+A table of every listing AIMM evaluated in the last 30 days, newest first, with:
 
 - the time of the decision, the item, and the listing title (a link to the listing)
 - the price and the AI rating (1–5, or – if the AI did not rate it)
@@ -107,7 +107,7 @@ A table of every listing aimm evaluated in the last 30 days, newest first, with:
 
 Filter by item, decision, minimum rating and text, and click **Time** or **Rating** to sort. The
 table refreshes every 30 seconds. **⬇ CSV** downloads the listings that match the filters, in
-the same order. A listing that aimm evaluates again (for example, after you change the item)
+the same order. A listing that AIMM evaluates again (for example, after you change the item)
 shows its latest decision. To keep the history longer or shorter than 30 days, set
 `evaluation_history_days` in the `[monitor]` section (a shorter history also applies to
 listings already recorded):
@@ -124,7 +124,7 @@ the reason or the AI's comment, the listing's description and the seller's warni
 can then change the item ("never show this seller again").
 
 After you add or change an item, the chat can run its search once, in each marketplace the item
-is searched in (Facebook while the monitor runs; OfferUp at any time), and show what it finds: how many listings each search phrase found, which ones the item's filters
+is searched in (while the monitor runs), and show what it finds: how many listings each search phrase found, which ones the item's filters
 drop and why, and the rest, with links. Only the search results are read (no listing pages and
 no AI), so it is quick and shows whether the search phrases, location, radius and price find
 the right things. You can then have the chat rate the listings you pick.
@@ -132,16 +132,16 @@ the right things. You can then have the chat rate the listings you pick.
 The chat can also rate one listing for one of your items, the way that item's search would
 ("would you buy https://www.facebook.com/marketplace/item/… for my GoPro?"), and check a seller
 ("is this seller trustworthy?"). It does not search: to look for something new, add an item
-first. Both take Facebook and OfferUp links. A listing or seller aimm has read before is
-answered from aimm's cache; otherwise, and when you ask for a fresh look, the chat reads an
-OfferUp listing or seller directly, and opens a Facebook one in the monitor's browser, with
-your login, while the monitor runs. For this, aimm launches Chromium with a DevTools port on `127.0.0.1` that the
+first. Both take Facebook links. A listing or seller AIMM has read before is
+answered from AIMM's cache; otherwise, and when you ask for a fresh look, the chat opens the
+listing or seller in the monitor's browser, with
+your login, while the monitor runs. For this, AIMM launches Chromium with a DevTools port on `127.0.0.1` that the
 chat (in the web UI, or `aimm configure` on the same computer) connects to. The port has no
 password: other users of the same computer could connect to it and use the browser, logged in
 to your Facebook account. In Docker, `127.0.0.1` is the container's own, so only the web UI's
-chat can use it. When Chromium cannot be launched, aimm uses Firefox or WebKit, which cannot be
+chat can use it. When Chromium cannot be launched, AIMM uses Firefox or WebKit, which cannot be
 shared; the log warns about it, and the chat says it cannot open Facebook pages and answers
-from aimm's records instead.
+from AIMM's records instead.
 
 ## Disabling the Web UI
 

@@ -223,7 +223,7 @@ def test_local_mode_starts_without_marketplace_credentials(
 # ----------------------------------------------------------------------
 
 FACEBOOK = '[marketplace.facebook]\nusername = "fb@example.com"\npassword = "fb-pw"\n'
-NO_CREDENTIALS = '[marketplace.offerup]\nsearch_city = "77002"\n'
+NO_CREDENTIALS = '[marketplace.facebook]\nsearch_city = "houston"\n'
 
 
 def _start(

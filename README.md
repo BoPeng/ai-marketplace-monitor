@@ -15,19 +15,19 @@
 
 </div>
 
-An intelligent tool that monitors **Facebook Marketplace** and **OfferUp** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
+An intelligent tool that monitors **Facebook Marketplace** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
 
 **📚 [Read the Full Documentation](https://ai-marketplace-monitor.readthedocs.io/)**
 
-aimm runs in a terminal or in its web UI, which starts with it:
+AIMM runs in a terminal or in its web UI, which starts with it:
 
 **Command line**: each search, the listings it skips or excludes, and the AI's verdict on each new listing
 
-![aimm searching in a terminal](docs/search_in_action.png)
+![AIMM searching in a terminal](docs/search_in_action.png)
 
-**Web UI**: the config editor, the Assistant chat that sets aimm up for you and answers questions about what it found, and the listings aimm evaluated with their AI ratings; it also shows the live log and aimm's browser when Facebook asks for a check (see [Web UI](docs/webui.md))
+**Web UI**: the config editor, the Assistant chat that sets AIMM up for you and answers questions about what it found, and the listings AIMM evaluated with their AI ratings; it also shows the live log and AIMM's browser when Facebook asks for a check (see [Web UI](docs/webui.md))
 
-![The aimm web UI](docs/webui_screenshot.png)
+![The AIMM web UI](docs/webui_screenshot.png)
 
 Example notification from PushBullet:
 
@@ -41,10 +41,9 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
-- **Two marketplaces**: aimm searches [OfferUp](docs/README.md#offerup) (US) as well as Facebook Marketplace. OfferUp needs no account and no browser, and an item can be searched in both; `aimm configure` sets either up.
-- **Email in its own sections**: `[email.*]` sections send aimm's full email (`[email.unitysvc]` and `[email.gmail]` are preset), `[notification.*]` sections the phone and chat alerts, and each section can send the daily digest. Older configuration files are updated automatically. See [Email and notifications](docs/README.md#email-and-notifications).
-- **Seller reputation**: aimm evaluates each seller, from how long they have been on Facebook, their listings and sales, their rating and what buyers say in reviews, and the AI identifies unreliable and malicious sellers automatically: new accounts, dealers posing as private sellers, bait listings, no-shows. Its rating and notifications tell you why. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information).
-- **Guided Facebook login**: aimm types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
+- **Runs on your NAS or home server**: install AIMM on Unraid, TrueNAS SCALE, CasaOS, ZimaOS, Cosmos or Portainer from its template, or on a Synology or QNAP NAS with Docker, so it searches around the clock. See [Run with Docker](#run-with-docker).
+- **Seller reputation**: AIMM evaluates each seller, from how long they have been on Facebook, their listings and sales, their rating and what buyers say in reviews, and the AI identifies unreliable and malicious sellers automatically: new accounts, dealers posing as private sellers, bait listings, no-shows. Its rating and notifications tell you why. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information).
+- **Guided Facebook login**: AIMM types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
 - **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
 - **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models, email and 100+ notification channels. See [What you need](#what-you-need).
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
@@ -68,8 +67,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - Search multiple products using keywords
 - Filter by price and location
 - Exclude irrelevant results and spammers
-- Searches **Facebook Marketplace** and **[OfferUp](docs/README.md#offerup)** (US); OfferUp needs no account and no browser
-- An item can be searched in both marketplaces at once
 - Support for different Facebook Marketplace layouts
 
 🤖 **AI-Powered**
@@ -94,7 +91,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 - Built-in config editor with TOML syntax highlighting
 - Live log streaming and filtering
-- A **Listings** table of every listing aimm evaluated, with its AI rating and why it was notified, rejected, or excluded
+- A **Listings** table of every listing AIMM evaluated, with its AI rating and why it was notified, rejected, or excluded
 - Add, edit, and delete config sections from your browser
 - No password required on localhost
 
@@ -107,11 +104,11 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## 🚀 Quick Start
 
-> **⚠️ Legal Notice**: Facebook's and OfferUp's terms prohibit automated data collection without authorization. This tool was developed for personal, hobbyist use only. You are solely responsible for ensuring compliance with platform terms and applicable laws.
+> **⚠️ Legal Notice**: Facebook's terms prohibit automated data collection without authorization. This tool was developed for personal, hobbyist use only. You are solely responsible for ensuring compliance with platform terms and applicable laws.
 
 ### What you need
 
-aimm searches **Facebook Marketplace**, which needs a Facebook account for aimm to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that aimm controls (installed with `playwright install`), and **OfferUp** (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
+AIMM searches **Facebook Marketplace**, which needs a Facebook account for AIMM to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that AIMM controls (installed with `playwright install`). To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
 
 | Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
 | --- | --- | --- | --- |
@@ -119,12 +116,32 @@ aimm searches **Facebook Marketplace**, which needs a Facebook account for aimm 
 | **Email** with listing photos and the daily digest ([`[email.*]`](docs/README.md#email)) | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-relay`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
 | **Phone and chat alerts** ([`[notification.*]`](docs/README.md#phone-and-chat-notifications)) | `[notification.unitysvc]`: free, but only to your inbox on the UnitySVC website, which is of little use on its own | the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
 
-- **One key for everything.** With UnitySVC, one API key (`UNITYSVC_API_KEY`) covers all three services. The keys of your own accounts (BYOK) are saved once in your UnitySVC account and never appear in aimm's configuration. The default configuration uses UnitySVC for AI, email and phone alerts. Its phone alerts reach only your inbox on the UnitySVC website until you choose a destination of your own in UnitySVC, such as your Discord, Slack, Telegram or Pushover.
-- **Mix and match.** Each service is set up on its own, so you can, for example, use UnitySVC email with your own OpenAI key.
-- **Without UnitySVC**, each service needs its own account, and its key or password goes in your configuration or environment. Every part of aimm works this way too.
-- `aimm configure` sets up any of these for you.
+With UnitySVC, AIMM reaches all three services with a single API key (`UNITYSVC_API_KEY`), and the keys of your own accounts stay in UnitySVC instead of AIMM's configuration. UnitySVC is run by the maintainer of AIMM; [Why UnitySVC](docs/README.md#why-unitysvc) explains how it works and why AIMM recommends it.
 
-UnitySVC is run by the maintainer of aimm.
+```mermaid
+flowchart LR
+    aimm["AIMM<br/>one key: UNITYSVC_API_KEY"]
+
+    subgraph unitysvc["UnitySVC"]
+        smtp["SMTP gateway"]
+        api["API gateway"]
+    end
+
+    aimm -- "email" --> smtp
+    aimm -- "notification (msg)" --> api
+    aimm -- "AI request" --> api
+
+    smtp -- "smtp-to-mailbox" --> mailbox["Your UnitySVC<br/>email address"]
+    smtp -- "smtp-relay (BYOK)" --> ownsmtp["Your SMTP server<br/>Gmail, Outlook, ..."]
+    api -- "msg-to-discord, ... (BYOK)" --> chat["Your Discord, Slack,<br/>Telegram, Pushover, ..."]
+    api -- "llm pool" --> llm["Vision models, chosen<br/>by tier: fast, balanced, ..."]
+    api -- "AI (BYOK)" --> aiown["Your OpenAI, Anthropic,<br/>Gemini, ... account"]
+```
+
+- **Default configuration.** It uses UnitySVC for AI, email and phone alerts. Its phone alerts reach only your inbox on the UnitySVC website until you choose a destination of your own in UnitySVC, such as your Discord, Slack, Telegram or Pushover.
+- **Mix and match.** Each service is set up on its own, so you can, for example, use UnitySVC email with your own OpenAI key.
+- **Without UnitySVC**, each service needs its own account, and its key or password goes in your configuration or environment. Every part of AIMM works this way too.
+- `aimm configure` sets up any of these for you.
 
 ### Installation
 
@@ -153,9 +170,9 @@ export FACEBOOK_PASSWORD='your_facebook_password'
 aimm configure
 ```
 
-aimm reads your Facebook username and password from `FACEBOOK_USERNAME` and
+AIMM reads your Facebook username and password from `FACEBOOK_USERNAME` and
 `FACEBOOK_PASSWORD` (or from `username` and `password` in
-`[marketplace.facebook]`). They are required: aimm does not search without
+`[marketplace.facebook]`). They are required: AIMM does not search without
 logging in.
 
 `aimm configure` checks or creates the AI setup first, then asks what you want to
@@ -235,29 +252,29 @@ aimm
 
 What happens next:
 
-1. aimm opens a browser window, goes to Facebook, and types your username and
+1. AIMM opens a browser window, goes to Facebook, and types your username and
    password.
 2. If Facebook asks for a CAPTCHA or a security code, complete it in that
-   window. aimm waits as long as it takes (the web UI shows a "waiting for
+   window. AIMM waits as long as it takes (the web UI shows a "waiting for
    Facebook login" banner) and reminds you in the log every few minutes.
    If Facebook keeps asking for CAPTCHAs, turn on two-factor authentication
    for your Facebook account, so that you confirm the login on your phone
    instead (see [Troubleshooting](docs/troubleshooting.rst)).
-3. Once you are logged in, aimm searches Facebook Marketplace and notifies you
+3. Once you are logged in, AIMM searches Facebook Marketplace and notifies you
    of matching items. If Facebook logs it out later, it waits for you the same
    way.
-4. aimm saves the Facebook session, so the next time it starts it is still
+4. AIMM saves the Facebook session, so the next time it starts it is still
    logged in, without a new login, CAPTCHA or security code.
 
 A web UI also starts automatically at [http://127.0.0.1:8467](http://127.0.0.1:8467) for editing config and monitoring logs — see [Web UI Guide](docs/webui.md). `aimm` is the same as `aimm run`; `ai-marketplace-monitor` provides the same interface.
 
-**You never need to restart aimm to change your configuration.** Save the config file, in the web UI, with `aimm configure` or in any editor, and the running monitor picks up the change on its own: after the current search it reloads the configuration and searches all items with it. The **⏸** button in the web UI stops the monitor only when you need its browser to yourself, and **▶** starts it again.
+**You never need to restart AIMM to change your configuration.** Save the config file, in the web UI, with `aimm configure` or in any editor, and the running monitor picks up the change on its own: after the current search it reloads the configuration and searches all items with it. The **⏸** button in the web UI stops the monitor only when you need its browser to yourself, and **▶** starts it again.
 
-aimm always shows its browser, because Facebook may ask you to complete a CAPTCHA or a security code. To run aimm on a server, a NAS or another machine without a screen, use the [Docker image](#run-with-docker): it has a virtual display, and the web UI shows you its browser when you need it.
+AIMM always shows its browser, because Facebook may ask you to complete a CAPTCHA or a security code. To run AIMM on a server, a NAS or another machine without a screen, use the [Docker image](#run-with-docker): it has a virtual display, and the web UI shows you its browser when you need it.
 
 ### Run with Docker
 
-A prebuilt image on GitHub Container Registry runs aimm on a server, a NAS or macOS. It has a virtual display, and the web UI shows you its browser when Facebook asks for a CAPTCHA or a security code.
+A prebuilt image on GitHub Container Registry runs AIMM on a server, a NAS or macOS. It has a virtual display, and the web UI shows you its browser when Facebook asks for a CAPTCHA or a security code.
 
 ```bash
 docker run -d --name aimm \
@@ -269,7 +286,7 @@ docker run -d --name aimm \
   ghcr.io/bopeng/ai-marketplace-monitor:latest
 ```
 
-`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there. In the default configuration, that one key covers any AI engine (OpenAI, Anthropic and more, as UnitySVC platform services or with your own provider keys saved in UnitySVC) and email and phone notifications; see [AI Services](docs/README.md#ai-services) and [What you need](#what-you-need).
+`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there; see [What you need](#what-you-need).
 
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
@@ -277,14 +294,14 @@ The [Docker installation guide](https://ai-marketplace-monitor.readthedocs.io/en
 
 - [Docker](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#quick-start-with-docker-run), the container engine: `docker run`, as above, starts the container from the command line.
 - [Docker Compose](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#set-up-with-docker-compose), Docker's tool for declarative configuration: the container is described in `docker-compose.yml`, with its settings in a `.env` file (both in [`docker-compose/`](docker-compose/)), and `docker compose up -d` creates it the same way every time.
-- [Portainer](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#portainer), a web interface for managing Docker containers and Compose stacks: point its **App Templates** at a community template list that includes aimm, and deploy aimm from there.
-- [Synology](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#synology-container-manager-dsm-7-2-or-later) and [QNAP](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#qnap-container-station-3) NAS run containers in their own apps, Container Manager and Container Station, so aimm runs on your NAS around the clock with the same Compose file.
-- [Unraid](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#unraid): add aimm's template, then create the container from it under **Docker › Add Container**.
-- [TrueNAS SCALE](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#truenas-scale-community-edition-24-10-or-later): add aimm as a custom app with **Install via YAML** and our configuration file, [`deploy/truenas/install-via-yaml.yaml`](deploy/truenas/install-via-yaml.yaml).
-- [CasaOS and ZimaOS](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#casaos-and-zimaos): import aimm's template with **Custom Install**.
-- [Cosmos](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#cosmos): import aimm's template under **ServApps**.
+- [Portainer](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#portainer), a web interface for managing Docker containers and Compose stacks: point its **App Templates** at a community template list that includes AIMM, and deploy AIMM from there.
+- [Synology](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#synology-container-manager-dsm-7-2-or-later) and [QNAP](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#qnap-container-station-3) NAS run containers in their own apps, Container Manager and Container Station, so AIMM runs on your NAS around the clock with the same Compose file.
+- [Unraid](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#unraid): add AIMM's template, then create the container from it under **Docker › Add Container**.
+- [TrueNAS SCALE](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#truenas-scale-community-edition-24-10-or-later): add AIMM as a custom app with **Install via YAML** and our configuration file, [`deploy/truenas/install-via-yaml.yaml`](deploy/truenas/install-via-yaml.yaml).
+- [CasaOS and ZimaOS](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#casaos-and-zimaos): import AIMM's template with **Custom Install**.
+- [Cosmos](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#cosmos): import AIMM's template under **ServApps**.
 
-The guide also covers running behind a [reverse proxy](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#behind-a-reverse-proxy), [updates](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#update), and running aimm commands in the container.
+The guide also covers running behind a [reverse proxy](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#behind-a-reverse-proxy), [updates](https://ai-marketplace-monitor.readthedocs.io/en/latest/installation.html#update), and running AIMM commands in the container.
 
 ## 💡 Example Usage
 

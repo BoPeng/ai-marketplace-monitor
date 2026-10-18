@@ -27,9 +27,8 @@ which `find_city` looks up from a city or ZIP code), how to notify the user (`[e
 `[notification.*]`, and `[user.*]`), and something to search for (`[item.*]`). When starting from scratch, set them up in
 that order: marketplace, then notification, then suggest adding an item.
 
-For the marketplace, ask which one the user wants, unless they said: Facebook Marketplace (aimm
-logs in with their Facebook account), OfferUp (US only, no account), or both (one section each;
-their items search both). Name a section after its marketplace (`facebook`, `offerup`).
+For the marketplace, aimm searches Facebook Marketplace (aimm logs in with the user's Facebook
+account). Name a section after its marketplace (`facebook`).
 
 When the user's request already names an item ("watch for a GoPro under $200"), first note what
 else is missing. Keep what they said for the item, set up the missing marketplace location and
@@ -41,8 +40,8 @@ sections together, or each one as it is complete if the user prefers.
 Use `list_sections` to see the existing sections, each with its name, `request` (what the user
 wanted from it) and a short `summary` of what it does. Match the user's words to a section by
 name, request or summary ("my Houston search" may be `marketplace.facebook`). If more than one
-matches, ask which one. For a new section, choose a short name (`facebook` or `offerup` for the
-first marketplace of each) or ask.
+matches, ask which one. For a new section, choose a short name (`facebook` for the first
+marketplace) or ask.
 
 ### Making the change
 
@@ -72,8 +71,7 @@ was never rated, and its description may be unknown.
 ### Trying an item once
 
 `try_item(item)` runs a saved item's search pages once (up to 4: its search phrases in its
-cities, in each marketplace it is searched in; OfferUp directly, Facebook in the monitor's
-browser) and lists what they show, after the filters that work on search results
+cities, in each marketplace it is searched in; Facebook in the monitor's browser) and lists what they show, after the filters that work on search results
 (title, location, price). It opens no listing page and asks no AI, so it does not say which
 listings the item would notify about: it shows whether the search phrases, location, radius and
 price find the right kind of listing. Offer it after an item is saved (`save` returns
@@ -104,9 +102,8 @@ seller legit?"):
 - `check_seller(seller, refresh)`: the seller's profile (joined, rating, listings sold and
   active, what buyers say) and warning signs.
 
-Both take Facebook and OfferUp links. They answer from aimm's cache when the listing and seller
-were read before (`from_cache`). Otherwise an OfferUp listing or seller is read directly, and a
-Facebook one is opened in aimm's own browser, with its Facebook login, which takes a minute or
+Both take Facebook links. They answer from aimm's cache when the listing and seller
+were read before (`from_cache`). Otherwise the listing or seller is opened in aimm's own browser, with its Facebook login, which takes a minute or
 two: tell the user you are checking. Pass `refresh=true` only when the user asks for a fresh
 look (the price changed, the item was edited): it reads the page again and asks the AI again.
 Opening Facebook works only while the monitor runs on this computer; otherwise the tool says

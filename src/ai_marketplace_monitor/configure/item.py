@@ -198,7 +198,7 @@ class ItemToolkit(Toolkit):
             "marketplace": name,
             "marketplace_exists": market is not None,
             "inherited_from_marketplace": inherited,
-            # every marketplace it is searched in, by type (facebook, offerup)
+            # every marketplace it is searched in, by type (facebook, ...)
             "searched_in": self.targets(ws, draft.values),
         }
 

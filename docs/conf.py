@@ -43,6 +43,7 @@ extensions = [
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
     "myst_parser",
+    "sphinxcontrib.mermaid",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -78,6 +79,12 @@ intersphinx_mapping = {
 }
 
 # MyST parser configuration
+# ```mermaid fences render as diagrams, as on GitHub.
+myst_fence_as_directive = ["mermaid"]
+# SVG text labels are measured with the font that draws them; HTML labels can
+# be clipped when the page font loads after the diagram is laid out.
+mermaid_init_config = {"startOnLoad": False, "flowchart": {"htmlLabels": False}}
+
 myst_enable_extensions = [
     "colon_fence",
     "deflist",

@@ -302,7 +302,7 @@ class MarketItemCommonConfig(BaseConfig):
     def handle_search_city(self: "MarketItemCommonConfig") -> None:
         """A place, or a list of them; a place is a value or a table of values by type.
 
-        A table (``{ facebook = "houston", offerup = "77096" }``) gives each marketplace type
+        A table (``{ facebook = "houston" }``) gives each marketplace type
         its own value; a section takes the one of its type (``location_type``).
         """
         if self.search_city is None:
@@ -314,7 +314,7 @@ class MarketItemCommonConfig(BaseConfig):
         if not all(is_location(x) for x in entries):
             raise ValueError(
                 f"Item {hilight(self.name)} search_city must be a string, a table of strings "
-                '(e.g. { facebook = "houston", offerup = "77096" }), or a list of them.'
+                '(e.g. { facebook = "houston" }), or a list of them.'
             )
         cities = []
         for entry in entries:
