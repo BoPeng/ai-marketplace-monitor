@@ -19,6 +19,7 @@ from .ai import (
     GeminiBackend,
     OllamaBackend,
     OpenAIBackend,
+    SubscriptionBackend,
     TAIConfig,
     UnitySVCBackend,
 )
@@ -53,6 +54,7 @@ supported_ai_backends = {
     "anthropic": AnthropicBackend,
     "ollama": OllamaBackend,
     "unitysvc": UnitySVCBackend,
+    "subscription": SubscriptionBackend,
 }
 
 SYSTEM_CONFIG = Path(__file__).parent / "config.toml"

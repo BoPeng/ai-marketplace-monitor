@@ -17,6 +17,7 @@ from ..ai import (
     AIBackend,
     AIConfig,
     AnthropicBackend,
+    SubscriptionBackend,
     UnitySVCBackend,
 )
 from ..config import supported_ai_backends
@@ -257,6 +258,8 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
         )
 
     backend = backend_class(config=section.config)
+    if isinstance(backend, SubscriptionBackend):
+        return _probe_subscription(section, backend, timeout)
     # only a key the user configured is a secret; Ollama's placeholder default ("ollama")
     # would otherwise be scrubbed out of every error message that mentions Ollama
     secret = section.config.api_key if section.raw.get("api_key") else None
@@ -299,6 +302,22 @@ def probe_ai_section(section: AISection, timeout: float = 15.0) -> ProbeResult:
             )
         return ProbeResult(False, "request", model, message, available, alternative)
     return ProbeResult(True, "request", model, f"{section.name} - {model}", available)
+
+
+def _probe_subscription(
+    section: AISection, backend: SubscriptionBackend, timeout: float
+) -> ProbeResult:
+    """Check a subscription section with a one-word request through its command."""
+    try:
+        backend.connect()
+        # a CLI takes a few seconds to start, more than an API's one-token request
+        backend.ask("Reply with OK.", "Reply with OK.", timeout=max(timeout, 60))
+    except Exception as e:
+        # the CLI's output may quote a token
+        return ProbeResult(
+            False, "request", backend.label, f"{section.name}: {scrub(str(e), None)[:200]}"
+        )
+    return ProbeResult(True, "request", backend.label, f"{section.name} - {backend.label}")
 
 
 def _v1_alternative(

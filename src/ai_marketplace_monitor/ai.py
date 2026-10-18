@@ -1,13 +1,21 @@
 import base64
+import contextlib
 import io
+import json
+import os
 import re
+import shlex
+import shutil
+import signal
+import subprocess
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from enum import Enum
 from logging import Logger
-from typing import Any, Callable, ClassVar, Generic, Optional, Tuple, Type, TypeVar
+from typing import Any, Callable, ClassVar, Dict, Generic, List, Optional, Tuple, Type, TypeVar
 
 import requests  # type: ignore
 from diskcache import Cache  # type: ignore
@@ -25,6 +33,7 @@ class AIServiceProvider(Enum):
     ANTHROPIC = "Anthropic"
     OLLAMA = "Ollama"
     UNITYSVC = "UnitySVC"
+    SUBSCRIPTION = "subscription"
 
 
 def _answer_key(listing: Listing, item_config: Any, marketplace_config: Any) -> Tuple[Any, ...]:
@@ -278,6 +287,123 @@ class AnthropicConfig(AIConfig):
             raise ValueError("Anthropic requires a string api_key.")
 
 
+# credentials and providers that would bill an API account instead of the subscription
+BILLING_ENV = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "CODEX_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+)
+# options of agent CLIs that let the model act without asking (run commands, edit files)
+UNSAFE_OPTIONS = (
+    "--dangerously-skip-permissions",  # claude
+    "--allow-dangerously-skip-permissions",
+    "--dangerously-bypass-approvals-and-sandbox",  # codex
+    "--full-auto",
+    "--yolo",  # gemini
+    "-y",
+)
+# options of claude that aimm sets itself, or that give it tools, servers, settings or files
+CLAUDE_RESERVED = (
+    "--tools",
+    "--allowedTools",
+    "--allowed-tools",
+    "--disallowedTools",
+    "--disallowed-tools",
+    "--permission-mode",
+    "--mcp-config",
+    "--strict-mcp-config",
+    "--settings",
+    "--setting-sources",
+    "--add-dir",
+    "--plugin-dir",
+    "--agents",
+    "--input-format",
+    "--output-format",
+    "--system-prompt",
+    "--append-system-prompt",
+    "--resume",
+    "--continue",
+    "-c",
+    "-r",
+)
+
+
+@dataclass
+class SubscriptionConfig(AIConfig):
+    # the command of a CLI signed in with a subscription, e.g. "claude -p --model sonnet"
+    command: str | List[str] | None = None
+    # run a command aimm has no safety profile for (anything but claude)
+    allow_any_command: bool = False
+    # variables of BILLING_ENV to pass to the command anyway
+    keep_env: List[str] = field(default_factory=list)
+
+    def handle_api_key(self: "SubscriptionConfig") -> None:
+        if self.api_key is not None:
+            raise ValueError(
+                "A subscription section uses the login of its command, not an api_key; "
+                "remove api_key from the section."
+            )
+
+    def handle_command(self: "SubscriptionConfig") -> None:
+        if self.enabled is False and self.command is None:
+            return
+        argv = command_argv(self.command)
+        if not argv:
+            raise ValueError(
+                'A subscription section needs a command, e.g. command = "claude -p --model sonnet".'
+            )
+        unsafe = [arg for arg in argv if arg.split("=", 1)[0] in UNSAFE_OPTIONS]
+        unsafe += [a for a in argv if a.startswith("--approval-mode") and "default" not in a]
+        if unsafe:
+            raise ValueError(
+                f"The command of [ai.{self.name}] has {', '.join(unsafe)}, which lets the AI act "
+                "without asking. Listings are written by strangers: remove it."
+            )
+        if is_claude(argv):
+            reserved = [a for a in argv[1:] if a.split("=", 1)[0] in CLAUDE_RESERVED]
+            if reserved:
+                raise ValueError(
+                    f"The command of [ai.{self.name}] sets {', '.join(reserved)}; aimm runs claude "
+                    "without tools, servers or settings and chooses these options itself. "
+                    "Remove them."
+                )
+        elif not self.allow_any_command:
+            raise ValueError(
+                f"aimm knows how to run claude safely, but not {argv[0]}. Listings are written by "
+                "strangers, and an AI that can use tools could be told to by one. If "
+                f"{argv[0]} cannot run commands or change files in this mode, set "
+                "allow_any_command = true."
+            )
+
+    def handle_keep_env(self: "SubscriptionConfig") -> None:
+        if not isinstance(self.keep_env, list) or not all(
+            isinstance(v, str) for v in self.keep_env
+        ):
+            raise ValueError("keep_env must be a list of environment variable names.")
+
+
+def command_argv(command: Any) -> List[str]:
+    """The arguments of a command given as a string (split like a shell) or a list."""
+    if isinstance(command, str):
+        return shlex.split(command)
+    if isinstance(command, list) and all(isinstance(a, str) for a in command):
+        return list(command)
+    return []
+
+
+def is_claude(argv: List[str]) -> bool:
+    return bool(argv) and os.path.basename(argv[0]) == "claude"
+
+
 TAIConfig = TypeVar("TAIConfig", bound=AIConfig)
 
 # told to the AI along with the photo, so it checks what is actually for sale
@@ -345,6 +471,31 @@ def token_usage(response: Any) -> str:
     if not isinstance(sent, int) or not isinstance(received, int):
         return ""
     return f" ({sent} input / {received} output tokens)"
+
+
+def rating_and_comment(answer: str) -> Tuple[int, str]:
+    """The rating and the summary from an AI answer that contains "Rating <1-5>: <summary>"."""
+    lines = answer.split("\n")
+    # if any of the lines contains "Rating: ", extract the rating from it.
+    score: int = 1
+    comment = ""
+    rating_line = None
+    for idx, line in enumerate(lines):
+        matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
+        if matched:
+            score = int(matched.group(1))
+            comment = matched.group(2).strip()
+            rating_line = idx
+            continue
+        if rating_line is not None:
+            # if the AI puts comment after Rating, we need to include them
+            comment += " " + line
+    # if the AI puts the rating at the end, let us try to use the line before the Rating line
+    if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
+        comment = lines[rating_line - 1]
+
+    # remove multiple spaces
+    return score, " ".join([x for x in comment.split() if x.strip()]).strip()
 
 
 class AIBackend(Generic[TAIConfig]):
@@ -688,27 +839,7 @@ class OpenAIBackend(AIBackend):
             counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        lines = answer.split("\n")
-        # if any of the lines contains "Rating: ", extract the rating from it.
-        score: int = 1
-        comment = ""
-        rating_line = None
-        for idx, line in enumerate(lines):
-            matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
-            if matched:
-                score = int(matched.group(1))
-                comment = matched.group(2).strip()
-                rating_line = idx
-                continue
-            if rating_line is not None:
-                # if the AI puts comment after Rating, we need to include them
-                comment += " " + line
-        # if the AI puts the rating at the end, let us try to use the line before the Rating line
-        if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
-            comment = lines[rating_line - 1]
-
-        # remove multiple spaces, take first 30 words
-        comment = " ".join([x for x in comment.split() if x.strip()]).strip()
+        score, comment = rating_and_comment(answer)
         res = AIResponse(name=self.config.name, score=score, comment=comment)
         res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
@@ -884,23 +1015,7 @@ class AnthropicBackend(AIBackend):
             counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        lines = answer.split("\n")
-        score: int = 1
-        comment = ""
-        rating_line = None
-        for idx, line in enumerate(lines):
-            matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
-            if matched:
-                score = int(matched.group(1))
-                comment = matched.group(2).strip()
-                rating_line = idx
-                continue
-            if rating_line is not None:
-                comment += " " + line
-        if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
-            comment = lines[rating_line - 1]
-
-        comment = " ".join([x for x in comment.split() if x.strip()]).strip()
+        score, comment = rating_and_comment(answer)
         res = AIResponse(name=self.config.name, score=score, comment=comment)
         res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
@@ -925,3 +1040,266 @@ class AnthropicBackend(AIBackend):
                 {"type": "text", "text": f"{prompt}\n{IMAGE_NOTE}"},
             ],
         }
+
+
+class SubscriptionError(RuntimeError):
+    """A failed request to a subscription CLI; ``status_code`` is the API's HTTP status, if any."""
+
+    def __init__(self: "SubscriptionError", message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class SubscriptionBackend(AIBackend):
+    """An AI CLI signed in with a subscription, e.g. ``claude -p``, instead of an API key.
+
+    Listings are written by strangers, so whatever the command:
+
+    - The prompt goes to the command's standard input, never into its arguments, and the
+      command runs without a shell.
+    - It runs in an empty temporary directory, removed afterwards, and its whole process group
+      is killed at the timeout.
+    - Variables of BILLING_ENV are removed from its environment (unless kept with keep_env), so
+      it bills the subscription rather than an API key that happens to be set.
+    - Options that let an agent act without asking are refused (see SubscriptionConfig).
+    - Its answer is only read for the rating.
+
+    ``claude`` has a profile: aimm adds the options that remove its tools, MCP servers,
+    settings (hooks), skills and session, and sends the listing photo through its stream-json
+    input. Any other command runs only with ``allow_any_command = true``, which says it cannot
+    act on its own; its standard output is the answer, and ``{image}`` in its arguments is
+    replaced by the path of the listing photo (otherwise the listing is sent as text only).
+    """
+
+    # a smaller photo is enough, and uses less of the usage limit
+    image_max_side = 400
+    # seconds for one request when the section sets no timeout; a CLI starts in a few
+    default_timeout = 180
+
+    @classmethod
+    def get_config(cls: Type["SubscriptionBackend"], **kwargs: Any) -> SubscriptionConfig:
+        return SubscriptionConfig(**kwargs)
+
+    @property
+    def argv(self: "SubscriptionBackend") -> List[str]:
+        return command_argv(getattr(self.config, "command", None))
+
+    @property
+    def label(self: "SubscriptionBackend") -> str:
+        """The command as shown to the user, e.g. in the configure probe."""
+        return " ".join(self.argv) or "subscription"
+
+    def connect(self: "SubscriptionBackend") -> None:
+        if self.client is None:
+            argv = self.argv
+            path = shutil.which(argv[0]) if argv else None
+            if path is None:
+                raise RuntimeError(
+                    f"{self.config.name}: the command {argv[0] if argv else ''!r} was not found. "
+                    "Install it and sign in, or give its full path in `command`."
+                )
+            # the client is the path of the command
+            self.client = path
+            if self.logger:
+                self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
+
+    def command_line(
+        self: "SubscriptionBackend", system: str, image_path: str | None = None
+    ) -> List[str]:
+        """The arguments for one request with the ``system`` prompt."""
+        argv = [self.client, *self.argv[1:]]
+        if is_claude(self.argv):
+            return [
+                *argv,
+                "--input-format",
+                "stream-json",
+                "--output-format",
+                "stream-json",
+                "--verbose",  # required by --output-format stream-json
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "",
+                "--disable-slash-commands",
+                "--no-session-persistence",
+                "--system-prompt",
+                system,
+            ]
+        if image_path:
+            return [a.replace("{image}", image_path) for a in argv]
+        # no photo: drop "{image}", and the option before it ("-i {image}")
+        out: List[str] = []
+        for arg in argv:
+            if arg == "{image}":
+                if out and out[-1].startswith("-") and len(out) > 1:
+                    out.pop()
+                continue
+            out.append(arg)
+        return out
+
+    def _environment(self: "SubscriptionBackend") -> Dict[str, str]:
+        keep = set(getattr(self.config, "keep_env", []) or [])
+        return {k: v for k, v in os.environ.items() if k not in BILLING_ENV or k in keep}
+
+    def _stdin(
+        self: "SubscriptionBackend", prompt: str, system: str, image: ListingImage | None
+    ) -> str:
+        if not is_claude(self.argv):
+            # other CLIs have no system prompt option in common: it leads the prompt
+            note = f"\n{IMAGE_NOTE}" if image is not None and self._takes_image else ""
+            return f"{system}\n\n{prompt}{note}"
+        content: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+        if image is not None:
+            content = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": image.data,
+                    },
+                },
+                {"type": "text", "text": f"{prompt}\n{IMAGE_NOTE}"},
+            ]
+        return json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
+
+    @property
+    def _takes_image(self: "SubscriptionBackend") -> bool:
+        return is_claude(self.argv) or any("{image}" in a for a in self.argv)
+
+    def ask(
+        self: "SubscriptionBackend",
+        prompt: str,
+        system: str,
+        image: ListingImage | None = None,
+        timeout: float | None = None,
+    ) -> str:
+        """The command's answer to ``prompt``; raises SubscriptionError when it fails."""
+        if not self._takes_image:
+            image = None
+        timeout = timeout or self.config.timeout or self.default_timeout
+        with tempfile.TemporaryDirectory(prefix="aimm-ai-") as cwd:
+            image_path = None
+            if image is not None and not is_claude(self.argv):
+                image_path = os.path.join(cwd, "listing.jpg")
+                with open(image_path, "wb") as f:
+                    f.write(base64.b64decode(image.data))
+            stdout, stderr, returncode = self._run(
+                self.command_line(system, image_path),
+                self._stdin(prompt, system, image),
+                cwd,
+                timeout,
+            )
+        if not is_claude(self.argv):
+            if returncode != 0 or not stdout.strip():
+                tail = (stderr or stdout).strip()[-300:]
+                raise SubscriptionError(f"{self.argv[0]} exited with {returncode}: {tail}")
+            return stdout.strip()
+        result: Dict[str, Any] | None = None
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "result":
+                result = event
+        if result is None:
+            tail = (stderr or stdout).strip()[-300:]
+            raise SubscriptionError(f"claude exited with {returncode}: {tail}")
+        if result.get("is_error"):
+            status = result.get("api_error_status")
+            raise SubscriptionError(
+                str(result.get("result") or result.get("subtype") or "claude failed"),
+                status if isinstance(status, int) else None,
+            )
+        return str(result.get("result") or "")
+
+    def _run(
+        self: "SubscriptionBackend", argv: List[str], stdin: str, cwd: str, timeout: float
+    ) -> Tuple[str, str, int]:
+        """Run without a shell, in its own process group, killed as a whole at the timeout."""
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=cwd,
+            env=self._environment(),
+            start_new_session=True,
+        )
+        try:
+            stdout, stderr = process.communicate(stdin, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
+            raise SubscriptionError(
+                f"{os.path.basename(argv[0])} did not answer in {timeout:g} seconds"
+            ) from None
+        return stdout, stderr, process.returncode
+
+    def summarize(self: "SubscriptionBackend", prompt: str) -> str:
+        return self._summarize_with(
+            lambda: self.ask(prompt, SUMMARY_SYSTEM, timeout=SUMMARY_TIMEOUT)
+        )
+
+    def evaluate(
+        self: "SubscriptionBackend",
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+    ) -> AIResponse:
+        counter.increment(CounterItem.AI_QUERY, item_config.name)
+        prompt = self.get_prompt(listing, item_config, marketplace_config)
+        res: AIResponse | None = AIResponse.from_cache(listing, item_config, marketplace_config)
+        if res is not None:
+            if self.logger:
+                self.logger.debug(
+                    f"""{hilight("[AI]", res.style)} {self.config.name} previously concluded {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                )
+            return res
+
+        retries = 0
+        answer: str | None = None
+        last_error: Exception | None = None
+        image = self.listing_image(listing) if self._takes_image else None
+        while retries < self.config.max_retries:
+            self.connect()
+            self.wait_for_rate_limit()
+            try:
+                answer = self.ask(
+                    prompt,
+                    "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
+                    image,
+                )
+                break
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                last_error = e
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
+                    )
+                retries += 1
+                delay = self.retry_delay(e)
+                time.sleep(delay)
+
+        if answer is None:
+            raise RuntimeError(
+                f"{self.config.name} failed to evaluate {listing.title} after {retries} retries"
+            ) from last_error
+
+        if self.logger:
+            self.logger.debug(f"""{hilight("[AI-Response]", "info")} {answer}""")
+        if not answer.strip() or re.search(r"Rating[^1-5]*[1-5]", answer, re.DOTALL) is None:
+            counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
+            raise ValueError(f"Empty or invalid response from {self.config.name}: {answer}")
+
+        score, comment = rating_and_comment(answer)
+        res = AIResponse(name=self.config.name, score=score, comment=comment)
+        res.to_cache(listing, item_config, marketplace_config)
+        counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
+        return res

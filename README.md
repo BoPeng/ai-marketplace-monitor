@@ -75,6 +75,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - Smart recommendations
 - AI-assisted configuration editing with `aimm configure` and the Web UI Assistant
 - Almost arbitrary AI models through [UnitySVC](https://unitysvc.com/), plus OpenAI, Anthropic, DeepSeek, Gemini, and Ollama
+- AI CLIs signed in with a subscription, such as Claude Code (`claude -p`), instead of an API key
 - Self-hosted model option through Ollama
 
 📱 **Notifications**
