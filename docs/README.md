@@ -44,14 +44,14 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### Why UnitySVC
 
-aimm has adopted [UnitySVC](https://unitysvc.com/), a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (`UNITYSVC_API_KEY`). UnitySVC is run by the maintainer of aimm. We recommend it because:
+AIMM has adopted [UnitySVC](https://unitysvc.com/), a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (`UNITYSVC_API_KEY`). UnitySVC is run by the maintainer of AIMM. We recommend it because:
 
-- **aimm no longer has to integrate every provider.** Instead of carrying the code, settings and dependencies of each AI provider and notification service, aimm talks to one gateway. New models and the 100+ notification services UnitySVC reaches become available to aimm without a new version of aimm.
-- **Deploying aimm is simpler.** A Docker or app-store installation needs a single secret to rate listings, email them with their photos and alert your phone.
-- **Your credentials stay in one place.** The keys of your own accounts, such as an OpenAI key, a Telegram bot token or an SMTP password, are saved once in your UnitySVC account instead of in aimm's configuration file or environment. They are not copied to every machine that runs aimm, and you can change or revoke one without touching aimm.
-- **You can keep the accounts you already have.** With your own keys (BYOK), UnitySVC forwards each request to your account, and that provider bills you as before. The email and notification services aimm uses by default are free, and UnitySVC's own AI is paid per use.
+- **AIMM no longer has to integrate every provider.** Instead of carrying the code, settings and dependencies of each AI provider and notification service, AIMM talks to one gateway. New models and the 100+ notification services UnitySVC reaches become available to AIMM without a new version of AIMM.
+- **Deploying AIMM is simpler.** A Docker or app-store installation needs a single secret to rate listings, email them with their photos and alert your phone.
+- **Your credentials stay in one place.** The keys of your own accounts, such as an OpenAI key, a Telegram bot token or an SMTP password, are saved once in your UnitySVC account instead of in AIMM's configuration file or environment. They are not copied to every machine that runs AIMM, and you can change or revoke one without touching AIMM.
+- **You can keep the accounts you already have.** With your own keys (BYOK), UnitySVC forwards each request to your account, and that provider bills you as before. The email and notification services AIMM uses by default are free, and UnitySVC's own AI is paid per use.
 
-aimm continues to support the services it already integrates without UnitySVC: OpenAI, Anthropic, Gemini, DeepSeek and a local Ollama for AI, any SMTP server for email, and Telegram, Pushbullet, Pushover and ntfy for notifications. New AI providers and notification channels are reached through UnitySVC instead of being added to aimm. Each service is configured on its own, so you can use UnitySVC for some and your own accounts for others.
+AIMM continues to support the services it already integrates without UnitySVC: OpenAI, Anthropic, Gemini, DeepSeek and a local Ollama for AI, any SMTP server for email, and Telegram, Pushbullet, Pushover and ntfy for notifications. New AI providers and notification channels are reached through UnitySVC instead of being added to AIMM. Each service is configured on its own, so you can use UnitySVC for some and your own accounts for others.
 
 ### AI Services
 
@@ -77,13 +77,13 @@ Note that:
 
 1. `provider` can be [UnitySVC](https://unitysvc.com/), [OpenAI](https://openai.com/), [DeepSeek](https://www.deepseek.com/), [Gemini](https://ai.google.dev/), [Anthropic](https://www.anthropic.com/) or [Ollama](https://ollama.com/). The name of the section is used if this option is not specified, so `OpenAI` is used for section `ai.openai`.
 2. You can use option `ai` to list the AI services for particular marketplaces or items.
-3. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm configure ai` to make another section the default.
-4. `use_images` (on by default) lets the AI see the main listing photo, so it can tell, for example, a tablet from a tablet case. aimm downloads the photo, shrinks it, and sends the image itself rather than its URL, because Facebook photo URLs expire and not every AI service fetches them. All providers get the photo. It requires a vision-capable model and adds image tokens to every new evaluation. UnitySVC's `balanced` tier supports images; when you choose another model, check that it accepts image input (and responds in reasonable time with one), or set `use_images = false` for it. For OpenAI-compatible providers the photo is at most 800 pixels on its longest side and costs roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. Anthropic has no `image_detail` and charges by image size, so aimm sends it a photo of at most 400 pixels (about 200 tokens). Set `use_images = false` to evaluate listings from their text only and save these tokens. If the photo cannot be downloaded, or the service rejects a request with it for another reason than its rate limit (for example, a model that does not accept images), the listing is evaluated from its text. A request rejected for the rate limit is retried with the photo, as described under `rate_limit`.
-5. `rate_limit` keeps aimm within the request limit of your plan, for example `rate_limit = "15/minute"` for a free Gemini key. The number can be per `second`, `minute`, `hour` or `day`. aimm spaces the requests evenly: `"15/minute"` sends at most one request every 4 seconds, and `"1000/hour"` one every 3.6 seconds. It does not send a burst of requests and then wait, because providers count their limits differently, and some reject a burst even when the total for the minute is within the limit. Retries count as requests, and evaluations remembered from earlier searches send none. Searches wait for the AI, so a low limit also slows down the searches. A daily limit makes a long gap (about a minute between evaluations for `"1500/day"`), even when the quota would allow a short burst, so with only a daily limit a per-minute rate that fits your usage may be faster. Whether or not `rate_limit` is set, when the service rejects a request for going over its limit, aimm waits as long as the service asks before trying again; if that is more than 5 minutes (for example a used-up daily quota), aimm uses the next AI instead.
+3. AIMM uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm configure ai` to make another section the default.
+4. `use_images` (on by default) lets the AI see the main listing photo, so it can tell, for example, a tablet from a tablet case. AIMM downloads the photo, shrinks it, and sends the image itself rather than its URL, because Facebook photo URLs expire and not every AI service fetches them. All providers get the photo. It requires a vision-capable model and adds image tokens to every new evaluation. UnitySVC's `balanced` tier supports images; when you choose another model, check that it accepts image input (and responds in reasonable time with one), or set `use_images = false` for it. For OpenAI-compatible providers the photo is at most 800 pixels on its longest side and costs roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. Anthropic has no `image_detail` and charges by image size, so AIMM sends it a photo of at most 400 pixels (about 200 tokens). Set `use_images = false` to evaluate listings from their text only and save these tokens. If the photo cannot be downloaded, or the service rejects a request with it for another reason than its rate limit (for example, a model that does not accept images), the listing is evaluated from its text. A request rejected for the rate limit is retried with the photo, as described under `rate_limit`.
+5. `rate_limit` keeps AIMM within the request limit of your plan, for example `rate_limit = "15/minute"` for a free Gemini key. The number can be per `second`, `minute`, `hour` or `day`. AIMM spaces the requests evenly: `"15/minute"` sends at most one request every 4 seconds, and `"1000/hour"` one every 3.6 seconds. It does not send a burst of requests and then wait, because providers count their limits differently, and some reject a burst even when the total for the minute is within the limit. Retries count as requests, and evaluations remembered from earlier searches send none. Searches wait for the AI, so a low limit also slows down the searches. A daily limit makes a long gap (about a minute between evaluations for `"1500/day"`), even when the quota would allow a short burst, so with only a daily limit a per-minute rate that fits your usage may be faster. Whether or not `rate_limit` is set, when the service rejects a request for going over its limit, AIMM waits as long as the service asks before trying again; if that is more than 5 minutes (for example a used-up daily quota), AIMM uses the next AI instead.
 
 #### With UnitySVC
 
-[UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, paid per use. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. The default `balanced` tier is recommended: it is relatively inexpensive and its models support vision (image input), so they can read listing photos (see `use_images` above). The same key (`UNITYSVC_API_KEY`) is used for UnitySVC [email](#email) and [phone and chat notifications](#phone-and-chat-notifications), so one key covers rating listings and delivering the results.
+[UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, AIMM uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, paid per use. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. The default `balanced` tier is recommended: it is relatively inexpensive and its models support vision (image input), so they can read listing photos (see `use_images` above). The same key (`UNITYSVC_API_KEY`) is used for UnitySVC [email](#email) and [phone and chat notifications](#phone-and-chat-notifications), so one key covers rating listings and delivering the results.
 
 A typical section for UnitySVC looks like the following, with the key kept in the `UNITYSVC_API_KEY` environment variable rather than in the file:
 
@@ -104,12 +104,12 @@ model = '<model name>'
 UnitySVC also lets you:
 
 - **Switch providers without editing the config.** Set `base_url` to a self-defined alias such as `https://api.svcpass.com/a/myllm`, then point that alias at any LLM service on UnitySVC and re-point it whenever you like.
-- **Log requests.** Prefix the path with `/l/` to record each call in your UnitySVC request logs, e.g. `base_url = 'https://api.svcpass.com/l/p/llm'`. This works with any path, such as `/l/a/myllm`, and is useful for checking what aimm sends and what the model returns.
-- **Request formats.** aimm sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
+- **Log requests.** Prefix the path with `/l/` to record each call in your UnitySVC request logs, e.g. `base_url = 'https://api.svcpass.com/l/p/llm'`. This works with any path, such as `/l/a/myllm`, and is useful for checking what AIMM sends and what the model returns.
+- **Request formats.** AIMM sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
 
 #### UnitySVC with your own keys (BYOK)
 
-Many LLM services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly; UnitySVC does not charge for these bring-your-own-key calls in normal use. Your aimm config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
+Many LLM services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly; UnitySVC does not charge for these bring-your-own-key calls in normal use. Your AIMM config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
 
 For example, with your OpenAI key saved as the UnitySVC secret `OPENAI_API_KEY`, set `base_url` to the OpenAI service you picked in the catalog; your configuration still holds only `UNITYSVC_API_KEY`.
 
@@ -156,7 +156,7 @@ The easiest way to set up an AI service is `aimm configure`: it is the primary i
 
 ### Marketplaces
 
-aimm searches two marketplaces: [Facebook Marketplace](#facebook-marketplace), which needs a Facebook account, and [OfferUp](#offerup) (US only), which needs no account. One or more sections `marketplace.name` say how to search them, and provide default values for the items searched in them.
+AIMM searches two marketplaces: [Facebook Marketplace](#facebook-marketplace), which needs a Facebook account, and [OfferUp](#offerup) (US only), which needs no account. One or more sections `marketplace.name` say how to search them, and provide default values for the items searched in them.
 
 | Option             | Requirement | DataType | Description                                                                                                      |
 | ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -169,10 +169,10 @@ Multiple marketplaces with different `name`s can be specified for different `ite
 
 Searching Facebook Marketplace needs two things:
 
-- **A Facebook account.** aimm logs in with it, and searches only while logged in. Give its login as `username` and `password` (below), or set the environment variables `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`; one of them is required, and aimm reports a configuration error without them.
-- **A browser.** aimm searches Facebook in a Chromium browser that it controls (through [Playwright](https://playwright.dev/python/)). After `pip install ai-marketplace-monitor`, install the browser once with `playwright install`; the Docker image includes it. When Facebook asks for a CAPTCHA or a security code, you complete it in that browser window, or in Docker in the **Browser** tab of the web UI.
+- **A Facebook account.** AIMM logs in with it, and searches only while logged in. Give its login as `username` and `password` (below), or set the environment variables `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`; one of them is required, and AIMM reports a configuration error without them.
+- **A browser.** AIMM searches Facebook in a Chromium browser that it controls (through [Playwright](https://playwright.dev/python/)). After `pip install ai-marketplace-monitor`, install the browser once with `playwright install`; the Docker image includes it. When Facebook asks for a CAPTCHA or a security code, you complete it in that browser window, or in Docker in the **Browser** tab of the web UI.
 
-OfferUp needs neither: without a Facebook section, aimm starts no browser and needs no Facebook login.
+OfferUp needs neither: without a Facebook section, AIMM starts no browser and needs no Facebook login.
 
 A Facebook section takes these options in addition to the common ones:
 
@@ -183,18 +183,18 @@ search_city = "houston"   # Facebook's location code; aimm configure finds it fo
 
 | Option             | Requirement | DataType | Description                                                                                                      |
 | ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `username`         | Required    | String   | The Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. aimm searches only while logged in. |
+| `username`         | Required    | String   | The Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. AIMM searches only while logged in. |
 | `password`         | Required    | String   | The Facebook password. Falls back to the `FACEBOOK_PASSWORD` environment variable if not set.                       |
-| `login_wait_time`  | Deprecated  | Integer  | Ignored. aimm now waits until the Facebook login has finished, however long a CAPTCHA or security code takes.   |
+| `login_wait_time`  | Deprecated  | Integer  | Ignored. AIMM now waits until the Facebook login has finished, however long a CAPTCHA or security code takes.   |
 | `language`         | Optional    | String   | Language for webpages                                                                                            |
 
-1. aimm logs in with `username` and `password`, then waits until Facebook has finished logging in before it searches: if Facebook asks for a CAPTCHA or a security code, complete it in the browser window (in Docker, the **Browser** tab of the web UI), and searches start once you are logged in. If Facebook logs aimm out later, it waits the same way and retries the page. aimm no longer searches without logging in, which worked only some of the time. `username` and `password` can be provided in three ways (in order of priority): directly in the config file, via the `${ENV_VAR}` syntax (e.g. `password = '${MY_FB_PASS}'`), or automatically from the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables. If none are set, aimm reports a configuration error.
+1. AIMM logs in with `username` and `password`, then waits until Facebook has finished logging in before it searches: if Facebook asks for a CAPTCHA or a security code, complete it in the browser window (in Docker, the **Browser** tab of the web UI), and searches start once you are logged in. If Facebook logs AIMM out later, it waits the same way and retries the page. AIMM no longer searches without logging in, which worked only some of the time. `username` and `password` can be provided in three ways (in order of priority): directly in the config file, via the `${ENV_VAR}` syntax (e.g. `password = '${MY_FB_PASS}'`), or automatically from the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables. If none are set, AIMM reports a configuration error.
 2. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
 3. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
 
 #### OfferUp
 
-aimm searches [OfferUp](https://offerup.com) (US only) without an account and without a browser, through the API OfferUp's website uses. An OfferUp section needs only a location:
+AIMM searches [OfferUp](https://offerup.com) (US only) without an account and without a browser, through the API OfferUp's website uses. An OfferUp section needs only a location:
 
 ```toml
 [marketplace.offerup]
@@ -203,12 +203,12 @@ radius = 30                # miles: OfferUp offers 5, 10, 20, 30 and 50 (the nea
 ```
 
 - `search_city` is a US ZIP code or a `"latitude,longitude"` pair (or several), not a Facebook location code; `city_name` names them in the log. To search the same place on Facebook and OfferUp, give a table: `search_city = { facebook = "houston", offerup = "77096" }`. A region can serve OfferUp when its cities have `offerup` values (the built-in regions have Facebook codes only).
-- OfferUp sections take the [common options](#common-item-and-marketplace-options); `availability`, `category`, `language`, `currency` and the login options are Facebook's. An item searched in both an OfferUp and a Facebook section uses the Facebook-only options in the Facebook section only (aimm logs a warning).
-- OfferUp's search sorts newest first unless `sort_by` says otherwise, and filters by `condition` (`new`; `used_like_new` as open box or used; `used_good` and `used_fair` as used), `min_price` and `max_price` (in US dollars; other currencies are converted). It has no filter for a listing's age or delivery: `date_listed` and `delivery_method` are checked after aimm reads the listing.
-- aimm reads each seller's public profile (when they joined OfferUp, rating, items sold, what buyers praise, verifications such as TruYou) for the AI and the seller filters. OfferUp does not show a seller's number of active listings.
-- Without a Facebook section, aimm starts no browser (the web UI's browser view starts one on demand) and needs no Facebook credentials. The web UI then signs you in with `AIMM_WEBUI_PASSWORD` (see [Who signs you in to the web UI](docker-installation.md#who-signs-you-in-to-the-web-ui)).
-- OfferUp answers only requests from the US: elsewhere, set `proxy_server` in `[monitor]` to a US proxy. aimm spaces its requests by a few seconds; if OfferUp refuses them (HTTP 403), aimm logs it and tries again at the next search.
-- OfferUp's terms prohibit automated collection, as Facebook's do. aimm is meant for personal use.
+- OfferUp sections take the [common options](#common-item-and-marketplace-options); `availability`, `category`, `language`, `currency` and the login options are Facebook's. An item searched in both an OfferUp and a Facebook section uses the Facebook-only options in the Facebook section only (AIMM logs a warning).
+- OfferUp's search sorts newest first unless `sort_by` says otherwise, and filters by `condition` (`new`; `used_like_new` as open box or used; `used_good` and `used_fair` as used), `min_price` and `max_price` (in US dollars; other currencies are converted). It has no filter for a listing's age or delivery: `date_listed` and `delivery_method` are checked after AIMM reads the listing.
+- AIMM reads each seller's public profile (when they joined OfferUp, rating, items sold, what buyers praise, verifications such as TruYou) for the AI and the seller filters. OfferUp does not show a seller's number of active listings.
+- Without a Facebook section, AIMM starts no browser (the web UI's browser view starts one on demand) and needs no Facebook credentials. The web UI then signs you in with `AIMM_WEBUI_PASSWORD` (see [Who signs you in to the web UI](docker-installation.md#who-signs-you-in-to-the-web-ui)).
+- OfferUp answers only requests from the US: elsewhere, set `proxy_server` in `[monitor]` to a US proxy. AIMM spaces its requests by a few seconds; if OfferUp refuses them (HTTP 403), AIMM logs it and tries again at the next search.
+- OfferUp's terms prohibit automated collection, as Facebook's do. AIMM is meant for personal use.
 
 ### Users
 
@@ -232,9 +232,9 @@ notify_with = ["email.gmail", "notification.telegram"]
 
 ### Email and notifications
 
-aimm sends two kinds of messages, set up in two kinds of sections:
+AIMM sends two kinds of messages, set up in two kinds of sections:
 
-- An **`[email.NAME]`** section sends aimm's full email: all new listings in one message, with their photos. Best for reviewing listings.
+- An **`[email.NAME]`** section sends AIMM's full email: all new listings in one message, with their photos. Best for reviewing listings.
 - A **`[notification.NAME]`** section is one phone or chat channel (UnitySVC, Pushbullet, Pushover, ntfy or Telegram) that sends short text messages. Best for being alerted quickly.
 
 Each section a user receives sends on its own, with the user's values (such as `email` or `telegram_chat_id`) filled in where the section does not set them. Sections can be shared by several users, and one user can receive several sections of the same kind, for example email through both UnitySVC and Gmail:
@@ -262,7 +262,7 @@ If `notify_with` is not specified, the user receives every enabled email and not
 
 #### Daily digest
 
-`digest_at` on an email or notification section (a local time `HH:MM`, e.g. `"08:00"`, like `start_at`) makes the section send, every day at that time, a summary of everything aimm did in the last 24 hours, for all items, not only the ones the user is notified for. The digest uses AI tokens: one short AI call per item with new activity, to summarize it. By default, no section sends a digest. When a user gets email, set `digest_at` on the email section only: a phone digest next to the email one is rarely wanted.
+`digest_at` on an email or notification section (a local time `HH:MM`, e.g. `"08:00"`, like `start_at`) makes the section send, every day at that time, a summary of everything AIMM did in the last 24 hours, for all items, not only the ones the user is notified for. The digest uses AI tokens: one short AI call per item with new activity, to summarize it. By default, no section sends a digest. When a user gets email, set `digest_at` on the email section only: a phone digest next to the email one is rarely wanted.
 
 ```toml
 [email.unitysvc]
@@ -270,13 +270,13 @@ smtp_username = 'smtp-to-mailbox'
 digest_at = '08:00'
 ```
 
-An **email** section sends the full digest: a summary table, then for each item its counts, an AI-written summary (what looks promising, what sold or dropped in price, and the best bet; written by the item's AI service, with no AI call for an item with nothing new), the notified listings (title, price, rating and link), updates on earlier matches, and the top 5 listings rejected by AI (best ratings first, with a short reason). Items with nothing new are not given a section: they are listed together in one line after the others. A listing evaluated by several searches counts once. A **notification** section sends a short version for the phone: one line of totals, then each item's summary with a link to its best bet, as many items as fit (the rest are in the email digest); without summaries, the top 3 matches with links. A day without matches says how many searches aimm ran, so that silence does not look like a broken aimm.
+An **email** section sends the full digest: a summary table, then for each item its counts, an AI-written summary (what looks promising, what sold or dropped in price, and the best bet; written by the item's AI service, with no AI call for an item with nothing new), the notified listings (title, price, rating and link), updates on earlier matches, and the top 5 listings rejected by AI (best ratings first, with a short reason). Items with nothing new are not given a section: they are listed together in one line after the others. A listing evaluated by several searches counts once. A **notification** section sends a short version for the phone: one line of totals, then each item's summary with a link to its best bet, as many items as fit (the rest are in the email digest); without summaries, the top 3 matches with links. A day without matches says how many searches AIMM ran, so that silence does not look like a broken AIMM.
 
-The listings are those evaluated in the last 24 hours, so a listing that stays on the market and is evaluated again on every search can appear in more than one digest. The first digest is sent at the next `digest_at` after the option is added. Each day's digest covers the 24 hours up to that day's `digest_at`, even when it is sent later. aimm remembers, for each channel, up to when it has received the digest, so a restart does not send it twice. A channel that is behind, because aimm was not running or sending to it failed, gets one catch-up digest when aimm starts again or reloads its config, from where it left off (at most 7 days back) to the latest digest time, labeled "since Mon Oct 5 08:00" instead of "last 24 hours"; it never gets several old digests in a row. Before sending it, aimm opens the pages of listings it notified you about in the past 7 days (at most 10 per item, once a day) to see whether they sold or are pending; the digest tags them, shows price changes as `(was …)`, and lists earlier matches that sold, went pending or changed price under **Updates**.
+The listings are those evaluated in the last 24 hours, so a listing that stays on the market and is evaluated again on every search can appear in more than one digest. The first digest is sent at the next `digest_at` after the option is added. Each day's digest covers the 24 hours up to that day's `digest_at`, even when it is sent later. AIMM remembers, for each channel, up to when it has received the digest, so a restart does not send it twice. A channel that is behind, because AIMM was not running or sending to it failed, gets one catch-up digest when AIMM starts again or reloads its config, from where it left off (at most 7 days back) to the latest digest time, labeled "since Mon Oct 5 08:00" instead of "last 24 hours"; it never gets several old digests in a row. Before sending it, AIMM opens the pages of listings it notified you about in the past 7 days (at most 10 per item, once a day) to see whether they sold or are pending; the digest tags them, shows price changes as `(was …)`, and lists earlier matches that sold, went pending or changed price under **Updates**.
 
 #### Older configurations
 
-Earlier versions of aimm put email settings in `[notification.*]` sections, channel settings (such as `smtp_password` or `pushbullet_token`) in `[user.*]` sections, and `digest_at` and `digest_with` on the user. aimm updates such a file the first time it reads it: email settings move to `[email.*]` sections (`[email.unitysvc]` for `smtp.svcpass.com`, `[email.gmail]` for `smtp.gmail.com`, otherwise the section's own name), channel settings move from users into sections, and the digest moves onto the sections that sent it. What each user receives does not change. The old file is kept as `<file>.bak`, and the log lists each change.
+Earlier versions of AIMM put email settings in `[notification.*]` sections, channel settings (such as `smtp_password` or `pushbullet_token`) in `[user.*]` sections, and `digest_at` and `digest_with` on the user. AIMM updates such a file the first time it reads it: email settings move to `[email.*]` sections (`[email.unitysvc]` for `smtp.svcpass.com`, `[email.gmail]` for `smtp.gmail.com`, otherwise the section's own name), channel settings move from users into sections, and the digest moves onto the sections that sent it. What each user receives does not change. The old file is kept as `<file>.bak`, and the log lists each change.
 
 #### Testing notifications
 
@@ -287,7 +287,7 @@ aimm admin --test-notification        # every channel of every enabled user
 aimm admin --test-notification me     # the channels of [user.me] only
 ```
 
-aimm sends a sample listing titled "aimm test notification", which links to the aimm repository, through each channel once (no retries). The test uses the real format of each channel, so it checks the layout as well as the connection: email gets aimm's HTML email with the listing photo (a sample photo bundled with aimm), and chat and phone channels get the text or Markdown message of their `message_format`, with the price, location, description and AI rating as in a real notification. aimm prints `✓` or `✗` with the error for each channel. It exits with 1 if any channel failed. The test is a real message (metered channels such as UnitySVC SMS may cost a little), but nothing is recorded in the cache. In Docker, run it in the container (`docker exec aimm aimm admin --test-notification`), or use **Send test** in the Settings of the web UI. After you set up a notification with `aimm configure`, the assistant offers the same test.
+AIMM sends a sample listing titled "AIMM test notification", which links to the AIMM repository, through each channel once (no retries). The test uses the real format of each channel, so it checks the layout as well as the connection: email gets AIMM's HTML email with the listing photo (a sample photo bundled with AIMM), and chat and phone channels get the text or Markdown message of their `message_format`, with the price, location, description and AI rating as in a real notification. AIMM prints `✓` or `✗` with the error for each channel. It exits with 1 if any channel failed. The test is a real message (metered channels such as UnitySVC SMS may cost a little), but nothing is recorded in the cache. In Docker, run it in the container (`docker exec aimm aimm admin --test-notification`), or use **Send test** in the Settings of the web UI. After you set up a notification with `aimm configure`, the assistant offers the same test.
 
 #### Common settings
 
@@ -312,7 +312,7 @@ Note that
 | --- | --- | --- | --- |
 | **Email** with listing photos and the daily digest | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-relay`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
 
-An `[email.NAME]` section sends aimm's full email, to the `email` of each user who receives it. It accepts the following options:
+An `[email.NAME]` section sends AIMM's full email, to the `email` of each user who receives it. It accepts the following options:
 
 | Option          | Requirement | DataType    | Description                                             |
 | --------------- | ----------- | ----------- | ------------------------------------------------------- |
@@ -342,7 +342,7 @@ Two section names start from a preset, so that only what differs needs to be set
 
 #### UnitySVC with your own SMTP account (BYOK)
 
-UnitySVC's [SMTP Relay](https://unitysvc.com/market) forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the `email` of each user who receives the section, as your own server would, and your server's login stays in UnitySVC instead of aimm's configuration.
+UnitySVC's [SMTP Relay](https://unitysvc.com/market) forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the `email` of each user who receives the section, as your own server would, and your server's login stays in UnitySVC instead of AIMM's configuration.
 
 1. Save your server's details as secrets in your UnitySVC account: `SMTP_RELAY_HOST` (e.g. `smtp.gmail.com`), `SMTP_RELAY_USERNAME` (usually your address) and `SMTP_RELAY_PASSWORD` (an app password or API key), and if they differ from 587 and STARTTLS, `SMTP_RELAY_PORT` and `SMTP_RELAY_TLS`.
 2. Set `smtp_username = 'smtp-relay'`, the relay's free channel:
@@ -372,7 +372,7 @@ To relay through more than one server, enroll the SMTP Relay once per server (it
   email = 'me@gmail.com'
   ```
 
-- **Any other name** is a plain SMTP section: set `smtp_server`, `smtp_username` and `smtp_password` from your email provider. aimm uses the user's `email` if `smtp_username` is not set, and guesses `smtp_server` from the sender's address.
+- **Any other name** is a plain SMTP section: set `smtp_server`, `smtp_username` and `smtp_password` from your email provider. AIMM uses the user's `email` if `smtp_username` is not set, and guesses `smtp_server` from the sender's address.
 
   ```toml
   [email.outlook]
@@ -405,14 +405,14 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 ```
 
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
-- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching aimm's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
+- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching AIMM's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 
 #### UnitySVC with your own accounts (BYOK)
 
-Without a destination of your own, `notify` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Keep `[notification.unitysvc]` as it is, and choose your own account as the notification destination in UnitySVC: for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
+Without a destination of your own, `notify` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Keep `[notification.unitysvc]` as it is, and choose your own account as the notification destination in UnitySVC: for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. AIMM's configuration still holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
 
-The channels aimm supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep `notify`), or send to it directly with `unitysvc_service`:
+The channels AIMM supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep `notify`), or send to it directly with `unitysvc_service`:
 
 | Instead of | UnitySVC service | Secrets to save in UnitySVC | `unitysvc_service` |
 | --- | --- | --- | --- |
@@ -486,7 +486,7 @@ One or more `item.item_name` where `item_name` is the name of the item.
 | `search_phrases`   | Required    | String/List | One or more strings for searching the item.                                                                                                                                                    |
 | `description`      | Optional    | String      | A longer description of the item that better describes your requirements (e.g., manufacture, condition, location, seller reputation, shipping options). Only used if AI assistance is enabled. |
 | `keywords`         | Optional    | String/List | Excludes listings whose titles and description do not contain any of the keywords.                                                                                                             |
-| `title_keywords`   | Optional    | String/List | Like `keywords`, but matched against the title only, so listings are skipped before aimm opens them. Faster, but misses listings with short titles.                                              |
+| `title_keywords`   | Optional    | String/List | Like `keywords`, but matched against the title only, so listings are skipped before AIMM opens them. Faster, but misses listings with short titles.                                              |
 | `antikeywords`     | Optional    | String/List | Excludes listings whose titles or descriptions contain any of the specified keywords.                                                                                                          |
 | `marketplace`      | Optional    | String/List | The marketplace sections the item is searched in: a name or a list of names. Without it, the item is searched in every marketplace section, including ones added later. An item searched in several sections uses their locations and cannot set its own. |
 | **Common options** |             |             | Options listed below. These options, if specified in the item section, will override options in the marketplace section.                                                                       |
@@ -599,7 +599,7 @@ Please see [Support for non-English languages](../README.md#support-for-non-engl
 
 ### Monitor Configuration
 
-The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked, and for how long aimm keeps its history of evaluated listings.
+The optional `monitor` section allows you to define system configurations for the _AI Marketplace Monitor_. It supports options for sending your queries through one or more proxy servers, which can hide your IP address and reduce the chances of your IP being blocked, and for how long AIMM keeps its history of evaluated listings.
 
 | Option           | Requirement | DataType    | Description                              |
 | ---------------- | ----------- | ----------- | ---------------------------------------- |
@@ -607,11 +607,11 @@ The optional `monitor` section allows you to define system configurations for th
 | `proxy_bypass`   | Optional    | String      | Comma-separated domains to bypass proxy. |
 | `proxy_username` | Optional    | String      | username for the proxy.                  |
 | `proxy_password` | Optional    | String      | password for the proxy.                  |
-| `check_updates`  | Optional    | Boolean     | Check PyPI for a newer release when aimm starts, at most once a day (default `true`). The web UI's **Check for updates** button works either way. |
+| `check_updates`  | Optional    | Boolean     | Check PyPI for a newer release when AIMM starts, at most once a day (default `true`). The web UI's **Check for updates** button works either way. |
 | `evaluation_history_days` | Optional | Integer | Days to keep the record of each evaluated listing shown in the web UI's **Listings** view (default `30`). |
 
 - If multiple `proxy_server` URLs are specified as a list, a random one will be chosen each time. However, the proxy will not change while the _AI Marketplace Monitor_ is running.
-- aimm records every listing it evaluates: excluded before the AI (by keywords, area or seller), rejected because the AI rating is below the item's `rating`, or notified. A later decision about the same listing and item replaces the earlier one, and records older than `evaluation_history_days` are removed.
+- AIMM records every listing it evaluates: excluded before the AI (by keywords, area or seller), rejected because the AI rating is below the item's `rating`, or notified. A later decision about the same listing and item replaces the earlier one, and records older than `evaluation_history_days` are removed.
 
 ### Additional options
 
