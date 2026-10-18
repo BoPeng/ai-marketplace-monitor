@@ -83,7 +83,7 @@ Note that:
 
 #### With UnitySVC
 
-[UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, AIMM uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, paid per use. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. The default `balanced` tier is recommended: it is relatively inexpensive and its models support vision (image input), so they can read listing photos (see `use_images` above). The same key (`UNITYSVC_API_KEY`) is used for UnitySVC [email](#email) and [phone and chat notifications](#phone-and-chat-notifications), so one key covers rating listings and delivering the results.
+By default, `[ai.unitysvc]` uses UnitySVC's OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, paid per use. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. The default `balanced` tier is recommended: it is relatively inexpensive and its models support vision (image input), so they can read listing photos (see `use_images` above).
 
 A typical section for UnitySVC looks like the following, with the key kept in the `UNITYSVC_API_KEY` environment variable rather than in the file:
 
@@ -327,7 +327,7 @@ Two section names start from a preset, so that only what differs needs to be set
 
 #### With UnitySVC
 
-**`[email.unitysvc]`** sends through [UnitySVC](https://unitysvc.com/)'s SMTP gateway, a convenient alternative to a Gmail app password. The preset has `smtp_server = "smtp.svcpass.com"`, `smtp_port = 587` and `smtp_password = "${UNITYSVC_API_KEY}"`, the same key as `[ai.unitysvc]`. Set `smtp_username` to the UnitySVC service that delivers the email:
+**`[email.unitysvc]`** sends through UnitySVC's SMTP gateway, without the app password Gmail needs. The preset has `smtp_server = "smtp.svcpass.com"`, `smtp_port = 587` and `smtp_password = "${UNITYSVC_API_KEY}"`. Set `smtp_username` to the UnitySVC service that delivers the email:
 
 - **`smtp-to-mailbox`** (free) delivers it to the address registered and verified on your UnitySVC account (usually your own email), so `email` is not needed on the user.
 
