@@ -9,7 +9,7 @@ from diskcache import Cache  # type: ignore
 from ai_marketplace_monitor.config import Config, load_config_dicts
 from ai_marketplace_monitor.digest import digest_channels
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
-from ai_marketplace_monitor.notification import sample_listing
+from ai_marketplace_monitor.notification import PushNotificationConfig, sample_listing
 from ai_marketplace_monitor.pushbullet import PushbulletNotificationConfig
 from ai_marketplace_monitor.telegram import TelegramNotificationConfig
 from ai_marketplace_monitor.user import User, UserConfig
@@ -277,11 +277,11 @@ def test_shared_format_and_channel_overrides(tmp_path: Path, user_format: str | 
     )
     expected = user_format or "markdown"
     assert config.user["me"].message_format == expected
-    formats = {
-        section: channel.config.message_format
-        for channel in config.user["me"].channels()
-        for section in channel.sections
-    }
+    formats = {}
+    for channel in config.user["me"].channels():
+        assert isinstance(channel.config, PushNotificationConfig)
+        for section in channel.sections:
+            formats[section] = channel.config.message_format
     assert formats == {
         "notification.unitysvc": expected,
         "notification.specific": expected,
