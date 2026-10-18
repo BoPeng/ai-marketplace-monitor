@@ -395,13 +395,15 @@ See [Setting up email notifications](https://ai-marketplace-monitor.readthedocs.
 
 A `[notification.NAME]` section is one phone or chat channel. It sends a short message for each batch of new listings. A UnitySVC section also sends the listings' link and photos, which services that support them show.
 
+Notifications default to `markdown`. Set `message_format` to `plain_text` or `markdown` on a user or notification section; an explicit section value takes precedence. Channels can enforce their supported format: Pushbullet uses plain text, and Pushover renders HTML internally.
+
 #### With UnitySVC
 
 | Option              | Requirement | DataType | Description                                                                          |
 | ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
 | `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
 | `unitysvc_service`  | Optional    | String   | The UnitySVC service that sends the message. The default, `notify`, sends it to your inbox on the UnitySVC website and to every destination set in your UnitySVC notification preferences. Use a service path such as `labs/msg-to-discord` to send to that one service only. |
-| `message_format`    | Optional    | String   | `plain_text` or `markdown`. Default: `markdown` with a specific `unitysvc_service`, `plain_text` with `notify`. |
+| `message_format`    | Optional    | String   | `plain_text` or `markdown`. Default: `markdown`. |
 
 ```toml
 [notification.unitysvc]
@@ -478,9 +480,9 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | ---------------- | ----------- | -------- | ------------------------------------------------- |
 | `ntfy_server`    | Optional    | String   | ntfy server, default to `https://ntfy.sh`         |
 | `ntfy_topic`     | Optional    | String   | A unique topic to receive your notification.      |
-| `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` |
+| `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` (default) |
 
-- According to [ntfy documentation](https://docs.ntfy.sh/publish/#markdown-formatting), markdown format is supported only by web app. Therefore, `message_format` is by default set to `plain_text`.
+- Notifications default to `markdown`. Set `message_format = "plain_text"` if your ntfy client does not support markdown.
 
 ### Items to search
 

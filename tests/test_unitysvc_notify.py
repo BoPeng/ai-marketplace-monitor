@@ -53,7 +53,7 @@ def test_default_notify_service_request(posts: List[Dict[str, Any]]) -> None:
     assert call["json"]["title"] == "New listing"
     assert call["json"]["body"].startswith("A bike for $50\n\nSent by ")
     assert call["json"]["type"] == "info"
-    assert call["json"]["format"] == "text"
+    assert call["json"]["format"] == "markdown"
     assert call["timeout"] == 10
 
 
@@ -291,13 +291,13 @@ def test_at_most_ten_photos_and_nothing_without_listings() -> None:
 @pytest.mark.parametrize(
     ("service", "expected"),
     [
-        (None, "text"),  # the platform notify service delivers plain text
-        ("notify", "text"),
-        ("labs/msg-to-ntfy", "markdown"),  # msg-to-* services render markdown
+        (None, "markdown"),
+        ("notify", "markdown"),
+        ("labs/msg-to-ntfy", "markdown"),
         ("/labs/msg-to-telegram/", "markdown"),
     ],
 )
-def test_markdown_by_default_except_for_the_notify_service(
+def test_markdown_by_default_for_every_service(
     posts: List[Dict[str, Any]], service: str | None, expected: str
 ) -> None:
     config = UnitySVCNotificationConfig(name="u", unitysvc_api_key=KEY, unitysvc_service=service)

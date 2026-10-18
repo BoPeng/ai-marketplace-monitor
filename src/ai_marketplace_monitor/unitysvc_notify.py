@@ -50,16 +50,6 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
                 'e.g. unitysvc_api_key = "${UNITYSVC_API_KEY}".'
             )
 
-    def handle_message_format(self: "UnitySVCNotificationConfig") -> None:
-        # msg-to-* services render markdown for their channel (bold, italic, code, links);
-        # the platform notify service still delivers plain text, so it keeps plain_text
-        if self.message_format is None:
-            service = (self.unitysvc_service or DEFAULT_UNITYSVC_SERVICE).strip("/ ")
-            self.message_format = (
-                "plain_text" if service == DEFAULT_UNITYSVC_SERVICE else "markdown"
-            )
-        super().handle_message_format()
-
     def handle_unitysvc_service(self: "UnitySVCNotificationConfig") -> None:
         if self.unitysvc_service is None:
             return
@@ -102,7 +92,7 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
                 "title": title[:MAX_TITLE_LENGTH],
                 "body": msg,
                 "type": "info",
-                "format": MESSAGE_FORMATS.get(self.message_format or "plain_text", "text"),
+                "format": MESSAGE_FORMATS.get(self.message_format or "markdown", "markdown"),
                 **listing_extras(self.message_listings),
             },
             headers={"Authorization": f"Bearer {self.unitysvc_api_key}"},

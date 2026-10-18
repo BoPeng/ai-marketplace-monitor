@@ -529,7 +529,7 @@ class PushNotificationConfig(NotificationConfig):
 
     def handle_message_format(self: "PushNotificationConfig") -> None:
         if self.message_format is None:
-            self.message_format = "plain_text"
+            self.message_format = "markdown"
 
         # html is not offered: markdown formats a message on every channel that renders it
         # (Pushover, which takes HTML, builds it itself); old files are migrated to markdown
