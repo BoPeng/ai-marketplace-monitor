@@ -2,7 +2,7 @@
 readme = "README.md"
 name = "ai-marketplace-monitor"
 version = "0.10.16"
-description = "An AI-based tool for monitoring facebook marketplace"
+description = "An AI-based tool for monitoring Facebook Marketplace and OfferUp"
 authors = [{ name = "Bo Peng", email = "ben.bob@gmail.com" }]
 requires-python = ">=3.10"
 keywords = ["ai-marketplace-monitor"]

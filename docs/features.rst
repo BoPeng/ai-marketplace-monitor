@@ -5,6 +5,7 @@ Features
 🔍 **Smart Search**
 -------------------
 
+- **Two Marketplaces**: Search Facebook Marketplace and OfferUp (US; no account or browser needed), one marketplace or both for each item
 - **Multi-Product Search**: Search for multiple products using customizable keywords
 - **Advanced Filtering**: Filter by price range, location, and seller criteria
 - **Spam Detection**: Automatically exclude irrelevant results and known spammers
@@ -15,14 +16,15 @@ Features
 
 - **Intelligent Evaluation**: AI services analyze each listing against your specific criteria
 - **Smart Recommendations**: Get AI-generated insights on deal quality and condition assessment
-- **Multiple AI Providers**: Support for OpenAI, DeepSeek, Ollama, and other OpenAI-compatible APIs
+- **Multiple AI Providers**: UnitySVC (many models, or your own provider keys), OpenAI, Anthropic, Gemini, DeepSeek, Ollama, and other OpenAI-compatible APIs
 - **Self-Hosted Options**: Run your own AI models locally using Ollama
 - **Customizable Prompts**: Tailor AI evaluation criteria to your specific needs
 
 📱 **Comprehensive Notifications**
 ----------------------------------
 
-- **Multiple Channels**: PushBullet, PushOver, Telegram, Ntfy, UnitySVC, and HTML email notifications
+- **Email and Phone Alerts**: HTML email with photos (UnitySVC, Gmail or any SMTP server), and short alerts through UnitySVC (100+ channels), PushBullet, PushOver, Telegram and Ntfy
+- **Daily Digest**: An optional summary of each day's searches, matches and rejected listings
 - **Rich Content**: Notifications include images, descriptions, and AI-generated comments
 - **Customizable Levels**: Set notification thresholds based on AI rating scores
 - **Repeated Notifications**: Optional reminders for listings that remain available

@@ -7,6 +7,7 @@
 - [Users](#users)
 - [Email and notifications](#email-and-notifications)
 - [Email](#email)
+- [Phone and chat notifications](#phone-and-chat-notifications)
 - [Items to search](#items-to-search)
 - [Common item and marketplace options](#common-item-and-marketplace-options)
 - [Regions](#regions)
@@ -16,10 +17,12 @@
 
 The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` or `--config-file` option.
 
-To inspect the canonical configuration without writing anything back to disk, use
-`aimm admin --normalize-config`; to inspect the expanded AI-editing form, use
-`aimm admin --expand-config`. Both options also accept explicit files, for example
-`aimm admin --config-file my-config.toml --normalize-config`.
+AIMM provides a large number of options, and most of them have default values or values derived from the rest of your configuration: an item takes its location, price range and other search options from its marketplace, and a user without `notify_with` receives every email and notification section. Two commands show your configuration in two equivalent forms, without writing anything back to disk:
+
+- `aimm admin --expand-config` prints the **expanded** form, which writes out these inherited values in each section: every item with the options it gets from its marketplace, and every user with the sections it receives. It shows what each item and user actually uses. Built-in defaults that no section sets (such as `max_retries`) are not listed; this reference gives them for each option.
+- `aimm admin --normalize-config` prints the **normalized** form, the most compact configuration that does the same: values shared by all the items of a marketplace move into the marketplace, identical sections are merged, and values that equal their default are dropped. This is the form in which `aimm configure` and the web UI's assistant write the file.
+
+Both options also accept explicit files, for example `aimm admin --config-file my-config.toml --normalize-config`.
 
 To avoid including sensitive information directly in the configuration file, all options that accept a string or a list of string can be specified using the `${ENV_VAR}` format. For example
 
@@ -29,7 +32,9 @@ password = '${FACEBOOK_PASSWORD}'
 
 [user.me]
 email = ['${EMAIL_1}', '${EMAIL_2}']
-pushbullet_token = '${PUSBULLET_TOKEN}'
+
+[notification.pushbullet]
+pushbullet_token = '${PUSHBULLET_TOKEN}'
 ```
 
 _AI Marketplace Monitor_ will retrieve the value from the corresponding environment variable and raise an error if the environment variable does not exist.
@@ -38,7 +43,11 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### AI Services
 
-One of more sections to list the AI agent that can be used to judge if listings match your selection criteria. The options should have header such as `[ai.openai]`, `[ai.deepseek]`, or `[ai.anthropic]`, and have the following keys:
+| Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
+| --- | --- | --- | --- |
+| **AI** that rates listings | `[ai.unitysvc]`: UnitySVC's model pool, paid per use | `[ai.unitysvc]` with an OpenAI, Anthropic or other provider's service and your key for it saved in UnitySVC; the provider bills you | `[ai.openai]`, `[ai.anthropic]`, `[ai.gemini]`, `[ai.deepseek]`, or a local model with `[ai.ollama]` |
+
+One or more `[ai.NAME]` sections list the AI services that judge whether listings match your selection criteria. Each section accepts the following options:
 
 | Option        | Requirement | DataType | Description                                                |
 | ------------- | ----------- | -------- | ---------------------------------------------------------- |
@@ -54,18 +63,53 @@ One of more sections to list the AI agent that can be used to judge if listings 
 
 Note that:
 
-1. `provider` can be [OpenAI](https://openai.com/),
-   [DeepSeek](https://www.deepseek.com/), [Gemini](https://ai.google.dev/), [Anthropic](https://www.anthropic.com/), [Ollama](https://ollama.com/), or [UnitySVC](https://unitysvc.com/). The name of the ai service will be used if this option is not specified so `OpenAI` will be used for section `ai.openai`.
-2. [OpenAI](https://openai.com/), [DeepSeek](https://www.deepseek.com/), and [Gemini](https://ai.google.dev/) models sets default `base_url` and `model` for these providers.
-3. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-5-5`. An `api_key` is required.
-4. [Gemini](https://ai.google.dev/) is accessed through Google's OpenAI-compatible endpoint. The default model is `gemini-2.5-flash`. An `api_key` is required and can be obtained from [Google AI Studio](https://aistudio.google.com/apikey).
-5. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
-6. [UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. The default `balanced` tier is recommended: it is relatively inexpensive and its models support vision (image input), so they can read listing photos (see `use_images` below). Set `base_url` to use any other LLM service from the [UnitySVC catalog](https://unitysvc.com/market) instead, including OpenAI, Anthropic and other providers with your own provider keys (see below). An `api_key` is required. The same key (`UNITYSVC_API_KEY`) is used for both UnitySVC AI and [UnitySVC notifications](#unitysvc-notification), so one key covers rating listings and delivering the results.
-7. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
-8. You can use option `ai` to list the AI services for particular marketplaces or items.
-9. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm configure ai` to make another section the default.
-10. `use_images` (on by default) lets the AI see the main listing photo, so it can tell, for example, a tablet from a tablet case. aimm downloads the photo, shrinks it, and sends the image itself rather than its URL, because Facebook photo URLs expire and not every AI service fetches them. All providers get the photo. It requires a vision-capable model and adds image tokens to every new evaluation. UnitySVC's `balanced` tier supports images; when you choose another model, check that it accepts image input (and responds in reasonable time with one), or set `use_images = false` for it. For OpenAI-compatible providers the photo is at most 800 pixels on its longest side and costs roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. Anthropic has no `image_detail` and charges by image size, so aimm sends it a photo of at most 400 pixels (about 200 tokens). Set `use_images = false` to evaluate listings from their text only and save these tokens. If the photo cannot be downloaded, or a request with it fails, the listing is evaluated from its text.
-11. `rate_limit` keeps aimm within the request limit of your plan, for example `rate_limit = "15/minute"` for a free Gemini key. The number can be per `second`, `minute`, `hour` or `day`. aimm spaces the requests evenly: `"15/minute"` sends at most one request every 4 seconds, and `"1000/hour"` one every 3.6 seconds. It does not send a burst of requests and then wait, because providers count their limits differently, and some reject a burst even when the total for the minute is within the limit. Retries count as requests, and evaluations remembered from earlier searches send none. Searches wait for the AI, so a low limit also slows down the searches. A daily limit makes a long gap (about a minute between evaluations for `"1500/day"`), even when the quota would allow a short burst, so with only a daily limit a per-minute rate that fits your usage may be faster. Whether or not `rate_limit` is set, when the service rejects a request for going over its limit, aimm waits as long as the service asks before trying again; if that is more than 5 minutes (for example a used-up daily quota), aimm uses the next AI instead.
+1. `provider` can be [UnitySVC](https://unitysvc.com/), [OpenAI](https://openai.com/), [DeepSeek](https://www.deepseek.com/), [Gemini](https://ai.google.dev/), [Anthropic](https://www.anthropic.com/) or [Ollama](https://ollama.com/). The name of the section is used if this option is not specified, so `OpenAI` is used for section `ai.openai`.
+2. You can use option `ai` to list the AI services for particular marketplaces or items.
+3. aimm uses the first `[ai.*]` section (the default AI) and tries the next ones only when it fails. The order of the list in option `ai` does not matter; reorder the sections, or use `aimm configure ai` to make another section the default.
+4. `use_images` (on by default) lets the AI see the main listing photo, so it can tell, for example, a tablet from a tablet case. aimm downloads the photo, shrinks it, and sends the image itself rather than its URL, because Facebook photo URLs expire and not every AI service fetches them. All providers get the photo. It requires a vision-capable model and adds image tokens to every new evaluation. UnitySVC's `balanced` tier supports images; when you choose another model, check that it accepts image input (and responds in reasonable time with one), or set `use_images = false` for it. For OpenAI-compatible providers the photo is at most 800 pixels on its longest side and costs roughly 85 tokens at `image_detail = "low"`, and up to 1,000 or more at `"high"`, which can double the cost of each request. Anthropic has no `image_detail` and charges by image size, so aimm sends it a photo of at most 400 pixels (about 200 tokens). Set `use_images = false` to evaluate listings from their text only and save these tokens. If the photo cannot be downloaded, or the service rejects a request with it for another reason than its rate limit (for example, a model that does not accept images), the listing is evaluated from its text. A request rejected for the rate limit is retried with the photo, as described under `rate_limit`.
+5. `rate_limit` keeps aimm within the request limit of your plan, for example `rate_limit = "15/minute"` for a free Gemini key. The number can be per `second`, `minute`, `hour` or `day`. aimm spaces the requests evenly: `"15/minute"` sends at most one request every 4 seconds, and `"1000/hour"` one every 3.6 seconds. It does not send a burst of requests and then wait, because providers count their limits differently, and some reject a burst even when the total for the minute is within the limit. Retries count as requests, and evaluations remembered from earlier searches send none. Searches wait for the AI, so a low limit also slows down the searches. A daily limit makes a long gap (about a minute between evaluations for `"1500/day"`), even when the quota would allow a short burst, so with only a daily limit a per-minute rate that fits your usage may be faster. Whether or not `rate_limit` is set, when the service rejects a request for going over its limit, aimm waits as long as the service asks before trying again; if that is more than 5 minutes (for example a used-up daily quota), aimm uses the next AI instead.
+
+#### With UnitySVC
+
+[UnitySVC](https://unitysvc.com/) is a gateway to services from many providers behind one API key. By default, aimm uses its OpenAI-compatible `llm` platform service at `https://api.svcpass.com/p/llm`, paid per use. Its `model` (default `balanced`) is either a tier (`fast`, `balanced`, `coding`, `premium`), for which UnitySVC picks the provider and fails over between them, or a specific model; `aimm configure ai` lists the models your key can use. The default `balanced` tier is recommended: it is relatively inexpensive and its models support vision (image input), so they can read listing photos (see `use_images` above). The same key (`UNITYSVC_API_KEY`) is used for UnitySVC [email](#email) and [phone and chat notifications](#phone-and-chat-notifications), so one key covers rating listings and delivering the results.
+
+A typical section for UnitySVC looks like the following, with the key kept in the `UNITYSVC_API_KEY` environment variable rather than in the file:
+
+```toml
+[ai.unitysvc]
+api_key = '${UNITYSVC_API_KEY}'
+```
+
+To use a specific service from the [UnitySVC catalog](https://unitysvc.com/market) instead of the `llm` platform pool, set `base_url` to the service URL shown on its catalog page and `model` to a model the service offers:
+
+```toml
+[ai.unitysvc]
+api_key = '${UNITYSVC_API_KEY}'
+base_url = 'https://api.svcpass.com/<service path>'
+model = '<model name>'
+```
+
+UnitySVC also lets you:
+
+- **Switch providers without editing the config.** Set `base_url` to a self-defined alias such as `https://api.svcpass.com/a/myllm`, then point that alias at any LLM service on UnitySVC and re-point it whenever you like.
+- **Log requests.** Prefix the path with `/l/` to record each call in your UnitySVC request logs, e.g. `base_url = 'https://api.svcpass.com/l/p/llm'`. This works with any path, such as `/l/a/myllm`, and is useful for checking what aimm sends and what the model returns.
+- **Request formats.** aimm sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
+
+#### UnitySVC with your own keys (BYOK)
+
+Many LLM services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly; UnitySVC does not charge for these bring-your-own-key calls in normal use. Your aimm config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
+
+For example, with your OpenAI key saved as the UnitySVC secret `OPENAI_API_KEY`, set `base_url` to the OpenAI service you picked in the catalog; your configuration still holds only `UNITYSVC_API_KEY`.
+
+#### Without UnitySVC
+
+Each provider needs its own account and API key, set in its section (preferably as an environment variable reference such as `'${OPENAI_API_KEY}'`).
+
+1. [OpenAI](https://openai.com/), [DeepSeek](https://www.deepseek.com/), and [Gemini](https://ai.google.dev/) models sets default `base_url` and `model` for these providers.
+2. [Anthropic](https://www.anthropic.com/) uses the Anthropic SDK directly (not OpenAI-compatible). The default model is `claude-sonnet-5-5`. An `api_key` is required.
+3. [Gemini](https://ai.google.dev/) is accessed through Google's OpenAI-compatible endpoint. The default model is `gemini-2.5-flash`. An `api_key` is required and can be obtained from [Google AI Studio](https://aistudio.google.com/apikey).
+4. Ollama models require `base_url`. A default model is set to `deepseek-r1:14b`, which seems to be good enough for this application. You can of course try [other models](https://ollama.com/library) by setting the `model` option.
+5. Although only six providers are directly supported, you can use any other service provider with `OpenAI`-compatible API using customized `base_url`, `model`, and `api_key`.
 
 A typical section for OpenAI looks like
 
@@ -88,48 +132,53 @@ A typical section for Gemini looks like
 api_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
-A typical section for UnitySVC looks like the following, with the key kept in the `UNITYSVC_API_KEY` environment variable rather than in the file:
+A typical section for a local model with Ollama looks like
 
 ```toml
-[ai.unitysvc]
-api_key = '${UNITYSVC_API_KEY}'
+[ai.ollama]
+base_url = 'http://localhost:11434/v1'
+model = 'deepseek-r1:14b'
 ```
-
-To use a specific service instead of the `llm` platform pool, set `base_url` to the service URL shown on its catalog page and `model` to a model the service offers:
-
-```toml
-[ai.unitysvc]
-api_key = '${UNITYSVC_API_KEY}'
-base_url = 'https://api.svcpass.com/<service path>'
-model = '<model name>'
-```
-
-Notes on UnitySVC services:
-
-- **Your own provider keys.** Many services have a "Requires Secrets" channel where you bring your own key: save it once as a UnitySVC secret (Developer → Secrets, e.g. `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), and UnitySVC injects it into requests to that provider. Your provider bills you directly; UnitySVC does not charge for these bring-your-own-key calls in normal use. Your aimm config still holds only `UNITYSVC_API_KEY`; the provider key never leaves UnitySVC. When a service has several channels, pin one by appending `@<channel>` to the service name in `base_url`.
-- **Switch providers without editing the config.** Set `base_url` to a self-defined alias such as `https://api.svcpass.com/a/myllm`, then point that alias at any LLM service on UnitySVC and re-point it whenever you like.
-- **Log requests.** Prefix the path with `/l/` to record each call in your UnitySVC request logs, e.g. `base_url = 'https://api.svcpass.com/l/p/llm'`. This works with any path, such as `/l/a/myllm`, and is useful for checking what aimm sends and what the model returns.
-- **Request formats.** aimm sends OpenAI Chat Completions requests; UnitySVC translates them for services whose upstream speaks another format, such as Anthropic's.
 
 The easiest way to set up an AI service is `aimm configure`: it is the primary interactive configuration command, checks your `[ai.*]` sections first, helps you add or update one, and writes the section with the key referenced as an environment variable.
 
 ### Marketplaces
 
-One or more sections `marketplace.name` show the options for interacting with various marketplaces.
+aimm searches two marketplaces: [Facebook Marketplace](#facebook-marketplace), which needs a Facebook account, and [OfferUp](#offerup) (US only), which needs no account. One or more sections `marketplace.name` say how to search them, and provide default values for the items searched in them.
 
 | Option             | Requirement | DataType | Description                                                                                                      |
 | ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `market_type`      | Optional    | String   | The type of marketplace: `facebook` or `offerup`. Without it, a section named after a marketplace type (`[marketplace.facebook]`, `[marketplace.offerup]`) has that type, and any other section is a Facebook marketplace. A section sets only the options its type has. |
-| `username`         | Required    | String   | Facebook marketplaces: the Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. aimm searches only while logged in. |
-| `password`         | Required    | String   | Facebook marketplaces: the Facebook password. Falls back to the `FACEBOOK_PASSWORD` environment variable if not set.                       |
+| **Common options** |             |          | Options listed in the [Common options](#common-item-and-marketplace-options) section below that provide default values for all items. |
+
+Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). An item without `marketplace` is searched in every marketplace section; give it `marketplace` to keep it to some of them.
+
+#### Facebook Marketplace
+
+Searching Facebook Marketplace needs two things:
+
+- **A Facebook account.** aimm logs in with it, and searches only while logged in. Give its login as `username` and `password` (below), or set the environment variables `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`; one of them is required, and aimm reports a configuration error without them.
+- **A browser.** aimm searches Facebook in a Chromium browser that it controls (through [Playwright](https://playwright.dev/python/)). After `pip install ai-marketplace-monitor`, install the browser once with `playwright install`; the Docker image includes it. When Facebook asks for a CAPTCHA or a security code, you complete it in that browser window, or in Docker in the **Browser** tab of the web UI.
+
+OfferUp needs neither: without a Facebook section, aimm starts no browser and needs no Facebook login.
+
+A Facebook section takes these options in addition to the common ones:
+
+```toml
+[marketplace.facebook]
+search_city = "houston"   # Facebook's location code; aimm configure finds it for you
+```
+
+| Option             | Requirement | DataType | Description                                                                                                      |
+| ------------------ | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `username`         | Required    | String   | The Facebook username. Falls back to the `FACEBOOK_USERNAME` environment variable if not set. aimm searches only while logged in. |
+| `password`         | Required    | String   | The Facebook password. Falls back to the `FACEBOOK_PASSWORD` environment variable if not set.                       |
 | `login_wait_time`  | Deprecated  | Integer  | Ignored. aimm now waits until the Facebook login has finished, however long a CAPTCHA or security code takes.   |
 | `language`         | Optional    | String   | Language for webpages                                                                                            |
-| **Common options** |             |          | Options listed in the [Common options](#common-options) section below that provide default values for all items. |
 
-1. Multiple marketplaces with different `name`s can be specified for different `item`s (see [Multiple marketplaces](../README.md#multiple-marketplaces)). An item without `marketplace` is searched in every marketplace section; give it `marketplace` to keep it to some of them.
-2. aimm logs in with `username` and `password`, then waits until Facebook has finished logging in before it searches: if Facebook asks for a CAPTCHA or a security code, complete it in the browser window (in Docker, the **Browser** tab of the web UI), and searches start once you are logged in. If Facebook logs aimm out later, it waits the same way and retries the page. aimm no longer searches without logging in, which worked only some of the time. `username` and `password` can be provided in three ways (in order of priority): directly in the config file, via the `${ENV_VAR}` syntax (e.g. `password = '${MY_FB_PASS}'`), or automatically from the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables. If none are set, aimm reports a configuration error.
-3. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
-4. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
+1. aimm logs in with `username` and `password`, then waits until Facebook has finished logging in before it searches: if Facebook asks for a CAPTCHA or a security code, complete it in the browser window (in Docker, the **Browser** tab of the web UI), and searches start once you are logged in. If Facebook logs aimm out later, it waits the same way and retries the page. aimm no longer searches without logging in, which worked only some of the time. `username` and `password` can be provided in three ways (in order of priority): directly in the config file, via the `${ENV_VAR}` syntax (e.g. `password = '${MY_FB_PASS}'`), or automatically from the `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` environment variables. If none are set, aimm reports a configuration error.
+2. If `language="LAN"` is specified, it must match to one of `translation` sections, defined by yourself or in the system configuration file. The system will try exact match (e.g. `es` to `es` or `zh_CN` to `zh_CN`), then partial match (e.g. `es` to `es_CO` or `es_CO` to `es`).
+3. Please see [Support for non-English languages](../README.md#support-for-non-english-languages) on how to set this option and define your own translations.
 
 #### OfferUp
 
@@ -137,11 +186,11 @@ aimm searches [OfferUp](https://offerup.com) (US only) without an account and wi
 
 ```toml
 [marketplace.offerup]
-search_city = "77002"      # a US ZIP code, or a list of them
+search_city = "77002"      # a US ZIP code or "latitude,longitude", or a list of them
 radius = 30                # miles: OfferUp offers 5, 10, 20, 30 and 50 (the nearest is used)
 ```
 
-- `search_city` is a US ZIP code (or several), not a Facebook location code; `city_name` names them in the log. To search the same place on Facebook and OfferUp, give a table: `search_city = { facebook = "houston", offerup = "77096" }`. A region can serve OfferUp when its cities have `offerup` values (the built-in regions have Facebook codes only).
+- `search_city` is a US ZIP code or a `"latitude,longitude"` pair (or several), not a Facebook location code; `city_name` names them in the log. To search the same place on Facebook and OfferUp, give a table: `search_city = { facebook = "houston", offerup = "77096" }`. A region can serve OfferUp when its cities have `offerup` values (the built-in regions have Facebook codes only).
 - OfferUp sections take the [common options](#common-item-and-marketplace-options); `availability`, `category`, `language`, `currency` and the login options are Facebook's. An item searched in both an OfferUp and a Facebook section uses the Facebook-only options in the Facebook section only (aimm logs a warning).
 - OfferUp's search sorts newest first unless `sort_by` says otherwise, and filters by `condition` (`new`; `used_like_new` as open box or used; `used_good` and `used_fair` as used), `min_price` and `max_price` (in US dollars; other currencies are converted). It has no filter for a listing's age or delivery: `date_listed` and `delivery_method` are checked after aimm reads the listing.
 - aimm reads each seller's public profile (when they joined OfferUp, rating, items sold, what buyers praise, verifications such as TruYou) for the AI and the seller filters. OfferUp does not show a seller's number of active listings.
@@ -245,7 +294,136 @@ Note that
 2. Support for `with_description` vary across notification methods due to their own limitations and strength. For example, email notification will always include description.
 3. Rate limiting prevents API violations by controlling message frequency. When enabled, the system waits for the longer of `instance_rate_limit` or `global_rate_limit` before sending each message. Telegram automatically enables rate limiting with optimized defaults for individual (1.1s) and group chats (3.0s).
 
-#### Telegram notification
+### Email
+
+| Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
+| --- | --- | --- | --- |
+| **Email** with listing photos and the daily digest | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-relay`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
+
+An `[email.NAME]` section sends aimm's full email, to the `email` of each user who receives it. It accepts the following options:
+
+| Option          | Requirement | DataType    | Description                                             |
+| --------------- | ----------- | ----------- | ------------------------------------------------------- |
+| `smtp_username` | Optional    | String      | SMTP username; required for `[email.unitysvc]`, where it names the UnitySVC service that delivers the email. |
+| `smtp_password` | Required    | String      | A password or passcode for the SMTP server (preset for `[email.unitysvc]` and `[email.gmail]`). |
+| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address. |
+| `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                             |
+| `smtp_from`     | Optional    | String      | Sender address, if it must differ from the login.       |
+| `digest_at`     | Optional    | String      | Local time of a daily digest; see [Daily digest](#daily-digest). |
+
+Two section names start from a preset, so that only what differs needs to be set: `[email.unitysvc]` and `[email.gmail]`. Any other name is a plain SMTP section.
+
+#### With UnitySVC
+
+**`[email.unitysvc]`** sends through [UnitySVC](https://unitysvc.com/)'s SMTP gateway, a convenient alternative to a Gmail app password. The preset has `smtp_server = "smtp.svcpass.com"`, `smtp_port = 587` and `smtp_password = "${UNITYSVC_API_KEY}"`, the same key as `[ai.unitysvc]`. Set `smtp_username` to the UnitySVC service that delivers the email:
+
+- **`smtp-to-mailbox`** (free) delivers it to the address registered and verified on your UnitySVC account (usually your own email), so `email` is not needed on the user.
+
+  ```toml
+  [email.unitysvc]
+  smtp_username = 'smtp-to-mailbox'
+  ```
+
+- **`notify`** delivers it to your UnitySVC inbox and the notification destination saved in UnitySVC, as `[notification.unitysvc]` does. For the email to reach you, that destination must include `smtp-to-mailbox`.
+- **`b/<broadcast name>`** sends each email to every target of a UnitySVC broadcast (up to 10), for example `smtp-to-mailbox` plus one or more SMTP Relay servers.
+- Any other service on the SMTP gateway (the SMTP username shown on its catalog page), or `a/<alias>` for one of your aliases. For a service that delivers to the `To` address, set `email` on the user.
+
+#### UnitySVC with your own SMTP account (BYOK)
+
+UnitySVC's [SMTP Relay](https://unitysvc.com/market) forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the `email` of each user who receives the section, as your own server would, and your server's login stays in UnitySVC instead of aimm's configuration.
+
+1. Save your server's details as secrets in your UnitySVC account: `SMTP_RELAY_HOST` (e.g. `smtp.gmail.com`), `SMTP_RELAY_USERNAME` (usually your address) and `SMTP_RELAY_PASSWORD` (an app password or API key), and if they differ from 587 and STARTTLS, `SMTP_RELAY_PORT` and `SMTP_RELAY_TLS`.
+2. Set `smtp_username = 'smtp-relay'`, the relay's free channel:
+
+```toml
+[email.unitysvc]
+smtp_username = 'smtp-relay'
+
+[user.me]
+email = 'me@example.com'
+```
+
+To relay through more than one server, enroll the SMTP Relay once per server (its `plus` channel, $1 per 1,000 emails). Then either:
+
+- **Send to all of them from one section:** create a UnitySVC broadcast (a name and up to 10 targets, such as these enrollments, `smtp-relay` or `smtp-to-mailbox`) and set `smtp_username = 'b/<broadcast name>'`. The SMTP gateway sends each email to every target.
+- **Use one section per server:** set each enrollment's code as `smtp_username` in its own `[email.*]` section (with `smtp_server = "smtp.svcpass.com"` and `smtp_password = "${UNITYSVC_API_KEY}"`, as the preset has).
+
+#### Without UnitySVC
+
+- **`[email.gmail]`** sends through Gmail. The preset has `smtp_server = "smtp.gmail.com"`, `smtp_port = 587` and `smtp_password = "${GMAIL_SMTP_PASSWORD}"`: set `smtp_username` to your Gmail address and `GMAIL_SMTP_PASSWORD` to a Gmail app password.
+
+  ```toml
+  [email.gmail]
+  smtp_username = 'me@gmail.com'
+
+  [user.me]
+  email = 'me@gmail.com'
+  ```
+
+- **Any other name** is a plain SMTP section: set `smtp_server`, `smtp_username` and `smtp_password` from your email provider. aimm uses the user's `email` if `smtp_username` is not set, and guesses `smtp_server` from the sender's address.
+
+  ```toml
+  [email.outlook]
+  smtp_server = 'smtp.office365.com'
+  smtp_username = 'me@outlook.com'
+  smtp_password = '${OUTLOOK_PASSWORD}'
+  ```
+
+See [Setting up email notifications](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#setting-up-email-notifications) for more on each option.
+
+### Phone and chat notifications
+
+| Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
+| --- | --- | --- | --- |
+| **Phone and chat alerts** | `[notification.unitysvc]`: free, but only to your inbox on the UnitySVC website, which is of little use on its own | the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
+
+A `[notification.NAME]` section is one phone or chat channel. It sends a short text message for each batch of new listings, without photos.
+
+#### With UnitySVC
+
+| Option              | Requirement | DataType | Description                                                                          |
+| ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
+| `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
+| `unitysvc_service`  | Optional    | String   | The UnitySVC service that sends the message. The default, `notify`, sends it to your inbox on the UnitySVC website and to every destination set in your UnitySVC notification preferences. Use a service path such as `labs/msg-to-discord` to send to that one service only. |
+| `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
+
+```toml
+[notification.unitysvc]
+unitysvc_api_key = '${UNITYSVC_API_KEY}'
+```
+
+- Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
+- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching aimm's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
+- UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
+
+#### UnitySVC with your own accounts (BYOK)
+
+Without a destination of your own, `notify` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Keep `[notification.unitysvc]` as it is, and choose your own account as the notification destination in UnitySVC: for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
+
+The channels aimm supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep `notify`), or send to it directly with `unitysvc_service`:
+
+| Instead of | UnitySVC service | Secrets to save in UnitySVC | `unitysvc_service` |
+| --- | --- | --- | --- |
+| Telegram | `labs/msg-to-telegram` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `labs/msg-to-telegram` |
+| ntfy | `labs/msg-to-ntfy` | `NTFY_TOPIC`, and `_NTFY_BASE` for your own ntfy server | `labs/msg-to-ntfy` |
+| Pushover | `labs/msg-to-pushover` | `PUSHOVER_TOKEN`, `PUSHOVER_USER_KEY`; then enroll in the service once | `e/<enrollment code>` |
+| Pushbullet | `labs/msg-to-pushbullet` | `PUSHBULLET_ACCESSTOKEN`; then enroll in the service once | `e/<enrollment code>` |
+
+Their free channels deliver with your own account; a paid `gateway-plus` channel adds more destinations of the same service per enrollment.
+
+To send each alert to several of your accounts at once, for example Discord, Telegram and SMS, either set them all as destinations in your UnitySVC notification preferences, or create a UnitySVC **broadcast** (a name and up to 10 targets, such as these services or their enrollments) and use it: save it as your notification destination and keep `notify`, or send to it directly with `unitysvc_service = "b/<broadcast name>"`:
+
+```toml
+[notification.everywhere]
+unitysvc_api_key = '${UNITYSVC_API_KEY}'
+unitysvc_service = 'b/my-alerts'
+```
+
+#### Without UnitySVC
+
+Each of these channels needs its own account, and its token goes in the section (preferably as an environment variable reference); where the user receives it goes on the user.
+
+##### Telegram notification
 
 | Option             | Requirement | DataType | Description                                    |
 | ------------------ | ----------- | -------- | ---------------------------------------------- |
@@ -260,7 +438,7 @@ Note that
 4. **HTTP 429 Handling**: Built-in retry logic with exponential backoff for Telegram API rate limit responses.
 5. **Message Splitting**: Long messages are automatically split while preserving MarkdownV2 formatting.
 
-#### Pushbullet notification
+##### Pushbullet notification
 
 | Option                    | Requirement | DataType | Description                   |
 | ------------------------- | ----------- | -------- | ----------------------------- |
@@ -270,14 +448,14 @@ Note that
 
 Please refer to [PushBullet documentation](https://github.com/richard-better/pushbullet.py/blob/master/readme-old.md) for details on the use of a proxy server for pushbullet.
 
-#### Pushover notification
+##### Pushover notification
 
 | Option               | Requirement | DataType | Description         |
 | -------------------- | ----------- | -------- | ------------------- |
 | `pushover_user_key`  | Optional    | String   | Pushover user key.  |
 | `pushover_api_token` | Optional    | String   | Pushover API Token. |
 
-#### Ntfy notification
+##### Ntfy notification
 
 | Option           | Requirement | DataType | Description                                       |
 | ---------------- | ----------- | -------- | ------------------------------------------------- |
@@ -286,40 +464,6 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` |
 
 - According to [ntfy documentation](https://docs.ntfy.sh/publish/#markdown-formatting), markdown format is supported only by web app. Therefore, `message_format` is by default set to `plain_text`.
-
-#### UnitySVC notification
-
-| Option              | Requirement | DataType | Description                                                                          |
-| ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
-| `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
-| `unitysvc_service`  | Optional    | String   | Service path, default `notify`. Use e.g. `labs/msg-to-discord` for a specific service. |
-| `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
-
-- Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]`; one key serves both AI and notifications.
-- UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
-- The default `notify` service shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
-- To send aimm's HTML email notifications (with listing images) through UnitySVC, use an `[email.unitysvc]` section; see [Email](#email). With `smtp_username = "notify"` instead of `smtp-to-mailbox`, your UnitySVC notification destination must include `smtp-to-mailbox` for the email to reach you.
-- To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
-
-#### Email
-
-| Option          | Requirement | DataType    | Description                                             |
-| --------------- | ----------- | ----------- | ------------------------------------------------------- |
-| `smtp_username` | Optional    | String      | SMTP username; required for `[email.unitysvc]`, where it names the UnitySVC service that delivers the email. |
-| `smtp_password` | Required    | String      | A password or passcode for the SMTP server (preset for `[email.unitysvc]` and `[email.gmail]`). |
-| `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address. |
-| `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                             |
-| `smtp_from`     | Optional    | String      | Sender address, if it must differ from the login.       |
-| `digest_at`     | Optional    | String      | Local time of a daily digest; see [Daily digest](#daily-digest). |
-
-Two section names start from a preset, so that only what differs needs to be set:
-
-- **`[email.unitysvc]`** sends through [UnitySVC](https://unitysvc.com/)'s SMTP gateway, a convenient alternative to a Gmail app password. The preset has `smtp_server = "smtp.svcpass.com"`, `smtp_port = 587` and `smtp_password = "${UNITYSVC_API_KEY}"`, the same key as `[ai.unitysvc]`. Set `smtp_username` to the UnitySVC service that delivers the email: `smtp-to-mailbox` delivers it to the address registered and verified on your UnitySVC account (usually your own email), so `email` is not needed on the user; a relay service sends it elsewhere.
-- **`[email.gmail]`** sends through Gmail. The preset has `smtp_server = "smtp.gmail.com"`, `smtp_port = 587` and `smtp_password = "${GMAIL_SMTP_PASSWORD}"`: set `smtp_username` to your Gmail address and `GMAIL_SMTP_PASSWORD` to a Gmail app password.
-
-Any other name is a plain SMTP section: set `smtp_server`, `smtp_username` and `smtp_password`. The recipients are the `email` of each user who receives the section.
-
-See [Setting up email notification](../README.md#setting-up-email-notification) for details on how to set up email notification.
 
 ### Items to search
 

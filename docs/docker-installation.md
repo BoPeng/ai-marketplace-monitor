@@ -11,9 +11,9 @@ The Docker image runs aimm on a server, a NAS or any machine without a screen. I
 The default configuration needs only this one key, for both the AI that rates listings and the email and phone/chat notifications:
 
 - **AI from any provider**: OpenAI, Anthropic and other AI engines, either as UnitySVC platform services or with your own provider keys (BYOK, "bring your own key"). For BYOK, save the provider's key once as a secret in your UnitySVC account (Developer → Secrets, e.g. `OPENAI_API_KEY`); it stays in UnitySVC, and your aimm configuration and `.env` still hold only `UNITYSVC_API_KEY`. See [AI Services](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/README.md#ai-services).
-- **Notifications**: email with photos and short messages to your phone, Discord, Slack and 100+ other channels, through UnitySVC's platform services or your own accounts. See [UnitySVC notification](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/README.md#unitysvc-notification).
+- **Email** with photos and the daily digest, and **phone and chat alerts** to Discord, Slack, SMS and 100+ other channels, through UnitySVC's services or your own accounts. See [Email](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/README.md#email) and [Phone and chat notifications](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/README.md#phone-and-chat-notifications).
 
-You can also skip UnitySVC and configure OpenAI, Gmail and other services in `config.toml` directly, with their keys in `.env`.
+You can also skip UnitySVC and configure OpenAI, Gmail and other services in `config.toml` directly, with their keys in `.env`. The [What you need](https://github.com/BoPeng/ai-marketplace-monitor#what-you-need) table compares the three ways to set up each service.
 
 ## Quick start with docker run
 
@@ -183,7 +183,7 @@ On first start, aimm creates `config.toml` in the mounted directory (`data/confi
 
 - logs in to Facebook with `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`, and searches around Houston (`search_city`)
 - rates listings with UnitySVC AI (`[ai.unitysvc]`, model `balanced`, which also reads listing photos)
-- sends each match as an email with photos (`[email.unitysvc]`) to the address registered with UnitySVC, and as a short message (`[notification.unitysvc]`) to your UnitySVC inbox and the destination you saved in UnitySVC (Discord, Slack, SMS, phone push, ...)
+- sends each match as an email with photos (`[email.unitysvc]`) to the address registered with UnitySVC, and as a short message (`[notification.unitysvc]`) to your UnitySVC inbox and the destination you saved in UnitySVC (Discord, Slack, SMS, phone push, ...). Until you choose a destination of your own in UnitySVC, these short messages reach only your inbox on the UnitySVC website.
 - sends a daily digest by email at 08:00 (`digest_at` in `[email.unitysvc]`)
 - searches for an example item, `[item.example]`
 

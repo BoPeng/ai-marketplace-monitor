@@ -15,7 +15,7 @@
 
 </div>
 
-An intelligent tool that monitors Facebook Marketplace listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
+An intelligent tool that monitors **Facebook Marketplace** and **OfferUp** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
 
 **📚 [Read the Full Documentation](https://ai-marketplace-monitor.readthedocs.io/)**
 
@@ -41,10 +41,12 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
+- **Two marketplaces**: aimm searches [OfferUp](docs/README.md#offerup) (US) as well as Facebook Marketplace. OfferUp needs no account and no browser, and an item can be searched in both; `aimm configure` sets either up.
+- **Email in its own sections**: `[email.*]` sections send aimm's full email (`[email.unitysvc]` and `[email.gmail]` are preset), `[notification.*]` sections the phone and chat alerts, and each section can send the daily digest. Older configuration files are updated automatically. See [Email and notifications](docs/README.md#email-and-notifications).
 - **Seller reputation**: aimm evaluates each seller, from how long they have been on Facebook, their listings and sales, their rating and what buyers say in reviews, and the AI identifies unreliable and malicious sellers automatically: new accounts, dealers posing as private sellers, bait listings, no-shows. Its rating and notifications tell you why. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information).
 - **Guided Facebook login**: aimm types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
 - **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
-- **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models and 100+ notification channels. See [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
+- **UnitySVC for AI and notifications**: Use one [UnitySVC](https://unitysvc.com/) key for almost arbitrary AI models, email and 100+ notification channels. See [What you need](#what-you-need).
 - **Built-in Web UI**: Edit config, add AI backends, and monitor live logs from your browser — starts automatically with the monitor. See [Web UI documentation](docs/webui.md).
 
 **Table of Contents:**
@@ -66,8 +68,9 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - Search multiple products using keywords
 - Filter by price and location
 - Exclude irrelevant results and spammers
+- Searches **Facebook Marketplace** and **[OfferUp](docs/README.md#offerup)** (US); OfferUp needs no account and no browser
+- An item can be searched in both marketplaces at once
 - Support for different Facebook Marketplace layouts
-- Also searches [OfferUp](docs/README.md#offerup) (US), without an account or a browser
 
 🤖 **AI-Powered**
 
@@ -103,7 +106,24 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## 🚀 Quick Start
 
-> **⚠️ Legal Notice**: Facebook's EULA prohibits automated data collection without authorization. This tool was developed for personal, hobbyist use only. You are solely responsible for ensuring compliance with platform terms and applicable laws.
+> **⚠️ Legal Notice**: Facebook's and OfferUp's terms prohibit automated data collection without authorization. This tool was developed for personal, hobbyist use only. You are solely responsible for ensuring compliance with platform terms and applicable laws.
+
+### What you need
+
+aimm searches **Facebook Marketplace**, which needs a Facebook account for aimm to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that aimm controls (installed with `playwright install`), and **OfferUp** (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
+
+| Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
+| --- | --- | --- | --- |
+| **AI** that rates listings ([`[ai.*]`](docs/README.md#ai-services)) | `[ai.unitysvc]`: UnitySVC's model pool, paid per use | `[ai.unitysvc]` with an OpenAI, Anthropic or other provider's service and your key for it saved in UnitySVC; the provider bills you | `[ai.openai]`, `[ai.anthropic]`, `[ai.gemini]`, `[ai.deepseek]`, or a local model with `[ai.ollama]` |
+| **Email** with listing photos and the daily digest ([`[email.*]`](docs/README.md#email)) | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-relay`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
+| **Phone and chat alerts** ([`[notification.*]`](docs/README.md#phone-and-chat-notifications)) | `[notification.unitysvc]`: free, but only to your inbox on the UnitySVC website, which is of little use on its own | the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
+
+- **One key for everything.** With UnitySVC, one API key (`UNITYSVC_API_KEY`) covers all three services. The keys of your own accounts (BYOK) are saved once in your UnitySVC account and never appear in aimm's configuration. The default configuration uses UnitySVC for AI, email and phone alerts. Its phone alerts reach only your inbox on the UnitySVC website until you choose a destination of your own in UnitySVC, such as your Discord, Slack, Telegram or Pushover.
+- **Mix and match.** Each service is set up on its own, so you can, for example, use UnitySVC email with your own OpenAI key.
+- **Without UnitySVC**, each service needs its own account, and its key or password goes in your configuration or environment. Every part of aimm works this way too.
+- `aimm configure` sets up any of these for you.
+
+UnitySVC is run by the maintainer of aimm.
 
 ### Installation
 
@@ -248,7 +268,7 @@ docker run -d --name aimm \
   ghcr.io/bopeng/ai-marketplace-monitor:latest
 ```
 
-`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there. In the default configuration, that one key covers any AI engine (OpenAI, Anthropic and more, as UnitySVC platform services or with your own provider keys saved in UnitySVC) and email and phone notifications; see [AI Services](docs/README.md#ai-services) and [UnitySVC notification](docs/README.md#unitysvc-notification).
+`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there. In the default configuration, that one key covers any AI engine (OpenAI, Anthropic and more, as UnitySVC platform services or with your own provider keys saved in UnitySVC) and email and phone notifications; see [AI Services](docs/README.md#ai-services) and [What you need](#what-you-need).
 
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
