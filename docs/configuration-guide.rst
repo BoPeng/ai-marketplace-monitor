@@ -143,12 +143,11 @@ Gmail requires an app password, which many users find hard to create in their Go
 
 Notes on the UnitySVC services:
 
-- **Emails go to your UnitySVC-registered email address**, the verified primary email under Settings → Account on UnitySVC, not to the address in ``email``. Make sure that address is set and verified.
-- ``smtp_username = 'smtp-to-mailbox'`` skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
+- ``smtp_username = 'smtp-to-mailbox'`` skips the inbox and emails your **UnitySVC-registered address** directly, free of charge, keeping the HTML body and listing images. That is the verified primary email under Settings → Account on UnitySVC, not the address in ``email``: make sure it is set and verified.
 - ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To receive these notifications by email, your notification destination on UnitySVC must include ``smtp-to-mailbox``: set it as the destination, or add it to a broadcast used as the destination.
 - ``smtp_username = 'b/<broadcast name>'`` sends each email to every target of a UnitySVC broadcast (up to 10), for example ``smtp-to-mailbox`` plus several SMTP Relay servers (see below).
 - ``smtp_username`` can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases. For services that deliver to the ``To`` address, set ``email``.
-- ``email`` is optional with the preset: it only fills the ``To`` header, and ``smtp-to-mailbox`` and ``notify`` deliver to your registered address whatever it says.
+- Who receives the email depends on the service: ``smtp-to-mailbox`` sends it to your registered address, ``notify`` to your saved notification destination, and the SMTP Relay (``smtp-relay``, below) to the ``email`` of each user who receives the section. ``email`` is optional for the first two, where it only fills the ``To`` header, and required for the relay.
 
 UnitySVC with your own SMTP account (BYOK)
 ------------------------------------------
@@ -596,7 +595,12 @@ If you have special characters and spaces in your keywords, you will need to quo
 Multi-Location and Region Search
 ================================
 
-For Facebook Marketplace, `search_city` is the name, sometimes numbers, used by Facebook to represent a city; for OfferUp, it is a US ZIP code or `"latitude,longitude"`. To get the value of `search_city` for your region, visit facebook marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
+`search_city` takes a different value for each marketplace:
+
+- **Facebook Marketplace**: the name, sometimes numbers, that Facebook uses for a city. To find it, search on Facebook Marketplace: it is the part after `marketplace` in the URL (e.g. `XXXXX` in `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
+- **OfferUp**: a five-digit US ZIP code, such as `77002`, or a `"latitude,longitude"` pair, such as `"29.7604,-95.3698"`. A Facebook city code does not work for OfferUp.
+
+To search the same place in both marketplaces, give a table of values by marketplace type, such as `search_city = { facebook = "houston", offerup = "77002" }`.
 
 The **Assistant** (in the web UI, or ``aimm configure``) finds it for you: tell it a city, neighborhood or ZIP code (for example ``Houston, TX``, ``Los Angeles, Texas`` or ``92101``). aimm asks Facebook Marketplace's location search, as Facebook's location dialog does, and shows the matching places with their codes (``houston``; ``487995858630733`` for Los Angeles, La Salle County, Texas; ``sandiego`` for 92101). No browser or Facebook account is involved, and nothing is changed on your account.
 
@@ -754,7 +758,7 @@ Replace `${PROXY_SERVER}`, `${PROXY_USERNAME}`, and `${PROXY_PASSWORD}` with you
 Multiple Marketplaces
 =====================
 
-Although Facebook is currently the only supported marketplace, you can create multiple marketplace configurations such as ``marketplace.city1`` and ``marketplace.city2`` with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. An item is searched in every marketplace section unless its ``marketplace`` option names the ones to use.
+aimm supports two marketplaces, Facebook Marketplace and OfferUp, and you can create several sections of each, such as ``marketplace.city1`` and ``marketplace.city2``, with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. An item is searched in every marketplace section unless its ``marketplace`` option names the ones to use.
 
 For example:
 
@@ -770,6 +774,10 @@ For example:
     seller_locations = []
     delivery_method = 'shipping'
 
+    [marketplace.offerup]
+    search_city = '77002'   # a US ZIP code
+    radius = 30
+
     [item.default_item]
     marketplace = 'facebook'
     search_phrases = 'local item, searched only in "facebook"'
@@ -782,10 +790,14 @@ For example:
     marketplace = 'nationwide'
     search_phrases = 'rare item2'
 
+    [item.bike]
+    marketplace = ['facebook', 'offerup']
+    search_phrases = 'road bike, searched around Houston in both marketplaces'
+
 .. note::
    - An item without ``marketplace`` is searched in every marketplace section, including ones you add later. ``marketplace`` keeps it to one section, or to a list of them (``marketplace = ['facebook', 'nationwide']``).
    - An item searched in several sections uses each section's location, so it cannot set its own ``search_city``, ``search_region``, ``radius``, ``city_name`` or ``currency``.
-   - A section's type comes from ``market_type``; without it, from its name if that names a marketplace (``facebook``), and otherwise it is a Facebook marketplace. ``nationwide`` above is a Facebook marketplace with a different location and options.
+   - A section's type comes from ``market_type``; without it, from its name if that names a marketplace (``facebook``, ``offerup``), and otherwise it is a Facebook marketplace. ``nationwide`` above is a Facebook marketplace with a different location and options.
 
 First and Subsequent Searches
 =============================
