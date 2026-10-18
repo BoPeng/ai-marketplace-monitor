@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, List
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -168,6 +168,24 @@ def test_a_different_radius_is_chosen_and_applied() -> None:
         "button:Apply",
     ]
     assert page.label.endswith("Within 10 miles")
+
+
+def test_a_panel_over_the_location_button_is_closed_first() -> None:
+    page = _FakePage("Location: Houston, Texas, Within 100 mi", CHOICES)
+    blocked = [True]
+    click = _FakeLocator.click
+
+    def covered(self: _FakeLocator, timeout: int = 0) -> None:
+        # Messenger's panel takes the first click on the location button
+        if self.what == "location button" and blocked:
+            blocked.pop()
+            raise RuntimeError("<div> subtree intercepts pointer events")
+        click(self, timeout)
+
+    with patch.object(_FakeLocator, "click", covered):
+        assert _marketplace(page).set_search_radius(40) is True
+    page.keyboard.press.assert_any_call("Escape")
+    assert page.clicks[0] == "location button" and page.label.endswith("Within 40 miles")
 
 
 def test_a_radius_that_cannot_be_set_does_not_stop_the_search() -> None:
