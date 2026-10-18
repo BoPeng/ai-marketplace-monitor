@@ -6,6 +6,8 @@ from typing import Any, Dict
 import pytest
 
 from ai_marketplace_monitor.config import Config, load_config_dicts
+from ai_marketplace_monitor.email_notify import EmailNotificationConfig
+from ai_marketplace_monitor.unitysvc_notify import UnitySVCNotificationConfig
 from tests.normalize_util import EXAMPLES
 
 
@@ -44,7 +46,8 @@ def test_load_config_dicts_merges_user_files(tmp_path: Path) -> None:
     second.write_text('[item.bike]\nsearch_phrases = "bike"\n')
     system, user = load_config_dicts([first, second])
     assert "region" in system
-    assert set(user) == {"marketplace", "user", "item"}
+    # the user's pushbullet_token is migrated into a [notification.*] section
+    assert set(user) == {"marketplace", "user", "notification", "item"}
     assert "bike" in Config.from_dicts(system, user).item
 
 
@@ -77,10 +80,18 @@ def test_default_template_is_a_working_config(
     assert cfg.ai["unitysvc"].api_key == "svcpass_key"
     assert cfg.ai["unitysvc"].model == "balanced"
     me = cfg.user["me"]
-    assert me.notify_with == ["unitysvc_email", "unitysvc"]
-    assert me.smtp_server == "smtp.svcpass.com"
-    assert me.smtp_password == "svcpass_key"
-    assert me.unitysvc_api_key == "svcpass_key"
-    assert me.digest_at == "08:00"
+    assert me.notify_with == ["email.unitysvc", "notification.unitysvc"]
+    email, unitysvc = me.channels()
+    assert (email.name, email.config.notify_method) == ("email.unitysvc", "email")
+    assert isinstance(email.config, EmailNotificationConfig)
+    assert (email.config.smtp_server, email.config.smtp_password) == (
+        "smtp.svcpass.com",
+        "svcpass_key",
+    )
+    assert isinstance(unitysvc.config, UnitySVCNotificationConfig)
+    assert unitysvc.name == "notification.unitysvc"
+    assert unitysvc.config.unitysvc_api_key == "svcpass_key"
+    # the full digest by email, none on the phone
+    assert (email.config.digest_at, unitysvc.config.digest_at) == ("08:00", None)
     # channel defaults shared by both notifications are not reported as overrides
     logger.warning.assert_not_called()

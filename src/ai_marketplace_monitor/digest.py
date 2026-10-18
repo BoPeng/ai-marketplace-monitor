@@ -17,14 +17,14 @@ Entry points:
 - ``compose_digest(since, until)`` collects the records and counters into a ``Digest``;
 - ``render_phone_digest(digest, fmt)`` and ``render_email_digest(digest)`` render it without
   sending;
-- ``send_digest(user_config, digest, notifications)`` sends it to the user's digest channels;
-- ``send_due_digest(user_config, notifications)`` does all of this when the digest is due.
+- ``send_digest(user_config, digest)`` sends it to the user's digest channels;
+- ``send_due_digest(user_config)`` does all of this when the digest is due.
 """
 
 import html
 import re
 import time
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from logging import Logger
 from pathlib import Path
@@ -37,11 +37,11 @@ from typing import (
     List,
     Mapping,
     Tuple,
-    Type,
 )
 
 from diskcache import Cache  # type: ignore
 
+from .channels import channel_classes
 from .evaluations import (
     EXCLUDED,
     NOTIFIED,
@@ -521,89 +521,26 @@ def render_email_digest(digest: Digest) -> Tuple[str, str]:
 #
 # Sending
 #
-def channel_classes() -> Dict[str, Type["NotificationConfig"]]:
-    from .email_notify import EmailNotificationConfig
-    from .ntfy import NtfyNotificationConfig
-    from .pushbullet import PushbulletNotificationConfig
-    from .pushover import PushoverNotificationConfig
-    from .telegram import TelegramNotificationConfig
-    from .unitysvc_notify import UnitySVCNotificationConfig
+def digest_channels(user_config: Any) -> Dict[str, "NotificationConfig"]:
+    """The channels that receive the user's digest, by name.
 
+    The channels of the sections that have a ``digest_at``.
+    """
     return {
-        "email": EmailNotificationConfig,
-        "pushbullet": PushbulletNotificationConfig,
-        "pushover": PushoverNotificationConfig,
-        "ntfy": NtfyNotificationConfig,
-        "telegram": TelegramNotificationConfig,
-        "unitysvc": UnitySVCNotificationConfig,
+        channel.name: channel.config
+        for channel in user_config.channels()
+        if getattr(channel.config, "digest_at", None)
     }
 
 
-def _channel(
-    cls: Type["NotificationConfig"], user_config: Any, section: Any = None
-) -> "NotificationConfig":
-    """A channel with the user's values, and a section's, like Config.expand_notifications."""
-    values = {f.name: getattr(user_config, f.name) for f in fields(cls)}
-    if section is not None:
-        for key, value in vars(section).items():
-            if key in values and key not in ("type", "name", "request") and value is not None:
-                values[key] = value
-    return cls(**values)
-
-
-def section_channel_types(section: Any) -> List[str]:
-    """The channel types a [notification.*] section sets up: the ones it has values for.
-
-    Sections load as a class that accepts all of their keys, which can be a class of every
-    channel type, so the type is told by the values instead.
-    """
-    from .notification import CHANNEL, RECIPIENT, fields_with_role
-
-    return [
-        channel_type
-        for channel_type, cls in channel_classes().items()
-        if any(
-            getattr(section, f, None) is not None
-            for f in fields_with_role(cls, CHANNEL) + fields_with_role(cls, RECIPIENT)
-        )
-    ]
-
-
-def digest_channels(
-    user_config: Any, notifications: Mapping[str, Any] | None = None
-) -> Dict[str, "NotificationConfig"]:
-    """The channels that receive the user's digest.
-
-    With ``digest_with``, the named [notification.*] sections (from ``Config.notification``),
-    by section name; otherwise every channel the user is notified with, by channel type.
-    """
-    classes = channel_classes()
-    channels: Dict[str, NotificationConfig] = {}
-    if getattr(user_config, "digest_with", None) is None:
-        for channel_type, cls in classes.items():
-            channel = _channel(cls, user_config)
-            if channel._has_required_fields():
-                channels[channel_type] = channel
-        return channels
-
-    if notifications is None:
-        raise ValueError("digest_with needs the [notification.*] sections.")
-    for name in user_config.digest_with:
-        section = notifications.get(name)
-        if section is None or section.enabled is False:
-            continue
-        types = section_channel_types(section)
-        for channel_type in types:
-            channel = _channel(classes[channel_type], user_config, section)
-            if channel._has_required_fields():
-                channels[name if len(types) == 1 else f"{name} ({channel_type})"] = channel
-    return channels
+def digest_times(user_config: Any) -> List[str]:
+    """The times (HH:MM) at which the user's digest channels are due, each once."""
+    return sorted({c.digest_at for c in digest_channels(user_config).values() if c.digest_at})
 
 
 def send_digest(
     user_config: Any,
     digest: Digest,
-    notifications: Mapping[str, Any] | None = None,
     logger: Logger | None = None,
     channels: Collection[str] | None = None,
 ) -> Dict[str, bool]:
@@ -615,7 +552,7 @@ def send_digest(
     email_class = channel_classes()["email"]
     selected = [
         (name, channel)
-        for name, channel in digest_channels(user_config, notifications).items()
+        for name, channel in digest_channels(user_config).items()
         if channels is None or name in channels
     ]
     # email first: the phone digest points to the email digest only once it has been sent
@@ -653,7 +590,6 @@ def latest_cutoff(digest_at: str, now: datetime) -> datetime:
 
 def pending_digest_windows(
     user_config: Any,
-    notifications: Mapping[str, Any] | None = None,
     now: datetime | None = None,
     local_cache: Cache | None = None,
 ) -> Dict[Tuple[float, float], List[str]]:
@@ -669,9 +605,10 @@ def pending_digest_windows(
     """
     c = cache if local_cache is None else local_cache
     now = datetime.now() if now is None else now
-    until = latest_cutoff(user_config.digest_at, now).timestamp()
     windows: Dict[Tuple[float, float], List[str]] = {}
-    for name in digest_channels(user_config, notifications):
+    for name, channel in digest_channels(user_config).items():
+        assert channel.digest_at is not None
+        until = latest_cutoff(channel.digest_at, now).timestamp()
         key = digest_key(user_config.name, name)
         last = c.get(key)
         if not isinstance(last, (int, float)):
@@ -685,18 +622,16 @@ def pending_digest_windows(
 
 def pending_digest_channels(
     user_config: Any,
-    notifications: Mapping[str, Any] | None = None,
     now: datetime | None = None,
     local_cache: Cache | None = None,
 ) -> List[str]:
     """The user's digest channels that have not received the latest scheduled digest."""
-    windows = pending_digest_windows(user_config, notifications, now, local_cache)
+    windows = pending_digest_windows(user_config, now, local_cache)
     return [name for names in windows.values() for name in names]
 
 
 def send_due_digest(
     user_config: Any,
-    notifications: Mapping[str, Any] | None = None,
     logger: Logger | None = None,
     now: datetime | None = None,
     local_cache: Cache | None = None,
@@ -705,20 +640,16 @@ def send_due_digest(
 ) -> bool:
     """Send the user's digest to the channels it is due on; whether it was sent to any.
 
-    The job runs at ``digest_at`` and whenever the jobs are scheduled (start, config change),
+    The job runs at each ``digest_at`` and whenever the jobs are scheduled (start, config change),
     so a restart does not send a digest twice, a digest missed while aimm was not running is
     sent on the next start, and a channel that failed is tried again with the same window.
     With ``summarize`` (given when an AI service is configured), each item gets an AI summary.
     """
-    if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
+    if user_config.enabled is False or not digest_channels(user_config):
         return False
     c = cache if local_cache is None else local_cache
-    windows = pending_digest_windows(user_config, notifications, now, local_cache)
+    windows = pending_digest_windows(user_config, now, local_cache)
     if not windows:
-        if logger and not digest_channels(user_config, notifications):
-            logger.warning(
-                f"""{hilight("[Digest]", "fail")} No daily digest sent to {hilight(user_config.name)}: the user has no notification channel for the digest."""
-            )
         return False
 
     sent_with: List[str] = []
@@ -729,7 +660,7 @@ def send_due_digest(
             from .digest_summary import add_summaries
 
             add_summaries(digest, summarize, item_configs, logger=logger, local_cache=local_cache)
-        results = send_digest(user_config, digest, notifications, logger=logger, channels=names)
+        results = send_digest(user_config, digest, logger=logger, channels=names)
         for name, sent in results.items():
             if sent:
                 # the window this channel has received, so that it is not sent again

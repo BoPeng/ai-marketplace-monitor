@@ -1,14 +1,22 @@
 ---
 section: notification
-summary: How and to whom aimm sends notifications: [notification.NAME] channels and the [user.NAME] sections that receive them.
+summary: How and to whom aimm sends notifications: [email.NAME] and [notification.NAME] sections and the [user.NAME] sections that receive them.
 ---
 ## Goal
 
-The user gets aimm's notifications where they want them. A `[notification.NAME]` section is one
-channel (an email account, a UnitySVC key, a push service) with its servers and credentials. A
-`[user.NAME]` section is a person: where they receive messages (email address, chat ID, ...) and
-which notifications they receive (`notify_with`; all of them when it is unset). Items and
-marketplaces refer to users, so every notification needs a user who receives it.
+The user gets aimm's notifications where they want them. There are two kinds of section that
+send:
+
+- An `[email.NAME]` section sends aimm's full email: all new listings in one message, with
+  their photos. Best for reviewing listings.
+- A `[notification.NAME]` section is one phone or chat channel (UnitySVC, Pushbullet,
+  Pushover, ntfy, Telegram) that sends short text messages without photos. Best for being
+  alerted quickly.
+
+A `[user.NAME]` section is a person: where they receive messages (email address, chat ID, ...)
+and which sections they receive (`notify_with`, as `email.<name>` and `notification.<name>`;
+all of them when it is unset). Items and marketplaces refer to users, so every section needs a
+user who receives it.
 
 ## Subtasks
 
@@ -16,70 +24,79 @@ marketplaces refer to users, so every notification needs a user who receives it.
 
 Most people have one user. `section_show` returns `default_user`: notifications go to that user,
 which is `me` when there is no user yet; create `[user.me]` for them without asking. If there are
-several users (`can_reference.users`), ask which ones should receive a new notification.
+several users (`can_reference.users`), ask which ones should receive a new section.
 
-### Choosing a channel
+### Choosing how to notify
 
-Ask how they want to be notified if they did not say. There are two kinds of channel:
+Ask how they want to be notified if they did not say: by email, on their phone or in a chat, or
+both.
 
-**Email** sends aimm's full email: all new listings in one message, with their photos. Best for
-reviewing listings.
+**Email** (`[email.*]`). `section_show` lists `email_options` with the section and values to
+write; offer them in that order.
 
-- **UnitySVC email**: `smtp_server = "smtp.svcpass.com"`, `smtp_username = "smtp-to-mailbox"`,
-  `smtp_password = "${UNITYSVC_API_KEY}"`. Sent to the email address registered with their
-  UnitySVC account, so no `email` is needed on the user. The easiest email option when they have
-  a UnitySVC key (`unitysvc_api_key` in `section_show` says how to reference it); offer it first
-  then. Write all three fields so the section shows how the email is sent.
-- **Gmail or another email account**: the user's `email` on the user, and `smtp_password` on the
-  notification. Gmail needs an app password (Google account, Security, App passwords), which
-  many people find hard to create; mention that UnitySVC email avoids it.
+- **UnitySVC email**: `[email.unitysvc]` with `smtp_username = "smtp-to-mailbox"` (required:
+  the UnitySVC service that delivers it, here to the email address registered with their
+  UnitySVC account, so no `email` is needed on the user). Its preset has the server, the port
+  and the password `${UNITYSVC_API_KEY}`. The easiest option when they have a UnitySVC key
+  (`unitysvc_api_key` in `section_show` says how to reference it); offer it first then. To send
+  through another UnitySVC service (a relay), set its name as `smtp_username`.
+- **Gmail**: `[email.gmail]`, with `smtp_username` (their Gmail address); the preset has the
+  server and the password reference `${GMAIL_SMTP_PASSWORD}`. The user needs `email` (where they
+  receive it) and a Gmail app password set as `GMAIL_SMTP_PASSWORD` (`needs` says how to create
+  one; many people find it hard, so mention that UnitySVC email avoids it).
+- **Another email account**: `[email.<provider>]` (e.g. `email.outlook`) with `smtp_server`,
+  `smtp_username` and `smtp_password`.
 
-**Phone and chat notifications** send short text messages without photos. Best for being
-alerted quickly.
+**Phone and chat** (`[notification.*]`):
 
 - **UnitySVC notifications**: `unitysvc_api_key = "${UNITYSVC_API_KEY}"`. Messages go to the
   UnitySVC inbox and the destination the user saved in UnitySVC (Discord, Slack, SMS, phone push
-  and many other channels), so one section reaches any of them. Not for email: use UnitySVC
-  email instead.
+  and many other channels), so one section reaches any of them. Not for email: that is
+  `[email.unitysvc]`.
 - **Pushbullet** (`pushbullet_token`), **Pushover** (`pushover_api_token` on the notification,
   `pushover_user_key` on the user), **ntfy** (`ntfy_server` on the notification, `ntfy_topic` on
   the user), **Telegram** (`telegram_token` on the notification, `telegram_chat_id` on the user).
 
-`section_show` lists `email_options` with the values to write for each email channel; when the
-user wants email, offer them in that order. For Gmail, tell them how to get the app password
-(`needs`). When they have
-a UnitySVC key and only say "UnitySVC", ask whether they want email or phone/chat messages. Name
-a new notification after its channel (`gmail`, `unitysvc_email`, `unitysvc`, `pushbullet`).
+When they have a UnitySVC key and only say "UnitySVC", ask whether they want email or phone/chat
+messages. Name a notification after its channel (`unitysvc`, `pushbullet`, `telegram`).
+
+### The daily digest
+
+`digest_at` on a section (a local time such as `"08:00"`) makes it send a daily summary of the
+last 24 hours: the full digest from an `[email.*]` section, a short one from a
+`[notification.*]` section. When the user gets email, set it on the email section only; a phone
+digest next to an email one is rarely wanted. It uses a little AI (one short call per item with
+new activity). Offer it once email or a phone channel is set up, and ask at what time.
 
 ### Switching channels
 
-"Switch to UnitySVC email" (or any other channel) means the users get the new channel instead
-of the old one, not both. Set up the new notification, then for each user who received the old
-one, put the new notification in its place: replace the old name in `notify_with`, or, if the
-user has no `notify_with` (it receives everything), give it a `notify_with` listing the
-notifications it should keep receiving. Keep the old notification section unless the user wants
-it gone; set `enabled = false` on it if no one else should receive it. Tell the user which
-channel they will get from now on.
+"Switch to UnitySVC email" (or any other channel) means the users get the new section instead
+of the old one, not both. Set up the new section, then for each user who received the old one,
+put the new section in its place: replace the old entry in `notify_with`, or, if the user has no
+`notify_with` (it receives everything), give it a `notify_with` listing the sections it should
+keep receiving. Move `digest_at` along if the old section had it. Keep the old section unless
+the user wants it gone; set `enabled = false` on it if no one else should receive it. Tell the
+user which channel they will get from now on.
 
 ### Secrets
 
 Passwords, tokens and API keys are only ever written as environment-variable references such as
-`${GMAIL_APP_PASSWORD}`; never ask the user to type them in the chat. Use the reference
-`unitysvc_api_key` suggests for a UnitySVC key, otherwise a clear name (`GMAIL_APP_PASSWORD`,
+`${GMAIL_SMTP_PASSWORD}`; never ask the user to type them in the chat. Use the reference
+`unitysvc_api_key` suggests for a UnitySVC key, otherwise a clear name (`GMAIL_SMTP_PASSWORD`,
 `PUSHBULLET_TOKEN`, `PUSHOVER_API_TOKEN`, `PUSHOVER_USER_KEY`, `TELEGRAM_TOKEN`). After saving,
 aimm tells the user which variables to set.
 
 ### Linking
 
-A user receives a notification when it is in the user's `notify_with`, or when the user has no
-`notify_with` (then all notifications). If the user has a `notify_with` list, add the new
-notification to it; if it has none, it already receives it. A new user gets `notify_with` with
-the notifications it should receive.
+A user receives a section when it is in the user's `notify_with` (write `email.<name>` or
+`notification.<name>`), or when the user has no `notify_with` (then all of them). If the user
+has a `notify_with` list, add the new section to it; if it has none, it already receives it. A
+new user gets `notify_with` with the sections it should receive.
 
 ### Testing
 
-After a notification, or a user's channels, is saved, `save` returns `test_notification` with
-the sections aimm can test. Offer the test (it sends a real message; metered channels may cost a
+After a section, or a user's channels, is saved, `save` returns `test_notification` with the
+sections aimm can test. Offer the test (it sends a real message; metered channels may cost a
 little) and call `test_notification` if the user agrees. Explain the result: on a failure, say
 what the error likely means (a wrong token, a server that does not support STARTTLS, ...) and
 help fix it, for example with another token or another channel, then save and offer the test
@@ -87,22 +104,18 @@ again. If the test cannot run here (`can_run_here` is false), pass on the `reaso
 
 ### Options
 
-`with_description` (include the listing description), `message_format` for push channels,
-`remind` on the user (remind about listings still available later), `digest_at` on the user (a
-daily summary at a local time such as `"08:00"`: the full digest by email, a short one on push
-channels; `digest_with` limits it to some of the notifications the user receives). Ask only if
-the user cares.
+`with_description` (include the listing description) and `message_format` on a notification,
+`remind` on the user (remind about listings still available later). Ask only if the user cares.
 
 ## Completion
 
-A notification is complete when its channel (`channel`) has the required fields (such as
-`smtp_password` for email or `unitysvc_api_key` for UnitySVC), a `user` receives it, and each
-receiving user has what that channel needs (`email`, `pushover_user_key`, `ntfy_topic`,
-`telegram_chat_id`). A user is complete when it receives a `notification` and has what each one
-needs.
+An email or notification section is complete when it can send (`smtp_password` for email, which
+the presets have; the channel's fields for a notification), a `user` receives it, and each
+receiving user has what it needs (`email`, `pushover_user_key`, `ntfy_topic`,
+`telegram_chat_id`). A user is complete when it receives a section and has what each one needs.
 
 ## Rules
 
 - Recipient fields (`email`, `pushover_user_key`, `ntfy_topic`, `telegram_chat_id`) go on the
-  user; servers and credentials go on the notification.
+  user; servers, credentials and `digest_at` go on the email or notification section.
 - Do not change other users' `notify_with` unless the user asks.

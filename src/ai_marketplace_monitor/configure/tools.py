@@ -32,6 +32,7 @@ SECTION_TYPES = (
     "ai",
     "marketplace",
     "user",
+    "email",
     "notification",
     "region",
     "item",
@@ -769,17 +770,17 @@ class ToolExecutor:
                 check_seller,
             ]
         tools += _section_tools(self)
-        if any(t in self.ws.toolkits for t in ("notification", "user")):
+        if any(t in self.ws.toolkits for t in ("email", "notification", "user")):
 
             async def test_notification(section_type: str, name: str) -> Dict[str, Any]:
-                """Send a test message through a notification or user section just saved.
+                """Send a test message through an email, notification or user section just saved.
 
                 Offered by `save` (its `test_notification` result) for the sections it lists;
                 call it only after the user agreed. aimm sends one real message per channel,
                 shows the result to the user and returns it (per channel: ok, or the error).
 
                 Args:
-                    section_type: "notification" or "user".
+                    section_type: "email", "notification" or "user".
                     name: the section name, as listed by `save`.
                 """
                 return await self.call(

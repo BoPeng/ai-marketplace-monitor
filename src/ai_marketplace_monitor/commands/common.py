@@ -47,12 +47,14 @@ search_phrases = "gopro hero"
 api_key = "${UNITYSVC_API_KEY}"
 model = "balanced"
 
-[notification.unitysvc_email]
-# Full email with photos, sent to the address registered with UnitySVC.
-smtp_server = "smtp.svcpass.com"
+[email.unitysvc]
+# Full email with photos, sent through UnitySVC (server, port and the
+# UNITYSVC_API_KEY password are preset). The UnitySVC service that
+# delivers it: smtp-to-mailbox sends it to the address registered with
+# UnitySVC; name a relay service to send it elsewhere.
 smtp_username = "smtp-to-mailbox"
-smtp_password = "${UNITYSVC_API_KEY}"
-with_description = true
+# Daily digest of searches, matches and rejected listings (local time).
+digest_at = "08:00"
 
 [notification.unitysvc]
 # Short messages to the UnitySVC inbox and the destination saved in
@@ -60,9 +62,7 @@ with_description = true
 unitysvc_api_key = "${UNITYSVC_API_KEY}"
 
 [user.me]
-notify_with = ["unitysvc_email", "unitysvc"]
-# Daily digest of searches, matches and rejected listings (local time).
-digest_at = "08:00"
+notify_with = ["email.unitysvc", "notification.unitysvc"]
 """
 
 

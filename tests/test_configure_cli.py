@@ -42,7 +42,11 @@ async def test_configure_section_toolkits(
     monkeypatch.setattr(flow, "run_session", fake_run_session)
     assert await flow.configure_section(ScriptedSetupUI([]), [], section) == 0
     # an item also gets its marketplace; users and notifications come together
-    kits = ["item", "marketplace"] if section.startswith("item") else ["notification", "user"]
+    kits = (
+        ["item", "marketplace"]
+        if section.startswith("item")
+        else ["email", "notification", "user"]
+    )
     assert runs == [{"ai": "backend", "kits": kits, "home": None, "target": target}]
 
 

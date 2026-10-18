@@ -1,8 +1,10 @@
-"""The user and notification toolkits: who is notified (`[user.*]`) and how (`[notification.*]`).
+"""The user, email and notification toolkits: who is notified (`[user.*]`) and how.
 
-They are configured together. A `[notification.*]` section holds one channel (its servers and
-credentials); a `[user.*]` section holds where the user receives it (email address, chat ID,
-...) and which notifications it receives (`notify_with`, all of them when unset).
+They are configured together. An `[email.*]` section sends aimm's full email (its server and
+credentials; `[email.unitysvc]` and `[email.gmail]` start from a preset), a
+`[notification.*]` section one phone or chat channel; either may send the daily digest
+(`digest_at`). A `[user.*]` section holds where the user receives them (email address, chat
+ID, ...) and which sections it receives (`notify_with`, all of them when unset).
 """
 
 from __future__ import annotations
@@ -11,13 +13,25 @@ import asyncio
 import copy
 import os
 import warnings
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from ..config_toml import dump_config_toml
-from ..email_notify import UNITYSVC_SMTP_SERVER, UNITYSVC_SMTP_USERNAME
+from ..email_notify import (
+    EMAIL_PRESETS,
+    UNITYSVC_SMTP_SERVER,
+    UNITYSVC_SMTP_USERNAME,
+    EmailNotificationConfig,
+    email_section,
+)
 from ..normalize import NormalizeError, expand
 from ..normalize.notifications import CHANNEL_FIELDS, RECIPIENT_FIELDS, TYPE_CLASSES
 from ..notification import TEST_TIMEOUT, NotificationConfig
+from ..ntfy import NtfyNotificationConfig
+from ..pushbullet import PushbulletNotificationConfig
+from ..pushover import PushoverNotificationConfig
+from ..telegram import TelegramNotificationConfig
+from ..unitysvc_notify import UnitySVCNotificationConfig
 from ..user import UserConfig
 from .marketplace import _plain
 from .toolkits import FieldGuide, SectionDraft, Toolkit, is_reference, unset_variable_notes
@@ -26,41 +40,68 @@ from .ui import SetupUI
 if TYPE_CHECKING:
     from .workspace import Workspace
 
-NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
-    # email
+EMAIL_FIELDS = {*CHANNEL_FIELDS["email"], "email"}
+
+_DIGEST_AT = (
+    "local time of a daily digest of the last 24 hours (searches, matches and rejected "
+    "listings of every item) sent by this section; it uses AI tokens, one short AI call per "
+    "item with new activity to summarize it"
+)
+_COMMON_GUIDES: Tuple[FieldGuide, ...] = (
+    FieldGuide("max_retries", "rarely needed: attempts to send a message", "integer", "5"),
+    FieldGuide("retry_delay", "rarely needed: seconds between attempts", "integer", "60"),
     FieldGuide(
-        "smtp_server",
-        "email: `smtp.svcpass.com` for UnitySVC email; otherwise only if it cannot be worked "
-        "out from the user's address (Gmail, Outlook and most providers can)",
-        '`"smtp.svcpass.com"`, or e.g. `"smtp.gmail.com"`',
-        "derived from the user's email address",
+        "rate_limit_enabled",
+        "rarely needed: throttle sending",
+        "`true` or `false`",
+        "off (on for Telegram)",
     ),
-    FieldGuide("smtp_port", "email: only if the provider requires another port", "`587`", "587"),
+    FieldGuide("instance_rate_limit", "rarely needed: seconds between messages", "number", "1"),
+    FieldGuide("global_rate_limit", "rarely needed: messages per second", "integer", "10"),
+    FieldGuide("enabled", "only to turn this section off without removing it", "`false`", "on"),
+)
+
+EMAIL_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "smtp_username",
-        "email: `smtp-to-mailbox` for smtp.svcpass.com (write it); otherwise only if it differs "
-        "from the user's address",
-        '`"smtp-to-mailbox"` for UnitySVC email, or a login name',
-        "the user's email (`smtp-to-mailbox` for smtp.svcpass.com)",
+        "[email.unitysvc] (required): the UnitySVC service that delivers it "
+        "(`smtp-to-mailbox` sends to the address registered with UnitySVC; a relay service "
+        "sends elsewhere); [email.gmail]: the Gmail address; other servers: the login",
+        '`"smtp-to-mailbox"` for UnitySVC, or e.g. `"me@gmail.com"`',
+        "required for [email.unitysvc]; otherwise the user's email",
     ),
     FieldGuide(
         "smtp_password",
-        "email: a Gmail app password, or the UnitySVC API key for smtp.svcpass.com",
-        '`"${GMAIL_APP_PASSWORD}"` or `"${UNITYSVC_API_KEY}"`',
-        "required for email",
+        "[email.unitysvc]: the UnitySVC API key (preset `${UNITYSVC_API_KEY}`); "
+        "[email.gmail]: a Gmail app password (preset `${GMAIL_SMTP_PASSWORD}`); other "
+        "servers: required",
+        '`"${UNITYSVC_API_KEY}"`, `"${GMAIL_SMTP_PASSWORD}"` or another reference',
+        "preset for [email.unitysvc] and [email.gmail]; otherwise required",
         secret=True,
     ),
     FieldGuide(
-        "smtp_from",
-        "email: only if the sender address must differ",
-        "an email address",
-        "the SMTP username",
+        "smtp_server",
+        "only for an email section other than [email.unitysvc] and [email.gmail] (preset), "
+        "and only if it cannot be worked out from the user's address",
+        'e.g. `"smtp.office365.com"`',
+        "preset, or derived from the user's email address",
     ),
+    FieldGuide("smtp_port", "only if the provider requires another port", "`587`", "587 (preset)"),
+    FieldGuide(
+        "smtp_from", "only if the sender address must differ", "an email address", "the login"
+    ),
+    FieldGuide(
+        "digest_at", _DIGEST_AT + ": the full digest, with the listings", '`"08:00"`', "no digest"
+    ),
+    *_COMMON_GUIDES,
+)
+
+NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
     # UnitySVC
     FieldGuide(
         "unitysvc_api_key",
-        "UnitySVC phone/chat notifications (Discord, Slack, SMS, push; not email, which uses "
-        "smtp.svcpass.com): the UnitySVC API key (the same key as UnitySVC AI)",
+        "UnitySVC phone/chat notifications (Discord, Slack, SMS, push; not email, which is "
+        "[email.unitysvc]): the UnitySVC API key (the same key as UnitySVC AI)",
         '`"${UNITYSVC_API_KEY}"`',
         "required for UnitySVC",
         secret=True,
@@ -106,7 +147,6 @@ NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
         "required for Telegram",
         secret=True,
     ),
-    # every channel
     FieldGuide(
         "with_description",
         "include the listing description: all of it, none, or the first N characters",
@@ -115,27 +155,23 @@ NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "message_format",
-        "push channels: how messages are formatted",
+        "how messages are formatted",
         '`"plain_text"`, `"markdown"` or `"html"`',
         '`"plain_text"`',
     ),
-    FieldGuide("max_retries", "rarely needed: attempts to send a message", "integer", "5"),
-    FieldGuide("retry_delay", "rarely needed: seconds between attempts", "integer", "60"),
     FieldGuide(
-        "rate_limit_enabled",
-        "rarely needed: throttle sending",
-        "`true` or `false`",
-        "off (on for Telegram)",
+        "digest_at",
+        _DIGEST_AT + ": a short version; leave it out when the user gets the digest by email",
+        '`"08:00"`',
+        "no digest",
     ),
-    FieldGuide("instance_rate_limit", "rarely needed: seconds between messages", "number", "1"),
-    FieldGuide("global_rate_limit", "rarely needed: messages per second", "integer", "10"),
-    FieldGuide("enabled", "only to turn this channel off without removing it", "`false`", "on"),
+    *_COMMON_GUIDES,
 )
 
 USER_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "email",
-        "email: where the user receives it; not needed for smtp.svcpass.com, which sends to "
+        "email: where the user receives it; not needed for [email.unitysvc], which sends to "
         "the address registered with UnitySVC",
         '`"me@gmail.com"` or a list',
         "no email",
@@ -162,9 +198,9 @@ USER_GUIDES: Tuple[FieldGuide, ...] = (
     ),
     FieldGuide(
         "notify_with",
-        "the [notification.*] sections this user receives",
-        'list of notification names, e.g. `["gmail"]`',
-        "every enabled notification",
+        "the [email.*] and [notification.*] sections this user receives",
+        'e.g. `["email.unitysvc", "notification.unitysvc"]`',
+        "every enabled email and notification section",
     ),
     FieldGuide(
         "remind",
@@ -172,24 +208,10 @@ USER_GUIDES: Tuple[FieldGuide, ...] = (
         '`"1 day"`, `"2 days"` or `false`',
         "no reminders",
     ),
-    FieldGuide(
-        "digest_at",
-        "local time of a daily digest of the last 24 hours (searches, matches and rejected "
-        "listings of every item): the full digest by email, a short one on push channels; "
-        "it uses AI tokens, one short AI call per item with new activity to summarize it",
-        '`"08:00"`',
-        "no digest",
-    ),
-    FieldGuide(
-        "digest_with",
-        "the [notification.*] sections, among those the user receives, that send the digest",
-        'list of notification names, e.g. `["gmail"]`',
-        "every notification the user receives",
-    ),
     FieldGuide("enabled", "only to stop notifying this user", "`false`", "on"),
 )
 
-SECRETS = {g.name for g in NOTIFICATION_GUIDES + USER_GUIDES if g.secret}
+SECRETS = {g.name for g in EMAIL_GUIDES + NOTIFICATION_GUIDES + USER_GUIDES if g.secret}
 _LABELS = {
     "email": "email",
     "unitysvc": "UnitySVC",
@@ -200,7 +222,21 @@ _LABELS = {
 }
 
 
-# --- facts shared by both toolkits -----------------------------------------------------------
+# --- facts shared by the toolkits ------------------------------------------------------------
+SENDERS = ("email", "notification")  # the section types that send
+
+
+@dataclass
+class _PushFields(
+    PushbulletNotificationConfig,
+    PushoverNotificationConfig,
+    NtfyNotificationConfig,
+    TelegramNotificationConfig,
+    UnitySVCNotificationConfig,
+):
+    """Every field a [notification.*] section can have, to read its values."""
+
+
 def _names(ws: "Workspace", section_type: str) -> List[str]:
     """Saved sections of a type, then the ones drafted in this session."""
     names = list(ws.user_cfg.get(section_type, {}))
@@ -219,72 +255,93 @@ def default_user(ws: "Workspace") -> str:
     return users[0] if users else "me"
 
 
+def sender_keys(ws: "Workspace") -> List[str]:
+    """The sections that send, as "email.<name>" and "notification.<name>"."""
+    return [f"{t}.{n}" for t in SENDERS for n in _names(ws, t)]
+
+
+def resolve(ws: "Workspace", entry: str) -> str | None:
+    """The section a ``notify_with`` entry names: a bare name is the one kind that has it."""
+    keys = sender_keys(ws)
+    if entry in keys:
+        return entry
+    matches = [k for k in keys if k.split(".", 1)[1] == entry]
+    return matches[0] if len(matches) == 1 else None
+
+
+def sender_values(ws: "Workspace", key: str) -> Dict[str, Any]:
+    """A sending section's values; an email section's with its preset's under them."""
+    kind, name = key.split(".", 1)
+    values = ws.section(kind, name) or {}
+    return {**EMAIL_PRESETS.get(name, {}), **values} if kind == "email" else values
+
+
 def channel_types(values: Dict[str, Any]) -> List[str]:
-    """The channel types whose fields are set (one, for a valid notification)."""
-    return [t for t, names in CHANNEL_FIELDS.items() if any(values.get(f) for f in names)]
+    """The channel types of a [notification.*] section whose fields are set (one, if valid)."""
+    return [
+        t
+        for t, names in CHANNEL_FIELDS.items()
+        if t != "email" and any(values.get(f) for f in names)
+    ]
+
+
+def sender_types(ws: "Workspace", key: str) -> List[str]:
+    """The channel types a sending section sets up."""
+    if key.startswith("email."):
+        return ["email"]
+    return channel_types(sender_values(ws, key))
 
 
 def _listed(value: Any) -> List[str]:
     return [value] if isinstance(value, str) else list(value or [])
 
 
-def receivers(ws: "Workspace", notification: str) -> List[str]:
-    """Users who receive a notification: it is in their notify_with, or that is unset."""
-    out = []
-    for user in _names(ws, "user"):
-        values = _active(ws, "user", user)
-        if values is None:
-            continue
-        if "notify_with" not in values or notification in _listed(values["notify_with"]):
-            out.append(user)
-    return out
-
-
 def received(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
-    """Enabled notifications a user with these values receives."""
+    """Enabled sections a user with these values receives, as "email.<name>" and so on."""
     if "notify_with" in values:
-        disabled = [
-            n
-            for n in _names(ws, "notification")
-            if (ws.section("notification", n) or {}).get("enabled") is False
-        ]
-        return [n for n in _listed(values["notify_with"]) if n not in disabled]
-    return [n for n in _names(ws, "notification") if _active(ws, "notification", n) is not None]
+        keys = [resolve(ws, e) for e in _listed(values["notify_with"])]
+    else:
+        keys = list(sender_keys(ws))
+    return [
+        k
+        for k in dict.fromkeys(k for k in keys if k is not None)
+        if _active(ws, *k.split(".", 1)) is not None
+    ]
 
 
-def notified_via(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
-    """Channels that reach a user with these values, with the recipient fields they need.
-
-    A channel counts if it is set on the user itself or on a notification the user receives.
-    """
-    kinds = channel_types(values) if not missing_recipients(values, values) else []
-    for name in received(ws, values):
-        notification = ws.section("notification", name) or {}
-        if not missing_recipients(notification, values):
-            kinds += channel_types(notification)
-    return list(dict.fromkeys(kinds))
+def receivers(ws: "Workspace", key: str) -> List[str]:
+    """Enabled users who receive a section ("email.<name>" or "notification.<name>")."""
+    return [
+        user
+        for user in _names(ws, "user")
+        if (values := _active(ws, "user", user)) is not None and key in received(ws, values)
+    ]
 
 
-def missing_recipients(notification: Dict[str, Any], user: Dict[str, Any]) -> List[str]:
-    """Recipient fields (email, chat ID, ...) a user needs to receive a notification."""
+def missing_recipients(ws: "Workspace", key: str, user: Dict[str, Any]) -> List[str]:
+    """Recipient fields (email, chat ID, ...) a user needs to receive a section."""
+    values = sender_values(ws, key)
     out = []
-    for kind in channel_types(notification):
-        if kind == "email" and str(notification.get("smtp_server", "")).lower() == (
-            UNITYSVC_SMTP_SERVER
-        ):
+    for kind in sender_types(ws, key):
+        if kind == "email" and str(values.get("smtp_server", "")).lower() == UNITYSVC_SMTP_SERVER:
             continue  # UnitySVC delivers to the address registered with it
         for f in TYPE_CLASSES[kind].required_fields:
-            if f in RECIPIENT_FIELDS and not user.get(f) and not notification.get(f):
+            if f in RECIPIENT_FIELDS and not user.get(f) and not values.get(f):
                 out.append(f)
     return out
 
 
-# fields whose change is worth a test message: the user's channels and where they receive them
-_TESTED_USER_FIELDS = {
-    "notify_with",
-    *RECIPIENT_FIELDS,
-    *(f for names in CHANNEL_FIELDS.values() for f in names),
-}
+def notified_via(ws: "Workspace", values: Dict[str, Any]) -> List[str]:
+    """Channels that reach a user with these values, with the recipient fields they need."""
+    kinds: List[str] = []
+    for key in received(ws, values):
+        if not missing_recipients(ws, key, values):
+            kinds += sender_types(ws, key)
+    return list(dict.fromkeys(kinds))
+
+
+# fields whose change is worth a test message: where the user receives, and from which sections
+_TESTED_USER_FIELDS = {"notify_with", *RECIPIENT_FIELDS}
 
 
 def _unset_variables(sections: List[Dict[str, Any]]) -> List[str]:
@@ -299,16 +356,14 @@ def _unset_variables(sections: List[Dict[str, Any]]) -> List[str]:
 
 
 class _NotifyToolkit(Toolkit):
-    """What users and notifications have in common."""
+    """What users and their email and notification sections have in common."""
 
     playbook = "notification"
-    config_class = UserConfig  # a user holds every notification field
 
     def field_names(self: "_NotifyToolkit") -> List[str]:
         return [g.name for g in self.guides]
 
     def masked(self: "_NotifyToolkit", values: Dict[str, Any]) -> Dict[str, Any]:
-        # secrets of either kind: an older config may keep a token in [user.*]
         return {
             k: v if k not in SECRETS or is_reference(v) else "<set; hidden>"
             for k, v in values.items()
@@ -328,13 +383,17 @@ class _NotifyToolkit(Toolkit):
         )
 
     def context(self: "_NotifyToolkit", ws: "Workspace") -> Dict[str, List[str]]:
-        return {"users": _names(ws, "user"), "notifications": _names(ws, "notification")}
+        return {
+            "users": _names(ws, "user"),
+            "emails": _names(ws, "email"),
+            "notifications": _names(ws, "notification"),
+        }
 
     def show_extra(self: "_NotifyToolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
         return {"default_user": default_user(ws), "unitysvc_api_key": _unitysvc_key(ws)}
 
     def companions(self: "_NotifyToolkit", ws: "Workspace", name: str) -> List[Tuple[str, str]]:
-        return [("user", default_user(ws)), ("user", "*"), ("notification", "*")]
+        return [("user", default_user(ws)), ("user", "*"), ("email", "*"), ("notification", "*")]
 
     def describe(self: "_NotifyToolkit", draft: SectionDraft) -> str:
         section = {"request": draft.request} if draft.request else {}
@@ -362,11 +421,10 @@ class _NotifyToolkit(Toolkit):
 
     def _test_plan(
         self: "_NotifyToolkit", ws: "Workspace", name: str
-    ) -> Tuple[Dict[str, Any], List[str] | None, List[str], List[Dict[str, Any]]]:
+    ) -> Tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:
         """What a test of this section sends.
 
-        Returns the config to load, the channels to test (None: all), the users to send to,
-        and the sections the test reads.
+        Returns the config to load, the users to send to, and the sections the test reads.
         """
         raise NotImplementedError
 
@@ -378,7 +436,7 @@ class _NotifyToolkit(Toolkit):
         from ..config import Config
 
         label = f"[{self.section_type}.{name}]"
-        cfg, channels, user_names, sections = self._test_plan(ws, name)
+        cfg, user_names, sections = self._test_plan(ws, name)
         if not user_names:
             return {"ok": False, "errors": [f"No enabled user receives {label}."]}
         unset = _unset_variables(sections)
@@ -405,7 +463,7 @@ class _NotifyToolkit(Toolkit):
         results = []
         for user in user_names:
             for r in await asyncio.to_thread(
-                NotificationConfig.test_all, users[user], channels=channels, timeout=TEST_TIMEOUT
+                NotificationConfig.test_all, users[user], timeout=TEST_TIMEOUT
             ):
                 results.append({"user": user, "channel": r.channel, "ok": r.ok, "error": r.error})
         if not results:
@@ -431,10 +489,10 @@ class _NotifyToolkit(Toolkit):
     async def choose_target(
         self: "_NotifyToolkit", ui: SetupUI, ws: "Workspace", name: str | None
     ) -> str | None:
-        """Show users and notifications (masked); any of them may change in this session."""
+        """Show users and their sections (masked); any of them may change in this session."""
         sections = [
             (t, n, s)
-            for t in ("user", "notification")
+            for t in ("user", *SENDERS)
             for n, s in ws.user_cfg.get(t, {}).items()
             if isinstance(s, dict)
         ]
@@ -444,7 +502,7 @@ class _NotifyToolkit(Toolkit):
                 f"{dump_config_toml({t: {n: _NOTIFY_KITS[t].masked(s)}})}```"
                 for t, n, s in sections
             )
-            await ui.say(f"Users and notifications:\n\n{body}", markdown=True)
+            await ui.say(f"Users, email and notifications:\n\n{body}", markdown=True)
         else:
             await ui.say("No notification is set up yet; they will go to a new [user.me].")
         if name is not None:
@@ -453,36 +511,48 @@ class _NotifyToolkit(Toolkit):
 
 
 def email_options(ws: "Workspace") -> List[Dict[str, Any]]:
-    """Ways to send aimm's email, UnitySVC first, with the values to write."""
+    """Ways to send aimm's email, UnitySVC first, with the section and values to write."""
     key = _unitysvc_key(ws)
     reference = key.split(" ")[0] if key and key.startswith("${") else "${UNITYSVC_API_KEY}"
-    unitysvc = {
+    unitysvc: Dict[str, Any] = {
         "option": "UnitySVC email",
-        "name": "unitysvc_email",
+        "section": "email.unitysvc",
+        # the preset has the server and ${UNITYSVC_API_KEY}; the service shows where it goes
         "values": {
-            "smtp_server": UNITYSVC_SMTP_SERVER,
             "smtp_username": UNITYSVC_SMTP_USERNAME,
-            "smtp_password": reference,
+            **({} if reference == "${UNITYSVC_API_KEY}" else {"smtp_password": reference}),
         },
         "about": "aimm's full email with listing photos, sent to the email address registered "
-        "with the user's UnitySVC account; no `email` on the user and no app password needed",
+        "with the user's UnitySVC account; no `email` on the user and no app password needed. "
+        "To send elsewhere through a UnitySVC relay service, set its name as smtp_username",
     }
     if key is None:
         unitysvc["needs"] = "a UnitySVC API key (unitysvc.com), set as UNITYSVC_API_KEY"
     gmail = {
         "option": "Gmail",
-        "name": "gmail",
-        "values": {"smtp_password": "${GMAIL_APP_PASSWORD}"},
-        "user_needs": "`email`: the Gmail address, on the user",
-        "about": "aimm's full email with listing photos, sent from and to the user's Gmail",
+        "section": "email.gmail",
+        "values": {"smtp_username": "<the Gmail address>"},
+        "user_needs": "`email`: where the user receives it (often the same Gmail address)",
+        "about": "aimm's full email with listing photos, sent from the user's Gmail; the preset "
+        "has the server and the password reference ${GMAIL_SMTP_PASSWORD}",
         "needs": "a Gmail app password: in their Google account, turn on 2-Step Verification, "
-        "then Security, App passwords; create one for aimm and set it as GMAIL_APP_PASSWORD",
+        "then Security, App passwords; create one for aimm and set it as GMAIL_SMTP_PASSWORD",
     }
-    return [unitysvc, gmail]
+    other = {
+        "option": "Another email account",
+        "section": "email.<provider>, e.g. email.outlook",
+        "values": {
+            "smtp_server": "<the provider's SMTP server>",
+            "smtp_username": "<the login>",
+            "smtp_password": "${<PROVIDER>_SMTP_PASSWORD}",
+        },
+        "user_needs": "`email`: where the user receives it",
+    }
+    return [unitysvc, gmail, other]
 
 
 def _unitysvc_key(ws: "Workspace") -> str | None:
-    """How a notification can reference the user's UnitySVC key (never the key itself)."""
+    """How a section can reference the user's UnitySVC key (never the key itself)."""
     for name, section in ws.user_cfg.get("ai", {}).items():
         if not isinstance(section, dict) or section.get("provider", name) != "unitysvc":
             continue
@@ -499,40 +569,131 @@ def _unitysvc_key(ws: "Workspace") -> str | None:
     return None
 
 
-class NotificationToolkit(_NotifyToolkit):
+class _SenderToolkit(_NotifyToolkit):
+    """An [email.*] or [notification.*] section: what sends, to the users who receive it."""
+
+    def _key(self: "_SenderToolkit", name: str) -> str:
+        return f"{self.section_type}.{name}"
+
+    def _channel_missing(self: "_SenderToolkit", name: str, values: Dict[str, Any]) -> List[str]:
+        raise NotImplementedError
+
+    def missing(self: "_SenderToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
+        key = self._key(draft.name)
+        out = self._channel_missing(draft.name, draft.values)
+        users = receivers(ws, key)
+        if not users:
+            user = default_user(ws)
+            state = "" if ws.section("user", user) is not None else " (a new section)"
+            out.append(
+                f"user: no user receives it; add {key} to `notify_with` of [user.{user}]{state}"
+            )
+        for user in users:
+            values = ws.section("user", user) or {}
+            out += [
+                f"{f}: [user.{user}] needs `{f}` to receive it"
+                for f in missing_recipients(ws, key, values)
+            ]
+        return out
+
+    def testable(self: "_SenderToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        return not self._channel_missing(draft.name, draft.values) and (
+            draft.values.get("enabled") is not False
+        )
+
+    def _test_plan(
+        self: "_SenderToolkit", ws: "Workspace", name: str
+    ) -> Tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:
+        """This section only, to each user who receives it."""
+        key = self._key(name)
+        cfg = copy.deepcopy(ws.user_cfg)
+        users = receivers(ws, key)
+        for user in users:
+            cfg["user"][user]["notify_with"] = [key]
+        return cfg, users, [sender_values(ws, key), *(cfg["user"][u] for u in users)]
+
+    def can_apply(self: "_SenderToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
+        # a channel without its user yet is still part of the config the user's checks see
+        return not self._channel_missing(draft.name, draft.values)
+
+    def show_extra(self: "_SenderToolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
+        return {
+            "received_by": receivers(ws, self._key(draft.name)),
+            **super().show_extra(ws, draft),
+        }
+
+
+class EmailToolkit(_SenderToolkit):
+    section_type = "email"
+    guides = EMAIL_GUIDES
+    config_class = EmailNotificationConfig
+
+    def summary(self: "EmailToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
+        return "email with listing photos" + (
+            f", daily digest at {values['digest_at']}" if values.get("digest_at") else ""
+        )
+
+    def show_extra(self: "EmailToolkit", ws: "Workspace", draft: SectionDraft) -> Dict[str, Any]:
+        extra = super().show_extra(ws, draft)
+        preset = EMAIL_PRESETS.get(draft.name)
+        if preset:
+            extra["preset"] = preset  # values the section has unless it sets them
+        else:
+            extra["email_options"] = email_options(ws)
+        return extra
+
+    def _channel_missing(self: "EmailToolkit", name: str, values: Dict[str, Any]) -> List[str]:
+        merged = {**EMAIL_PRESETS.get(name, {}), **values}
+        out = [] if merged.get("smtp_password") else ["smtp_password: required to send email"]
+        if name == "unitysvc" and not values.get("smtp_username"):
+            out.append(
+                f"smtp_username: the UnitySVC service that delivers it ({UNITYSVC_SMTP_USERNAME} "
+                "to the address registered with UnitySVC, or a relay service)"
+            )
+        return out
+
+    def validate(self: "EmailToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                email_section(draft.name, draft.values)
+        except Exception as e:
+            return [_plain(e)]
+        return self._loads_with_others(ws, draft)
+
+
+class NotificationToolkit(_SenderToolkit):
     section_type = "notification"
     guides = NOTIFICATION_GUIDES
+    config_class = _PushFields
 
     def summary(
         self: "NotificationToolkit", ws: "Workspace", values: Dict[str, Any]
     ) -> str | None:
-        unitysvc_email = str(values.get("smtp_server", "")).lower() == UNITYSVC_SMTP_SERVER
-        labels = {
-            "email": "UnitySVC email with listing photos" if unitysvc_email else "email",
-            "unitysvc": "UnitySVC phone/chat notifications (text only)",
-        }
-        return ", ".join(labels.get(t, t) for t in channel_types(values)) or None
+        labels = {"unitysvc": "UnitySVC phone/chat notifications (text only)"}
+        kinds = ", ".join(labels.get(t, _LABELS[t]) for t in channel_types(values))
+        if kinds and values.get("digest_at"):
+            kinds += f", daily digest at {values['digest_at']}"
+        return kinds or None
 
     def show_extra(
         self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft
     ) -> Dict[str, Any]:
         kinds = channel_types(draft.values)
-        extra = {
+        return {
             "channel": _LABELS[kinds[0]] if len(kinds) == 1 else None,
-            "received_by": receivers(ws, draft.name),
             **super().show_extra(ws, draft),
         }
-        if kinds in ([], ["email"]):  # still choosing, or choosing how to email
-            extra["email_options"] = email_options(ws)
-        return extra
 
-    def _channel_missing(self: "NotificationToolkit", values: Dict[str, Any]) -> List[str]:
+    def _channel_missing(
+        self: "NotificationToolkit", name: str, values: Dict[str, Any]
+    ) -> List[str]:
         kinds = channel_types(values)
         if not kinds:
             return [
                 (
-                    "channel: choose how to notify (email, UnitySVC, Pushbullet, Pushover, ntfy or "
-                    "Telegram) and set its fields"
+                    "channel: choose how to notify (UnitySVC, Pushbullet, Pushover, ntfy or "
+                    "Telegram; email is an [email.*] section) and set its fields"
                 )
             ]
         return [
@@ -545,6 +706,14 @@ class NotificationToolkit(_NotifyToolkit):
     def validate(self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
         if not draft.values:
             return []
+        email = sorted(k for k in draft.values if k in EMAIL_FIELDS)
+        if email:
+            return [
+                (
+                    f"{', '.join(email)}: email is sent by an [email.*] section (e.g. email.unitysvc "
+                    "or email.gmail), not [notification.*]."
+                )
+            ]
         kinds = channel_types(draft.values)
         if len(kinds) > 1:
             labels = ", ".join(_LABELS[k] for k in kinds)
@@ -564,45 +733,11 @@ class NotificationToolkit(_NotifyToolkit):
             return ["These fields do not belong to one notification channel."]
         return self._loads_with_others(ws, draft)
 
-    def missing(self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
-        out = self._channel_missing(draft.values)
-        users = receivers(ws, draft.name)
-        if not users:
-            user = default_user(ws)
-            state = "" if ws.section("user", user) is not None else " (a new section)"
-            out.append(
-                f"user: no user receives it; add it to `notify_with` of [user.{user}]{state}"
-            )
-        for user in users:
-            values = ws.section("user", user) or {}
-            out += [
-                f"{f}: [user.{user}] needs `{f}` to receive it"
-                for f in missing_recipients(draft.values, values)
-            ]
-        return out
-
-    def testable(self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
-        return bool(channel_types(draft.values)) and draft.values.get("enabled") is not False
-
-    def _test_plan(
-        self: "NotificationToolkit", ws: "Workspace", name: str
-    ) -> Tuple[Dict[str, Any], List[str] | None, List[str], List[Dict[str, Any]]]:
-        """This notification only, to each user who receives it."""
-        values = ws.section("notification", name) or {}
-        cfg = copy.deepcopy(ws.user_cfg)
-        users = receivers(ws, name)
-        for user in users:
-            cfg["user"][user]["notify_with"] = [name]
-        return cfg, channel_types(values), users, [values, *(cfg["user"][u] for u in users)]
-
-    def can_apply(self: "NotificationToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
-        # a channel without its user yet is still part of the config the user's checks see
-        return bool(draft.values) and not self._channel_missing(draft.values)
-
 
 class UserToolkit(_NotifyToolkit):
     section_type = "user"
     guides = USER_GUIDES
+    config_class = UserConfig
 
     def summary(self: "UserToolkit", ws: "Workspace", values: Dict[str, Any]) -> str | None:
         via = notified_via(ws, values)
@@ -612,49 +747,50 @@ class UserToolkit(_NotifyToolkit):
         return {"receives": received(ws, draft.values), **super().show_extra(ws, draft)}
 
     def validate(self: "UserToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
+        misplaced = sorted(
+            k
+            for k in draft.values
+            if k == "digest_at" or any(k in fs for fs in CHANNEL_FIELDS.values())
+        )
+        if misplaced:
+            return [
+                (
+                    f"{', '.join(misplaced)}: how messages are sent, and the digest, belong in an "
+                    "[email.*] or [notification.*] section; a user only says where it receives "
+                    "them and which sections (`notify_with`)."
+                )
+            ]
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 UserConfig(name=draft.name, **draft.values)
         except Exception as e:
             return [_plain(e)]
-        known = _names(ws, "notification")
-        unknown = [n for n in _listed(draft.values.get("notify_with")) if n not in known]
+        unknown = [n for n in _listed(draft.values.get("notify_with")) if resolve(ws, n) is None]
         if unknown:
             return [
-                f"`notify_with` names {unknown}, which are not in can_reference.notifications."
-            ]
-        receives = received(ws, draft.values)
-        unreceived = [n for n in _listed(draft.values.get("digest_with")) if n not in receives]
-        if unreceived:
-            return [
                 (
-                    f"`digest_with` names {unreceived}, which are not notifications this user "
-                    f"receives ({receives})."
+                    f"`notify_with` names {unknown}, which are not sections in "
+                    "can_reference.emails (as email.<name>) or can_reference.notifications (as "
+                    "notification.<name>)."
                 )
             ]
         return self._loads_with_others(ws, draft)
 
     def missing(self: "UserToolkit", ws: "Workspace", draft: SectionDraft) -> List[str]:
-        names = received(ws, draft.values)
-        inline = any(draft.values.get(f) for fs in CHANNEL_FIELDS.values() for f in fs)
-        if not names and not inline:
+        keys = received(ws, draft.values)
+        if not keys:
             return [
                 (
-                    f"notification: [user.{draft.name}] receives no notification; set one up "
-                    "([notification.*]) and add it to `notify_with`"
+                    f"notification: [user.{draft.name}] receives nothing; set up an [email.*] or "
+                    "[notification.*] section and add it to `notify_with`"
                 )
             ]
-        # a channel set on the user itself (an older layout) needs its recipient too
-        out = [
-            f"{f}: needed for the channel set on [user.{draft.name}]"
-            for f in missing_recipients(draft.values, draft.values)
-        ]
-        for name in names:
-            values = ws.section("notification", name) or {}
+        out = []
+        for key in keys:
             out += [
-                f"{f}: needed to receive [notification.{name}]"
-                for f in missing_recipients(values, draft.values)
+                f"{f}: needed to receive [{key}]"
+                for f in missing_recipients(ws, key, draft.values)
             ]
         return out
 
@@ -664,27 +800,28 @@ class UserToolkit(_NotifyToolkit):
 
     def _test_plan(
         self: "UserToolkit", ws: "Workspace", name: str
-    ) -> Tuple[Dict[str, Any], List[str] | None, List[str], List[Dict[str, Any]]]:
+    ) -> Tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:
         """Every channel of the user."""
         values = _active(ws, "user", name)
         if values is None:
-            return ws.user_cfg, None, [], []
-        notifications = [ws.section("notification", n) or {} for n in received(ws, values)]
-        return ws.user_cfg, None, [name], [values, *notifications]
+            return ws.user_cfg, [], []
+        sections = [sender_values(ws, k) for k in received(ws, values)]
+        return ws.user_cfg, [name], [values, *sections]
 
     def can_apply(self: "UserToolkit", ws: "Workspace", draft: SectionDraft) -> bool:
-        # only with notifications that are part of the config too
+        # only with sections that are part of the config too
         if not draft.values:
             return False
-        kit = ws.toolkits.get("notification")
-        ready = set(ws.user_cfg.get("notification", {}))
+        ready = {f"{t}.{n}" for t in SENDERS for n in ws.user_cfg.get(t, {})}
         for key, other in ws.drafts.items():
-            if key[0] == "notification" and kit is not None and kit.can_apply(ws, other):
-                ready.add(key[1])
-        return all(n in ready for n in _listed(draft.values.get("notify_with")))
+            kit = ws.toolkits.get(key[0])
+            if key[0] in SENDERS and kit is not None and kit.can_apply(ws, other):
+                ready.add(f"{key[0]}.{key[1]}")
+        return all(resolve(ws, n) in ready for n in _listed(draft.values.get("notify_with")))
 
 
 _NOTIFY_KITS: Dict[str, _NotifyToolkit] = {
     "user": UserToolkit(),
+    "email": EmailToolkit(),
     "notification": NotificationToolkit(),
 }

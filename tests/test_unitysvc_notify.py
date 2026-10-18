@@ -228,11 +228,13 @@ notify_with = "unitysvc"
         condition="",
         description="",
     )
-    sent = NotificationConfig.notify_all(
-        config.user["me"],
-        [listing],
-        [AIResponse(score=5, comment="Great match")],
-        [NotificationStatus.NOT_NOTIFIED],
+    sent = any(
+        channel.config.notify(  # type: ignore[attr-defined]
+            [listing],
+            [AIResponse(score=5, comment="Great match")],
+            [NotificationStatus.NOT_NOTIFIED],
+        )
+        for channel in config.user["me"].channels()
     )
 
     assert sent is True

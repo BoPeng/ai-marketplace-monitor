@@ -84,7 +84,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - HTML email notifications with images
 - Customizable notification levels
 - Repeated notification options
-- Optional daily digest (`digest_at`) of searches, matches and rejected listings: the full digest by email, a short summary on push channels
+- Optional daily digest (`digest_at`) of searches, matches and rejected listings: the full digest by email, or a short summary on a phone channel
 
 🖥️ **Web UI**
 
@@ -307,16 +307,15 @@ rating = 5  # Only notify for great deals (default: 4+)
 ```toml
 [user.me]
 email = 'me@gmail.com'
-notify_with = ['unitysvc', 'gmail']
-# every morning at 8: a summary of everything aimm did in the last 24 hours,
-# in full by email and as a short message on your phone
-digest_at = '08:00'
+notify_with = ['notification.unitysvc', 'email.gmail']
 
 [notification.unitysvc]
 unitysvc_api_key = '${UNITYSVC_API_KEY}'
 
-[notification.gmail]
-smtp_password = '${GMAIL_APP_PASSWORD}'
+[email.gmail]
+smtp_username = 'me@gmail.com'  # the password is GMAIL_SMTP_PASSWORD
+# every morning at 8: a summary of everything aimm did in the last 24 hours
+digest_at = '08:00'
 ```
 
 ## 📚 Documentation

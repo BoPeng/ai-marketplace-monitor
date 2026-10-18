@@ -53,7 +53,7 @@ search_phrases = "bike"
 [notification.pb]
 pushbullet_token = "token"
 
-[notification.mail]
+[email.mail]
 smtp_server = "smtp.example.com"
 smtp_password = "secret"
 
@@ -123,6 +123,11 @@ def config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return path
 
 
+def _notify(channel: Any, listing: Any, rating: Any) -> bool:
+    """What User.notify sends through a channel, without the cache."""
+    return bool(channel.notify([listing], [rating], [NotificationStatus.NOT_NOTIFIED]))
+
+
 # --- sending a test -----------------------------------------------------------------------
 def test_test_all_reports_each_channel_once(
     sent: List[str], temp_cache: Cache, config_path: Path
@@ -131,9 +136,9 @@ def test_test_all_reports_each_channel_once(
 
     config = Config([config_path])
     results = {r.channel: r for r in NotificationConfig.test_all(config.user["me"])}
-    assert results["pushbullet"].ok and results["pushbullet"].error is None
-    assert not results["email"].ok
-    assert results["email"].error == "STARTTLS extension not supported by server."
+    assert results["notification.pb"].ok and results["notification.pb"].error is None
+    assert not results["email.mail"].ok
+    assert results["email.mail"].error == "STARTTLS extension not supported by server."
     # one attempt each (the default would retry 5 times, 60 seconds apart)
     assert sorted(c.split(":")[0] for c in sent) == ["email", "pushbullet"]
     # nothing recorded: no notified listing, no counter
@@ -196,8 +201,7 @@ def test_web_does_not_return_config_errors(
 
 
 def test_email_without_recipient_is_not_a_channel() -> None:
-    config = EmailNotificationConfig(name="me", smtp_password="x")
-    assert NotificationConfig.channels(config) == []
+    assert UserConfig(name="me", smtp_password="x").channels() == []
 
 
 # --- aimm admin --test-notification -----------------------------------------------------------
@@ -206,8 +210,8 @@ def test_cli_prints_a_line_per_channel_and_fails(
 ) -> None:
     result = runner.invoke(cli.app, ["admin", "-r", str(config_path), "--test-notification"])
     assert result.exit_code == 1, result.output
-    assert "✓ me: pushbullet" in result.output
-    assert "✗ me: email: STARTTLS extension not supported by server." in result.output
+    assert "✓ me: notification.pb" in result.output
+    assert "✗ me: email.mail: STARTTLS extension not supported by server." in result.output
     assert "off" not in result.output  # a disabled user is not tested
     assert list(temp_cache.iterkeys()) == []
 
@@ -219,7 +223,7 @@ def test_cli_tests_one_user_and_succeeds(
         cli.app, ["admin", "-r", str(config_path), "--test-notification", "off"]
     )
     assert result.exit_code == 0, result.output
-    assert result.output.strip().splitlines()[-1] == "✓ off: pushbullet"
+    assert result.output.strip().splitlines()[-1] == "✓ off: notification.pb"
 
 
 def test_cli_reports_an_unknown_user(config_path: Path) -> None:
@@ -255,13 +259,13 @@ def test_web_lists_users_and_tests_one(
 ) -> None:
     client = make_client(config_path)
     users = {u["name"]: u for u in client.get("/api/notifications/users").json()["users"]}
-    assert sorted(users["me"]["channels"]) == ["email", "pushbullet"]
-    assert users["off"] == {"name": "off", "enabled": False, "channels": ["pushbullet"]}
+    assert users["me"]["channels"] == ["email.mail", "notification.pb"]
+    assert users["off"] == {"name": "off", "enabled": False, "channels": ["notification.pb"]}
     data = client.post("/api/notifications/test", json={"user": "me"}).json()
     assert data["ok"] is False
     results = {r["channel"]: r for r in data["results"]}
-    assert results["pushbullet"] == {"channel": "pushbullet", "ok": True, "error": None}
-    assert "STARTTLS" in results["email"]["error"]
+    assert results["notification.pb"] == {"channel": "notification.pb", "ok": True, "error": None}
+    assert "STARTTLS" in results["email.mail"]["error"]
     assert client.post("/api/notifications/test", json={"user": "nobody"}).status_code == 404
     assert client.post("/api/notifications/test", json={}).status_code == 400
     assert list(temp_cache.iterkeys()) == []
@@ -394,8 +398,10 @@ def test_configure_offers_and_runs_a_test(
 
     ex, out = in_new_loop(session())
     assert out["sent"] is True
-    assert out["results"] == [{"user": "me", "channel": "pushbullet", "ok": True, "error": None}]
-    assert "✓ pushbullet to [user.me]" in ui_of(ex.ws).said()
+    assert out["results"] == [
+        {"user": "me", "channel": "notification.pb", "ok": True, "error": None}
+    ]
+    assert "✓ notification.pb to [user.me]" in ui_of(ex.ws).said()
     assert len(sent) == 1
 
 
@@ -432,7 +438,7 @@ def test_configure_tests_only_the_saved_channel(
         return await ex.call("test_notification", {"section_type": "notification", "name": "pb"})
 
     out = in_new_loop(session())
-    assert [r["channel"] for r in out["results"]] == ["pushbullet"]
+    assert [r["channel"] for r in out["results"]] == ["notification.pb"]
     assert sent == [s for s in sent if s.startswith("pushbullet")]
 
 
@@ -474,14 +480,14 @@ def test_a_push_test_is_a_real_notification(
 
     monkeypatch.setattr(UnitySVCNotificationConfig, "send_message", capture)
     # a user, as the monitor notifies it
-    config = UserConfig(name="me", unitysvc_api_key="svcpass_test", message_format=message_format)
+    config = UnitySVCNotificationConfig(
+        name="me", unitysvc_api_key="svcpass_test", message_format=message_format
+    )
     [result] = NotificationConfig.test_all(config)
     assert result.ok
     # what aimm sends for the same listing when a search finds it (User.notify)
     listing, rating = sample_listing()
-    assert NotificationConfig.notify_all(
-        config, [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
-    )
+    assert _notify(config, listing, rating)
     test, real = messages
     assert test == real
     title, body = test
@@ -512,13 +518,11 @@ def test_an_email_test_is_the_real_email_with_its_photo(
 
     monkeypatch.setattr(smtplib, "SMTP", SMTP)
     monkeypatch.setattr(requests, "get", no_download)
-    config = UserConfig(name="me", email=["me@example.com"], smtp_password="x")
+    config = EmailNotificationConfig(name="me", email=["me@example.com"], smtp_password="x")
     [result] = NotificationConfig.test_all(config)
     assert result.ok, result.error
     listing, rating = sample_listing()
-    assert NotificationConfig.notify_all(
-        config, [listing], [rating], [NotificationStatus.NOT_NOTIFIED]
-    )
+    assert _notify(config, listing, rating)
     test, real = sent_messages
     assert test["Subject"] == real["Subject"] == "Found 1 new test notification listing from aimm"
     [image] = [p for p in test.walk() if p.get_content_maintype() == "image"]

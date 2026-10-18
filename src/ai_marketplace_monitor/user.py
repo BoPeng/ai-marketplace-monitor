@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List, Tuple, Type
@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Tuple, Type
 from diskcache import Cache  # type: ignore
 
 from .ai import AIResponse  # type: ignore
+from .channels import Channel
 from .email_notify import EmailNotificationConfig
 from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
@@ -41,10 +42,15 @@ class UserConfig(
 
     notify_with: List[str] | None = None
     remind: int | None = None
-    # local time (HH:MM) of the daily digest, like start_at; None for no digest
-    digest_at: str | None = None
-    # notification sections that receive the digest, like notify_with; None for all of them
-    digest_with: List[str] | None = None
+    # the user's channels, set by Config.expand_notifications
+    _channels: List[Channel] | None = field(default=None, repr=False, compare=False)
+
+    def channels(self: "UserConfig") -> List[Channel]:
+        """The channels the user is notified through (see ``channels.user_channels``).
+
+        Channels come from sections: a user made without a config has none.
+        """
+        return self._channels if self._channels is not None else []
 
     def handle_remind(self: "UserConfig") -> None:
         if self.remind is None:
@@ -74,39 +80,6 @@ class UserConfig(
         if not isinstance(self.remind, int):
             raise ValueError(
                 f"Item {hilight(self.name)} remind must be an time (e.g. 1 day) or false."
-            )
-
-    def handle_digest_at(self: "UserConfig") -> None:
-        if self.digest_at is None or self.digest_at is False:
-            self.digest_at = None
-            return
-
-        matched = (
-            re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", self.digest_at)
-            if isinstance(self.digest_at, str)
-            else None
-        )
-        if matched is None or int(matched.group(1)) > 23 or int(matched.group(2)) > 59:
-            raise ValueError(
-                f"User {hilight(self.name)} digest_at must be a local time such as '08:00'."
-            )
-        # schedule needs two-digit hours
-        self.digest_at = f"{int(matched.group(1)):02d}:{matched.group(2)}"
-
-    def handle_digest_with(self: "UserConfig") -> None:
-        if self.digest_with is None:
-            return
-
-        if isinstance(self.digest_with, str):
-            self.digest_with = [self.digest_with]
-
-        if (
-            not isinstance(self.digest_with, list)
-            or not self.digest_with
-            or not all(isinstance(x, str) for x in self.digest_with)
-        ):
-            raise ValueError(
-                f"User {hilight(self.name)} digest_with must be a list of notification section names."
             )
 
     def handle_notify_with(self: "UserConfig") -> None:
@@ -225,9 +198,13 @@ class User:
             return
         statuses = [self.notification_status(listing, local_cache) for listing in listings]
 
-        if NotificationConfig.notify_all(
-            self.config, listings, ratings, statuses, force=force, logger=self.logger
-        ):
+        sent = [
+            channel.config.notify(  # type: ignore[attr-defined]
+                listings, ratings, statuses, force=force, logger=self.logger
+            )
+            for channel in self.config.channels()
+        ]
+        if any(sent):
             counter.increment(CounterItem.NOTIFICATIONS_SENT, item_config.name)
             for listing, rating, ns in zip(listings, ratings, statuses):
                 if force or ns != NotificationStatus.NOTIFIED:

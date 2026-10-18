@@ -4,13 +4,18 @@ import json
 from dataclasses import asdict, fields
 from typing import Any, Dict, List, Tuple
 
+from ..channels import channel_classes
 from ..config import Config
 from ..marketplaces.base import option_names, resolve_option
 from ..marketplaces.facebook import FacebookItemConfig
 from ..user import UserConfig
 from .model import _BASE_FIELDS, AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, NormalizeError, mask, plain
 
-_USER_EXCLUDE = {"name", "request", "notify_with", "digest_with"}
+_USER_EXCLUDE = {"name", "request", "notify_with"}
+# a channel's user (its name, whether it is enabled) is compared on the user
+_CHANNEL_EXCLUDE = {"name", "request", "enabled"}
+# notification settings of a user: compared through the channels they make
+_CHANNEL_FIELDS = {f.name for cls in channel_classes().values() for f in fields(cls)}
 _MARKETPLACE_EXCLUDE = {*COMMON_OPTIONS, "name", "request", "monitor_config"}
 _ITEM_ONLY_FIELDS = tuple(
     f.name
@@ -31,10 +36,35 @@ def _with_runtime_enabled(data: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
+def channels_view(user: UserConfig) -> List[Dict[str, Any]]:
+    """What the user's channels send (the digest too); not how their sections are named."""
+    views = [
+        json.loads(
+            json.dumps(
+                {
+                    **{
+                        k: v
+                        for k, v in asdict(c.config).items()
+                        if k not in _CHANNEL_EXCLUDE and not k.startswith("_")
+                    },
+                    "type": c.config.notify_method,
+                },
+                default=str,
+            )
+        )
+        for c in user.channels()
+    ]
+    return sorted(views, key=lambda v: json.dumps(v, sort_keys=True))
+
+
 def _user_view(user: UserConfig) -> Dict[str, Any]:
-    return _with_runtime_enabled(
-        {k: v for k, v in asdict(user).items() if k not in _USER_EXCLUDE and not k.startswith("_")}
-    )
+    view = {
+        k: v
+        for k, v in asdict(user).items()
+        if k not in _USER_EXCLUDE and k not in _CHANNEL_FIELDS and not k.startswith("_")
+    }
+    view["channels"] = channels_view(user)
+    return _with_runtime_enabled(view)
 
 
 def _item_view(config: Config, name: str) -> Dict[str, Dict[str, Any]]:

@@ -845,7 +845,7 @@
   // the question's bubble, and a typing indicator shows while aimm works.
 
   const CHAT_SECTIONS = [
-    "ai", "marketplace", "item", "notification", "user", "region", "translation", "monitor",
+    "ai", "marketplace", "item", "email", "notification", "user", "region", "translation", "monitor",
   ];
   const USER_TURN_PROMPT = "You";
   // what the assistant does, as requests a user can start a chat with
@@ -1630,35 +1630,54 @@
         help: "Comma-separated time patterns." },
     ],
 
-    // ---- User form ----
+    // ---- User form: who receives, and which sections ----
     "user.*": [
-      { key: "pushbullet_token", label: "Pushbullet token", type: "password",
-        help: "Get your token from pushbullet.com → Settings → Access tokens." },
-      { key: "pushover_user_key", label: "Pushover user key", type: "password", group: "Pushover" },
-      { key: "pushover_api_token", label: "Pushover API token", type: "password" },
-      { key: "telegram_token", label: "Telegram bot token", type: "password", group: "Telegram",
-        help: "Format: 123456789:ABCdef..." },
+      { key: "email", label: "Email address", type: "text",
+        help: "Where the user receives email (comma-separated). Not needed for [email.unitysvc]." },
       { key: "telegram_chat_id", label: "Telegram chat ID", type: "text",
         help: "Numeric ID or @username." },
-      { key: "ntfy_server", label: "ntfy server URL", type: "text", group: "ntfy",
-        help: "e.g. https://ntfy.sh" },
+      { key: "pushover_user_key", label: "Pushover user key", type: "password" },
       { key: "ntfy_topic", label: "ntfy topic", type: "text" },
+      { key: "notify_with", label: "Receives", type: "text",
+        help: "Comma-separated sections, e.g. email.unitysvc, notification.unitysvc. Default: all of them." },
+      { key: "remind", label: "Remind interval", type: "text", advanced: true,
+        help: "Resend after this interval, e.g. '1d', '6h'. Default: one-time." },
+    ],
+
+    // ---- Email form: [email.unitysvc] and [email.gmail] are preset ----
+    "email.*": [
+      { key: "smtp_username", label: "SMTP username", type: "text",
+        help: "[email.unitysvc] (required): the UnitySVC service, e.g. smtp-to-mailbox to your UnitySVC address. [email.gmail]: your Gmail address." },
+      { key: "smtp_password", label: "SMTP password", type: "password",
+        help: "Preset for [email.unitysvc] (${UNITYSVC_API_KEY}) and [email.gmail] (${GMAIL_SMTP_PASSWORD})." },
+      { key: "digest_at", label: "Daily digest at", type: "text",
+        help: "Local time, e.g. 08:00, for a daily summary by email. Leave empty for none." },
+      { key: "smtp_server", label: "SMTP server", type: "text", advanced: true,
+        help: "Preset for [email.unitysvc] and [email.gmail]." },
+      { key: "smtp_port", label: "SMTP port", type: "number", advanced: true,
+        help: "Default: 587" },
+      { key: "smtp_from", label: "SMTP from address", type: "text", advanced: true },
+    ],
+
+    // ---- Phone and chat notification form ----
+    "notification.*": [
       { key: "unitysvc_api_key", label: "UnitySVC API key", type: "password", group: "UnitySVC",
         help: "Your svcpass_ key, or ${UNITYSVC_API_KEY}." },
       { key: "unitysvc_service", label: "UnitySVC service", type: "text", advanced: true,
         help: "Default: notify (inbox plus your saved destination), or e.g. labs/msg-to-discord." },
-      { key: "email", label: "Email address", type: "text", group: "Email",
-        help: "Comma-separated list of recipient addresses." },
-      { key: "smtp_server", label: "SMTP server", type: "text", advanced: true },
-      { key: "smtp_port", label: "SMTP port", type: "number", advanced: true,
-        help: "Default: 587" },
-      { key: "smtp_username", label: "SMTP username", type: "text", advanced: true },
-      { key: "smtp_password", label: "SMTP password (app password)", type: "password", advanced: true },
-      { key: "smtp_from", label: "SMTP from address", type: "text", advanced: true },
-      { key: "notify_with", label: "Notification sections", type: "text", group: "Other", advanced: true,
-        help: "Comma-separated [notification.*] section names for shared credentials." },
-      { key: "remind", label: "Remind interval", type: "text", advanced: true,
-        help: "Resend after this interval, e.g. '1d', '6h'. Default: one-time." },
+      { key: "pushbullet_token", label: "Pushbullet token", type: "password", group: "Pushbullet",
+        help: "Get your token from pushbullet.com → Settings → Access tokens." },
+      { key: "pushover_api_token", label: "Pushover API token", type: "password", group: "Pushover" },
+      { key: "telegram_token", label: "Telegram bot token", type: "password", group: "Telegram",
+        help: "Format: 123456789:ABCdef..." },
+      { key: "ntfy_server", label: "ntfy server URL", type: "text", group: "ntfy",
+        help: "e.g. https://ntfy.sh" },
+      { key: "digest_at", label: "Daily digest at", type: "text", group: "Other", advanced: true,
+        help: "Local time of a short daily summary; usually left empty when email sends the digest." },
+      { key: "message_format", label: "Message format", type: "text", advanced: true,
+        help: "plain_text, markdown or html." },
+      { key: "with_description", label: "With description", type: "text", advanced: true,
+        help: "true, false, or the number of characters." },
     ],
 
     // ---- AI backend form ----

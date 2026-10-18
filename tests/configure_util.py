@@ -15,6 +15,8 @@ BASE = """
 api_key = "svcpass_testkey"
 
 [user.me]
+
+[notification.pushbullet]
 pushbullet_token = "abc"
 """
 

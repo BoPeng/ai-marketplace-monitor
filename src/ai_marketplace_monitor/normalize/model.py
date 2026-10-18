@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from rich.text import Text
 
 from ..ai import AIConfig
+from ..email_notify import EmailNotificationConfig
 from ..marketplaces.base import (
     Fallback,
     MarketItemCommonConfig,
@@ -34,6 +35,7 @@ SECTION_ORDER: Tuple[str, ...] = (
     "ai",
     "marketplace",
     "user",
+    "email",
     "notification",
     "region",
     "item",
@@ -58,7 +60,7 @@ MASK = "<REDACTED>"
 
 # dataclass fields that never appear as config keys (runtime state, or the
 # translation `dictionary`, whose entries are the section's remaining keys)
-_RUNTIME_FIELDS = {"searched_count", "monitor_config", "dictionary"}
+_RUNTIME_FIELDS = {"searched_count", "monitor_config", "dictionary", "_channels"}
 _FIELD_ORDER: Dict[str, List[str]] = {
     section: [f.name for f in fields(cls) if f.name not in _RUNTIME_FIELDS]
     for section, cls in {
@@ -66,6 +68,7 @@ _FIELD_ORDER: Dict[str, List[str]] = {
         "ai": AIConfig,
         "marketplace": FacebookMarketplaceConfig,
         "user": UserConfig,
+        "email": EmailNotificationConfig,
         # notification sections hold a subset of UserConfig fields
         "notification": UserConfig,
         "region": RegionConfig,

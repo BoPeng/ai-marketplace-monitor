@@ -68,7 +68,7 @@ def main(
         typer.Argument(
             help=(
                 "Optional section to configure, e.g. 'ai', 'ai.<name>', 'marketplace', "
-                "'item.<name>', 'notification', 'user.<name>', 'region', 'translation', "
+                "'item.<name>', 'email', 'notification', 'user.<name>', 'region', 'translation', "
                 "or 'monitor'."
             )
         ),

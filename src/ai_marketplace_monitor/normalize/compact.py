@@ -51,24 +51,25 @@ def _hoist(cfg: Dict[str, Any], notes: Notes) -> None:
 
 
 def _merge_notifications(cfg: Dict[str, Any], notes: Notes) -> None:
-    notifs: Dict[str, Any] = cfg.get("notification", {})
-    names = list(notifs)
+    """Merge identical [email.*] sections, and identical [notification.*] sections."""
     replace: Dict[str, str] = {}
-    # identical raw content implies the same notification type
-    for i, keep in enumerate(names):
-        if keep in replace:
-            continue
-        for other in names[i + 1 :]:
-            if other not in replace and notifs[other] == notifs[keep]:
-                replace[other] = keep
+    for kind in ("email", "notification"):
+        sections: Dict[str, Any] = cfg.get(kind, {})
+        names = list(sections)
+        for i, keep in enumerate(names):
+            if f"{kind}.{keep}" in replace:
+                continue
+            for other in names[i + 1 :]:
+                if f"{kind}.{other}" not in replace and sections[other] == sections[keep]:
+                    replace[f"{kind}.{other}"] = f"{kind}.{keep}"
     for other, keep in replace.items():
-        del notifs[other]
-        notes[(f"notification.{other}", None)] = f"merged into notification.{keep}"
+        kind, name = other.split(".", 1)
+        del cfg[kind][name]
+        notes[(other, None)] = f"merged into {keep}"
     for user in cfg.get("user", {}).values():
-        for key in ("notify_with", "digest_with"):
-            if isinstance(user.get(key), list):
-                merged = (replace.get(n, n) for n in user[key])
-                user[key] = list(dict.fromkeys(merged))
+        if isinstance(user.get("notify_with"), list):
+            merged = (replace.get(n, n) for n in user["notify_with"])
+            user["notify_with"] = list(dict.fromkeys(merged))
 
 
 def _drop_explicit_defaults(cfg: Dict[str, Any], notes: Notes) -> None:
@@ -77,6 +78,7 @@ def _drop_explicit_defaults(cfg: Dict[str, Any], notes: Notes) -> None:
         "ai",
         "marketplace",
         "user",
+        "email",
         "notification",
         "region",
         "item",
@@ -141,15 +143,16 @@ def _drop_implicit_all_lists(cfg: Dict[str, Any], notes: Notes) -> None:
             notes[(label, "ai")] = "ai omitted: inherits the same AI backends"
 
     enabled_notifications = [
-        name
-        for name, notification in cfg.get("notification", {}).items()
-        if notification.get("enabled") is not False
+        f"{kind}.{name}"
+        for kind in ("email", "notification")
+        for name, section in cfg.get(kind, {}).items()
+        if section.get("enabled") is not False
     ]
     for name, user in cfg.get("user", {}).items():
         if user.get("notify_with") == enabled_notifications:
             del user["notify_with"]
             notes[(f"user.{name}", "notify_with")] = (
-                "notify_with omitted: defaults to all enabled notifications"
+                "notify_with omitted: defaults to all enabled email and notification sections"
             )
 
 

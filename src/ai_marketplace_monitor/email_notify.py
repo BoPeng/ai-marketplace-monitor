@@ -1,14 +1,14 @@
 import smtplib
 import ssl
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
 from logging import Logger
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, List, Tuple
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Tuple
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
@@ -34,6 +34,33 @@ if TYPE_CHECKING:
 UNITYSVC_SMTP_SERVER = "smtp.svcpass.com"
 UNITYSVC_SMTP_USERNAME = "smtp-to-mailbox"
 UNITYSVC_SMTP_FROM = "notify@svcpass.com"
+GMAIL_SMTP_SERVER = "smtp.gmail.com"
+
+# Values an [email.*] section of this name has unless it sets them. [email.unitysvc] sends
+# through UnitySVC; it sets smtp_username, the UnitySVC service that delivers the email
+# (smtp-to-mailbox to the account's own address, a relay service elsewhere), which is what
+# a user chooses. [email.gmail] sends through Gmail, with the account's address as
+# smtp_username and an app password.
+EMAIL_PRESETS: Dict[str, Dict[str, Any]] = {
+    "unitysvc": {
+        "smtp_server": UNITYSVC_SMTP_SERVER,
+        "smtp_port": 587,
+        "smtp_password": "${UNITYSVC_API_KEY}",
+    },
+    "gmail": {
+        "smtp_server": GMAIL_SMTP_SERVER,
+        "smtp_port": 587,
+        "smtp_password": "${GMAIL_SMTP_PASSWORD}",
+    },
+}
+
+
+def email_preset(server: Any) -> str | None:
+    """The preset of an SMTP server: "unitysvc", "gmail", or None for another server."""
+    if not isinstance(server, str):
+        return None
+    server = server.strip().lower()
+    return next((n for n, p in EMAIL_PRESETS.items() if p["smtp_server"] == server), None)
 
 
 @dataclass
@@ -403,3 +430,25 @@ class EmailNotificationConfig(NotificationConfig):
                         )
                     return False
         return False
+
+
+def email_section(name: str, values: Dict[str, Any]) -> EmailNotificationConfig:
+    """An [email.<name>] section: its values over its preset's, if it has one.
+
+    Raises ValueError for an option an email section does not have.
+    """
+    allowed = {f.name for f in fields(EmailNotificationConfig)} - {"name"}
+    unknown = sorted(k for k in values if k not in allowed)
+    if unknown:
+        raise ValueError(f"Email section {hilight(name)} has no option {', '.join(unknown)}.")
+    if name == "unitysvc" and not values.get("smtp_username"):
+        raise ValueError(
+            f"Email section {hilight(name)} needs smtp_username: the UnitySVC service that "
+            f"delivers the email, e.g. {UNITYSVC_SMTP_USERNAME} (to the address registered "
+            "with UnitySVC) or a relay service."
+        )
+    merged = {**EMAIL_PRESETS.get(name, {}), **values}
+    section = EmailNotificationConfig(name=name, **merged)
+    # the values it sets (see NotificationConfig.get_config)
+    section.__dict__["set_keys"] = frozenset(merged)
+    return section

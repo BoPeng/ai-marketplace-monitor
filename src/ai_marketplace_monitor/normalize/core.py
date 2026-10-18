@@ -32,6 +32,13 @@ def _expand(
     return result, notes
 
 
+def _migrated(user_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """A config in an older layout, in the current one (see ``migrations``)."""
+    from ..migrations import migrate_config_dict
+
+    return migrate_config_dict(copy.deepcopy(user_cfg))[0]
+
+
 def expand(
     user_cfg: Dict[str, Any], system_cfg: Dict[str, Any], *, partial: bool = False
 ) -> NormalizeResult:
@@ -40,6 +47,7 @@ def expand(
     ``partial`` accepts a config without every section the monitor needs (see
     ``Config.from_dicts``).
     """
+    user_cfg = _migrated(user_cfg)
     result, notes = _expand(user_cfg, system_cfg, partial)
     return NormalizeResult(result, describe_changes(user_cfg, result, notes))
 
@@ -48,6 +56,7 @@ def normalize(
     user_cfg: Dict[str, Any], system_cfg: Dict[str, Any], *, partial: bool = False
 ) -> NormalizeResult:
     """compact(expand(x)): the only form ever written to disk; never mutates the input."""
+    user_cfg = _migrated(user_cfg)
     expanded, expand_notes = _expand(user_cfg, system_cfg, partial)
     compacted, compact_notes = compact(expanded)
     result = order_config(compacted)
