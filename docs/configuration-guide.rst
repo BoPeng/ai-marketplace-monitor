@@ -26,8 +26,8 @@ aimm searches Facebook Marketplace, which needs a Facebook account for aimm to l
      - ``[email.unitysvc]`` with ``smtp-relay``: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose
      - ``[email.gmail]`` with a Gmail app password, or any other SMTP server
    * - **Phone and chat alerts**
-     - ``[notification.unitysvc]``: free, to your UnitySVC inbox and the destinations you choose there (Discord, Slack, SMS, phone push and 100+ others), each through your own account for it, its token saved in UnitySVC
-     - The same: alerts through UnitySVC always use your own accounts
+     - ``[notification.unitysvc]``: free, but only to your inbox on the UnitySVC website, which is of little use on its own
+     - the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC
      - ``[notification.telegram]``, Pushbullet, Pushover or ntfy, with their tokens in your configuration
 
 With UnitySVC, one API key (``UNITYSVC_API_KEY``) covers all three, and the keys of your own accounts (BYOK) stay in your UnitySVC account instead of aimm's configuration. Each service is set up on its own, so you can mix the options. Without UnitySVC, each service needs its own account, and every part of aimm works that way too. The sections below follow the same order: UnitySVC first, then your own keys through UnitySVC, then the options without UnitySVC. UnitySVC is run by the maintainer of aimm.
@@ -222,8 +222,8 @@ Setting Up Phone and Chat Notifications
      - UnitySVC with your own keys (BYOK)
      - Without UnitySVC
    * - **Phone and chat alerts**
-     - ``[notification.unitysvc]``: free, to your UnitySVC inbox and the destinations you choose there (Discord, Slack, SMS, phone push and 100+ others), each through your own account for it, its token saved in UnitySVC
-     - The same: alerts through UnitySVC always use your own accounts
+     - ``[notification.unitysvc]``: free, but only to your inbox on the UnitySVC website, which is of little use on its own
+     - the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC
      - ``[notification.telegram]``, Pushbullet, Pushover or ntfy, with their tokens in your configuration
 
 With UnitySVC
@@ -268,7 +268,10 @@ To notify several destinations at once, for example email, SMS and a chat app, c
 .. note::
    - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
 
-Every destination is your own account for that service, such as your Pushover, Telegram or Discord, with its token saved as a secret in your UnitySVC account: alerts through UnitySVC are always "bring your own key", so there is no separate BYOK option. aimm's configuration holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time.
+UnitySVC with your own accounts (BYOK)
+--------------------------------------
+
+Without a destination of your own, ``notify`` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Choose your own account as the notification destination in UnitySVC, for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time without touching it.
 
 Without UnitySVC
 ----------------
