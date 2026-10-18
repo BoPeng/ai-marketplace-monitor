@@ -2,6 +2,7 @@
 
 **Table of content:**
 
+- [Why UnitySVC](#why-unitysvc)
 - [AI Services](#ai-services)
 - [Marketplaces](#marketplaces)
 - [Users](#users)
@@ -40,6 +41,17 @@ pushbullet_token = '${PUSHBULLET_TOKEN}'
 _AI Marketplace Monitor_ will retrieve the value from the corresponding environment variable and raise an error if the environment variable does not exist.
 
 Here is a complete list of options that are acceptable by the program. [`example_config.toml`](example_config.toml) provides an example with many of the options.
+
+### Why UnitySVC
+
+aimm has adopted [UnitySVC](https://unitysvc.com/), a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (`UNITYSVC_API_KEY`). UnitySVC is run by the maintainer of aimm. We recommend it because:
+
+- **aimm no longer has to integrate every provider.** Instead of carrying the code, settings and dependencies of each AI provider and notification service, aimm talks to one gateway. New models and the 100+ notification services UnitySVC reaches become available to aimm without a new version of aimm.
+- **Deploying aimm is simpler.** A Docker or app-store installation needs a single secret to rate listings, email them with their photos and alert your phone.
+- **Your credentials stay in one place.** The keys of your own accounts, such as an OpenAI key, a Telegram bot token or an SMTP password, are saved once in your UnitySVC account instead of in aimm's configuration file or environment. They are not copied to every machine that runs aimm, and you can change or revoke one without touching aimm.
+- **You can keep the accounts you already have.** With your own keys (BYOK), UnitySVC forwards each request to your account, and that provider bills you as before. The email and notification services aimm uses by default are free, and UnitySVC's own AI is paid per use.
+
+aimm continues to support the services it already integrates without UnitySVC: OpenAI, Anthropic, Gemini, DeepSeek and a local Ollama for AI, any SMTP server for email, and Telegram, Pushbullet, Pushover and ntfy for notifications. New AI providers and notification channels are reached through UnitySVC instead of being added to aimm. Each service is configured on its own, so you can use UnitySVC for some and your own accounts for others.
 
 ### AI Services
 
