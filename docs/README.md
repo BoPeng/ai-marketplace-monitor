@@ -478,8 +478,21 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | `ntfy_server`    | Optional    | String   | ntfy server, default to `https://ntfy.sh`         |
 | `ntfy_topic`     | Optional    | String   | A unique topic to receive your notification.      |
 | `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` |
+| `ntfy_token`     | Optional    | String   | Access token for a protected topic, e.g. `"${NTFY_TOKEN}"` |
+| `ntfy_per_listing` | Optional  | Boolean  | One notification per listing, with its photo; tapping it opens the listing |
+| `ntfy_actions`   | Optional    | List     | Up to three [action buttons](https://docs.ntfy.sh/publish/#action-buttons) on each listing's notification (implies `ntfy_per_listing`) |
 
 - According to [ntfy documentation](https://docs.ntfy.sh/publish/#markdown-formatting), markdown format is supported only by web app. Therefore, `message_format` is by default set to `plain_text`.
+- Each of `ntfy_actions` is an ntfy action as a table. `{url}`, `{id}`, `{title}`, `{price}` and `{location}` in its values are replaced by the listing's; other braces are kept, so a JSON `body` needs no escaping. For example, a button that opens the listing and one that posts the listing to another topic for a script of yours:
+
+```toml
+[notification.ntfy]
+ntfy_server = "https://ntfy.sh"
+ntfy_actions = [
+  { action = "view", label = "Open", url = "{url}" },
+  { action = "http", label = "Ask seller", url = "https://ntfy.sh/my-commands", body = '{"cmd": "ask", "url": "{url}"}' },
+]
+```
 
 ### Items to search
 

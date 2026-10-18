@@ -141,6 +141,26 @@ NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
         "required for ntfy",
     ),
     FieldGuide(
+        "ntfy_token",
+        "ntfy: only for a protected topic, an access token",
+        '`"${NTFY_TOKEN}"`',
+        "none",
+        secret=True,
+    ),
+    FieldGuide(
+        "ntfy_per_listing",
+        "ntfy: one notification per listing, with its photo, opening the listing when tapped",
+        "true or false",
+        "false",
+    ),
+    FieldGuide(
+        "ntfy_actions",
+        "ntfy: up to three action buttons per listing; {url}, {id}, {title}, {price} and "
+        "{location} are replaced by the listing's",
+        '`[{ action = "view", label = "Open", url = "{url}" }]`',
+        "none",
+    ),
+    FieldGuide(
         "telegram_token",
         "Telegram: the bot token from @BotFather",
         '`"${TELEGRAM_TOKEN}"`',
