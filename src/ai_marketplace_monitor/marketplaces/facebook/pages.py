@@ -274,7 +274,20 @@ class FacebookLocationDialog(WebPage):
         return radius_from_label(self.current_label())
 
     def open(self: "FacebookLocationDialog") -> None:
-        self._button().click(timeout=5000)
+        """Open the dialog, first closing what Facebook may lay over the page.
+
+        After a login, Facebook may open Messenger's chat panel ("Enter your PIN to restore
+        chat history") over the page, and it takes the click on the location button.
+        """
+        try:
+            self._button().click(timeout=5000)
+        except KeyboardInterrupt:
+            raise
+        except Exception:
+            for _ in range(2):
+                self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(500)
+            self._button().click(timeout=5000)
         self._dialog().wait_for(timeout=10000)
 
     def close(self: "FacebookLocationDialog") -> None:
