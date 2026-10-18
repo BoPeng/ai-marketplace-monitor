@@ -44,7 +44,30 @@ Here is a complete list of options that are acceptable by the program. [`example
 
 ### Why UnitySVC
 
-AIMM has adopted [UnitySVC](https://unitysvc.com/), a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (`UNITYSVC_API_KEY`). UnitySVC is run by the maintainer of AIMM. We recommend it because:
+AIMM has adopted [UnitySVC](https://unitysvc.com/), a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (`UNITYSVC_API_KEY`). UnitySVC is run by the maintainer of AIMM.
+
+```mermaid
+flowchart LR
+    aimm["AIMM<br/>one key: UNITYSVC_API_KEY"]
+
+    subgraph unitysvc["UnitySVC"]
+        smtp["SMTP gateway"]
+        api["API gateway"]
+    end
+
+    aimm -- "email" --> smtp
+    aimm -- "notification (msg)" --> api
+    aimm -- "AI request" --> api
+
+    smtp -- "smtp-to-mailbox" --> mailbox["Your UnitySVC<br/>email address"]
+    smtp -- "smtp-relay (BYOK)" --> ownsmtp["Your SMTP server<br/>Gmail, Outlook, ..."]
+    api -- "msg-to-discord, ... (BYOK)" --> chat["Your Discord, Slack,<br/>Telegram, Pushover, ..."]
+    api -- "llm pool" --> llm["OpenAI, Anthropic,<br/>Google, Groq, ..."]
+```
+
+AIMM sends everything with one key: email to UnitySVC's SMTP gateway, and notifications and AI requests to its API gateway. Email goes to the address of your UnitySVC account (`smtp-to-mailbox`) or, through your own SMTP server, to any address (`smtp-relay`). With your own keys (BYOK) saved in UnitySVC, notifications reach your Discord, Slack, Telegram or Pushover account, and the provider bills you. AI requests go to a pool of models from several providers, and UnitySVC fails over between them.
+
+We recommend it because:
 
 - **AIMM no longer has to integrate every provider.** Instead of carrying the code, settings and dependencies of each AI provider and notification service, AIMM talks to one gateway. New models and the 100+ notification services UnitySVC reaches become available to AIMM without a new version of AIMM.
 - **Deploying AIMM is simpler.** A Docker or app-store installation needs a single secret to rate listings, email them with their photos and alert your phone.

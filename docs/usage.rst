@@ -238,12 +238,14 @@ drive the same flow through JSON prompt/answer messages over a websocket instead
 shelling out to the command.
 
 Cost Considerations
-------------------
+-------------------
 
 **Free Components:**
+
 - The software itself (AGPL license)
 
 **Usage-Based Costs:**
+
 - Notification services (PushBullet, SMTP, etc.)
 - AI platforms (OpenAI, DeepSeek, etc.). AIMM uses AI to configure itself, rate listings and
   summarize the daily digest. None of these needs a top-tier model: a mid-tier mainstream model
