@@ -29,21 +29,26 @@ exclude_sellers = []
 # Users and Notifications
 #
 [user.user1]
-pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 email = 'myself@gmail.com'
-notify_with = ['gmail', 'pushover']
+notify_with = ['email.gmail', 'notification.pushover', 'notification.pushbullet']
 
 [user.user2]
 email = 'user2@gmail.com'
-notify_with = 'gmail'
+notify_with = 'email.gmail'
+
+# full email with photos, from a Gmail account (server and port are preset)
+[email.gmail]
+smtp_username = 'myself@gmail.com'
+smtp_password = '${GMAIL_SMTP_PASSWORD}'
+# a daily digest of searches, matches and rejected listings (local time)
+digest_at = '08:00'
 
 [notification.pushover]
 pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 pushover_api_token = 'someone@gmail.com'
 
-[notification.gmail]
-smtp_username = 'myself@gmail.com'
-smtp_password = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+[notification.pushbullet]
+pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 #
 # Items to search

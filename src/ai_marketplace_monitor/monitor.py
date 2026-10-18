@@ -1,6 +1,5 @@
 import sys
 import time
-from datetime import datetime
 from logging import Logger
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Iterable, List, Tuple, Type
@@ -17,7 +16,7 @@ from . import COMMUNITY_MESSAGE
 from .ai import AIBackend, AIResponse
 from .config import Config, resolve_config_files, supported_ai_backends
 from .control import control
-from .digest import latest_cutoff, pending_digest_channels, send_due_digest
+from .digest import digest_times, pending_digest_windows, send_due_digest
 from .evaluations import (
     NOTIFIED,
     REJECTED,
@@ -526,15 +525,16 @@ class MarketplaceMonitor:
         """
         assert self.config is not None
         for user_config in self.config.user.values():
-            if user_config.enabled is False or not user_config.digest_at:
+            if user_config.enabled is False:
                 continue
-            if self.logger:
-                self.logger.info(
-                    f"""{hilight("[Schedule]", "info")} Scheduling the daily digest for {user_config.name} every day at {user_config.digest_at}"""
+            for digest_at in digest_times(user_config):
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Schedule]", "info")} Scheduling the daily digest for {user_config.name} every day at {digest_at}"""
+                    )
+                schedule.every().day.at(digest_at).do(self.send_digest, user_config.name).tag(
+                    f"{DIGEST_TAG}{user_config.name}"
                 )
-            schedule.every().day.at(user_config.digest_at).do(
-                self.send_digest, user_config.name
-            ).tag(f"{DIGEST_TAG}{user_config.name}")
 
     def refresh_listing_status(self: "MarketplaceMonitor", as_of: float | None = None) -> None:
         """Check whether recently notified listings sold, for the digest with cutoff ``as_of``.
@@ -570,10 +570,10 @@ class MarketplaceMonitor:
         if user_name not in self.config.user:
             return
         user_config = self.config.user[user_name]
-        if user_config.digest_at and pending_digest_channels(user_config):
+        windows = pending_digest_windows(user_config)
+        if windows:
             # the check runs just after the cutoff; its findings belong to this digest
-            cutoff = latest_cutoff(user_config.digest_at, datetime.now()).timestamp()
-            self.refresh_listing_status(as_of=cutoff)
+            self.refresh_listing_status(as_of=max(until for _, until in windows))
         send_due_digest(
             user_config,
             logger=self.logger,

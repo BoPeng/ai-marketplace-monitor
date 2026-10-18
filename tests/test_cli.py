@@ -182,7 +182,7 @@ def test_expand_config_prints_expanded_toml_from_config_file_alias(
     parsed = tomllib.loads(result.stdout)
     # the item names no marketplace: it inherits from every one, so nothing moves into it
     assert parsed["marketplace"]["facebook"] == {"search_city": "dallas"}
-    assert parsed["user"]["user1"]["notify_with"] == ["pushbullet"]
+    assert parsed["user"]["user1"]["notify_with"] == ["notification.pushbullet"]
     assert parsed["notification"] == {
         "pushbullet": {"pushbullet_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
     }

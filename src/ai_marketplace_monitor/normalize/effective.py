@@ -11,7 +11,7 @@ from ..marketplaces.facebook import FacebookItemConfig
 from ..user import UserConfig
 from .model import _BASE_FIELDS, AI_PROMPT_ITEM_ONLY, COMMON_OPTIONS, NormalizeError, mask, plain
 
-_USER_EXCLUDE = {"name", "request", "notify_with", "digest_with"}
+_USER_EXCLUDE = {"name", "request", "notify_with"}
 # a channel's user (its name, whether it is enabled) is compared on the user
 _CHANNEL_EXCLUDE = {"name", "request", "enabled"}
 # notification settings of a user: compared through the channels they make
@@ -37,8 +37,7 @@ def _with_runtime_enabled(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def channels_view(user: UserConfig) -> List[Dict[str, Any]]:
-    """What the user's channels send, and which get the digest; not how they are named."""
-    digest_with = user.digest_with
+    """What the user's channels send (the digest too); not how their sections are named."""
     views = [
         json.loads(
             json.dumps(
@@ -49,7 +48,6 @@ def channels_view(user: UserConfig) -> List[Dict[str, Any]]:
                         if k not in _CHANNEL_EXCLUDE and not k.startswith("_")
                     },
                     "type": c.config.notify_method,
-                    "digest": c.in_digest(digest_with),
                 },
                 default=str,
             )

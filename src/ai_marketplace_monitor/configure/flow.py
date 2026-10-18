@@ -14,7 +14,7 @@ from .ai_kit import AIToolkit
 from .ai_setup import configure_ai, load_ai_sections, probe_sections
 from .item import ItemToolkit
 from .marketplace import MarketplaceToolkit
-from .notify import NotificationToolkit, UserToolkit
+from .notify import EmailToolkit, NotificationToolkit, UserToolkit
 from .small_kits import MonitorToolkit, RegionToolkit, TranslationToolkit
 from .toolkits import SINGLETONS, Toolkit, section_label
 from .tools import Outcome, ToolExecutor, monitoring_needs, section_index
@@ -45,7 +45,8 @@ def ai_section_name(section: str) -> str | None:
 
 _SUPPORTED = (
     "'ai', 'ai.<name>', 'marketplace', 'marketplace.<name>', 'item', 'item.<name>', "
-    "'notification', 'notification.<name>', 'user', 'user.<name>', 'region', "
+    "'email', 'email.<name>', 'notification', 'notification.<name>', 'user', 'user.<name>', "
+    "'region', "
     "'region.<name>', 'translation', 'translation.<name>', and 'monitor'"
 )
 
@@ -66,7 +67,7 @@ def validate_section_address(section: str) -> None:
     if family == "ai":
         ai_section_name(section)
         return
-    if family in ("marketplace", "item", "notification", "user", "region", "translation"):
+    if family in ("marketplace", "item", "email", "notification", "user", "region", "translation"):
         section_name(section)
         return
     if section == "monitor":  # one unnamed section
@@ -161,8 +162,8 @@ async def configure_section(
     kits = {family: toolkits()[family]}
     if family == "item":  # an item may need its marketplace created or given a location
         kits["marketplace"] = toolkits()["marketplace"]
-    if family in ("notification", "user"):  # users and notifications are set up together
-        kits = {t: toolkits()[t] for t in ("notification", "user")}
+    if family in ("email", "notification", "user"):  # users and their sections go together
+        kits = {t: toolkits()[t] for t in ("email", "notification", "user")}
     try:
         ai = await ai_for_configure(ui, config_files, home=home)
     except SetupClosedError:
@@ -185,6 +186,7 @@ def toolkits() -> Dict[str, Toolkit]:
         "ai": AIToolkit(),
         "marketplace": MarketplaceToolkit(),
         "item": ItemToolkit(),
+        "email": EmailToolkit(),
         "notification": NotificationToolkit(),
         "user": UserToolkit(),
         "region": RegionToolkit(),

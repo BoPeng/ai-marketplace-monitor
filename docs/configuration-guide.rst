@@ -7,7 +7,7 @@ This section covers advanced configuration options and setup procedures for AI M
 Setting Up Email Notifications
 ==============================
 
-To send email notifications, you need to specify recipient email addresses in the `email` of a `user` or a notification setting. You can configure multiple users with individual or multiple email addresses like this:
+aimm's email (all new listings in one message, with their photos) is sent by an ``[email.NAME]`` section, to the ``email`` of each user who receives it. You can configure multiple users with individual or multiple email addresses like this:
 
 .. code-block:: toml
 
@@ -17,26 +17,6 @@ To send email notifications, you need to specify recipient email addresses in th
     [user.user2]
     email = ['user2@gmail.com', 'user2@outlook.com']
 
-SMTP Configuration
-------------------
-
-An SMTP server is required for sending emails, for which you will need to know `smtp_server`, `smtp_port`, `smtp_username` and `smtp_password`. Generally speaking, you will need to create a notification section with the information obtained from your email service provider.
-
-.. code-block:: toml
-
-    [notification.myprovider]
-    smtp_username = 'username@EMAIL.COM' # default to email
-    smtp_server = 'smtp.EMAIL.COM'       # default to smtp.EMAIL.COM
-    smtp_port = 587                      # default for most providers
-    smtp_password = 'mypassword'
-
-`ai-marketplace-monitor` will try to use `email` if `smtp_username` is unspecified, and determine `smtp_username` and `smtp_server` automatically from the sender email address. For example, your Gmail setup could be as simple as:
-
-.. code-block:: toml
-
-    [notification.gmail]
-    smtp_password = 'abcdefghijklmnop'
-
 Using UnitySVC instead of a Gmail app password
 ----------------------------------------------
 
@@ -44,22 +24,52 @@ Gmail requires an app password, which many users find hard to create in their Go
 
 .. code-block:: toml
 
-    [notification.unitysvc_email]
-    smtp_server = 'smtp.svcpass.com'
-    smtp_password = '${UNITYSVC_API_KEY}'
+    [email.unitysvc]
+    smtp_username = 'smtp-to-mailbox'
 
     [user.me]
-    notify_with = 'unitysvc_email'
+    notify_with = 'email.unitysvc'
 
-``smtp.svcpass.com`` is a preset: aimm fills in the port (587), the SMTP username (``smtp-to-mailbox``) and the sender address (``notify@svcpass.com``), and ``email`` is not needed. The restriction is that UnitySVC only sends to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images. See :ref:`unitysvc-smtp` for other options.
+``[email.unitysvc]`` is a preset: aimm fills in the server (``smtp.svcpass.com``), the port (587) and the password ``${UNITYSVC_API_KEY}``, and ``email`` is not needed. ``smtp_username`` names the UnitySVC service that delivers the email: ``smtp-to-mailbox`` sends it to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images. See :ref:`unitysvc-smtp` for other services.
 
-You can specify `smtp_password` directly in the `user` section if you are not sharing the `notification` setting with other users.
+Gmail
+-----
+
+``[email.gmail]`` is a preset too: aimm fills in the server (``smtp.gmail.com``), the port (587) and the password ``${GMAIL_SMTP_PASSWORD}``. Set your Gmail address as ``smtp_username``, and a Gmail app password as the environment variable ``GMAIL_SMTP_PASSWORD``:
 
 .. code-block:: toml
 
+    [email.gmail]
+    smtp_username = 'myemail@gmail.com'
+
     [user.me]
     email = 'myemail@gmail.com'
-    smtp_password = 'abcdefghijklmnop'
+
+Other email providers
+---------------------
+
+Any other ``[email.NAME]`` section is a plain SMTP account, with the ``smtp_server``, ``smtp_port``, ``smtp_username`` and ``smtp_password`` of your email service provider:
+
+.. code-block:: toml
+
+    [email.myprovider]
+    smtp_username = 'username@EMAIL.COM' # default to email
+    smtp_server = 'smtp.EMAIL.COM'       # default to smtp.EMAIL.COM
+    smtp_port = 587                      # default for most providers
+    smtp_password = '${MYPROVIDER_PASSWORD}'
+
+`ai-marketplace-monitor` will try to use `email` if `smtp_username` is unspecified, and determine `smtp_server` automatically from the sender email address.
+
+Daily digest
+------------
+
+``digest_at`` on an email section (a local time such as ``'08:00'``) sends, every day at that time, the full digest of the last 24 hours: matches, rejected listings and an AI summary of each item. A ``[notification.*]`` section can send a short digest too, but next to an email digest it is rarely wanted.
+
+.. code-block:: toml
+
+    [email.unitysvc]
+    smtp_username = 'smtp-to-mailbox'
+    digest_at = '08:00'
 
 .. note::
    - **Gmail Users**: You will need to create a separate app password for your Google account as `smtp_password`.
@@ -77,26 +87,16 @@ To enable PushOver notifications, follow these steps:
 Configuration Options
 --------------------
 
-Once you have both the user key and API token, add them to your configuration file using one of the following formats:
-
-**Option 1: Embed directly under your user profile**
-
-.. code-block:: toml
-
-    [user.me]
-    pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-    pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-
-**Option 2: Use a dedicated notification section**
+Once you have both the user key and API token, add them to your configuration file: the API token in a notification section, the user key on the user who receives it.
 
 .. code-block:: toml
 
     [notification.pushover]
-    pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
     [user.me]
-    notify_with = 'pushover'
+    pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    notify_with = 'notification.pushover'
 
 Description Settings
 -------------------
@@ -113,8 +113,7 @@ For example:
 
 .. code-block:: toml
 
-    [user.me]
-    pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    [notification.pushover]
     pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
     with_description = 100
 
@@ -159,34 +158,16 @@ You need to find your chat ID to receive messages. Here are two methods:
 Step 3: Configure Your Settings
 -------------------------------
 
-Add your Telegram credentials to your configuration file using one of these formats:
-
-**Option 1: Direct configuration under user profile**
-
-.. code-block:: toml
-
-    [user.me]
-    telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
-    telegram_chat_id = '123456789'
-
-**Option 2: Using a dedicated notification section**
+Add the bot token to a notification section, and your chat ID to the user who receives it. Environment variables keep the token out of the file:
 
 .. code-block:: toml
 
     [notification.telegram]
-    telegram_token = '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
-    telegram_chat_id = '123456789'
-
-    [user.me]
-    notify_with = 'telegram'
-
-**Option 3: Using environment variables for security**
-
-.. code-block:: toml
-
-    [user.me]
     telegram_token = '${TELEGRAM_BOT_TOKEN}'
+
+    [user.me]
     telegram_chat_id = '${TELEGRAM_CHAT_ID}'
+    notify_with = 'notification.telegram'
 
 Then set the environment variables:
 
@@ -242,7 +223,7 @@ The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notificati
     unitysvc_api_key = '${UNITYSVC_API_KEY}'
 
     [user.me]
-    notify_with = 'unitysvc'
+    notify_with = 'notification.unitysvc'
 
 To send to one specific UnitySVC service instead, set ``unitysvc_service`` to its path. Such a message skips the inbox.
 
@@ -269,21 +250,20 @@ To notify several destinations at once, for example email, SMS and a chat app, c
 Sending through UnitySVC's SMTP gateway
 ---------------------------------------
 
-Instead of the HTTP API, you can send aimm's regular email notifications through UnitySVC's SMTP gateway. aimm then sends its full HTML email with listing images, which suits forwarding emails through UnitySVC's email services. ``smtp.svcpass.com`` is a preset, so the server and your API key are enough:
+Instead of the HTTP API, you can send aimm's regular email notifications through UnitySVC's SMTP gateway with an ``[email.unitysvc]`` section. aimm then sends its full HTML email with listing images, which suits forwarding emails through UnitySVC's email services:
 
 .. code-block:: toml
 
-    [notification.unitysvc_email]
-    smtp_server = 'smtp.svcpass.com'
-    smtp_password = '${UNITYSVC_API_KEY}'
+    [email.unitysvc]
+    smtp_username = 'smtp-to-mailbox'
 
     [user.me]
-    notify_with = 'unitysvc_email'
+    notify_with = 'email.unitysvc'
 
-The SMTP username selects the UnitySVC service and your API key is the password. The preset defaults to port 587, ``smtp_username = 'smtp-to-mailbox'`` and ``smtp_from = 'notify@svcpass.com'``; set any of them to override it.
+The SMTP username selects the UnitySVC service, and is the one value the section must set; your API key is the password. The preset has the server ``smtp.svcpass.com``, port 587 and ``smtp_password = '${UNITYSVC_API_KEY}'``, and the sender is ``notify@svcpass.com``; set any of them to override it.
 
 - **Emails go to your UnitySVC-registered email address**, the verified primary email under Settings → Account on UnitySVC, not to the address in ``email``. Make sure that address is set and verified.
-- ``smtp_username = 'smtp-to-mailbox'`` (the default) skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
+- ``smtp_username = 'smtp-to-mailbox'`` skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
 - ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To receive these notifications by email, your notification destination on UnitySVC must include ``smtp-to-mailbox``: set it as the destination, or add it to a broadcast used as the destination.
 - ``smtp_username`` can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases. For services that deliver to the ``To`` address, set ``email``.
 - ``email`` is optional with the preset: it only fills the ``To`` header, and ``smtp-to-mailbox`` and ``notify`` deliver to your registered address whatever it says.

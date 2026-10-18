@@ -2,6 +2,7 @@
 
 import time
 import types
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
@@ -13,6 +14,7 @@ from diskcache import Cache  # type: ignore
 
 from ai_marketplace_monitor import digest as dg
 from ai_marketplace_monitor import utils
+from ai_marketplace_monitor.channels import user_channels
 from ai_marketplace_monitor.config import Config
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.evaluations import (
@@ -27,6 +29,8 @@ from ai_marketplace_monitor.evaluations import (
 )
 from ai_marketplace_monitor.monitor import DIGEST_TAG, MarketplaceMonitor
 from ai_marketplace_monitor.notification import NotificationConfig
+from ai_marketplace_monitor.pushover import PushoverNotificationConfig
+from ai_marketplace_monitor.telegram import TelegramNotificationConfig
 from ai_marketplace_monitor.user import UserConfig
 from ai_marketplace_monitor.utils import (
     DAILY_COUNTER_EXPIRE,
@@ -369,15 +373,13 @@ def test_digest_from_recorded_evaluations(
     assert len(list(iter_evaluations(local_cache=temp_cache))) == 4
 
 
-def test_user_digest_options() -> None:
-    config = UserConfig(name="me", digest_at="8:05", digest_with="gmail")  # type: ignore[arg-type]
-    assert (config.digest_at, config.digest_with) == ("08:05", ["gmail"])
-    assert UserConfig(name="me", digest_at=False).digest_at is None  # type: ignore[arg-type]
+def test_digest_at_is_a_section_option() -> None:
+    section = PushoverNotificationConfig(name="p", digest_at="8:05")  # type: ignore[arg-type]
+    assert section.digest_at == "08:05"
+    assert PushoverNotificationConfig(name="p", digest_at=False).digest_at is None  # type: ignore[arg-type]
     for bad in ("25:00", "8am", "08:60", 8):
         with pytest.raises(ValueError, match="digest_at"):
-            UserConfig(name="me", digest_at=bad)  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="digest_with"):
-        UserConfig(name="me", digest_with=[1])  # type: ignore[list-item]
+            EmailNotificationConfig(name="e", digest_at=bad)  # type: ignore[arg-type]
 
 
 CONFIG = """
@@ -387,62 +389,56 @@ search_city = "houston"
 [item.gopro]
 search_phrases = "gopro"
 
-[notification.gmail]
-smtp_server = "smtp.gmail.com"
+[email.gmail]
 smtp_username = "me@gmail.com"
 smtp_password = "pw"
+{gmail}
 
-[notification.unitysvc_email]
+[email.unitysvc]
+smtp_username = "smtp-to-mailbox"
 smtp_password = "svcpass_abc"
+{unitysvc}
 
 [notification.tg]
 telegram_token = "123:abc"
+{tg}
 
 [notification.off]
 ntfy_server = "https://ntfy.sh"
 enabled = false
+digest_at = "08:00"
 
 [user.me]
 email = "me@example.com"
 telegram_chat_id = "456"
-digest_at = "08:00"
 max_retries = 1
 retry_delay = 0
 """
 
 
-def load(config_file: Callable[[str], str], extra: str = "") -> Config:
-    return Config([Path(config_file(CONFIG + extra))])
+def load(config_file: Callable[[str], str], **digest_at: str) -> Config:
+    """The config, with digest_at on the sections named."""
+    sections = {
+        name: f'digest_at = "{digest_at[name]}"' if name in digest_at else ""
+        for name in ("gmail", "unitysvc", "tg")
+    }
+    return Config([Path(config_file(CONFIG.format(**sections)))])
 
 
-def test_digest_with_is_validated(config_file: Callable[[str], str]) -> None:
-    assert load(config_file, 'digest_with = ["gmail", "tg"]').user["me"].digest_with == [
-        "gmail",
-        "tg",
-    ]
-    for names in ('"nope"', '"off"'):
-        with pytest.raises(ValueError, match="digest_with"):
-            load(config_file, f"digest_with = {names}")
-    # only notifications the user receives
-    with pytest.raises(ValueError, match="digest_with"):
-        load(config_file, 'notify_with = ["tg"]\ndigest_with = ["gmail"]')
-
-
-def test_digest_channels(config_file: Callable[[str], str]) -> None:
-    # by default, every channel the user is notified with: each section on its own
-    config = load(config_file)
-    assert list(dg.digest_channels(config.user["me"])) == ["gmail", "unitysvc_email", "tg"]
-    # one of two email sections
-    config = load(config_file, 'digest_with = ["gmail"]')
+def test_digest_channels_are_the_sections_with_digest_at(
+    config_file: Callable[[str], str],
+) -> None:
+    assert dg.digest_channels(load(config_file).user["me"]) == {}
+    config = load(config_file, gmail="08:00", tg="20:30")
     channels = dg.digest_channels(config.user["me"])
-    assert list(channels) == ["gmail"]
-    gmail = channels["gmail"]
+    assert list(channels) == ["email.gmail", "notification.tg"]
+    gmail = channels["email.gmail"]
     assert isinstance(gmail, EmailNotificationConfig)
+    # the server comes from the gmail preset, the address from the user
     assert (gmail.smtp_server, gmail.email) == ("smtp.gmail.com", ["me@example.com"])
-    config = load(config_file, 'digest_with = ["unitysvc_email", "tg"]')
-    channels = dg.digest_channels(config.user["me"])
-    assert list(channels) == ["unitysvc_email", "tg"]
-    unitysvc_email = channels["unitysvc_email"]
+    assert dg.digest_times(config.user["me"]) == ["08:00", "20:30"]
+    channels = dg.digest_channels(load(config_file, unitysvc="07:00").user["me"])
+    unitysvc_email = channels["email.unitysvc"]
     assert isinstance(unitysvc_email, EmailNotificationConfig)
     assert unitysvc_email.smtp_password == "svcpass_abc"
 
@@ -482,18 +478,36 @@ def sent(monkeypatch: pytest.MonkeyPatch) -> Sent:
     return messages
 
 
-def user(**kwargs: Any) -> UserConfig:
-    return UserConfig(
-        name="me",
-        digest_at="08:00",
-        pushover_user_key="u",
-        pushover_api_token="t",
-        telegram_token="123:abc",
-        telegram_chat_id="456",
-        max_retries=1,
-        retry_delay=0,
-        **kwargs,
+def user(
+    email: List[str] | None = None,
+    smtp_password: str | None = None,
+    digest_at: str | None = "08:00",
+    enabled: bool | None = None,
+) -> UserConfig:
+    """A user of a Pushover and a Telegram section (and an email one with a password).
+
+    Its channels are named after their type, as "pushover", to keep the tests short.
+    """
+    config = UserConfig(
+        name="me", email=email, pushover_user_key="u", telegram_chat_id="456", enabled=enabled
     )
+    common: Dict[str, Any] = {"digest_at": digest_at, "max_retries": 1, "retry_delay": 0}
+    sections: Dict[str, Any] = {
+        "notification.pushover": PushoverNotificationConfig(
+            name="pushover", pushover_api_token="t", **common
+        ),
+        "notification.telegram": TelegramNotificationConfig(
+            name="telegram", telegram_token="123:abc", **common
+        ),
+    }
+    if smtp_password:
+        sections["email.email"] = EmailNotificationConfig(
+            name="email", smtp_password=smtp_password, **common
+        )
+    config._channels = [
+        replace(c, name=c.section.split(".")[1]) for c in user_channels(config, sections)
+    ]
+    return config
 
 
 def test_send_digest_version_by_channel_type(sent: Sent) -> None:
@@ -583,10 +597,10 @@ def test_send_due_digest_once(sent: Sent, windows: List[Window], temp_cache: Cac
     assert windows == [(CUTOFF0, CUTOFF1), (CUTOFF1, CUTOFF2)]
 
 
-def test_send_due_digest_with_sections(
+def test_send_due_digest_from_the_sections_with_digest_at(
     sent: Sent, temp_cache: Cache, config_file: Callable[[str], str]
 ) -> None:
-    config = load(config_file, 'digest_with = ["tg"]')
+    config = load(config_file, tg="08:00")
     add_digest(config.user["me"], temp_cache, DAY1.replace(hour=7))
     now = datetime(2026, 10, 8, 9)
     assert dg.send_due_digest(config.user["me"], now=now, local_cache=temp_cache)
@@ -688,10 +702,9 @@ def test_failed_digest_is_retried(
 
 
 def test_no_digest_without_option(sent: Sent, temp_cache: Cache) -> None:
-    config = user()
-    config.digest_at = None
+    config = user(digest_at=None)
     assert not dg.send_due_digest(config, now=datetime(2026, 10, 8, 9), local_cache=temp_cache)
-    config.digest_at, config.enabled = "08:00", False
+    config = user(enabled=False)
     assert not dg.send_due_digest(config, now=datetime(2026, 10, 8, 9), local_cache=temp_cache)
     assert sent == []
 
@@ -717,7 +730,7 @@ def test_schedule_digests_follow_config_changes(monkeypatch: pytest.MonkeyPatch)
         assert calls == ["me"]
         # the config changes: the jobs are cleared and scheduled again
         schedule.clear()
-        users["me"].digest_at = "20:30"
+        users["me"] = user(digest_at="20:30")
         monitor.schedule_digests()
         jobs = schedule.get_jobs()
         assert len(jobs) == 1 and jobs[0].at_time is not None

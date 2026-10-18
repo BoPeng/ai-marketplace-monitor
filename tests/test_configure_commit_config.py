@@ -20,7 +20,7 @@ MAIN = """
 api_key = "svcpass_testkey"
 
 [user.me]
-pushbullet_token = "${PUSHBULLET_TOKEN}"  # keep me
+telegram_chat_id = "${TELEGRAM_CHAT_ID}"  # keep me
 
 [marketplace.facebook]
 # where I live
@@ -56,7 +56,7 @@ async def test_only_the_changed_section_is_edited_in_place(tmp_path: Path) -> No
     for kept in (
         "# my AI",
         "# where I live",
-        'pushbullet_token = "${PUSHBULLET_TOKEN}"  # keep me',
+        'telegram_chat_id = "${TELEGRAM_CHAT_ID}"  # keep me',
     ):
         assert kept in text
     assert "[notification" not in text

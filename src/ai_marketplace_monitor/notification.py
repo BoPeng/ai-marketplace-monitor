@@ -40,6 +40,7 @@ ROLE = "role"
 RECIPIENT = "recipient"  # who receives: stays on [user.*]
 CHANNEL = "channel"  # how it is sent (credentials, servers): [notification.*]
 COMMON = "common"  # delivery settings shared by every channel type
+SECTION = "section"  # set on a section only, never in [user.*]
 
 
 def notification_field(role: str, default: Any = None) -> Any:
@@ -203,6 +204,8 @@ class NotificationConfig(BaseConfig):
 
     max_retries: int = notification_field(COMMON, 5)
     retry_delay: int = notification_field(COMMON, 60)
+    # local time (HH:MM) of the daily digest this section sends; None for no digest
+    digest_at: str | None = notification_field(SECTION)
 
     # Rate limiting configuration (disabled by default, but public for user config)
     rate_limit_enabled: bool = notification_field(COMMON, False)
@@ -231,6 +234,22 @@ class NotificationConfig(BaseConfig):
     def handle_retry_delay(self: "NotificationConfig") -> None:
         if not isinstance(self.retry_delay, int):
             raise ValueError("retry_delay must be an integer.")
+
+    def handle_digest_at(self: "NotificationConfig") -> None:
+        if self.digest_at is None or self.digest_at is False:
+            self.digest_at = None
+            return
+        matched = (
+            re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", self.digest_at)
+            if isinstance(self.digest_at, str)
+            else None
+        )
+        if matched is None or int(matched.group(1)) > 23 or int(matched.group(2)) > 59:
+            raise ValueError(
+                f"{hilight(self.name)}: digest_at must be a local time such as '08:00'."
+            )
+        # schedule needs two-digit hours
+        self.digest_at = f"{int(matched.group(1)):02d}:{matched.group(2)}"
 
     def _has_required_fields(self: "NotificationConfig") -> bool:
         return all(getattr(self, field, None) is not None for field in self.required_fields)
@@ -283,7 +302,7 @@ class NotificationConfig(BaseConfig):
         targets = (
             config.channels()
             if hasattr(config, "channels")
-            else [Channel(config.notify_method, None, config)]
+            else [Channel(config.notify_method, config.notify_method, config)]
         )
         tests = [
             _ChannelTest(

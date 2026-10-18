@@ -453,7 +453,7 @@ def test_search_item_records_rejected_listings(eval_cache: Cache) -> None:
 
 def _channel_sends(sent: bool) -> Any:
     """The user has one channel, which sends (or fails to send) every message."""
-    channel = Channel("fake", None, MagicMock(notify=MagicMock(return_value=sent)))
+    channel = Channel("fake", "notification.fake", MagicMock(notify=MagicMock(return_value=sent)))
     return patch("ai_marketplace_monitor.user.UserConfig.channels", return_value=[channel])
 
 

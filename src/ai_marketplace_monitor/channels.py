@@ -1,10 +1,10 @@
 """The channels a user is notified through: one for each section the user receives.
 
-A user receives the [notification.*] sections named in ``notify_with`` (every enabled one
-when it is unset). Each section sends on its own, with the user's values (such as the
-recipient) under the section's: a user can receive two email sections, or two Telegram bots.
-Values set in [user.*] alone make a channel of a type that no section the user receives sets
-up. Alerts, the digest and test messages all go through these channels.
+A user receives the [email.*] and [notification.*] sections named in ``notify_with`` (every
+enabled one when it is unset). Each section sends on its own, with the user's values (who
+receives: ``email``, ``telegram_chat_id``, ...) under the section's: a user can receive two
+email sections, or two Telegram bots. Alerts, the digest (from the sections with a
+``digest_at``) and test messages all go through these channels.
 """
 
 from dataclasses import dataclass, fields, replace
@@ -18,29 +18,24 @@ if TYPE_CHECKING:
 class Channel:
     """One way a user is notified."""
 
-    # the section's name; "<section> (<type>)" for a section of several channel types; the
-    # channel type for a channel set up in [user.*]
+    # the section, as "email.<name>" or "notification.<name>", with " (<type>)" for a
+    # notification section of several channel types
     name: str
-    # the [notification.*] section; None for a channel set up in [user.*]
-    section: str | None
+    # the section, as "email.<name>" or "notification.<name>"
+    section: str
     config: "NotificationConfig"
     # other sections the user receives that send the same message, sent once through this one
     also: Tuple[str, ...] = ()
 
     @property
     def sections(self: "Channel") -> Tuple[str, ...]:
-        """The sections this channel sends for: none for a channel set up in [user.*]."""
-        return ((self.section,) if self.section is not None else ()) + self.also
-
-    def in_digest(self: "Channel", digest_with: List[str] | None) -> bool:
-        """Whether the channel receives the digest: all do, or ``digest_with`` names it."""
-        return digest_with is None or any(s in digest_with for s in self.sections)
+        """The sections this channel sends for."""
+        return (self.section, *self.also)
 
     @property
     def label(self: "Channel") -> str:
-        """How the channel is shown: its name, and its type if the name does not say it."""
-        channel_type = self.config.notify_method
-        return self.name if channel_type in self.name else f"{self.name} ({channel_type})"
+        """How the channel is shown."""
+        return self.name
 
 
 def channel_classes() -> Dict[str, Type["NotificationConfig"]]:
@@ -101,40 +96,50 @@ def section_channel_types(section: Any) -> List[str]:
     ]
 
 
-def received_sections(user_config: Any, notifications: Mapping[str, Any]) -> List[str]:
-    """The enabled [notification.*] sections the user receives, in order."""
+def section_key(name: str, sections: Mapping[str, Any]) -> str:
+    """The section a ``notify_with`` entry names, as "email.<name>" or "notification.<name>".
+
+    An entry may leave out the kind when only one kind has a section of that name. Raises
+    ValueError for an entry that names no section, or one of each kind.
+    """
+    if name in sections:
+        return name
+    matches = [key for key in sections if key.split(".", 1)[1] == name]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise ValueError(
+            f"{name} is both {' and '.join(matches)}: name one of them in notify_with."
+        )
+    raise ValueError(f"There is no email.{name} or notification.{name} section.")
+
+
+def received_sections(user_config: Any, sections: Mapping[str, Any]) -> List[str]:
+    """The enabled sections the user receives, in order, each once.
+
+    ``sections`` are the [email.*] and [notification.*] sections, by "email.<name>" and
+    "notification.<name>".
+    """
     names = user_config.notify_with
-    return [
-        name
-        for name in (notifications if names is None else names)
-        if name in notifications and notifications[name].enabled is not False
-    ]
+    keys = list(sections) if names is None else [section_key(n, sections) for n in names]
+    return list(dict.fromkeys(k for k in keys if sections[k].enabled is not False))
 
 
-def user_channels(user_config: Any, notifications: Mapping[str, Any]) -> List[Channel]:
-    """The channels of a user.
+def user_channels(user_config: Any, sections: Mapping[str, Any]) -> List[Channel]:
+    """The channels of a user, one per channel type of each section the user receives.
 
-    One per channel type of each section received, then the channels set up in [user.*]
-    alone. A channel without its required fields is left out. A channel that is the same as an
-    earlier one (it would send the same message) is sent once, through the earlier one, which
-    keeps both sections (for ``digest_with``).
+    A channel without its required fields is left out. A channel that is the same as an
+    earlier one (it would send the same message) is sent once, through the earlier one.
     """
     classes = channel_classes()
     channels: List[Channel] = []
-    covered = set()
-    for name in received_sections(user_config, notifications):
-        section = notifications[name]
+    for key in received_sections(user_config, sections):
+        section = sections[key]
         types = section_channel_types(section)
         for channel_type in types:
-            covered.add(channel_type)
             config = channel_config(classes[channel_type], user_config, section)
-            label = name if len(types) == 1 else f"{name} ({channel_type})"
-            channels.append(Channel(label, name, config))
-    for channel_type, cls in classes.items():
-        if channel_type not in covered:
-            config = channel_config(cls, user_config)
-            label = channel_type if channel_type not in notifications else f"{channel_type} (user)"
-            channels.append(Channel(label, None, config))
+            label = key if len(types) == 1 else f"{key} ({channel_type})"
+            channels.append(Channel(label, key, config))
     out: List[Channel] = []
     for channel in channels:
         if not channel.config._has_required_fields():

@@ -189,25 +189,27 @@ sections after one confirmation. No other section is changed.
 Notifications and users
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-``aimm configure notification`` (or ``aimm configure user``) sets up how and to whom aimm sends
-notifications. Users and notifications are set up together: a ``[notification.NAME]`` section is
-one channel with its servers and credentials, and a ``[user.NAME]`` section says where a person
-receives it (email address, chat ID, ...) and which notifications they get (``notify_with``). If
-you have no user yet, notifications go to a new ``[user.me]``, so you only need to say how you
-want to be notified:
+``aimm configure notification`` (or ``aimm configure email``, or ``aimm configure user``) sets up
+how and to whom aimm sends notifications. Users, email and notifications are set up together: an
+``[email.NAME]`` section sends aimm's full email, a ``[notification.NAME]`` section is one phone
+or chat channel, and a ``[user.NAME]`` section says where a person receives them (email address,
+chat ID, ...) and which sections they get (``notify_with``). Either kind of section can send the
+daily digest (``digest_at``). If you have no user yet, notifications go to a new ``[user.me]``,
+so you only need to say how you want to be notified:
 
 .. code-block:: text
 
     Notify me through email.
 
-The AI offers the options that fit: email through UnitySVC (``smtp.svcpass.com`` with your
-UnitySVC key, sent to your UnitySVC-registered address) or Gmail (which needs an app password),
-UnitySVC notifications, Pushbullet, Pushover, ntfy or Telegram. Passwords, tokens and keys are
-written only as environment-variable references such as ``${GMAIL_APP_PASSWORD}``; you never type
-them in the chat. After saving, aimm lists any variable that is not set yet, with the ``export``
-line to add to your shell profile. ``aimm configure user.NAME`` and
-``aimm configure notification.NAME`` start at that section; the session may still change any user
-or notification, and nothing else.
+The AI offers the options that fit: email through UnitySVC (``[email.unitysvc]`` with your
+UnitySVC key, sent to your UnitySVC-registered address) or Gmail (``[email.gmail]``, which needs
+an app password), UnitySVC notifications, Pushbullet, Pushover, ntfy or Telegram. Passwords,
+tokens and keys are written only as environment-variable references such as
+``${GMAIL_SMTP_PASSWORD}``; you never type them in the chat. After saving, aimm lists any
+variable that is not set yet, with the ``export`` line to add to your shell profile.
+``aimm configure user.NAME``, ``aimm configure email.NAME`` and
+``aimm configure notification.NAME`` start at that section; the session may still change any
+user, email or notification section, and nothing else.
 
 Proxy, regions and translations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

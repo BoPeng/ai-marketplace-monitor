@@ -22,7 +22,7 @@ def config_files_with_default(config_files: List[Path] | None) -> List[Path]:
 
 
 def print_normalized_config(config_files: List[Path] | None, *, expanded: bool) -> None:
-    system_cfg, user_cfg = load_config_dicts(config_files_with_default(config_files))
+    system_cfg, user_cfg = load_config_dicts(config_files_with_default(config_files), write=False)
     result = expand(user_cfg, system_cfg) if expanded else normalize(user_cfg, system_cfg)
     typer.echo(dump_config_toml(result.config), nl=False)
 

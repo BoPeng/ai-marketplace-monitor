@@ -16,9 +16,15 @@ max_price = "300"
 
 [user.alice]
 email = "alice@example.com"
-smtp_password = "s3cret"
+notify_with = "email.mail"
 
 [user.bob]
+notify_with = "notification.pb"
+
+[email.mail]
+smtp_password = "s3cret"
+
+[notification.pb]
 pushbullet_token = "abc"
 
 [item.bike]
@@ -54,7 +60,7 @@ def test_behavior_change_raises_with_path() -> None:
 
 def test_secret_values_are_masked_in_errors() -> None:
     after = parse(BASE)
-    after["user"]["alice"]["smtp_password"] = "other-secret"
+    after["email"]["mail"]["smtp_password"] = "other-secret"
     with pytest.raises(NormalizeError) as info:
         check_equivalent(system_cfg(), parse(BASE), after)
     assert "s3cret" not in str(info.value)

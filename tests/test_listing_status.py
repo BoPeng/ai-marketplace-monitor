@@ -238,12 +238,11 @@ def test_refresh_listing_status_passes_the_cutoff(monkeypatch: pytest.MonkeyPatc
 
 
 def test_send_digest_checks_status_as_of_the_cutoff(monkeypatch: pytest.MonkeyPatch) -> None:
-    from datetime import datetime
     from types import SimpleNamespace
 
     monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
     monitor.logger = None
-    user = SimpleNamespace(digest_at="08:00")
+    user = SimpleNamespace()
     monitor.ai_agents = []
     monitor.config = SimpleNamespace(  # type: ignore[assignment]
         user={"me": user}, notification={}, item={}
@@ -252,10 +251,12 @@ def test_send_digest_checks_status_as_of_the_cutoff(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(monitor, "refresh_listing_status", lambda as_of: checked.append(as_of))
     monkeypatch.setattr(mon, "send_due_digest", lambda *args, **kwargs: True)
 
-    monkeypatch.setattr(mon, "pending_digest_channels", lambda *args: [])
+    monkeypatch.setattr(mon, "pending_digest_windows", lambda *args: {})
     monitor.send_digest("me")
     assert checked == []  # nothing due: no pages opened
 
-    monkeypatch.setattr(mon, "pending_digest_channels", lambda *args: ["email"])
+    # the latest cutoff of the windows due
+    windows = {(1.0, 100.0): ["email.unitysvc"], (50.0, 200.0): ["notification.tg"]}
+    monkeypatch.setattr(mon, "pending_digest_windows", lambda *args: windows)
     monitor.send_digest("me")
-    assert checked == [mon.latest_cutoff("08:00", datetime.now()).timestamp()]
+    assert checked == [200.0]

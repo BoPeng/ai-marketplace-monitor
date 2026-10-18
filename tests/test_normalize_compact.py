@@ -184,7 +184,7 @@ def test_identical_leftover_notification_sections_are_merged() -> None:
         ),
         system_cfg(),
     ).config
-    assert list(cfg["notification"]) == ["gmail1"]
+    assert list(cfg["email"]) == ["gmail1"]
     assert "notify_with" not in cfg["user"]["bob"]
 
 
@@ -212,7 +212,7 @@ def test_sections_with_different_request_are_not_merged() -> None:
         ),
         system_cfg(),
     ).config
-    assert set(cfg["notification"]) == {"gmail1", "gmail2"}
+    assert set(cfg["email"]) == {"gmail1", "gmail2"}
 
 
 def test_changes_are_relative_to_the_input() -> None:
@@ -384,7 +384,7 @@ def test_notify_with_override_is_kept_when_not_all_notifications() -> None:
         ),
         system_cfg(),
     ).config
-    assert cfg["user"]["alice"]["notify_with"] == ["pushbullet"]
+    assert cfg["user"]["alice"]["notify_with"] == ["notification.pushbullet"]
 
 
 def test_an_item_without_marketplace_keeps_searching_every_marketplace() -> None:

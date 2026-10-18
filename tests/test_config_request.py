@@ -56,7 +56,7 @@ def test_request_accepted_on_every_base_config_section(tmp_path: Path) -> None:
 def test_notification_request_is_not_merged_into_user(tmp_path: Path) -> None:
     # alice has no notify_with, so she receives notification.tg
     cfg = _load(tmp_path, BASE)
-    tg = next(c for c in cfg.user["alice"].channels() if c.section == "tg")
+    tg = next(c for c in cfg.user["alice"].channels() if c.section == "notification.tg")
     assert isinstance(tg.config, TelegramNotificationConfig)
     assert tg.config.telegram_token == "123:abc"
     assert cfg.user["alice"].request == "Alice gets pushbullet"

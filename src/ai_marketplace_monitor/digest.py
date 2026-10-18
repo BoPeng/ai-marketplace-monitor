@@ -524,15 +524,18 @@ def render_email_digest(digest: Digest) -> Tuple[str, str]:
 def digest_channels(user_config: Any) -> Dict[str, "NotificationConfig"]:
     """The channels that receive the user's digest, by name.
 
-    With ``digest_with``, the channels of the named [notification.*] sections; otherwise
-    every channel of the user.
+    The channels of the sections that have a ``digest_at``.
     """
-    digest_with = getattr(user_config, "digest_with", None)
     return {
         channel.name: channel.config
         for channel in user_config.channels()
-        if channel.in_digest(digest_with)
+        if getattr(channel.config, "digest_at", None)
     }
+
+
+def digest_times(user_config: Any) -> List[str]:
+    """The times (HH:MM) at which the user's digest channels are due, each once."""
+    return sorted({c.digest_at for c in digest_channels(user_config).values() if c.digest_at})
 
 
 def send_digest(
@@ -602,9 +605,10 @@ def pending_digest_windows(
     """
     c = cache if local_cache is None else local_cache
     now = datetime.now() if now is None else now
-    until = latest_cutoff(user_config.digest_at, now).timestamp()
     windows: Dict[Tuple[float, float], List[str]] = {}
-    for name in digest_channels(user_config):
+    for name, channel in digest_channels(user_config).items():
+        assert channel.digest_at is not None
+        until = latest_cutoff(channel.digest_at, now).timestamp()
         key = digest_key(user_config.name, name)
         last = c.get(key)
         if not isinstance(last, (int, float)):
@@ -636,20 +640,16 @@ def send_due_digest(
 ) -> bool:
     """Send the user's digest to the channels it is due on; whether it was sent to any.
 
-    The job runs at ``digest_at`` and whenever the jobs are scheduled (start, config change),
+    The job runs at each ``digest_at`` and whenever the jobs are scheduled (start, config change),
     so a restart does not send a digest twice, a digest missed while aimm was not running is
     sent on the next start, and a channel that failed is tried again with the same window.
     With ``summarize`` (given when an AI service is configured), each item gets an AI summary.
     """
-    if not getattr(user_config, "digest_at", None) or user_config.enabled is False:
+    if user_config.enabled is False or not digest_channels(user_config):
         return False
     c = cache if local_cache is None else local_cache
     windows = pending_digest_windows(user_config, now, local_cache)
     if not windows:
-        if logger and not digest_channels(user_config):
-            logger.warning(
-                f"""{hilight("[Digest]", "fail")} No daily digest sent to {hilight(user_config.name)}: the user has no notification channel for the digest."""
-            )
         return False
 
     sent_with: List[str] = []

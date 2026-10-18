@@ -6,4 +6,6 @@ search_city = 'houston'
 search_phrases = 'search word one'
 
 [user.user1]
+
+[notification.pushbullet]
 pushbullet_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'

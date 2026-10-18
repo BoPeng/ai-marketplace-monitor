@@ -4,7 +4,7 @@ from typing import Any, Dict
 import pytest
 
 from ai_marketplace_monitor.config import Config
-from ai_marketplace_monitor.normalize import check_equivalent
+from ai_marketplace_monitor.normalize import check_equivalent, normalize
 from ai_marketplace_monitor.normalize.notifications import normalize_notifications
 from tests.normalize_util import parse, system_cfg
 
@@ -25,22 +25,6 @@ def _run(text: str) -> Dict[str, Any]:
     return cfg
 
 
-def test_inline_single_user_is_split() -> None:
-    cfg = _run(
-        """
-    [user.alice]
-    email = "alice@example.com"
-    smtp_server = "smtp.example.com"
-    smtp_password = "pw"
-    """
-    )
-    assert cfg["user"]["alice"] == {"email": "alice@example.com", "notify_with": ["email"]}
-    assert cfg["notification"]["email"] == {
-        "smtp_server": "smtp.example.com",
-        "smtp_password": "pw",
-    }
-
-
 def test_shared_smtp_with_per_user_email_keeps_section() -> None:
     cfg = _run(
         """
@@ -52,16 +36,14 @@ def test_shared_smtp_with_per_user_email_keeps_section() -> None:
     email = "bob@example.com"
     notify_with = "gmail"
 
-    [notification.gmail]
+    [email.gmail]
     smtp_username = "me@gmail.com"
     smtp_password = "pw"
     """
     )
-    assert cfg["notification"] == {
-        "gmail": {"smtp_username": "me@gmail.com", "smtp_password": "pw"}
-    }
-    assert cfg["user"]["alice"]["notify_with"] == ["gmail"]
-    assert cfg["user"]["bob"] == {"email": "bob@example.com", "notify_with": ["gmail"]}
+    assert cfg["email"] == {"gmail": {"smtp_username": "me@gmail.com", "smtp_password": "pw"}}
+    assert cfg["user"]["alice"]["notify_with"] == ["email.gmail"]
+    assert cfg["user"]["bob"] == {"email": "bob@example.com", "notify_with": ["email.gmail"]}
 
 
 def test_group_chat_id_moves_to_users() -> None:
@@ -79,7 +61,27 @@ def test_group_chat_id_moves_to_users() -> None:
     """
     )
     assert cfg["notification"]["tg"] == {"telegram_token": "123:abc"}
-    assert cfg["user"]["alice"] == {"telegram_chat_id": "-100", "notify_with": ["tg"]}
+    assert cfg["user"]["alice"] == {"telegram_chat_id": "-100", "notify_with": ["notification.tg"]}
+
+
+def test_a_recipient_stays_where_moving_it_would_change_a_channel() -> None:
+    # alice also receives tg2, which has no chat id: hers would apply there
+    cfg = _run(
+        """
+    [user.alice]
+    telegram_chat_id = "5"
+    notify_with = ["tg1", "tg2"]
+
+    [notification.tg1]
+    telegram_token = "1:t"
+    telegram_chat_id = "-100"
+
+    [notification.tg2]
+    telegram_token = "2:t"
+    """
+    )
+    assert cfg["notification"]["tg1"]["telegram_chat_id"] == "-100"
+    assert cfg["user"]["alice"]["telegram_chat_id"] == "5"
 
 
 def test_notify_with_unset_means_all_sections() -> None:
@@ -88,7 +90,7 @@ def test_notify_with_unset_means_all_sections() -> None:
     [user.alice]
     email = "alice@example.com"
 
-    [notification.gmail]
+    [email.gmail]
     smtp_password = "pw"
 
     [notification.tg]
@@ -96,7 +98,7 @@ def test_notify_with_unset_means_all_sections() -> None:
     telegram_chat_id = "1"
     """
     )
-    assert cfg["user"]["alice"]["notify_with"] == ["gmail", "tg"]
+    assert cfg["user"]["alice"]["notify_with"] == ["email.gmail", "notification.tg"]
 
 
 def test_notify_with_empty_list_means_none() -> None:
@@ -106,15 +108,52 @@ def test_notify_with_empty_list_means_none() -> None:
     email = "alice@example.com"
     notify_with = []
 
-    [notification.gmail]
+    [email.gmail]
     smtp_password = "pw"
     """
     )
     assert cfg["user"]["alice"] == {"email": "alice@example.com", "notify_with": []}
-    assert cfg["notification"]["gmail"] == {"smtp_password": "pw"}
+    assert cfg["email"]["gmail"] == {"smtp_password": "pw"}
 
 
-def test_inline_value_applies_where_the_section_does_not_set_it() -> None:
+def test_bare_names_become_qualified() -> None:
+    cfg = _run(
+        """
+    [user.alice]
+    email = "alice@example.com"
+    notify_with = ["gmail", "notification.unitysvc"]
+
+    [email.gmail]
+    smtp_password = "pw"
+
+    [notification.unitysvc]
+    unitysvc_api_key = "svcpass_k"
+    """
+    )
+    assert cfg["user"]["alice"]["notify_with"] == ["email.gmail", "notification.unitysvc"]
+
+
+def test_a_bare_name_of_both_kinds_does_not_load() -> None:
+    with pytest.raises(ValueError, match="both email.unitysvc and notification.unitysvc"):
+        Config.from_dicts(
+            system_cfg(),
+            parse(
+                HEAD
+                + """
+    [user.alice]
+    notify_with = "unitysvc"
+
+    [email.unitysvc]
+    smtp_username = "smtp-to-mailbox"
+
+    [notification.unitysvc]
+    unitysvc_api_key = "svcpass_k"
+    """
+            ),
+        )
+
+
+def test_user_delivery_setting_used_by_a_channel_stays() -> None:
     cfg = _run(
         """
     [user.alice]
@@ -122,25 +161,30 @@ def test_inline_value_applies_where_the_section_does_not_set_it() -> None:
     max_retries = 3
     notify_with = "gmail"
 
-    [notification.gmail]
+    [email.gmail]
     smtp_password = "pw"
     """
     )
-    # the section's default does not replace alice's own value: it stays, and applies
+    # the section does not set it: alice's value applies to her channel
     assert cfg["user"]["alice"]["max_retries"] == 3
-    assert "max_retries" not in cfg["notification"]["gmail"]
+    assert "max_retries" not in cfg["email"]["gmail"]
 
 
-def test_inline_common_value_without_sections_moves_into_channel_section() -> None:
+def test_user_delivery_setting_no_channel_uses_is_dropped() -> None:
     cfg = _run(
         """
     [user.alice]
-    pushbullet_token = "abc"
+    email = "alice@example.com"
     max_retries = 3
+    notify_with = "gmail"
+
+    [email.gmail]
+    smtp_password = "pw"
+    max_retries = 2
     """
     )
-    assert cfg["notification"]["pushbullet"] == {"max_retries": 3, "pushbullet_token": "abc"}
-    assert cfg["user"]["alice"] == {"notify_with": ["pushbullet"]}
+    assert "max_retries" not in cfg["user"]["alice"]
+    assert cfg["email"]["gmail"]["max_retries"] == 2
 
 
 def test_sections_of_one_type_each_send() -> None:
@@ -157,16 +201,13 @@ def test_sections_of_one_type_each_send() -> None:
     telegram_token = "2:b"
     """
     )
-    assert cfg["user"]["alice"]["notify_with"] == ["tg1", "tg2"]  # two bots, two channels
-    assert cfg["notification"]["tg1"] == {"telegram_token": "1:a"}
-    assert cfg["notification"]["tg2"] == {"telegram_token": "2:b"}
+    assert cfg["user"]["alice"]["notify_with"] == ["notification.tg1", "notification.tg2"]
 
 
 def test_disabled_and_unused_sections_are_kept() -> None:
     cfg = _run(
         """
     [user.alice]
-    pushbullet_token = "abc"
     notify_with = []
 
     [notification.old]
@@ -199,7 +240,7 @@ def test_unset_placeholder_is_kept(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg["user"]["alice"]["telegram_chat_id"] == "1"
 
 
-def test_user_request_stays_and_section_request_is_kept_on_claim() -> None:
+def test_user_request_stays_and_section_request_is_kept() -> None:
     cfg = _run(
         """
     [user.alice]
@@ -216,78 +257,18 @@ def test_user_request_stays_and_section_request_is_kept_on_claim() -> None:
     assert cfg["notification"]["tg"] == {"request": "our bot", "telegram_token": "123:abc"}
 
 
-def test_type_name_taken_by_leftover_falls_back_to_user_suffix() -> None:
-    cfg = _run(
-        """
-    [user.alice]
-    pushbullet_token = "abc"
-    notify_with = []
-
-    [notification.pushbullet]
-    enabled = false
-    pushbullet_token = "zzz"
-    """
-    )
-    # alice's inline token has notify_with = [] so it is never sent; still preserved
-    assert cfg["notification"]["pushbullet_alice"] == {"pushbullet_token": "abc"}
-    assert cfg["user"]["alice"]["notify_with"] == ["pushbullet_alice"]
-
-
-def test_inline_value_replaced_by_load_hook_is_dropped() -> None:
-    # UserConfig inherits Pushbullet's handle_message_format, which always sets
-    # "plain_text", so alice's inline "markdown" never takes effect. Moving it into an
-    # ntfy section (which keeps message_format) would change behavior.
-    cfg = _run(
-        """
-    [user.alice]
-    ntfy_topic = "x"
-    ntfy_server = "https://ntfy.example.com"
-    message_format = "markdown"
-    """
-    )
-    assert cfg["notification"]["ntfy"] == {"ntfy_server": "https://ntfy.example.com"}
-    assert cfg["user"]["alice"] == {"ntfy_topic": "x", "notify_with": ["ntfy"]}
-
-
-def test_hook_forcing_section_merges_first() -> None:
-    # tg loads as UserConfig, whose hook forces message_format = "plain_text"; nt (ntfy)
-    # holds "markdown". tg cannot hold the effective value, so it is listed first.
-    cfg = _run(
-        """
-    [user.alice]
-    ntfy_topic = "x"
-    telegram_chat_id = "1"
-    notify_with = ["tg", "nt"]
-
-    [notification.nt]
-    ntfy_server = "https://n.example.com"
-    message_format = "markdown"
-
-    [notification.tg]
-    telegram_token = "1:t"
-    """
-    )
-    assert cfg["user"]["alice"]["notify_with"] == ["tg", "nt"]
-    assert cfg["notification"]["nt"]["message_format"] == "markdown"
-    assert cfg["notification"]["tg"] == {"telegram_token": "1:t"}
-    # Deterministic: normalizing the output again yields identical output.
-    again = copy.deepcopy(cfg)
-    normalize_notifications(again, Config.from_dicts(system_cfg(), cfg))
-    assert again == cfg
-
-
 def test_duplicate_notify_with_entries_collapse() -> None:
     cfg = _run(
         """
     [user.alice]
     telegram_chat_id = "1"
-    notify_with = ["tg", "tg"]
+    notify_with = ["tg", "notification.tg"]
 
     [notification.tg]
     telegram_token = "1:t"
     """
     )
-    assert cfg["user"]["alice"] == {"telegram_chat_id": "1", "notify_with": ["tg"]}
+    assert cfg["user"]["alice"] == {"telegram_chat_id": "1", "notify_with": ["notification.tg"]}
 
 
 def test_notify_with_naming_disabled_section_drops_it() -> None:
@@ -297,7 +278,7 @@ def test_notify_with_naming_disabled_section_drops_it() -> None:
     email = "alice@example.com"
     notify_with = ["gmail", "tg"]
 
-    [notification.gmail]
+    [email.gmail]
     smtp_password = "pw"
 
     [notification.tg]
@@ -306,49 +287,7 @@ def test_notify_with_naming_disabled_section_drops_it() -> None:
     telegram_chat_id = "1"
     """
     )
-    assert cfg["user"]["alice"] == {"email": "alice@example.com", "notify_with": ["gmail"]}
-    assert cfg["notification"]["tg"] == {
-        "enabled": False,
-        "telegram_token": "1:t",
-        "telegram_chat_id": "1",
-    }
-
-
-def test_inline_channel_field_overridden_by_same_type_section() -> None:
-    cfg = _run(
-        """
-    [user.alice]
-    telegram_chat_id = "1"
-    telegram_token = "9:inline"
-    notify_with = "tg"
-
-    [notification.tg]
-    telegram_token = "1:t"
-    """
-    )
-    assert cfg["user"]["alice"] == {"telegram_chat_id": "1", "notify_with": ["tg"]}
-    assert cfg["notification"]["tg"] == {"telegram_token": "1:t"}
-
-
-def test_group_chat_id_overrides_users_own_values() -> None:
-    cfg = _run(
-        """
-    [user.alice]
-    telegram_chat_id = "5"
-    notify_with = "tg"
-
-    [user.bob]
-    telegram_chat_id = "6"
-    notify_with = "tg"
-
-    [notification.tg]
-    telegram_token = "1:t"
-    telegram_chat_id = "-100"
-    """
-    )
-    assert cfg["user"]["alice"]["telegram_chat_id"] == "-100"
-    assert cfg["user"]["bob"]["telegram_chat_id"] == "-100"
-    assert cfg["notification"] == {"tg": {"telegram_token": "1:t"}}
+    assert cfg["user"]["alice"] == {"email": "alice@example.com", "notify_with": ["email.gmail"]}
 
 
 def test_disabled_user_is_normalized_and_stays_disabled() -> None:
@@ -357,50 +296,53 @@ def test_disabled_user_is_normalized_and_stays_disabled() -> None:
     [user.alice]
     enabled = false
     email = "alice@example.com"
+
+    [email.gmail]
     smtp_password = "pw"
     """
     )
     assert cfg["user"]["alice"] == {
         "enabled": False,
         "email": "alice@example.com",
-        "notify_with": ["email"],
+        "notify_with": ["email.gmail"],
     }
-    assert cfg["notification"]["email"] == {"smtp_password": "pw"}
 
 
-def test_user_digest_options_are_kept() -> None:
-    cfg = _run(
-        """
-    [user.alice]
-    email = "alice@example.com"
-    telegram_chat_id = "123"
-    digest_at = "08:00"
-    digest_with = "work_mail"
-
-    [notification.work_mail]
-    smtp_server = "smtp.example.com"
-    smtp_password = "pw"
-
-    [notification.tg]
-    telegram_token = "123:abc"
-    """
-    )
-    alice = cfg["user"]["alice"]
-    assert alice["digest_at"] == "08:00"
-    # digest_with follows the section of its channel type
-    email_section = next(
-        n for n in alice["notify_with"] if "smtp_server" in cfg["notification"][n]
-    )
-    assert alice["digest_with"] == [email_section]
-
-
-def test_merged_sections_are_renamed_in_digest_with() -> None:
+def test_merged_sections_are_renamed_in_notify_with() -> None:
     from ai_marketplace_monitor.normalize.compact import compact
 
     cfg, _ = compact(
         {
-            "notification": {"a": {"ntfy_topic": "t"}, "b": {"ntfy_topic": "t"}},
-            "user": {"me": {"notify_with": ["a", "b"], "digest_with": ["b"]}},
+            "notification": {
+                "a": {"ntfy_server": "s"},
+                "b": {"ntfy_server": "s"},
+                "c": {"ntfy_server": "other"},
+            },
+            "user": {"me": {"notify_with": ["notification.a", "notification.b"]}},
         }
     )
-    assert cfg["user"]["me"]["digest_with"] == ["a"]
+    assert cfg["user"]["me"]["notify_with"] == ["notification.a"]
+
+
+def test_an_old_layout_is_migrated_when_normalized() -> None:
+    result = normalize(
+        parse(
+            HEAD
+            + """
+    [user.alice]
+    email = "alice@example.com"
+    digest_at = "08:00"
+
+    [notification.gmail]
+    smtp_server = "smtp.gmail.com"
+    smtp_username = "me@gmail.com"
+    smtp_password = "${GMAIL_SMTP_PASSWORD}"
+    """
+        ),
+        system_cfg(),
+    )
+    assert result.config["email"] == {
+        "gmail": {"smtp_username": "me@gmail.com", "digest_at": "08:00"}
+    }
+    assert "notification" not in result.config
+    assert result.config["user"]["alice"] == {"email": "alice@example.com"}

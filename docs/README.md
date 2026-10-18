@@ -5,8 +5,8 @@
 - [AI Services](#ai-services)
 - [Marketplaces](#marketplaces)
 - [Users](#users)
-- [Notification](#notification)
-- [Email notification](#email-notification)
+- [Email and notifications](#email-and-notifications)
+- [Email](#email)
 - [Items to search](#items-to-search)
 - [Common item and marketplace options](#common-item-and-marketplace-options)
 - [Regions](#regions)
@@ -151,85 +151,71 @@ radius = 30                # miles: OfferUp offers 5, 10, 20, 30 and 50 (the nea
 
 ### Users
 
-One or more `user.username` sections can be defined in the configuration. The `username` one of the usernames listed in the `notify` option of `marketplace` or `item`. Each `user` section accepts the following options
+One or more `user.username` sections can be defined in the configuration. The `username` is one of the usernames listed in the `notify` option of `marketplace` or `item`. A user section says who receives notifications and which `email` and `notification` sections they receive; how messages are sent belongs in those sections. Each `user` section accepts the following options
 
-| Option        | Requirement | DataType    | Description                                                                                                                                                  |
-| ------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `notify_with` | Optional    | String/List | Specifies one or more notification methods to be used for this user. If left unspecified, all available notification methods will be used.                   |
-| `remind`      | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
-| `digest_at`   | Optional    | String      | Local time (`HH:MM`, e.g. `"08:00"`, like `start_at`) at which the user receives a daily digest of the last 24 hours. The digest uses AI tokens: one short AI call per item with new activity, to summarize it. By default, no digest is sent. |
-| `digest_with` | Optional    | String/List | Notification sections that send the digest, like `notify_with`; they must be among the notifications the user receives. By default, all of them. |
-
-Note that
-
-1. **Default Notification Behavior**: If the `notify_with` option is not specified, the system will use all available notification methods for the user.
-2. **Inline Notification Settings**: Notification settings can be defined directly under the user section. Any settings described in the [Notification](#notification) section can be applied to a user's configuration.
-3. **Repeated Notifications**: The `remind` option allows users to receive repeated notifications after a specified time interval. If not set, users will only be notified once about a listing.
-4. **Daily Digest**: With `digest_at = "08:00"`, the user receives every day at 8 am (local time) a summary of everything aimm did in the last 24 hours, for all items, not only the ones the user is notified for. Each channel gets the version that fits it. **Email** (including UnitySVC email) gets the full digest: a summary table, then for each item its counts, an AI-written summary (what looks promising, what sold or dropped in price, and the best bet; written by the item's AI service, with no AI call for an item with nothing new), the notified listings (title, price, rating and link), updates on earlier matches, and the top 5 listings rejected by AI (best ratings first, with a short reason). Items with nothing new are not given a section: they are listed together in one line after the others. A listing evaluated by several searches counts once. **Push channels** (Pushbullet, Pushover, Telegram, ntfy and UnitySVC) get a short version for the phone: one line of totals, then each item's summary with a link to its best bet, as many items as fit (the rest are in the email digest); without summaries, the top 3 matches with links. A day without matches says how many searches aimm ran, so that silence does not look like a broken aimm. The listings are those evaluated in the last 24 hours, so a listing that stays on the market and is evaluated again on every search can appear in more than one digest. The first digest is sent at the next `digest_at` after the option is added. Each day's digest covers the 24 hours up to that day's `digest_at`, even when it is sent later. aimm remembers, for each channel, up to when it has received the digest, so a restart does not send it twice. A channel that is behind, because aimm was not running or sending to it failed, gets one catch-up digest when aimm starts again or reloads its config, from where it left off (at most 7 days back) to the latest digest time, labeled "since Mon Oct 5 08:00" instead of "last 24 hours"; it never gets several old digests in a row. Before sending it, aimm opens the pages of listings it notified you about in the past 7 days (at most 10 per item, once a day) to see whether they sold or are pending; the digest tags them, shows price changes as `(was …)`, and lists earlier matches that sold, went pending or changed price under **Updates**.
+| Option              | Requirement | DataType    | Description                                                                                                                                                  |
+| ------------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `notify_with`       | Optional    | String/List | The `email` and `notification` sections the user receives, as `email.NAME` and `notification.NAME` (a bare `NAME` works when only one kind has a section of that name). By default, all enabled sections. |
+| `remind`            | Optional    | String      | Enables repeated notifications for the user after a specified duration (e.g., 3 days) if a listing remains active. By default, users are notified only once. |
+| `email`             | Optional    | String/List | Where the user receives email. Not needed for `[email.unitysvc]`, which sends to the address registered with UnitySVC.                                      |
+| `telegram_chat_id`  | Optional    | String      | Where the user receives Telegram messages.                                                                                                                   |
+| `pushover_user_key` | Optional    | String      | The user's Pushover user key.                                                                                                                                |
+| `ntfy_topic`        | Optional    | String      | The ntfy topic the user subscribes to.                                                                                                                       |
 
 ```toml
 [user.me]
 email = "me@example.com"
 telegram_chat_id = "123456789"
-notify_with = ["gmail", "telegram"]
-digest_at = "08:00"
-# optional: only the full digest by email, no short one on Telegram
-digest_with = ["gmail"]
+notify_with = ["email.gmail", "notification.telegram"]
 ```
 
-### Notification
+### Email and notifications
 
-_AI Marketplace Monitor_ supports various notification methods, allowing you to configure notifications in a flexible way. You can define notification settings directly within the `user` sections or create dedicated `notification.NAME` sections and reference them using the `notify_with` option. This provides flexibility for single-user setups or shared configurations across multiple users.
+aimm sends two kinds of messages, set up in two kinds of sections:
 
-#### Direct Notification Settings in User Sections
+- An **`[email.NAME]`** section sends aimm's full email: all new listings in one message, with their photos. Best for reviewing listings.
+- A **`[notification.NAME]`** section is one phone or chat channel (UnitySVC, Pushbullet, Pushover, ntfy or Telegram) that sends short text messages. Best for being alerted quickly.
 
-Define notification details directly within the user section. This approach is ideal for single-user configurations.
+Each section a user receives sends on its own, with the user's values (such as `email` or `telegram_chat_id`) filled in where the section does not set them. Sections can be shared by several users, and one user can receive several sections of the same kind, for example email through both UnitySVC and Gmail:
 
 ```toml
 [user.me]
-pushbullet_token = "xxxxxxxxxxxxxxxx"
-email = 'myemail@gmail.com'
-smtp_password = 'abcdefghijklmnop'
-```
-
-#### Shared Notification Settings in Dedicated Sections
-
-Define notification methods in their own `notification.NAME` sections and reference them using the notify_with option. This approach is better for sharing settings across multiple users.
-
-```toml
-[user.me]
-email = 'myemail@gmail.com'
-notify_with = ['gmail', 'pushbullet']
+email = 'me@example.com'
+notify_with = ['email.unitysvc', 'email.gmail', 'notification.pushbullet']
 
 [user.other]
-email = 'other.email@gmail.com'
-notify_with = ['gmail']
+email = 'other@example.com'
+notify_with = ['email.gmail']
 
-[notification.gmail]
-smtp_password = 'abcdefghijklmnop'
+[email.unitysvc]
+smtp_username = 'smtp-to-mailbox'
+
+[email.gmail]
+smtp_username = 'me@gmail.com'
 
 [notification.pushbullet]
-pushbullet_token = "xxxxxxxxxxxxxxxx"
+pushbullet_token = "${PUSHBULLET_TOKEN}"
 ```
 
-Note that:
+If `notify_with` is not specified, the user receives every enabled email and notification section.
 
-1. Each section a user receives sends on its own, with the user's own values (such as `email` or `telegram_chat_id`) filled in where the section does not set them. This allows you to share partial settings across users (e.g. `smtp_password`) while customizing specific details (e.g. `email`).
-2. If `notify_with` is not specified, the user receives every enabled notification section, so the `notify_with` option for `user.me` could be omitted.
-3. A user can receive several sections of the same type, and each one sends. For example, one user can get email through both UnitySVC and Gmail, or messages from two Pushbullet accounts:
+#### Daily digest
+
+`digest_at` on an email or notification section (a local time `HH:MM`, e.g. `"08:00"`, like `start_at`) makes the section send, every day at that time, a summary of everything aimm did in the last 24 hours, for all items, not only the ones the user is notified for. The digest uses AI tokens: one short AI call per item with new activity, to summarize it. By default, no section sends a digest. When a user gets email, set `digest_at` on the email section only: a phone digest next to the email one is rarely wanted.
 
 ```toml
-[user.me]
-notify_with = ['pushbullet1', 'pushbullet2']
-
-[notification.pushbullet1]
-pushbullet_token = "xxxxxxxxxxxxxxxx"
-
-[notification.pushbullet2]
-pushbullet_token = "yyyyyyyyyyyyyyyy"
+[email.unitysvc]
+smtp_username = 'smtp-to-mailbox'
+digest_at = '08:00'
 ```
 
-4. Settings in a `user` section alone (as in the first example) make a channel only for a type that none of the user's sections sets up.
+An **email** section sends the full digest: a summary table, then for each item its counts, an AI-written summary (what looks promising, what sold or dropped in price, and the best bet; written by the item's AI service, with no AI call for an item with nothing new), the notified listings (title, price, rating and link), updates on earlier matches, and the top 5 listings rejected by AI (best ratings first, with a short reason). Items with nothing new are not given a section: they are listed together in one line after the others. A listing evaluated by several searches counts once. A **notification** section sends a short version for the phone: one line of totals, then each item's summary with a link to its best bet, as many items as fit (the rest are in the email digest); without summaries, the top 3 matches with links. A day without matches says how many searches aimm ran, so that silence does not look like a broken aimm.
+
+The listings are those evaluated in the last 24 hours, so a listing that stays on the market and is evaluated again on every search can appear in more than one digest. The first digest is sent at the next `digest_at` after the option is added. Each day's digest covers the 24 hours up to that day's `digest_at`, even when it is sent later. aimm remembers, for each channel, up to when it has received the digest, so a restart does not send it twice. A channel that is behind, because aimm was not running or sending to it failed, gets one catch-up digest when aimm starts again or reloads its config, from where it left off (at most 7 days back) to the latest digest time, labeled "since Mon Oct 5 08:00" instead of "last 24 hours"; it never gets several old digests in a row. Before sending it, aimm opens the pages of listings it notified you about in the past 7 days (at most 10 per item, once a day) to see whether they sold or are pending; the digest tags them, shows price changes as `(was …)`, and lists earlier matches that sold, went pending or changed price under **Updates**.
+
+#### Older configurations
+
+Earlier versions of aimm put email settings in `[notification.*]` sections, channel settings (such as `smtp_password` or `pushbullet_token`) in `[user.*]` sections, and `digest_at` and `digest_with` on the user. aimm updates such a file the first time it reads it: email settings move to `[email.*]` sections (`[email.unitysvc]` for `smtp.svcpass.com`, `[email.gmail]` for `smtp.gmail.com`, otherwise the section's own name), channel settings move from users into sections, and the digest moves onto the sections that sent it. What each user receives does not change. The old file is kept as `<file>.bak`, and the log lists each change.
 
 #### Testing notifications
 
@@ -242,7 +228,7 @@ aimm admin --test-notification me     # the channels of [user.me] only
 
 aimm sends a sample listing titled "aimm test notification", which links to the aimm repository, through each channel once (no retries). The test uses the real format of each channel, so it checks the layout as well as the connection: email gets aimm's HTML email with the listing photo (a sample photo bundled with aimm), and chat and phone channels get the text or Markdown message of their `message_format`, with the price, location, description and AI rating as in a real notification. aimm prints `✓` or `✗` with the error for each channel. It exits with 1 if any channel failed. The test is a real message (metered channels such as UnitySVC SMS may cost a little), but nothing is recorded in the cache. In Docker, run it in the container (`docker exec aimm aimm admin --test-notification`), or use **Send test** in the Settings of the web UI. After you set up a notification with `aimm configure`, the assistant offers the same test.
 
-#### Common Notification settings
+#### Common settings
 
 | Option                  | Requirement | DataType        | Description                                                                                                                      |
 | ----------------------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -255,7 +241,7 @@ aimm sends a sample listing titled "aimm test notification", which links to the 
 
 Note that
 
-1. These settings are shared across all notification methods. For example, if you are notifying with `notify_with=['gmail', 'pushbullet']`, the same `max_retries` and `retry_delay` will apply to both methods.
+1. These settings apply to the email or notification section that sets them. Set in a `user` section, they apply to the user's sections that do not set them.
 2. Support for `with_description` vary across notification methods due to their own limitations and strength. For example, email notification will always include description.
 3. Rate limiting prevents API violations by controlling message frequency. When enabled, the system waits for the longer of `instance_rate_limit` or `global_rate_limit` before sending each message. Telegram automatically enables rate limiting with optimized defaults for individual (1.1s) and group chats (3.0s).
 
@@ -312,24 +298,26 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]`; one key serves both AI and notifications.
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 - The default `notify` service shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
-- To send aimm's HTML email notifications (with listing images) through UnitySVC instead of the HTTP API, for example to forward emails, use an email notification section with `smtp_server = "smtp.svcpass.com"` and `smtp_password = "${UNITYSVC_API_KEY}"`; see [Email notification](#email-notification). With `smtp_username = "notify"` instead of the default `smtp-to-mailbox`, your UnitySVC notification destination must include `smtp-to-mailbox` for the email to reach you.
+- To send aimm's HTML email notifications (with listing images) through UnitySVC, use an `[email.unitysvc]` section; see [Email](#email). With `smtp_username = "notify"` instead of `smtp-to-mailbox`, your UnitySVC notification destination must include `smtp-to-mailbox` for the email to reach you.
 - To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
 
-### Email notification
+#### Email
 
 | Option          | Requirement | DataType    | Description                                             |
 | --------------- | ----------- | ----------- | ------------------------------------------------------- |
-| `email`         | Optional    | String/List | One or more email addresses for email notifications     |
-| `smtp_username` | Optional    | String      | SMTP username.                                          |
-| `smtp_password` | Required    | String      | A password or passcode for the SMTP server.             |
+| `smtp_username` | Optional    | String      | SMTP username; required for `[email.unitysvc]`, where it names the UnitySVC service that delivers the email. |
+| `smtp_password` | Required    | String      | A password or passcode for the SMTP server (preset for `[email.unitysvc]` and `[email.gmail]`). |
 | `smtp_server`   | Optional    | String      | SMTP server, usually guessed from sender email address. |
 | `smtp_port`     | Optional    | Integer     | SMTP port, default to `587`                             |
+| `smtp_from`     | Optional    | String      | Sender address, if it must differ from the login.       |
+| `digest_at`     | Optional    | String      | Local time of a daily digest; see [Daily digest](#daily-digest). |
 
-Note that
+Two section names start from a preset, so that only what differs needs to be set:
 
-1. We provide default `smtp_server` and `smtp_port` values for popular SMTP service providers.
-2. `smtp_username` is assumed to be the first `email`.
-3. `smtp_server = "smtp.svcpass.com"` is a preset for [UnitySVC](https://unitysvc.com/)'s SMTP gateway, and a convenient alternative to a Gmail app password: set `smtp_password = "${UNITYSVC_API_KEY}"`, the same key as `[ai.unitysvc]`, and aimm fills in `smtp_port = 587`, `smtp_username = "smtp-to-mailbox"` and `smtp_from = "notify@svcpass.com"`; `email` is not needed. Emails are delivered only to the address registered and verified on your UnitySVC account (usually your own email), with the same HTML content and images.
+- **`[email.unitysvc]`** sends through [UnitySVC](https://unitysvc.com/)'s SMTP gateway, a convenient alternative to a Gmail app password. The preset has `smtp_server = "smtp.svcpass.com"`, `smtp_port = 587` and `smtp_password = "${UNITYSVC_API_KEY}"`, the same key as `[ai.unitysvc]`. Set `smtp_username` to the UnitySVC service that delivers the email: `smtp-to-mailbox` delivers it to the address registered and verified on your UnitySVC account (usually your own email), so `email` is not needed on the user; a relay service sends it elsewhere.
+- **`[email.gmail]`** sends through Gmail. The preset has `smtp_server = "smtp.gmail.com"`, `smtp_port = 587` and `smtp_password = "${GMAIL_SMTP_PASSWORD}"`: set `smtp_username` to your Gmail address and `GMAIL_SMTP_PASSWORD` to a Gmail app password.
+
+Any other name is a plain SMTP section: set `smtp_server`, `smtp_username` and `smtp_password`. The recipients are the `email` of each user who receives the section.
 
 See [Setting up email notification](../README.md#setting-up-email-notification) for details on how to set up email notification.
 

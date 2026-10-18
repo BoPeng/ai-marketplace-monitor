@@ -1,12 +1,12 @@
-"""Each notification section a user receives is a channel of its own."""
+"""Each email and notification section a user receives is a channel of its own."""
 
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Dict, List
 
 import pytest
 from diskcache import Cache  # type: ignore
 
-from ai_marketplace_monitor.config import Config
+from ai_marketplace_monitor.config import Config, load_config_dicts
 from ai_marketplace_monitor.digest import digest_channels
 from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.notification import sample_listing
@@ -36,35 +36,42 @@ def test_two_email_sections_are_two_channels(tmp_path: Path) -> None:
     [user.me]
     email = "me@example.com"
 
-    [notification.unitysvc_email]
-    smtp_server = "smtp.svcpass.com"
+    [email.unitysvc]
+    smtp_username = "smtp-to-mailbox"
     smtp_password = "svcpass_key"
 
-    [notification.gmail]
-    smtp_server = "smtp.gmail.com"
+    [email.gmail]
     smtp_username = "me@gmail.com"
     smtp_password = "app-password"
     """,
     )
     unitysvc, gmail = config.user["me"].channels()
     assert (unitysvc.name, unitysvc.section, gmail.name) == (
-        "unitysvc_email",
-        "unitysvc_email",
-        "gmail",
+        "email.unitysvc",
+        "email.unitysvc",
+        "email.gmail",
     )
     assert isinstance(unitysvc.config, EmailNotificationConfig)
     assert isinstance(gmail.config, EmailNotificationConfig)
-    # each with its own server and password, and the user's address
-    assert (unitysvc.config.smtp_server, unitysvc.config.smtp_password) == (
+    # each from its preset, with its own password, and the user's address
+    assert (unitysvc.config.smtp_server, unitysvc.config.smtp_username) == (  # preset, set
         "smtp.svcpass.com",
-        "svcpass_key",
+        "smtp-to-mailbox",
     )
-    assert (gmail.config.smtp_server, gmail.config.smtp_password) == (
-        "smtp.gmail.com",
-        "app-password",
-    )
+    assert unitysvc.config.smtp_password == "svcpass_key"
+    assert (gmail.config.smtp_server, gmail.config.smtp_port) == ("smtp.gmail.com", 587)
+    assert gmail.config.smtp_password == "app-password"
     assert unitysvc.config.email == gmail.config.email == ["me@example.com"]
-    assert gmail.label == "gmail (email)" and unitysvc.label == "unitysvc_email"
+
+
+def test_the_unitysvc_preset_reads_the_api_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("UNITYSVC_API_KEY", "svcpass_from_env")
+    config = _load(tmp_path, '[user.me]\n[email.unitysvc]\nsmtp_username = "smtp-to-mailbox"\n')
+    [channel] = config.user["me"].channels()
+    assert isinstance(channel.config, EmailNotificationConfig)
+    assert channel.config.smtp_password == "svcpass_from_env"
 
 
 def test_a_section_value_wins_over_the_users(tmp_path: Path) -> None:
@@ -73,7 +80,6 @@ def test_a_section_value_wins_over_the_users(tmp_path: Path) -> None:
         """
     [user.me]
     telegram_chat_id = "1"
-    telegram_token = "9:own"
 
     [notification.group]
     telegram_token = "1:bot"
@@ -94,10 +100,10 @@ def test_only_values_a_section_sets_replace_the_users(tmp_path: Path) -> None:
     max_retries = 1
     retry_delay = 0
 
-    [notification.mail]
+    [email.mail]
     smtp_password = "pw"
 
-    [notification.slow]
+    [email.slow]
     smtp_password = "pw2"
     max_retries = 5
     """,
@@ -109,14 +115,12 @@ def test_only_values_a_section_sets_replace_the_users(tmp_path: Path) -> None:
     assert (slow.config.max_retries, slow.config.retry_delay) == (5, 0)
 
 
-def test_identical_sections_send_once_and_keep_both_names(tmp_path: Path) -> None:
+def test_identical_sections_send_once(tmp_path: Path) -> None:
     config = _load(
         tmp_path,
         """
     [user.me]
     notify_with = ["alerts", "daily"]
-    digest_with = ["daily"]
-    digest_at = "08:00"
 
     [notification.alerts]
     pushbullet_token = "same"
@@ -126,44 +130,35 @@ def test_identical_sections_send_once_and_keep_both_names(tmp_path: Path) -> Non
     """,
     )
     [channel] = config.user["me"].channels()
-    assert (channel.name, channel.sections) == ("alerts", ("alerts", "daily"))
-    # the digest still goes to the section digest_with names
-    assert list(digest_channels(config.user["me"])) == ["alerts"]
+    assert channel.sections == ("notification.alerts", "notification.daily")
 
 
-def test_user_settings_make_a_channel_of_a_type_no_section_sets_up(tmp_path: Path) -> None:
+def test_the_digest_goes_through_sections_with_digest_at(tmp_path: Path) -> None:
     config = _load(
         tmp_path,
         """
     [user.me]
     email = "me@example.com"
-    pushbullet_token = "own"
-    notify_with = "mail"
 
-    [notification.mail]
+    [email.mail]
     smtp_password = "pw"
+    digest_at = "08:00"
 
     [notification.pb]
-    pushbullet_token = "shared"
+    pushbullet_token = "t"
     """,
     )
-    channels = config.user["me"].channels()
-    assert [(c.name, c.section) for c in channels] == [("mail", "mail"), ("pushbullet", None)]
-    assert isinstance(channels[1].config, PushbulletNotificationConfig)
-    assert channels[1].config.pushbullet_token == "own"
+    assert list(digest_channels(config.user["me"])) == ["email.mail"]
 
 
-def test_disabled_incomplete_and_repeated_sections_are_left_out(tmp_path: Path) -> None:
+def test_disabled_and_incomplete_sections_are_left_out(tmp_path: Path) -> None:
     config = _load(
         tmp_path,
         """
     [user.me]
-    notify_with = ["a", "b", "off", "no_token"]
+    notify_with = ["a", "off", "no_token"]
 
     [notification.a]
-    pushbullet_token = "same"
-
-    [notification.b]
     pushbullet_token = "same"
 
     [notification.off]
@@ -174,12 +169,39 @@ def test_disabled_incomplete_and_repeated_sections_are_left_out(tmp_path: Path) 
     telegram_chat_id = "1"
     """,
     )
-    assert [c.name for c in config.user["me"].channels()] == ["a"]
+    assert [c.name for c in config.user["me"].channels()] == ["notification.a"]
 
 
-def test_a_user_without_a_config_has_its_own_channels() -> None:
-    user = UserConfig(name="me", pushbullet_token="t", email=["me@example.com"])
-    assert [c.name for c in user.channels()] == ["pushbullet"]  # email needs its SMTP password
+def test_a_user_without_a_config_has_no_channels() -> None:
+    assert UserConfig(name="me", email=["me@example.com"]).channels() == []
+
+
+@pytest.mark.parametrize(
+    "misplaced",
+    [{"pushbullet_token": "t"}, {"smtp_password": "pw"}, {"digest_at": "08:00"}],
+)
+def test_a_user_names_who_receives_not_how(misplaced: Dict[str, Any]) -> None:
+    system, _ = load_config_dicts([])
+    user = {
+        "marketplace": {"facebook": {"search_city": "houston"}},
+        "item": {"bike": {"search_phrases": "bike"}},
+        "user": {"me": misplaced},
+    }
+    with pytest.raises(ValueError, match=r"belong in email\.\* and notification\.\* sections"):
+        Config.from_dicts(system, user)
+
+
+def test_email_settings_are_not_a_notification() -> None:
+    with pytest.raises(ValueError, match="email is sent by an email section"):
+        Config.from_dicts(
+            load_config_dicts([])[0],
+            {
+                "marketplace": {"facebook": {"search_city": "houston"}},
+                "item": {"bike": {"search_phrases": "bike"}},
+                "user": {"me": {}},
+                "notification": {"mail": {"smtp_password": "pw"}},
+            },
+        )
 
 
 def test_a_listing_is_sent_through_every_channel(
@@ -210,3 +232,8 @@ def test_a_listing_is_sent_through_every_channel(
     with Cache(str(tmp_path / "cache")) as cache:
         User(config.user["me"]).notify([listing], [rating], item, local_cache=cache, force=True)
     assert tokens == ["first", "second"]
+
+
+def test_email_unitysvc_names_its_service(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="needs smtp_username: the UnitySVC service"):
+        _load(tmp_path, "[user.me]\n[email.unitysvc]\n")

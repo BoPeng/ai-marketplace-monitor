@@ -22,7 +22,8 @@ from .ai import (
     TAIConfig,
     UnitySVCBackend,
 )
-from .channels import user_channels
+from .channels import channel_classes, user_channels
+from .email_notify import EmailNotificationConfig, email_section
 from .marketplaces import item_marketplaces, marketplace_type, supported_marketplaces
 from .marketplaces.base import (
     Marketplace,
@@ -32,7 +33,7 @@ from .marketplaces.base import (
     location_value,
     option_names,
 )
-from .notification import NotificationConfig
+from .notification import CHANNEL, RECIPIENT, NotificationConfig, fields_with_role
 from .region import RegionConfig
 from .user import User, UserConfig
 from .utils import (
@@ -57,10 +58,14 @@ supported_ai_backends = {
 SYSTEM_CONFIG = Path(__file__).parent / "config.toml"
 
 
-def _load_toml(path: Path, logger: Logger | None = None) -> Dict[str, Any]:
+def _load_toml(
+    path: Path, logger: Logger | None = None, text: str | None = None
+) -> Dict[str, Any]:
     if logger:
         logger.debug(f"""{hilight("[Monitor]", "succ")} config file {hilight(str(path))}""")
     try:
+        if text is not None:
+            return tomllib.loads(text)
         with open(path, "rb") as f:
             return tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
@@ -83,11 +88,24 @@ def resolve_config_files(config_files: List[Path] | None) -> List[Path]:
 
 
 def load_config_dicts(
-    config_files: List[Path], logger: Logger | None = None
+    config_files: List[Path], logger: Logger | None = None, *, write: bool = True
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Return (bundled system config, merged user config) as parsed, unprocessed dicts."""
+    """Return (bundled system config, merged user config) as parsed, unprocessed dicts.
+
+    The user's files are migrated to the current format first (see ``migrations``), and
+    written back unless ``write`` is false.
+    """
+    from .migrations import migrate_config_files
+
+    config_files = [Path(f) for f in config_files]
     system = _load_toml(SYSTEM_CONFIG, logger)
-    user = merge_dicts([_load_toml(f, logger) for f in config_files])
+    try:
+        texts = migrate_config_files(config_files, logger, write=write)
+    except Exception as e:  # a file that tomlkit cannot read: tomllib says why below
+        if logger:
+            logger.debug(f"Config files not migrated: {e}")
+        texts = {}
+    user = merge_dicts([_load_toml(f, logger, texts.get(f)) for f in config_files])
     return system, user
 
 
@@ -99,6 +117,7 @@ class ConfigItem(Enum):
     AI = "ai"
     REGION = "region"
     NOTIFICATION = "notification"
+    EMAIL = "email"
     TRANSLATION = "translation"
 
 
@@ -108,6 +127,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
     ai: Dict[str, TAIConfig] = field(init=False)
     user: Dict[str, UserConfig] = field(init=False)
     notification: Dict[str, NotificationConfig] = field(init=False)
+    email: Dict[str, EmailNotificationConfig] = field(init=False)
     marketplace: Dict[str, TMarketplaceConfig] = field(init=False)
     # each item's config, for the first marketplace it is searched in
     item: Dict[str, TItemConfig] = field(init=False)
@@ -154,6 +174,7 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
         self.get_monitor_config(config)
         self.get_ai_config(config)
         self.get_notification_config(config)
+        self.get_email_config(config)
         self.get_marketplace_config(config)
         self.get_user_config(config)
         self.get_region_config(config)
@@ -208,7 +229,16 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             raise ValueError("notification section must be a dictionary.")
 
         self.notification: Dict[str, NotificationConfig] = {}
+        email_keys = set(fields_with_role(EmailNotificationConfig, CHANNEL)) | set(
+            fields_with_role(EmailNotificationConfig, RECIPIENT)
+        )
         for key, value in config.get("notification", {}).items():
+            email = sorted(k for k in value if k in email_keys)
+            if email:
+                raise ValueError(
+                    f"Notification section {hilight(key)} sets {', '.join(email)}: email is "
+                    "sent by an email section, e.g. email.gmail."
+                )
             cfg = NotificationConfig.get_config(name=key, **value)
             if cfg is None:
                 raise ValueError(
@@ -250,10 +280,39 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
             if lan.split("_")[0] not in {x.split("_")[0] for x in self.translator}:
                 raise ValueError(f"Translation for language {lan} is not supported.")
 
+    def get_email_config(self: "Config", config: Dict[str, Any]) -> None:
+        """[email.*] sections; [email.unitysvc] and [email.gmail] start from a preset."""
+        if not isinstance(config.get("email", {}), dict):
+            raise ValueError("email section must be a dictionary.")
+        self.email: Dict[str, EmailNotificationConfig] = {
+            key: email_section(key, value) for key, value in config.get("email", {}).items()
+        }
+
+    @property
+    def sections(self: "Config") -> Dict[str, NotificationConfig]:
+        """The [email.*] and [notification.*] sections, as "email.<name>" and so on."""
+        return {
+            **{f"email.{k}": v for k, v in self.email.items()},
+            **{f"notification.{k}": v for k, v in self.notification.items()},
+        }
+
     def get_user_config(self: "Config", config: Dict[str, Any]) -> None:
         # check for required fields in each user
         self.user: Dict[str, UserConfig] = {}
+        channel_keys = {
+            f for cls in channel_classes().values() for f in fields_with_role(cls, CHANNEL)
+        }
         for user_name, user_config in config.get("user", {}).items():
+            misplaced = sorted(
+                k for k in user_config if k in channel_keys or k in ("digest_at", "digest_with")
+            )
+            if misplaced:
+                raise ValueError(
+                    f"User {hilight(user_name)} sets {', '.join(misplaced)}: a user names who "
+                    "receives (email, telegram_chat_id, ...) and the sections it receives "
+                    "(notify_with); how messages are sent, and the digest (digest_at), belong in "
+                    "email.* and notification.* sections."
+                )
             self.user[user_name] = User.get_config(name=user_name, **user_config)
 
     def get_region_config(self: "Config", config: Dict[str, Any]) -> None:
@@ -400,33 +459,13 @@ class Config(Generic[TAIConfig, TItemConfig, TMarketplaceConfig]):
                     )
 
     def expand_notifications(self: "Config", logger: Logger | None = None) -> None:
-        """Set up each user's channels: one for each notification section the user receives."""
+        """Set up each user's channels: one for each section the user receives."""
+        sections = self.sections
         for config in self.user.values():
-            self.validate_digest_with(config)
-            for notification_name in config.notify_with or []:
-                if notification_name not in self.notification:
-                    raise ValueError(
-                        f"User {hilight(config.name)} specifies an undefined notification method {notification_name}."
-                    )
-            config._channels = user_channels(config, self.notification)
-
-    def validate_digest_with(self: "Config", config: UserConfig) -> None:
-        """The digest goes to some of the notifications that the user receives."""
-        if config.digest_with is None:
-            return
-        received = [
-            name
-            for name in (
-                config.notify_with if config.notify_with is not None else self.notification.keys()
-            )
-            if name in self.notification and self.notification[name].enabled is not False
-        ]
-        for name in config.digest_with:
-            if name not in received:
-                raise ValueError(
-                    f"User {hilight(config.name)} digest_with names {name}, which is not an "
-                    f"enabled notification the user receives ({', '.join(received) or 'none'})."
-                )
+            try:
+                config._channels = user_channels(config, sections)
+            except ValueError as e:
+                raise ValueError(f"User {hilight(config.name)}: {e}") from e
 
     def item_configs(self: "Config") -> List[TItemConfig]:
         """Every item's config for every marketplace it is searched in."""
