@@ -1,19 +1,24 @@
 name: docker
 
+# Images are published for releases only: a commit to main is not a release, and `latest`
+# is what the app-store templates and most users pull.
 on:
   push:
     tags: ["v*"]
-    branches: ["main"]
   workflow_dispatch:
     inputs:
       version:
         description: "Only pin the app-store templates to this released version (e.g. 0.10.11), without building"
         required: false
         default: ""
+      latest:
+        description: "Only point the latest tag at this released version (e.g. 0.10.16), without building"
+        required: false
+        default: ""
 
 jobs:
   build-and-push:
-    if: inputs.version == ''
+    if: inputs.version == '' && inputs.latest == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,11 +50,11 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/ai-marketplace-monitor
             name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/ai-marketplace-monitor,enable=${{ vars.DOCKERHUB_USERNAME != '' }}
+          # `latest` follows the newest release: metadata-action adds it to a release
+          # version's tags (flavor latest=auto) and to no other tag
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v7
         with:
@@ -61,6 +66,41 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Point `latest` at an image already pushed for a release, e.g. to roll back a bad release
+  retag-latest:
+    if: inputs.latest != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: vars.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - env:
+          VERSION: ${{ inputs.latest }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+        run: |
+          images="ghcr.io/${{ github.repository_owner }}/ai-marketplace-monitor"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            images="$images docker.io/$DOCKERHUB_USERNAME/ai-marketplace-monitor"
+          fi
+          for image in $images; do
+            docker buildx imagetools create -t "${image}:latest" "${image}:${VERSION}"
+            docker buildx imagetools inspect "${image}:latest" | grep -m1 '^Digest:'
+          done
 
   # After the image of a release tag is pushed, pin the app-store templates in deploy/ to it
   # (version and index digest) in a pull request; see CLAUDE.md. DEPLOY_PR_TOKEN
