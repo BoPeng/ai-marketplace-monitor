@@ -123,7 +123,7 @@ AIMM searches **Facebook Marketplace**, which needs a Facebook account for AIMM 
 - **Without UnitySVC**, each service needs its own account, and its key or password goes in your configuration or environment. Every part of AIMM works this way too.
 - `aimm configure` sets up any of these for you.
 
-UnitySVC is run by the maintainer of AIMM.
+UnitySVC is run by the maintainer of AIMM. See [Why UnitySVC](docs/README.md#why-unitysvc) for why AIMM recommends it.
 
 ### Installation
 
@@ -268,7 +268,7 @@ docker run -d --name aimm \
   ghcr.io/bopeng/ai-marketplace-monitor:latest
 ```
 
-`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there. In the default configuration, that one key covers any AI engine (OpenAI, Anthropic and more, as UnitySVC platform services or with your own provider keys saved in UnitySVC) and email and phone notifications; see [AI Services](docs/README.md#ai-services) and [What you need](#what-you-need).
+`UNITYSVC_API_KEY` needs a [UnitySVC](https://unitysvc.com/) account and an API key you create there; see [What you need](#what-you-need).
 
 Then open [http://localhost:8467](http://localhost:8467) and sign in with your Facebook username and password, the values of `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`. If Facebook asks for a check, click **Open browser** in the banner of the web UI and complete it there; searches start once you are logged in.
 
