@@ -325,6 +325,7 @@ Two section names start from a preset, so that only what differs needs to be set
   ```
 
 - **`notify`** delivers it to your UnitySVC inbox and the notification destination saved in UnitySVC, as `[notification.unitysvc]` does. For the email to reach you, that destination must include `smtp-to-mailbox`.
+- **`b/<broadcast name>`** sends each email to every target of a UnitySVC broadcast (up to 10), for example `smtp-to-mailbox` plus one or more SMTP Relay servers.
 - Any other service on the SMTP gateway (the SMTP username shown on its catalog page), or `a/<alias>` for one of your aliases. For a service that delivers to the `To` address, set `email` on the user.
 
 #### UnitySVC with your own SMTP account (BYOK)
@@ -342,7 +343,10 @@ smtp_username = 'smtp-byok'
 email = 'me@example.com'
 ```
 
-To relay through more than one server, enroll the SMTP Relay once per server (its `plus` channel, $1 per 1,000 emails) and set each enrollment's code as `smtp_username` in its own `[email.*]` section (with `smtp_server = "smtp.svcpass.com"` and `smtp_password = "${UNITYSVC_API_KEY}"`, as the preset has).
+To relay through more than one server, enroll the SMTP Relay once per server (its `plus` channel, $1 per 1,000 emails). Then either:
+
+- **Send to all of them from one section:** create a UnitySVC broadcast (a name and up to 10 targets, such as these enrollments, `smtp-byok` or `smtp-to-mailbox`) and set `smtp_username = 'b/<broadcast name>'`. The SMTP gateway sends each email to every target.
+- **Use one section per server:** set each enrollment's code as `smtp_username` in its own `[email.*]` section (with `smtp_server = "smtp.svcpass.com"` and `smtp_password = "${UNITYSVC_API_KEY}"`, as the preset has).
 
 #### Without UnitySVC
 

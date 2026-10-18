@@ -146,6 +146,7 @@ Notes on the UnitySVC services:
 - **Emails go to your UnitySVC-registered email address**, the verified primary email under Settings → Account on UnitySVC, not to the address in ``email``. Make sure that address is set and verified.
 - ``smtp_username = 'smtp-to-mailbox'`` skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
 - ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To receive these notifications by email, your notification destination on UnitySVC must include ``smtp-to-mailbox``: set it as the destination, or add it to a broadcast used as the destination.
+- ``smtp_username = 'b/<broadcast name>'`` sends each email to every target of a UnitySVC broadcast (up to 10), for example ``smtp-to-mailbox`` plus several SMTP Relay servers (see below).
 - ``smtp_username`` can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases. For services that deliver to the ``To`` address, set ``email``.
 - ``email`` is optional with the preset: it only fills the ``To`` header, and ``smtp-to-mailbox`` and ``notify`` deliver to your registered address whatever it says.
 
@@ -161,6 +162,8 @@ UnitySVC's SMTP Relay forwards the email to your own SMTP server: Gmail, your do
 
     [user.me]
     email = 'me@example.com'
+
+To relay through several SMTP servers at once, enroll the SMTP Relay once per server (its paid ``plus`` channel), put the enrollments in a UnitySVC broadcast, and set ``smtp_username = 'b/<broadcast name>'``: the gateway sends each email through every server.
 
 Without UnitySVC
 ----------------
