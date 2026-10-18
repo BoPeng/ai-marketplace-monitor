@@ -288,6 +288,18 @@ def _without_preset(name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _same_email(docs: Docs, values: Dict[str, Any]) -> str | None:
+    """An existing [email.*] section that sends as these values do (with its preset)."""
+    return next(
+        (
+            n
+            for n in _names(docs, "email")
+            if {**EMAIL_PRESETS.get(n, {}), **_merged(docs, "email", n)} == values
+        ),
+        None,
+    )
+
+
 def _email_names(preset: str | None, name: str) -> List[str]:
     """Names for the email section of [notification.<name>]: a preset's only if it is one."""
     own = name if name not in EMAIL_PRESETS or name == preset else None
@@ -320,16 +332,19 @@ def migrate_email_from_notification_to_email_section(docs: Docs) -> List[str]:
         email = {k: v for k, v in values.items() if k in EMAIL_SECTION_KEYS}
         push = any(k in PUSH_KEYS for k in values)
         preset = _email_name(email)
-        # in layered files, a value equal to the preset may override an earlier one: kept
-        strip = (
-            set() if layered or not preset else set(email) - set(_without_preset(preset, email))
-        )
-        email = {k: v for k, v in email.items() if k not in strip}
-        username = preset == "unitysvc" and "smtp_username" not in email
-        if username:
+        if preset == "unitysvc" and "smtp_username" not in email:
             email["smtp_username"] = UNITYSVC_SMTP_USERNAME  # what it used without one
-        existing = None if layered else _same_section(docs, "email", email)
+        effective = {**EMAIL_PRESETS.get(preset or "", {}), **email}
+        existing = None if layered else _same_email(docs, effective)
         new = existing or _new_name(docs, "email", _email_names(preset, name))
+        # only a section that keeps the preset's name can leave the preset's values out; in
+        # layered files, a value equal to the preset may override an earlier one: kept
+        strip = (
+            set(email) - set(_without_preset(new, email))
+            if new == preset and not layered
+            else set()
+        )
+        username = "smtp_username" in email and not any("smtp_username" in t for _, t in defs)
         # the users' lists first, while their entries still name the old section
         old_key = f"notification.{name}"
         refs = [f"email.{new}"] + ([old_key] if push else [])
@@ -439,7 +454,8 @@ def migrate_digest_from_user_to_notification_and_email(docs: Docs) -> List[str]:
     for key, by_user in wants.items():
         # most users keep the section; the others get a copy with their digest
         values = list(by_user.values())
-        kept = max(set(values), key=lambda v: (values.count(v), v is not None))
+        # a tie goes to the first user in file order: the same result on every run
+        kept = max(dict.fromkeys(values), key=lambda v: (values.count(v), v is not None))
         for user_name, digest_at in by_user.items():
             if digest_at != kept:
                 new = _for_user(docs, key, user_name, {"digest_at": digest_at})

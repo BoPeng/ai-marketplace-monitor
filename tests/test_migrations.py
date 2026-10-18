@@ -14,6 +14,7 @@ else:
     import tomli as tomllib
 
 from ai_marketplace_monitor.config import Config
+from ai_marketplace_monitor.email_notify import EmailNotificationConfig
 from ai_marketplace_monitor.migrations import (
     migrate_channels_from_user_to_sections,
     migrate_config_files,
@@ -210,6 +211,50 @@ def test_users_who_differ_in_their_digest_get_a_copy() -> None:
     assert cfg["user"]["bob"]["notify_with"] == ["email.gmail_bob"]
 
 
+def test_a_preset_section_under_another_name_keeps_the_preset_values() -> None:
+    cfg = _migrate(
+        """
+    [notification.gmail]
+    smtp_server = "smtp.gmail.com"
+    smtp_username = "me@gmail.com"
+    smtp_password = "${GMAIL_SMTP_PASSWORD}"
+
+    [notification.work]
+    smtp_server = "smtp.gmail.com"
+    smtp_username = "work@gmail.com"
+    smtp_password = "${GMAIL_SMTP_PASSWORD}"
+
+    [user.me]
+    email = "me@example.com"
+    """
+    )
+    assert cfg["email"]["gmail"] == {"smtp_username": "me@gmail.com"}
+    # [email.gmail] is taken: [email.work] has no preset, so it keeps the server and password
+    assert cfg["email"]["work"] == {
+        "smtp_server": "smtp.gmail.com",
+        "smtp_username": "work@gmail.com",
+        "smtp_password": "${GMAIL_SMTP_PASSWORD}",
+    }
+
+
+def test_the_digest_tie_goes_to_the_first_user() -> None:
+    text = """
+    [email.mail]
+    smtp_password = "pw"
+
+    [user.alice]
+    email = "alice@example.com"
+    digest_at = "09:00"
+
+    [user.bob]
+    email = "bob@example.com"
+    digest_at = "08:00"
+    """
+    cfg = _migrate(text)
+    assert cfg["email"]["mail"]["digest_at"] == "09:00"
+    assert cfg["email"]["mail_bob"]["digest_at"] == "08:00"
+
+
 def test_a_section_named_after_a_preset_it_does_not_match_is_renamed() -> None:
     cfg = _migrate(
         """
@@ -262,6 +307,7 @@ digest_at = "09:00"
     config = Config([path])
     for user, digest_at in (("alice", "08:00"), ("bob", "09:00")):
         [channel] = config.user[user].channels()
+        assert isinstance(channel.config, EmailNotificationConfig)
         assert channel.config.smtp_password == "app-password"
         assert channel.config.digest_at == digest_at
 
@@ -279,6 +325,7 @@ def test_a_section_defined_in_several_files_stays_one(tmp_path: Path) -> None:
     config = Config([base, local])
     [channel] = config.user["me"].channels()
     assert channel.name == "email.work"
+    assert isinstance(channel.config, EmailNotificationConfig)
     assert channel.config.smtp_password == "new"  # the later file still wins
     assert "[email.work]" in local.read_text(encoding="utf-8")
     assert "work_email" not in base.read_text(encoding="utf-8") + local.read_text(encoding="utf-8")
