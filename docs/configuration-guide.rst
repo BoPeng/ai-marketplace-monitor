@@ -7,7 +7,7 @@ This section covers advanced configuration options and setup procedures for AI M
 Choosing Your Services
 ======================
 
-aimm searches Facebook Marketplace, which needs a Facebook account for aimm to log in with (``FACEBOOK_USERNAME`` and ``FACEBOOK_PASSWORD``) and a browser that aimm controls (installed with ``playwright install``), and OfferUp (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service, each set up in one of three ways:
+AIMM searches Facebook Marketplace, which needs a Facebook account for AIMM to log in with (``FACEBOOK_USERNAME`` and ``FACEBOOK_PASSWORD``) and a browser that AIMM controls (installed with ``playwright install``), and OfferUp (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service, each set up in one of three ways:
 
 .. list-table::
    :header-rows: 1
@@ -30,7 +30,43 @@ aimm searches Facebook Marketplace, which needs a Facebook account for aimm to l
      - the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC
      - ``[notification.telegram]``, Pushbullet, Pushover or ntfy, with their tokens in your configuration
 
-With UnitySVC, one API key (``UNITYSVC_API_KEY``) covers all three, and the keys of your own accounts (BYOK) stay in your UnitySVC account instead of aimm's configuration. Each service is set up on its own, so you can mix the options. Without UnitySVC, each service needs its own account, and every part of aimm works that way too. The sections below follow the same order: UnitySVC first, then your own keys through UnitySVC, then the options without UnitySVC. UnitySVC is run by the maintainer of aimm.
+Each service is set up on its own, so you can mix the options. The sections below follow the same order: UnitySVC first, then your own keys through UnitySVC, then the options without UnitySVC.
+
+Why UnitySVC
+============
+
+AIMM has adopted `UnitySVC <https://unitysvc.com/>`_, a gateway that reaches AI models, email, phone and chat notifications and other online services through one API key (``UNITYSVC_API_KEY``). UnitySVC is run by the maintainer of AIMM.
+
+.. mermaid::
+
+    flowchart LR
+        aimm["AIMM<br/>one key: UNITYSVC_API_KEY"]
+
+        subgraph unitysvc["UnitySVC"]
+            smtp["SMTP gateway"]
+            api["API gateway"]
+        end
+
+        aimm -- "email" --> smtp
+        aimm -- "notification (msg)" --> api
+        aimm -- "AI request" --> api
+
+        smtp -- "smtp-to-mailbox" --> mailbox["Your UnitySVC<br/>email address"]
+        smtp -- "smtp-relay (BYOK)" --> ownsmtp["Your SMTP server<br/>Gmail, Outlook, ..."]
+        api -- "msg-to-discord, ... (BYOK)" --> chat["Your Discord, Slack,<br/>Telegram, Pushover, ..."]
+        api -- "llm pool" --> llm["Vision models, chosen<br/>by tier: fast, balanced, ..."]
+        api -- "AI (BYOK)" --> aiown["Your OpenAI, Anthropic,<br/>Gemini, ... account"]
+
+AIMM sends everything with one key: email to UnitySVC's SMTP gateway, and notifications and AI requests to its API gateway. Email goes to the address of your UnitySVC account (``smtp-to-mailbox``) or, through your own SMTP server, to any address (``smtp-relay``). With your own keys (BYOK) saved in UnitySVC, notifications reach your Discord, Slack, Telegram or Pushover account, and the provider bills you. For AI, the two options work differently: the ``llm`` pool is chosen by capability, a tier of vision models that can read listing photos, and UnitySVC picks the provider behind it and fails over between them; with your own key (BYOK), you choose the provider, such as OpenAI or Anthropic, and it bills you.
+
+We recommend it because:
+
+- **AIMM no longer has to integrate every provider.** Instead of carrying the code, settings and dependencies of each AI provider and notification service, AIMM talks to one gateway. New models and the 100+ notification services UnitySVC reaches become available to AIMM without a new version of AIMM.
+- **Deploying AIMM is simpler.** A Docker or app-store installation needs a single secret to rate listings, email them with their photos and alert your phone.
+- **Your credentials stay in one place.** The keys of your own accounts, such as an OpenAI key, a Telegram bot token or an SMTP password, are saved once in your UnitySVC account instead of in AIMM's configuration file or environment. They are not copied to every machine that runs AIMM, and you can change or revoke one without touching AIMM. The services you set up are not tied to AIMM either: your own scripts, apps and other tools can use them with the same key, through UnitySVC's API, command-line tool or SDK.
+- **You can keep the accounts you already have.** With your own keys (BYOK), UnitySVC forwards each request to your account, and that provider bills you as before. The email and notification services AIMM uses by default are free, and UnitySVC's own AI is paid per use.
+
+AIMM continues to support the services it already integrates without UnitySVC: OpenAI, Anthropic, Gemini, DeepSeek and a local Ollama for AI, any SMTP server for email, and Telegram, Pushbullet, Pushover and ntfy for notifications. New AI providers and notification channels are reached through UnitySVC instead of being added to AIMM.
 
 Setting Up AI
 =============
@@ -63,7 +99,7 @@ With UnitySVC
 UnitySVC with your own keys (BYOK)
 ----------------------------------
 
-Save your provider's key once as a secret in your UnitySVC account (Developer → Secrets, e.g. ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY``), and point ``base_url`` at that provider's service in the `UnitySVC catalog <https://unitysvc.com/market>`_. Your provider bills you directly, and aimm's configuration still holds only ``UNITYSVC_API_KEY``:
+Save your provider's key once as a secret in your UnitySVC account (Developer → Secrets, e.g. ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY``), and point ``base_url`` at that provider's service in the `UnitySVC catalog <https://unitysvc.com/market>`_. Your provider bills you directly, and AIMM's configuration still holds only ``UNITYSVC_API_KEY``:
 
 .. code-block:: toml
 
@@ -114,7 +150,7 @@ Setting Up Email Notifications
      - ``[email.unitysvc]`` with ``smtp-relay``: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose
      - ``[email.gmail]`` with a Gmail app password, or any other SMTP server
 
-aimm's email (all new listings in one message, with their photos) is sent by an ``[email.NAME]`` section, to the ``email`` of each user who receives it. You can configure multiple users with individual or multiple email addresses like this:
+AIMM's email (all new listings in one message, with their photos) is sent by an ``[email.NAME]`` section, to the ``email`` of each user who receives it. You can configure multiple users with individual or multiple email addresses like this:
 
 .. code-block:: toml
 
@@ -129,7 +165,7 @@ aimm's email (all new listings in one message, with their photos) is sent by an 
 With UnitySVC
 -------------
 
-Gmail requires an app password, which many users find hard to create in their Google account settings. If you have a `UnitySVC <https://unitysvc.com/>`_ API key, for example for UnitySVC AI, you can send email through UnitySVC's SMTP gateway with that key instead:
+``[email.unitysvc]`` sends email through UnitySVC's SMTP gateway with your ``UNITYSVC_API_KEY``, without the app password Gmail needs, which many users find hard to create:
 
 .. code-block:: toml
 
@@ -139,7 +175,7 @@ Gmail requires an app password, which many users find hard to create in their Go
     [user.me]
     notify_with = 'email.unitysvc'
 
-``[email.unitysvc]`` is a preset: aimm fills in the server (``smtp.svcpass.com``), the port (587) and the password ``${UNITYSVC_API_KEY}``, and ``email`` is not needed. ``smtp_username`` names the UnitySVC service that delivers the email: ``smtp-to-mailbox`` sends it to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images.
+``[email.unitysvc]`` is a preset: AIMM fills in the server (``smtp.svcpass.com``), the port (587) and the password ``${UNITYSVC_API_KEY}``, and ``email`` is not needed. ``smtp_username`` names the UnitySVC service that delivers the email: ``smtp-to-mailbox`` sends it to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images.
 
 Notes on the UnitySVC services:
 
@@ -152,7 +188,7 @@ Notes on the UnitySVC services:
 UnitySVC with your own SMTP account (BYOK)
 ------------------------------------------
 
-UnitySVC's SMTP Relay forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the ``email`` of each user who receives the section, and your server's login stays in UnitySVC instead of aimm's configuration. Save the server's details as secrets in your UnitySVC account: ``SMTP_RELAY_HOST`` (e.g. ``smtp.gmail.com``), ``SMTP_RELAY_USERNAME`` (usually your address) and ``SMTP_RELAY_PASSWORD`` (an app password or API key), and if they differ from 587 and STARTTLS, ``SMTP_RELAY_PORT`` and ``SMTP_RELAY_TLS``. Then set ``smtp_username = 'smtp-relay'``, the relay's free channel:
+UnitySVC's SMTP Relay forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the ``email`` of each user who receives the section, and your server's login stays in UnitySVC instead of AIMM's configuration. Save the server's details as secrets in your UnitySVC account: ``SMTP_RELAY_HOST`` (e.g. ``smtp.gmail.com``), ``SMTP_RELAY_USERNAME`` (usually your address) and ``SMTP_RELAY_PASSWORD`` (an app password or API key), and if they differ from 587 and STARTTLS, ``SMTP_RELAY_PORT`` and ``SMTP_RELAY_TLS``. Then set ``smtp_username = 'smtp-relay'``, the relay's free channel:
 
 .. code-block:: toml
 
@@ -170,7 +206,7 @@ Without UnitySVC
 Gmail
 ~~~~~
 
-``[email.gmail]`` is a preset too: aimm fills in the server (``smtp.gmail.com``), the port (587) and the password ``${GMAIL_SMTP_PASSWORD}``. Set your Gmail address as ``smtp_username``, and a Gmail app password as the environment variable ``GMAIL_SMTP_PASSWORD``:
+``[email.gmail]`` is a preset too: AIMM fills in the server (``smtp.gmail.com``), the port (587) and the password ``${GMAIL_SMTP_PASSWORD}``. Set your Gmail address as ``smtp_username``, and a Gmail app password as the environment variable ``GMAIL_SMTP_PASSWORD``:
 
 .. code-block:: toml
 
@@ -229,13 +265,13 @@ Setting Up Phone and Chat Notifications
 With UnitySVC
 -------------
 
-`UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider and give aimm access to more than 100 notification channels and apps through one key: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
+UnitySVC notifications reach more than 100 notification channels and apps: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 
-These notifications are short text messages without listing photos, best for phone and chat alerts. To receive aimm's full email, with all new listings and their photos in one message, use :ref:`UnitySVC email <unitysvc-smtp>` instead.
+These notifications are short text messages without listing photos, best for phone and chat alerts. To receive AIMM's full email, with all new listings and their photos in one message, use :ref:`UnitySVC email <unitysvc-smtp>` instead.
 
-By default, messages go to UnitySVC's ``notify`` service, which shows them in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your aimm config.
+By default, messages go to UnitySVC's ``notify`` service, which shows them in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your AIMM config.
 
-The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notifications, so one key covers rating listings and delivering the results:
+A configuration that uses UnitySVC for both the AI and the notifications:
 
 .. code-block:: toml
 
@@ -254,7 +290,7 @@ The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notificati
 UnitySVC with your own accounts (BYOK)
 --------------------------------------
 
-Without a destination of your own, ``notify`` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Choose your own account as the notification destination in UnitySVC, for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time without touching it.
+Without a destination of your own, ``notify`` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Choose your own account as the notification destination in UnitySVC, for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. AIMM's configuration still holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time without touching it.
 
 To send to one specific UnitySVC service instead, set ``unitysvc_service`` to its path. Such a message skips the inbox.
 
@@ -265,7 +301,7 @@ To send to one specific UnitySVC service instead, set ``unitysvc_service`` to it
     unitysvc_service = 'labs/msg-to-discord'
     message_format = 'markdown'
 
-The channels aimm supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep ``notify``), or send to it directly with ``unitysvc_service``:
+The channels AIMM supports without UnitySVC each have a UnitySVC counterpart. Save your account's secrets in UnitySVC, then either add the service as a destination in your notification preferences (and keep ``notify``), or send to it directly with ``unitysvc_service``:
 
 .. list-table::
    :header-rows: 1
@@ -512,9 +548,9 @@ to also see poor matches, or ``rating = 5`` to see only great deals. Note that a
 Seller Information
 ------------------
 
-Who sells a listing matters as much as the listing: new accounts, dealers posing as private sellers, sellers with many listings but few sales, single listings at an unrealistic price, and sellers with poor ratings are often unreliable. aimm therefore tells the AI about the seller of each listing it rates, and lets the AI judge whether the seller is legitimate.
+Who sells a listing matters as much as the listing: new accounts, dealers posing as private sellers, sellers with many listings but few sales, single listings at an unrealistic price, and sellers with poor ratings are often unreliable. AIMM therefore tells the AI about the seller of each listing it rates, and lets the AI judge whether the seller is legitimate.
 
-From the listing page, aimm reads the seller's name, the year they joined Facebook and, for sellers with ratings, their rating and number of ratings. For listings that pass your other filters, it also opens the seller's Marketplace profile, at most once a month per seller, for the number of active and sold listings, what buyers appreciate, and a few recent reviews. The AI receives a summary such as
+From the listing page, AIMM reads the seller's name, the year they joined Facebook and, for sellers with ratings, their rating and number of ratings. For listings that pass your other filters, it also opens the seller's Marketplace profile, at most once a month per seller, for the number of active and sold listings, what buyers appreciate, and a few recent reviews. The AI receives a summary such as
 
     joined Facebook in 2024, no ratings, 20+ active listings, 1 sold listing
 
@@ -522,11 +558,11 @@ along with possible warning signs (a new account, a low rating, a dealer-like nu
 
 The AI is also told to rate a listing 1 when it has a bait price: a price far below the item's market value together with "financing available", "payment plans", "no credit check", "rent to own" or "layaway", which means that the listed price is only a down payment or a monthly payment. Financing or layaway at a realistic price usually means a pawnshop or a dealer, which the AI points out and rates lower. To skip such listings without asking the AI, add the phrases to ``antikeywords``, for example ``antikeywords = ["financing available", "no credit check", "layaway"]``.
 
-Every notification has a ``Seller`` line with what aimm knows about the seller, when it read the seller's profile, and the warning signs, for example
+Every notification has a ``Seller`` line with what AIMM knows about the seller, when it read the seller's profile, and the warning signs, for example
 
     Seller: Sam Roe: joined Facebook in 2024, no ratings, 30 active listings, 0 sold listings, profile checked 2026-10-01. Warning signs: 30 active listings but none sold
 
-It says ``not verified`` when the profile could not be read, or when there is no seller information at all (for example when aimm is not logged in), so that a seller who was never checked is not mistaken for one who was checked and found fine.
+It says ``not verified`` when the profile could not be read, or when there is no seller information at all (for example when AIMM is not logged in), so that a seller who was never checked is not mistaken for one who was checked and found fine.
 
 To skip low-rated sellers altogether, set ``seller_min_rating`` in a ``marketplace`` or an ``item`` section:
 
@@ -535,7 +571,7 @@ To skip low-rated sellers altogether, set ``seller_min_rating`` in a ``marketpla
     # skip sellers rated below 4 out of 5 by at least 3 buyers
     seller_min_rating = 4
 
-Sellers without ratings are not skipped: most Marketplace sellers have none, and having no ratings says little on its own. The AI still sees "no ratings" in the summary, next to the account's age, listings, sales and reviews, and weighs it with them. ``exclude_sellers`` still excludes sellers by name. Seller information needs aimm to be logged in to Facebook, which shows no seller details otherwise.
+Sellers without ratings are not skipped: most Marketplace sellers have none, and having no ratings says little on its own. The AI still sees "no ratings" in the summary, next to the account's age, listings, sales and reviews, and weighs it with them. ``exclude_sellers`` still excludes sellers by name. Seller information needs AIMM to be logged in to Facebook, which shows no seller details otherwise.
 
 Advanced Keyword-Based Filters
 ==============================
@@ -628,7 +664,7 @@ Multi-Location and Region Search
 
 To search the same place in both marketplaces, give a table of values by marketplace type, such as `search_city = { facebook = "houston", offerup = "77002" }`.
 
-The **Assistant** (in the web UI, or ``aimm configure``) finds it for you: tell it a city, neighborhood or ZIP code (for example ``Houston, TX``, ``Los Angeles, Texas`` or ``92101``). aimm asks Facebook Marketplace's location search, as Facebook's location dialog does, and shows the matching places with their codes (``houston``; ``487995858630733`` for Los Angeles, La Salle County, Texas; ``sandiego`` for 92101). No browser or Facebook account is involved, and nothing is changed on your account.
+The **Assistant** (in the web UI, or ``aimm configure``) finds it for you: tell it a city, neighborhood or ZIP code (for example ``Houston, TX``, ``Los Angeles, Texas`` or ``92101``). AIMM asks Facebook Marketplace's location search, as Facebook's location dialog does, and shows the matching places with their codes (``houston``; ``487995858630733`` for Los Angeles, La Salle County, Texas; ``sandiego`` for 92101). No browser or Facebook account is involved, and nothing is changed on your account.
 
 Multiple Cities
 ---------------
@@ -652,11 +688,11 @@ You can also change the radius of search using:
 Search Radius
 ~~~~~~~~~~~~~
 
-Facebook ignores a radius in the search URL and searches with the radius saved in your account's Marketplace location settings, which only its location dialog changes. When ``radius`` is set, aimm therefore sets it in that dialog before searching a city, if the saved radius is different, and reloads the search:
+Facebook ignores a radius in the search URL and searches with the radius saved in your account's Marketplace location settings, which only its location dialog changes. When ``radius`` is set, AIMM therefore sets it in that dialog before searching a city, if the saved radius is different, and reloads the search:
 
 - ``radius`` is in the unit Facebook shows: miles in the US, kilometers elsewhere.
-- Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and 500, and aimm picks the choice closest to ``radius`` (``radius = 50`` becomes 60, ``radius = 805`` becomes 500).
-- The radius is saved on your Facebook account, so it also applies when you browse Marketplace yourself. Without ``radius``, aimm searches with whatever radius the account has.
+- Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and 500, and AIMM picks the choice closest to ``radius`` (``radius = 50`` becomes 60, ``radius = 805`` becomes 500).
+- The radius is saved on your Facebook account, so it also applies when you browse Marketplace yourself. Without ``radius``, AIMM searches with whatever radius the account has.
 - The city comes from ``search_city`` in the URL, which Facebook does follow.
 
 Pre-defined Regions
@@ -745,13 +781,13 @@ Updates and Proxy
 Update Reminder
 ---------------
 
-When the monitor starts, aimm asks PyPI whether a newer release is out (at most once a day, so
+When the monitor starts, AIMM asks PyPI whether a newer release is out (at most once a day, so
 frequent restarts do not ask again). If so, it logs a line such as::
 
     [UPDATE] AI Marketplace Monitor 0.11.0 is available (you have 0.10.3). Upgrade with: pip install --upgrade ai-marketplace-monitor
 
-and the web UI shows an "aimm 0.11.0 available" badge in its header, linking to the changelog.
-The upgrade command matches how aimm was installed (pip, pipx, ``uv tool`` or Docker). The
+and the web UI shows an "AIMM 0.11.0 available" badge in its header, linking to the changelog.
+The upgrade command matches how AIMM was installed (pip, pipx, ``uv tool`` or Docker). The
 request sends nothing about you or your config, and a failed check is silently retried at the
 next start. To check at any time, click **Check for updates** in the web UI's Settings › About,
 which asks PyPI right away. To turn off the check at start, add this to your config, or set the
@@ -784,7 +820,7 @@ Replace `${PROXY_SERVER}`, `${PROXY_USERNAME}`, and `${PROXY_PASSWORD}` with you
 Multiple Marketplaces
 =====================
 
-aimm supports two marketplaces, Facebook Marketplace and OfferUp, and you can create several sections of each, such as ``marketplace.city1`` and ``marketplace.city2``, with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. An item is searched in every marketplace section unless its ``marketplace`` option names the ones to use.
+AIMM supports two marketplaces, Facebook Marketplace and OfferUp, and you can create several sections of each, such as ``marketplace.city1`` and ``marketplace.city2``, with different options such as ``search_city``, ``search_region``, ``seller_locations``, and ``notify``. An item is searched in every marketplace section unless its ``marketplace`` option names the ones to use.
 
 For example:
 
