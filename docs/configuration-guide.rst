@@ -7,7 +7,7 @@ This section covers advanced configuration options and setup procedures for AI M
 Choosing Your Services
 ======================
 
-aimm searches Facebook Marketplace, which needs a Facebook account for aimm to log in with, and OfferUp (US only), which needs no account. To rate listings and to tell you about them, it uses three kinds of external service, each set up in one of three ways:
+aimm searches Facebook Marketplace, which needs a Facebook account for aimm to log in with (``FACEBOOK_USERNAME`` and ``FACEBOOK_PASSWORD``) and a browser that aimm controls (installed with ``playwright install``), and OfferUp (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service, each set up in one of three ways:
 
 .. list-table::
    :header-rows: 1

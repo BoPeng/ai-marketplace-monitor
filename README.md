@@ -110,7 +110,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ### What you need
 
-aimm searches **Facebook Marketplace**, which needs a Facebook account for aimm to log in with, and **OfferUp** (US only), which needs no account. To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
+aimm searches **Facebook Marketplace**, which needs a Facebook account for aimm to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that aimm controls (installed with `playwright install`), and **OfferUp** (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
 
 | Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
 | --- | --- | --- | --- |

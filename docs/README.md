@@ -155,6 +155,13 @@ Multiple marketplaces with different `name`s can be specified for different `ite
 
 #### Facebook Marketplace
 
+Searching Facebook Marketplace needs two things:
+
+- **A Facebook account.** aimm logs in with it, and searches only while logged in. Give its login as `username` and `password` (below), or set the environment variables `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`; one of them is required, and aimm reports a configuration error without them.
+- **A browser.** aimm searches Facebook in a Chromium browser that it controls (through [Playwright](https://playwright.dev/python/)). After `pip install ai-marketplace-monitor`, install the browser once with `playwright install`; the Docker image includes it. When Facebook asks for a CAPTCHA or a security code, you complete it in that browser window, or in Docker in the **Browser** tab of the web UI.
+
+OfferUp needs neither: without a Facebook section, aimm starts no browser and needs no Facebook login.
+
 A Facebook section takes these options in addition to the common ones:
 
 ```toml
