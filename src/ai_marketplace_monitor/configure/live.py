@@ -1,6 +1,6 @@
-"""Listings and sellers for the configure chat: Facebook in the monitor's browser, OfferUp over HTTP.
+"""Listings and sellers for the configure chat, read in the monitor's browser.
 
-A marketplace that needs no browser (OfferUp) is read directly, whether the monitor runs or not.
+A marketplace that needs no browser is read directly, whether the monitor runs or not.
 For Facebook:
 
 The monitor shares its Chromium (see ``shared_browser.py``). The chat connects to it with its
@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -38,9 +37,6 @@ from ..marketplaces import marketplace_class, supported_marketplaces
 from ..marketplaces.base import DEFAULT_RATING, Marketplace, resolve_option
 from ..marketplaces.facebook import FacebookMarketplace
 from ..marketplaces.facebook.seller import seller_id_from_url
-from ..marketplaces.offerup import OfferUpMarketplace
-from ..marketplaces.offerup.client import OfferUpError
-from ..marketplaces.offerup.marketplace import SELLER_PREFIX as OFFERUP_SELLER
 from ..seller import Seller, seller_warnings
 from ..shared_browser import BrowserBusyError, shared_endpoint
 from .history import (
@@ -128,11 +124,6 @@ def listing_ref(listing: str) -> Tuple[Type[Marketplace], str] | None:
 def seller_ref(seller: str) -> Tuple[Type[Marketplace], str, str] | None:
     """The marketplace type of a seller reference, the seller's id, or a listing's id."""
     seller = seller.strip()
-    if seller.startswith(OFFERUP_SELLER):
-        return OfferUpMarketplace, seller, ""
-    match = re.search(r"offerup\.com/p/(\d+)", seller)
-    if match:
-        return OfferUpMarketplace, f"{OFFERUP_SELLER}{match.group(1)}", ""
     sid = seller if seller.isdigit() else seller_id_from_url(seller)
     if sid:
         return FacebookMarketplace, sid, ""
@@ -141,9 +132,7 @@ def seller_ref(seller: str) -> Tuple[Type[Marketplace], str, str] | None:
 
 
 def _seller_view(seller: Seller) -> Dict[str, Any]:
-    market_class = (
-        OfferUpMarketplace if seller.id.startswith(OFFERUP_SELLER) else FacebookMarketplace
-    )
+    market_class = FacebookMarketplace
     return {
         "name": seller.name,
         "id": seller.id,
@@ -191,8 +180,7 @@ class LiveBrowser:
             return {
                 "ok": False,
                 "errors": [
-                    "Give a listing id or URL: Facebook Marketplace (/marketplace/item/<id>) or "
-                    "OfferUp (offerup.com/item/detail/<id>)."
+                    "Give a listing id or URL: Facebook Marketplace (/marketplace/item/<id>)."
                 ],
             }
         market_class, lid = ref
@@ -212,8 +200,8 @@ class LiveBrowser:
             return {
                 "ok": False,
                 "errors": [
-                    "Give a seller's profile URL (Facebook /marketplace/profile/<id>, OfferUp "
-                    "offerup.com/p/<id>), their id, or the URL of one of their listings."
+                    "Give a seller's profile URL (Facebook /marketplace/profile/<id>), their id, "
+                    "or the URL of one of their listings."
                 ],
             }
         market_class, sid, lid = ref
@@ -305,7 +293,7 @@ class LiveBrowser:
         return self._direct(marketplace_config)
 
     def _direct(self: "LiveBrowser", marketplace_config: Any) -> Any:
-        """A marketplace that needs no browser (OfferUp), as the monitor configures it."""
+        """A marketplace that needs no browser, as the monitor configures it."""
         market_class = marketplace_class(marketplace_config)
         marketplace = market_class(marketplace_config.name, None, None, logger)
         marketplace.configure(marketplace_config)
@@ -488,7 +476,7 @@ class LiveBrowser:
                     budget = max(0, budget - len(pages))
             except Exception as e:
                 # one marketplace failing (not logged in, blocked) does not stop the others
-                if not isinstance(e, (LiveUnavailableError, BrowserBusyError, OfferUpError)):
+                if not isinstance(e, (LiveUnavailableError, BrowserBusyError)):
                     logger.debug("try_item failed in %s", marketplace_config.name, exc_info=True)
                 unavailable.append({"marketplace": marketplace_config.name, "error": str(e)})
         if unavailable and not searches:

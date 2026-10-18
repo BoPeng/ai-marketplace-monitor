@@ -146,7 +146,7 @@ class Workspace:
     def known_locations(self: "Workspace", market_type: str) -> Set[str]:
         """Location values of a marketplace type that the user gave or aimm looked up.
 
-        Facebook: its codes (known_city_codes). OfferUp: ZIP codes the user typed, values in the
+        Facebook: its codes (known_city_codes). Other marketplaces: values the user typed, values in the
         config, and the coordinates find_city returned.
         """
         if market_type == "facebook":

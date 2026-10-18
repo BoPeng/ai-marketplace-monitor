@@ -29,9 +29,9 @@ def _config(tmp_path: Path, text: str) -> Config:
 
 def test_values_of_a_table_by_marketplace_type() -> None:
     assert location_value("houston", "facebook") == "houston"
-    assert location_value({"facebook": "houston", "offerup": "77096"}, "offerup") == "77096"
+    assert location_value({"facebook": "houston", "other": "77096"}, "other") == "77096"
     assert location_value({"Facebook": "houston"}, "facebook") == "houston"
-    assert location_value({"offerup": "77096"}, "facebook") is None
+    assert location_value({"other": "77096"}, "facebook") is None
     assert is_location({"facebook": "houston"}) and is_location("houston")
     assert not is_location({}) and not is_location({"facebook": 3}) and not is_location(3)
 
@@ -39,8 +39,8 @@ def test_values_of_a_table_by_marketplace_type() -> None:
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ('{ facebook = "houston", offerup = "77096" }', ["houston"]),
-        ('["dallas", { facebook = "houston", offerup = "77096" }]', ["dallas", "houston"]),
+        ('{ facebook = "houston", other = "77096" }', ["houston"]),
+        ('["dallas", { facebook = "houston", other = "77096" }]', ["dallas", "houston"]),
         ('"houston"', ["houston"]),
     ],
 )
@@ -57,7 +57,7 @@ def test_a_table_without_the_sections_type_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="has no value for facebook marketplaces"):
         _config(
             tmp_path,
-            FACEBOOK + 'search_city = { offerup = "77096" }\n[item.bike]\nsearch_phrases = "b"\n',
+            FACEBOOK + 'search_city = { other = "77096" }\n[item.bike]\nsearch_phrases = "b"\n',
         )
 
 
@@ -72,7 +72,7 @@ def test_a_tables_value_is_checked_in_the_marketplaces_format(tmp_path: Path) ->
 
 REGION = """
 [region.texas]
-search_city = [{ facebook = "houston", offerup = "77002" }, { facebook = "dallas", offerup = "75201" }]
+search_city = [{ facebook = "houston", other = "77002" }, { facebook = "dallas", other = "75201" }]
 radius = 50
 """
 
@@ -85,14 +85,14 @@ def test_a_region_lists_its_cities_by_type(tmp_path: Path) -> None:
     market = config.marketplace["facebook"]
     assert market.search_city == ["houston", "dallas"]
     assert market.city_name == ["Houston", "Dallas"]
-    assert config.region["texas"].search_city[0] == {"facebook": "houston", "offerup": "77002"}
+    assert config.region["texas"].search_city[0] == {"facebook": "houston", "other": "77002"}
 
 
 def test_a_region_without_the_sections_type_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Region .*texas.* has no facebook value"):
         _config(
             tmp_path,
-            '[region.texas]\nsearch_city = [{ offerup = "77002" }]\n'
+            '[region.texas]\nsearch_city = [{ other = "77002" }]\n'
             + FACEBOOK
             + 'search_region = "texas"\n[item.bike]\nsearch_phrases = "bike"\n',
         )
@@ -165,7 +165,7 @@ def test_the_chat_reads_the_facebook_codes_and_shows_tables() -> None:
     from ai_marketplace_monitor.configure.toolkits import listed
     from ai_marketplace_monitor.configure.workspace import _codes
 
-    value = ["dallas", {"facebook": "houston", "offerup": "77096"}, {"offerup": "75201"}]
+    value = ["dallas", {"facebook": "houston", "other": "77096"}, {"other": "75201"}]
     assert _codes(value) == {"dallas", "houston"}
     assert listed(value) == ["dallas", "houston / 77096", "75201"]
 
@@ -177,12 +177,12 @@ def test_a_config_with_tables_can_be_normalized() -> None:
     text = (
         REGION
         + FACEBOOK
-        + 'search_city = { facebook = "houston", offerup = "77096" }\n'
+        + 'search_city = { facebook = "houston", other = "77096" }\n'
         + '[item.bike]\nsearch_phrases = "bike"\nmarketplace = "facebook"\n'
         + USER
     )
     expanded = expand(parse(text), system_cfg()).config
-    assert expanded["item"]["bike"]["search_city"] == {"facebook": "houston", "offerup": "77096"}
+    assert expanded["item"]["bike"]["search_city"] == {"facebook": "houston", "other": "77096"}
     normalize(parse(text), system_cfg())
 
 

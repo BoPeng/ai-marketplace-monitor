@@ -132,7 +132,7 @@ Use ``--config`` or ``--config-file`` to read and update a specific config file.
 Marketplaces
 ~~~~~~~~~~~~
 
-``aimm configure marketplace`` sets up where and how to search Facebook Marketplace or OfferUp with
+``aimm configure marketplace`` sets up where and how to search Facebook Marketplace with
 the help of your default AI service (the AI setup runs first if it cannot be used). It lists your
 existing marketplaces, each with its ``request`` (a short summary of what you asked for)
 and its settings, and asks whether to update one or create a new one;

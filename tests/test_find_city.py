@@ -222,10 +222,6 @@ def test_find_city_lists_the_places_for_the_user_to_choose(
         "113623475314526",
         "487995858630733",
     ]
-    # OfferUp searches around the place's coordinates
-    lat, lon = (float(x) for x in out["places"][0]["offerup"].split(","))
-    assert -90 <= lat <= 90 and -180 <= lon <= 180
-    assert out["places"][0]["offerup"] in ws.found_city_codes
     assert out["places"][1]["place"] == "Los Angeles, La Salle County, Texas"
     assert {"113623475314526", "487995858630733"} <= ws.found_city_codes
     assert saved["ok"], saved  # the guard against made-up codes accepts a found code
@@ -317,7 +313,6 @@ def test_los_angeles_tx_is_saved_with_its_code(
         "place": "Los Angeles Subdivision, Texas",
         "detail": "City",
         "facebook": "113623475314526",
-        "offerup": "27.0000,-97.9000",
     }
     assert outcome is Outcome.SAVED
     marketplace = tomllib.loads(written)["marketplace"]["facebook"]

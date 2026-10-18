@@ -5,9 +5,9 @@ storage:
 category: automation
 name: AI Marketplace Monitor
 version: "0.10.16"
-tagline: Find Facebook Marketplace and OfferUp deals with AI
+tagline: Find Facebook Marketplace deals with AI
 description: >-
-  AI Marketplace Monitor (aimm) watches Facebook Marketplace and OfferUp for the items you want,
+  AI Marketplace Monitor (aimm) watches Facebook Marketplace for the items you want,
   rates each new listing with AI, and notifies you of good deals by email, phone,
   Discord, Slack, Telegram and more.
 

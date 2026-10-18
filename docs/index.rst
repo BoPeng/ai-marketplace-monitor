@@ -1,7 +1,7 @@
 AI Marketplace Monitor Documentation
 ====================================
 
-An intelligent tool that monitors **Facebook Marketplace** and **OfferUp** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
+An intelligent tool that monitors **Facebook Marketplace** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
 
 .. image:: AIMM_neutral.png
    :alt: AI Marketplace Monitor Logo

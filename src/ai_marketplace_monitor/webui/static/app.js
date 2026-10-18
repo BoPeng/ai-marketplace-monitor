@@ -1698,19 +1698,6 @@
     ],
   };
 
-  // OfferUp's form: the Facebook form without what OfferUp lacks (login, language,
-  // categories, availability, currency); its location is a US ZIP code.
-  const OFFERUP_OMIT = ["username", "password", "login_wait_time", "language", "category", "availability", "currency"];
-  FORM_SCHEMAS["marketplace.offerup"] = FORM_SCHEMAS["marketplace.facebook"]
-    .filter((field) => !OFFERUP_OMIT.includes(field.key))
-    .map((field) =>
-      field.key === "search_city"
-        ? { ...field, label: "ZIP code", help: "US ZIP code(s) to search around, comma-separated, e.g. '77002'." }
-        : field.key === "radius"
-          ? { ...field, help: "Miles: OfferUp offers 5, 10, 20, 30 and 50 (the nearest is used)." }
-          : field
-    );
-
   // search_city may hold tables of values by marketplace type
   const isTableValue = (v) =>
     (v !== null && typeof v === "object" && !Array.isArray(v)) ||
@@ -1890,7 +1877,7 @@
 
       let input;
       const rawVal = fields[fieldDef.key];
-      // A table (search_city = { facebook = "houston", offerup = "77096" }) is shown, not
+      // A table (search_city = { facebook = "houston" }) is shown, not
       // edited: the form keeps it as it is.
       const table = isTableValue(rawVal);
       // Flatten arrays to comma-separated for text fields.
@@ -2000,7 +1987,7 @@
 
   };
 
-  // Split a comma-separated search_city, keeping OfferUp's "lat,lon" pairs whole:
+  // Split a comma-separated search_city, keeping "lat,lon" coordinate pairs whole:
   // "29.76,-95.37, 77002" is ["29.76,-95.37", "77002"].
   const splitCities = (text) => {
     const parts = text.split(",").map((s) => s.trim()).filter(Boolean);

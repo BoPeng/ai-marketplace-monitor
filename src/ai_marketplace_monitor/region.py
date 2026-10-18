@@ -12,8 +12,8 @@ def _label(entry: Any) -> str:
 
 @dataclass
 class RegionConfig(BaseConfig):
-    # values, or tables of values by marketplace type ({ facebook = "houston", offerup =
-    # "77002" }); each section that uses the region takes the values of its type
+    # values, or tables of values by marketplace type ({ facebook = "houston" }); each
+    # section that uses the region takes the values of its type
     search_city: List[Any] = field(default_factory=list)
     full_name: str = ""
     radius: List[int] = field(default_factory=list)
@@ -30,7 +30,7 @@ class RegionConfig(BaseConfig):
         ):
             raise ValueError(
                 f"Region {self.name} search_city must be a list of strings or of tables of "
-                'strings by marketplace type (e.g. { facebook = "houston", offerup = "77002" }).'
+                'strings by marketplace type (e.g. { facebook = "houston" }).'
             )
 
     def handle_radius(self: "RegionConfig") -> None:
