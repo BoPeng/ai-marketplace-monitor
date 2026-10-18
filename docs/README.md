@@ -375,7 +375,7 @@ See [Setting up email notifications](https://ai-marketplace-monitor.readthedocs.
 
 | Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
 | --- | --- | --- | --- |
-| **Phone and chat alerts** | `[notification.unitysvc]`: free, to your UnitySVC inbox and the destination you choose there (Discord, Slack, SMS, phone push and 100+ others; a paid destination such as SMS costs a little) | the same section, with your own Pushover, Telegram, Discord or other account as the destination, its token saved in UnitySVC | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
+| **Phone and chat alerts** | `[notification.unitysvc]`: free, to your UnitySVC inbox and the destinations you choose there (Discord, Slack, SMS, phone push and 100+ others), each through your own account for it, its token saved in UnitySVC | The same: alerts through UnitySVC always use your own accounts | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
 
 A `[notification.NAME]` section is one phone or chat channel. It sends a short text message for each batch of new listings, without photos.
 
@@ -395,12 +395,9 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
 - The default `notify` service (free) shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences, so you can change where notifications go without touching aimm's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
-- The default `notify` service shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
 - To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
 
-#### UnitySVC with your own accounts (BYOK)
-
-Keep `[notification.unitysvc]` as it is, and choose your own account as the destination in UnitySVC: for example your Pushover, Telegram or Discord, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
+Every destination is your own account for that service, such as your Pushover, Telegram or Discord, with its token saved as a secret in your UnitySVC account: alerts through UnitySVC are always "bring your own key", so there is no separate BYOK option. aimm's configuration holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
 
 #### Without UnitySVC
 
