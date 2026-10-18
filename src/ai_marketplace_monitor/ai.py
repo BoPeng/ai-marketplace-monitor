@@ -1,6 +1,11 @@
 import base64
 import io
+import json
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -25,6 +30,7 @@ class AIServiceProvider(Enum):
     ANTHROPIC = "Anthropic"
     OLLAMA = "Ollama"
     UNITYSVC = "UnitySVC"
+    CLAUDE_CODE = "claude_code"
 
 
 def _answer_key(listing: Listing, item_config: Any, marketplace_config: Any) -> Tuple[Any, ...]:
@@ -278,6 +284,24 @@ class AnthropicConfig(AIConfig):
             raise ValueError("Anthropic requires a string api_key.")
 
 
+@dataclass
+class ClaudeCodeConfig(AIConfig):
+    # the Claude Code CLI, which signs in with a Claude subscription instead of an API key
+    command: str = "claude"
+
+    def handle_api_key(self: "ClaudeCodeConfig") -> None:
+        if self.api_key is not None:
+            raise ValueError(
+                "Claude Code uses the login of the claude command, not an api_key; "
+                "remove api_key from the section."
+            )
+
+    def handle_command(self: "ClaudeCodeConfig") -> None:
+        if not isinstance(self.command, str) or not self.command.strip():
+            raise ValueError("Claude Code requires a non-empty string command.")
+        self.command = self.command.strip()
+
+
 TAIConfig = TypeVar("TAIConfig", bound=AIConfig)
 
 # told to the AI along with the photo, so it checks what is actually for sale
@@ -345,6 +369,31 @@ def token_usage(response: Any) -> str:
     if not isinstance(sent, int) or not isinstance(received, int):
         return ""
     return f" ({sent} input / {received} output tokens)"
+
+
+def rating_and_comment(answer: str) -> Tuple[int, str]:
+    """The rating and the summary from an AI answer that contains "Rating <1-5>: <summary>"."""
+    lines = answer.split("\n")
+    # if any of the lines contains "Rating: ", extract the rating from it.
+    score: int = 1
+    comment = ""
+    rating_line = None
+    for idx, line in enumerate(lines):
+        matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
+        if matched:
+            score = int(matched.group(1))
+            comment = matched.group(2).strip()
+            rating_line = idx
+            continue
+        if rating_line is not None:
+            # if the AI puts comment after Rating, we need to include them
+            comment += " " + line
+    # if the AI puts the rating at the end, let us try to use the line before the Rating line
+    if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
+        comment = lines[rating_line - 1]
+
+    # remove multiple spaces
+    return score, " ".join([x for x in comment.split() if x.strip()]).strip()
 
 
 class AIBackend(Generic[TAIConfig]):
@@ -688,27 +737,7 @@ class OpenAIBackend(AIBackend):
             counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        lines = answer.split("\n")
-        # if any of the lines contains "Rating: ", extract the rating from it.
-        score: int = 1
-        comment = ""
-        rating_line = None
-        for idx, line in enumerate(lines):
-            matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
-            if matched:
-                score = int(matched.group(1))
-                comment = matched.group(2).strip()
-                rating_line = idx
-                continue
-            if rating_line is not None:
-                # if the AI puts comment after Rating, we need to include them
-                comment += " " + line
-        # if the AI puts the rating at the end, let us try to use the line before the Rating line
-        if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
-            comment = lines[rating_line - 1]
-
-        # remove multiple spaces, take first 30 words
-        comment = " ".join([x for x in comment.split() if x.strip()]).strip()
+        score, comment = rating_and_comment(answer)
         res = AIResponse(name=self.config.name, score=score, comment=comment)
         res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
@@ -884,23 +913,7 @@ class AnthropicBackend(AIBackend):
             counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
             raise ValueError(f"Empty or invalid response from {self.config.name}: {response}")
 
-        lines = answer.split("\n")
-        score: int = 1
-        comment = ""
-        rating_line = None
-        for idx, line in enumerate(lines):
-            matched = re.match(r".*Rating[^1-5]*([1-5])[:\s]*(.*)", line)
-            if matched:
-                score = int(matched.group(1))
-                comment = matched.group(2).strip()
-                rating_line = idx
-                continue
-            if rating_line is not None:
-                comment += " " + line
-        if len(comment.strip()) < 5 and rating_line is not None and rating_line > 0:
-            comment = lines[rating_line - 1]
-
-        comment = " ".join([x for x in comment.split() if x.strip()]).strip()
+        score, comment = rating_and_comment(answer)
         res = AIResponse(name=self.config.name, score=score, comment=comment)
         res.to_cache(listing, item_config, marketplace_config)
         counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
@@ -925,3 +938,191 @@ class AnthropicBackend(AIBackend):
                 {"type": "text", "text": f"{prompt}\n{IMAGE_NOTE}"},
             ],
         }
+
+
+class ClaudeCodeError(RuntimeError):
+    """A failed ``claude -p`` request; ``status_code`` is the API's HTTP status, if any."""
+
+    def __init__(self: "ClaudeCodeError", message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class ClaudeCodeBackend(AIBackend):
+    """Claude through the Claude Code CLI (``claude -p``), with the CLI's own login.
+
+    With a Claude subscription, ratings count toward the subscription's usage limits instead
+    of being billed per token. Listings are untrusted text, so ``claude`` runs with no tools,
+    no MCP servers, no settings or hooks and no saved session, in an empty directory. Its
+    environment has no ``ANTHROPIC_API_KEY``, which would make it bill that key instead (an
+    aimm user with ``[ai.anthropic]`` often has one set).
+    """
+
+    # a CLI alias for the latest Sonnet; the CLI's own default may be a larger model
+    default_model = "sonnet"
+    # as for Anthropic: a smaller photo is enough, and uses less of the usage limit
+    image_max_side = 400
+    # seconds for one request when the section sets no timeout; the CLI starts in a few
+    default_timeout = 180
+
+    @classmethod
+    def get_config(cls: Type["ClaudeCodeBackend"], **kwargs: Any) -> ClaudeCodeConfig:
+        return ClaudeCodeConfig(**kwargs)
+
+    def connect(self: "ClaudeCodeBackend") -> None:
+        if self.client is None:
+            command = getattr(self.config, "command", "claude")
+            path = shutil.which(command)
+            if path is None:
+                raise RuntimeError(
+                    f"{self.config.name}: the Claude Code command {command!r} was not found. "
+                    "Install Claude Code and sign in with `claude`, or set `command` to its path."
+                )
+            # the client is the path of the claude command
+            self.client = path
+            if self.logger:
+                self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
+
+    def command_line(self: "ClaudeCodeBackend", system: str) -> list[str]:
+        """The ``claude`` command line for one request with the ``system`` prompt."""
+        return [
+            self.client,
+            "-p",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+            "--verbose",  # required by --output-format stream-json
+            "--tools",
+            "",
+            "--strict-mcp-config",
+            "--setting-sources",
+            "",
+            "--disable-slash-commands",
+            "--no-session-persistence",
+            "--model",
+            self.config.model or self.default_model,
+            "--system-prompt",
+            system,
+        ]
+
+    def ask(
+        self: "ClaudeCodeBackend",
+        prompt: str,
+        system: str,
+        image: ListingImage | None = None,
+        timeout: float | None = None,
+    ) -> str:
+        """Claude's answer to ``prompt``; raises ClaudeCodeError when the request fails."""
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        if image is not None:
+            content = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": image.data,
+                    },
+                },
+                {"type": "text", "text": f"{prompt}\n{IMAGE_NOTE}"},
+            ]
+        message = {"type": "user", "message": {"role": "user", "content": content}}
+        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        timeout = timeout or self.config.timeout or self.default_timeout
+        with tempfile.TemporaryDirectory(prefix="aimm-claude-") as cwd:
+            try:
+                process = subprocess.run(
+                    self.command_line(system),
+                    input=json.dumps(message) + "\n",
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=cwd,
+                    env=env,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                raise ClaudeCodeError(f"claude did not answer in {timeout:g} seconds") from None
+        result: dict[str, Any] | None = None
+        for line in process.stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "result":
+                result = event
+        if result is None:
+            tail = (process.stderr or process.stdout).strip()[-300:]
+            raise ClaudeCodeError(f"claude exited with {process.returncode}: {tail}")
+        if result.get("is_error"):
+            status = result.get("api_error_status")
+            raise ClaudeCodeError(
+                str(result.get("result") or result.get("subtype") or "claude failed"),
+                status if isinstance(status, int) else None,
+            )
+        return str(result.get("result") or "")
+
+    def summarize(self: "ClaudeCodeBackend", prompt: str) -> str:
+        return self._summarize_with(
+            lambda: self.ask(prompt, SUMMARY_SYSTEM, timeout=SUMMARY_TIMEOUT)
+        )
+
+    def evaluate(
+        self: "ClaudeCodeBackend",
+        listing: Listing,
+        item_config: TItemConfig,
+        marketplace_config: TMarketplaceConfig,
+    ) -> AIResponse:
+        counter.increment(CounterItem.AI_QUERY, item_config.name)
+        prompt = self.get_prompt(listing, item_config, marketplace_config)
+        res: AIResponse | None = AIResponse.from_cache(listing, item_config, marketplace_config)
+        if res is not None:
+            if self.logger:
+                self.logger.debug(
+                    f"""{hilight("[AI]", res.style)} {self.config.name} previously concluded {hilight(f"{res.conclusion} ({res.score}): {res.comment}", res.style)} for listing {hilight(listing.title)}."""
+                )
+            return res
+
+        retries = 0
+        answer: str | None = None
+        last_error: Exception | None = None
+        image = self.listing_image(listing)
+        while retries < self.config.max_retries:
+            self.connect()
+            self.wait_for_rate_limit()
+            try:
+                answer = self.ask(
+                    prompt,
+                    "You are a helpful assistant that can confirm if a user's search criteria matches the item he is interested in.",
+                    image,
+                )
+                break
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                last_error = e
+                if self.logger:
+                    self.logger.error(
+                        f"""{hilight("[AI-Error]", "fail")} {self.config.name} failed to evaluate {hilight(listing.title)}: {e}"""
+                    )
+                retries += 1
+                delay = self.retry_delay(e)
+                time.sleep(delay)
+
+        if answer is None:
+            raise RuntimeError(
+                f"{self.config.name} failed to evaluate {listing.title} after {retries} retries"
+            ) from last_error
+
+        if self.logger:
+            self.logger.debug(f"""{hilight("[AI-Response]", "info")} {answer}""")
+        if not answer.strip() or re.search(r"Rating[^1-5]*[1-5]", answer, re.DOTALL) is None:
+            counter.increment(CounterItem.FAILED_AI_QUERY, item_config.name)
+            raise ValueError(f"Empty or invalid response from {self.config.name}: {answer}")
+
+        score, comment = rating_and_comment(answer)
+        res = AIResponse(name=self.config.name, score=score, comment=comment)
+        res.to_cache(listing, item_config, marketplace_config)
+        counter.increment(CounterItem.NEW_AI_QUERY, item_config.name)
+        return res

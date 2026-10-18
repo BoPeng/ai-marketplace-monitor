@@ -82,6 +82,23 @@ Without UnitySVC
     [ai.openai]
     api_key = '${OPENAI_API_KEY}'
 
+Claude with a Claude subscription (Claude Code)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you have `Claude Code <https://claude.com/claude-code>`_ and a Claude subscription, ``[ai.claude_code]`` rates listings with ``claude -p`` instead of an API key, so ratings count toward your subscription's usage limits rather than being billed per token:
+
+.. code-block:: toml
+
+    [ai.claude_code]
+    model = "sonnet"   # optional: any model or alias `claude --model` accepts
+    # command = "/path/to/claude"   # optional, if `claude` is not on the PATH
+
+.. note::
+   1. Install Claude Code and sign in once by running ``claude`` as the user that runs aimm. The Docker image does not include Claude Code.
+   2. Listings are untrusted text, so ``claude`` runs with no tools, no MCP servers, no settings or hooks, and no saved session, in an empty directory.
+   3. ``ANTHROPIC_API_KEY`` is removed from ``claude``'s environment, so it never bills that key instead of your subscription.
+   4. ``[ai.claude_code]`` rates listings and writes digest summaries, but it cannot run the ``aimm configure`` chat, which needs an AI service with an API.
+
 Self-hosted AI with Ollama
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

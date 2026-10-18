@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Awaitable, Callable, Dict, List
 
-from ..ai import AIBackend, AnthropicBackend
+from ..ai import AIBackend, AnthropicBackend, ClaudeCodeBackend
 from .agent import ModelReply, ServiceError
 from .ai_setup import scrub
 
@@ -29,6 +29,12 @@ def model_id(backend: AIBackend) -> str:
     from mirascope import llm
 
     config = backend.config
+    if isinstance(backend, ClaudeCodeBackend):
+        # `claude -p` runs without tools, and the configure chat needs tool calls
+        raise ServiceError(
+            f"[ai.{config.name}] (Claude Code) rates listings but cannot run aimm configure; "
+            "list an AI section with an API key first to use the chat."
+        )
     model = str(config.model or getattr(backend, "default_model", ""))
     if "/" in model:
         raise ServiceError(
