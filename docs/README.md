@@ -395,11 +395,18 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
 - The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching aimm's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
-- To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
 
 #### UnitySVC with your own accounts (BYOK)
 
 Without a destination of your own, `notify` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Keep `[notification.unitysvc]` as it is, and choose your own account as the notification destination in UnitySVC: for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only `UNITYSVC_API_KEY`. To send to one of these services directly instead of through `notify`, set `unitysvc_service` to the path or enrollment that UnitySVC shows for it.
+
+To send each alert to several of your accounts at once, for example Discord, Telegram and SMS, either set them all as destinations in your UnitySVC notification preferences, or create a UnitySVC **broadcast** (a name and up to 10 targets, such as these services or their enrollments) and use it: save it as your notification destination and keep `notify`, or send to it directly with `unitysvc_service = "b/<broadcast name>"`:
+
+```toml
+[notification.everywhere]
+unitysvc_api_key = '${UNITYSVC_API_KEY}'
+unitysvc_service = 'b/my-alerts'
+```
 
 #### Without UnitySVC
 

@@ -248,6 +248,14 @@ The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notificati
     [user.me]
     notify_with = 'notification.unitysvc'
 
+.. note::
+   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
+
+UnitySVC with your own accounts (BYOK)
+--------------------------------------
+
+Without a destination of your own, ``notify`` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Choose your own account as the notification destination in UnitySVC, for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time without touching it.
+
 To send to one specific UnitySVC service instead, set ``unitysvc_service`` to its path. Such a message skips the inbox.
 
 .. code-block:: toml
@@ -257,21 +265,13 @@ To send to one specific UnitySVC service instead, set ``unitysvc_service`` to it
     unitysvc_service = 'labs/msg-to-discord'
     message_format = 'markdown'
 
-To notify several destinations at once, for example email, SMS and a chat app, create a UnitySVC **broadcast** with up to 10 targets. Either save it as your notification destination on UnitySVC and keep the default ``notify`` service, or send to it directly:
+To send each alert to several of your accounts at once, for example Discord, Telegram and SMS, set them all as destinations in your UnitySVC notification preferences, or create a UnitySVC **broadcast** with up to 10 targets. You can save the broadcast as your notification destination and keep the default ``notify`` service, or send to it directly:
 
 .. code-block:: toml
 
     [notification.everywhere]
     unitysvc_api_key = '${UNITYSVC_API_KEY}'
     unitysvc_service = 'b/my-alerts'
-
-.. note::
-   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
-
-UnitySVC with your own accounts (BYOK)
---------------------------------------
-
-Without a destination of your own, ``notify`` only puts the messages in your inbox on the UnitySVC website, so this is the setup to use. Choose your own account as the notification destination in UnitySVC, for example your Discord, Slack, Telegram or Pushover, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time without touching it.
 
 Without UnitySVC
 ----------------
