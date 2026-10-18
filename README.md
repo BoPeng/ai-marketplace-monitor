@@ -42,6 +42,7 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 ## What's New
 
 - **Two marketplaces**: AIMM searches [OfferUp](docs/README.md#offerup) (US) as well as Facebook Marketplace. OfferUp needs no account and no browser, and an item can be searched in both; `aimm configure` sets either up.
+- **Runs on your NAS or home server**: install AIMM on Unraid, TrueNAS SCALE, CasaOS, ZimaOS, Cosmos or Portainer from its template, or on a Synology or QNAP NAS with Docker, so it searches around the clock. See [Run with Docker](#run-with-docker).
 - **Seller reputation**: AIMM evaluates each seller, from how long they have been on Facebook, their listings and sales, their rating and what buyers say in reviews, and the AI identifies unreliable and malicious sellers automatically: new accounts, dealers posing as private sellers, bait listings, no-shows. Its rating and notifications tell you why. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information).
 - **Guided Facebook login**: AIMM types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
 - **AI-assisted configuration**: `aimm configure` guides users through AI services, marketplace searches, items, notifications, regions, translations, and monitor settings without hand-writing TOML.
