@@ -156,7 +156,7 @@ NOTIFICATION_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "message_format",
         "how messages are formatted",
-        '`"plain_text"`, `"markdown"` or `"html"`',
+        '`"plain_text"` or `"markdown"`',
         '`"plain_text"`',
     ),
     FieldGuide(

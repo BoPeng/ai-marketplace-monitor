@@ -1675,7 +1675,7 @@
       { key: "digest_at", label: "Daily digest at", type: "text", group: "Other", advanced: true,
         help: "Local time of a short daily summary; usually left empty when email sends the digest." },
       { key: "message_format", label: "Message format", type: "text", advanced: true,
-        help: "plain_text, markdown or html." },
+        help: "plain_text or markdown." },
       { key: "with_description", label: "With description", type: "text", advanced: true,
         help: "true, false, or the number of characters." },
     ],

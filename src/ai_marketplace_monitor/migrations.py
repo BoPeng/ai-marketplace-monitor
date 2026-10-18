@@ -478,10 +478,26 @@ def migrate_digest_from_user_to_notification_and_email(docs: Docs) -> List[str]:
     return changes
 
 
+def migrate_message_format_html_to_markdown(docs: Docs) -> List[str]:
+    """message_format = "html" becomes "markdown", which every channel that formats renders.
+
+    Only [notification.unitysvc] sent HTML as chosen; ntfy sent it as plain text, and
+    Pushover and Telegram build their own formatting whatever the value.
+    """
+    changes = []
+    for kind in ("notification", "user"):
+        for _doc, name, table in _tables(docs, kind):
+            if table.get("message_format") == "html":
+                table["message_format"] = "markdown"
+                changes.append(f'[{kind}.{name}] message_format "html" is now "markdown"')
+    return changes
+
+
 MIGRATIONS: List[Callable[[Docs], List[str]]] = [
     migrate_email_from_notification_to_email_section,
     migrate_channels_from_user_to_sections,
     migrate_digest_from_user_to_notification_and_email,
+    migrate_message_format_html_to_markdown,
 ]
 
 

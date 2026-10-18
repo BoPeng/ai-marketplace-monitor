@@ -468,7 +468,7 @@ def test_configure_tests_only_offered_sections(tmp_path: Path, sent: List[str]) 
 
 
 # --- the test looks like a real notification --------------------------------------------------
-@pytest.mark.parametrize("message_format", ["plain_text", "markdown", "html"])
+@pytest.mark.parametrize("message_format", ["plain_text", "markdown"])
 def test_a_push_test_is_a_real_notification(
     message_format: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

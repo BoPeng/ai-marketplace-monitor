@@ -21,6 +21,7 @@ from ai_marketplace_monitor.migrations import (
     migrate_digest_from_user_to_notification_and_email,
     migrate_documents,
     migrate_email_from_notification_to_email_section,
+    migrate_message_format_html_to_markdown,
 )
 
 HEAD = """
@@ -481,3 +482,33 @@ def test_a_file_that_cannot_be_written_is_read_migrated(
     finally:
         tmp_path.chmod(0o755)
         path.chmod(0o644)
+
+
+def test_message_format_html_becomes_markdown() -> None:
+    cfg = _migrate(
+        """
+    [notification.unitysvc]
+    unitysvc_api_key = "k"
+    message_format = "html"
+
+    [notification.ntfy]
+    ntfy_server = "https://ntfy.sh"
+    ntfy_topic = "t"
+    message_format = "markdown"
+
+    [user.me]
+    notify_with = ["notification.unitysvc", "notification.ntfy"]
+    """
+    )
+    assert cfg["notification"]["unitysvc"]["message_format"] == "markdown"
+    assert cfg["notification"]["ntfy"]["message_format"] == "markdown"
+
+
+def test_message_format_migration_reports_each_section() -> None:
+    doc = tomlkit.parse(
+        '[notification.a]\nmessage_format = "html"\n[notification.b]\nmessage_format = "plain_text"\n'
+    )
+    assert migrate_message_format_html_to_markdown([doc]) == [
+        '[notification.a] message_format "html" is now "markdown"'
+    ]
+    assert migrate_message_format_html_to_markdown([doc]) == []
