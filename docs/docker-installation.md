@@ -185,9 +185,9 @@ On first start, aimm creates `config.toml` in the mounted directory (`data/confi
 - rates listings with UnitySVC AI (`[ai.unitysvc]`, model `balanced`, which also reads listing photos)
 - sends each match as an email with photos (`[email.unitysvc]`) to the address registered with UnitySVC, and as a short message (`[notification.unitysvc]`) to your UnitySVC inbox and the destination you saved in UnitySVC (Discord, Slack, SMS, phone push, ...)
 - sends a daily digest by email at 08:00 (`digest_at` in `[email.unitysvc]`)
+- searches for an example item, `[item.example]`
 
 A configuration file from an earlier version of aimm is updated to the current format the first time aimm reads it; the old file is kept as `config.toml.bak`.
-- searches for an example item, `[item.example]`
 
 The settings that hold secrets name environment variables, such as `api_key = "${UNITYSVC_API_KEY}"`, so the file contains no passwords.
 

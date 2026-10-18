@@ -14,7 +14,7 @@ import shutil
 from dataclasses import fields
 from logging import Logger
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Tuple, cast
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Tuple, cast
 
 import tomlkit
 from tomlkit.items import Comment, Null, Table, Whitespace
@@ -49,7 +49,7 @@ def _plain(value: Any) -> Any:
 
 
 def _tables(docs: Docs, kind: str) -> Iterator[Tuple[TOMLDocument, str, Table]]:
-    """The [kind.*] sections of all files, with their file."""
+    """The [kind.*] sections of all files, with their file (a name may be in several)."""
     for doc in docs:
         for name, table in list(doc.get(kind, {}).items()):
             if isinstance(table, Table):
@@ -57,7 +57,26 @@ def _tables(docs: Docs, kind: str) -> Iterator[Tuple[TOMLDocument, str, Table]]:
 
 
 def _names(docs: Docs, kind: str) -> List[str]:
-    return [name for _, name, _ in _tables(docs, kind)]
+    """The names of the [kind.*] sections, each once."""
+    return list(dict.fromkeys(name for _, name, _ in _tables(docs, kind)))
+
+
+def _defs(docs: Docs, kind: str, name: str) -> List[Tuple[TOMLDocument, Table]]:
+    """Where [kind.name] is defined, in reading order: later files override earlier ones."""
+    return [(d, t) for d, n, t in _tables(docs, kind) if n == name]
+
+
+def _merged(docs: Docs, kind: str, name: str) -> Dict[str, Any]:
+    """The values of [kind.name] as aimm reads them, from all the files that define it."""
+    values: Dict[str, Any] = {}
+    for _, table in _defs(docs, kind, name):
+        values.update({k: _plain(v) for k, v in table.items()})
+    return values
+
+
+def _last(docs: Docs, kind: str, name: str) -> Table:
+    """The definition of [kind.name] whose values win (the one to change)."""
+    return _defs(docs, kind, name)[-1][1]
 
 
 def _section_keys(docs: Docs) -> List[str]:
@@ -67,9 +86,8 @@ def _section_keys(docs: Docs) -> List[str]:
     ]
 
 
-def _find(docs: Docs, key: str) -> Table | None:
-    kind, name = key.split(".", 1)
-    return next((t for _, n, t in _tables(docs, kind) if n == name), None)
+def _section(docs: Docs, key: str) -> Dict[str, Any]:
+    return _merged(docs, *key.split(".", 1))
 
 
 def _resolve(docs: Docs, entry: str) -> str | None:
@@ -86,8 +104,9 @@ def _listed(value: Any) -> List[str]:
     return [value] if isinstance(value, str) else list(value or [])
 
 
-def _received(docs: Docs, user: Table) -> List[str]:
+def _received(docs: Docs, user_name: str) -> List[str]:
     """The enabled sections a user receives, as "email.<name>" and "notification.<name>"."""
+    user = _merged(docs, "user", user_name)
     if "notify_with" in user:
         keys = [_resolve(docs, e) for e in _listed(user["notify_with"])]
     else:
@@ -95,8 +114,15 @@ def _received(docs: Docs, user: Table) -> List[str]:
     return [
         k
         for k in dict.fromkeys(k for k in keys if k is not None)
-        if _plain(_find(docs, k).get("enabled")) is not False  # type: ignore[union-attr]
+        if _section(docs, k).get("enabled") is not False
     ]
+
+
+def _set_list(docs: Docs, user_name: str, key: str, value: List[str]) -> None:
+    """Set a user's list where it is defined last (or in the last definition of the user)."""
+    defs = [t for _, t in _defs(docs, "user", user_name)]
+    table = next((t for t in reversed(defs) if key in t), defs[-1])
+    table[key] = value
 
 
 def _make_explicit(docs: Docs) -> None:
@@ -104,9 +130,9 @@ def _make_explicit(docs: Docs) -> None:
 
     A user without notify_with receives every section, and would also receive the new one.
     """
-    for _, _, user in _tables(docs, "user"):
-        if "notify_with" not in user:
-            user["notify_with"] = _received(docs, user)
+    for user_name in _names(docs, "user"):
+        if "notify_with" not in _merged(docs, "user", user_name):
+            _set_list(docs, user_name, "notify_with", _received(docs, user_name))
 
 
 def _new_name(docs: Docs, kind: str, wanted: List[str]) -> str:
@@ -162,18 +188,17 @@ def _trailing(table: Table) -> List[Any]:
     return items
 
 
-def _previous(doc: TOMLDocument, kind: str, name: str) -> Table | None:
-    """The section just above [kind.name] in the file."""
+def _previous(doc: TOMLDocument, table: Table) -> Table | None:
+    """The section just above ``table`` in the file."""
     order = [t for k in doc for _, _, t in _tables([doc], k)]
-    target = cast(Table, doc[kind])[name]
-    index = next(i for i, t in enumerate(order) if t is target)
+    index = next(i for i, t in enumerate(order) if t is table)
     return order[index - 1] if index else None
 
 
 def _delete_section(doc: TOMLDocument, kind: str, name: str) -> None:
-    """Remove a section; the lines above the next one stay where they are."""
+    """Remove a section from a file; the lines above the next one stay where they are."""
     table = cast(Table, cast(Table, doc[kind])[name])
-    above = _previous(doc, kind, name)
+    above = _previous(doc, table)
     lines = _trailing(table)
     if above is not None:
         _move_lines(lines, above)
@@ -193,20 +218,25 @@ def _copy_section(table: Table, keep: Callable[[str], bool]) -> Table:
 
 def _same_section(docs: Docs, kind: str, values: Dict[str, Any]) -> str | None:
     """An existing section of this kind with exactly these values."""
-    return next(
-        (n for _, n, t in _tables(docs, kind) if {k: _plain(v) for k, v in t.items()} == values),
-        None,
-    )
+    return next((n for n in _names(docs, kind) if _merged(docs, kind, n) == values), None)
 
 
-def _replace_in_lists(docs: Docs, user: Table, old: str, new: List[str]) -> None:
-    for key in ("notify_with", "digest_with"):
-        if key not in user:
-            continue
-        entries: List[str] = []
-        for entry in _listed(user[key]):
-            entries += new if _resolve(docs, entry) == old or entry == old else [entry]
-        user[key] = list(dict.fromkeys(entries))
+def _replace_in_lists(docs: Docs, user_name: str, old: str, new: List[str]) -> None:
+    for _, user in _defs(docs, "user", user_name):
+        for key in ("notify_with", "digest_with"):
+            if key not in user:
+                continue
+            entries: List[str] = []
+            for entry in _listed(user[key]):
+                entries += new if _resolve(docs, entry) == old or entry == old else [entry]
+            user[key] = list(dict.fromkeys(entries))
+
+
+def _remove_everywhere(docs: Docs, kind: str, name: str, keys: Iterable[str]) -> None:
+    for _, table in _defs(docs, kind, name):
+        for key in keys:
+            if key in table:
+                _remove(table, key)
 
 
 def _for_user(docs: Docs, key: str, user_name: str, updates: Dict[str, Any]) -> str:
@@ -216,25 +246,25 @@ def _for_user(docs: Docs, key: str, user_name: str, updates: Dict[str, Any]) -> 
     receives instead. The section is returned as "<kind>.<name>".
     """
     kind, name = key.split(".", 1)
-    receivers = [n for _, n, u in _tables(docs, "user") if key in _received(docs, u)]
-    table = _find(docs, key)
-    assert table is not None
+    receivers = [u for u in _names(docs, "user") if key in _received(docs, u)]
     if receivers == [user_name]:
+        table = _last(docs, kind, name)
         for k, v in updates.items():
             if v is None:
-                table.pop(k, None)
+                _remove_everywhere(docs, kind, name, [k])
             else:
                 table[k] = v
         return key
     _make_explicit(docs)
-    values = {k: _plain(v) for k, v in table.items()}
+    values = _merged(docs, kind, name)
+    if kind == "email":  # a copy under another name has no preset: it keeps its values
+        values = {**EMAIL_PRESETS.get(name, {}), **values}
     values.update(updates)
     values = {k: v for k, v in values.items() if v is not None}
-    doc = next(d for d, n, t in _tables(docs, kind) if n == name)
+    doc = _defs(docs, kind, name)[-1][0]
     copy_name = _new_name(docs, kind, [f"{name}_{user_name}"])
     _add_section(doc, kind, copy_name, values)
-    user = next(u for _, n, u in _tables(docs, "user") if n == user_name)
-    _replace_in_lists(docs, user, key, [f"{kind}.{copy_name}"])
+    _replace_in_lists(docs, user_name, key, [f"{kind}.{copy_name}"])
     return f"{kind}.{copy_name}"
 
 
@@ -258,52 +288,65 @@ def _without_preset(name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _email_names(preset: str | None, name: str) -> List[str]:
+    """Names for the email section of [notification.<name>]: a preset's only if it is one."""
+    own = name if name not in EMAIL_PRESETS or name == preset else None
+    return [n for n in (preset, own, f"{name}_email") if n]
+
+
+PUSH_KEYS = (
+    {k for t, keys in CHANNEL_KEYS.items() if t != "email" for k in keys}
+    | {f for cls in channel_classes().values() for f in fields_with_role(cls, RECIPIENT)}
+) - EMAIL_KEYS
+SHARED_KEYS = {"enabled", "request"} | COMMON_KEYS
+
+
 def migrate_email_from_notification_to_email_section(docs: Docs) -> List[str]:
     """[notification.*] sections that send email become [email.*] sections.
 
     The name follows the server: [email.unitysvc] for UnitySVC, [email.gmail] for Gmail
     (without the values their preset has), otherwise the section's own name. Settings for
     other channels in the same section stay in [notification.*]. Users' notify_with and
-    digest_with name the new section.
+    digest_with name the new section. A section defined in several files (later ones
+    overriding earlier ones) becomes one email section, defined in the same files.
     """
     changes = []
-    for doc, name, table in list(_tables(docs, "notification")):
-        values = {k: _plain(v) for k, v in table.items()}
+    for name in _names(docs, "notification"):
+        values = _merged(docs, "notification", name)
         if not any(k in EMAIL_KEYS for k in values):
             continue
-        push_keys = {k for t, keys in CHANNEL_KEYS.items() if t != "email" for k in keys} | {
-            f for cls in channel_classes().values() for f in fields_with_role(cls, RECIPIENT)
-        }
-        push_keys -= EMAIL_KEYS
-        shared = {"enabled", "request"} | COMMON_KEYS
+        defs = _defs(docs, "notification", name)
+        layered = len(defs) > 1
         email = {k: v for k, v in values.items() if k in EMAIL_SECTION_KEYS}
-        push = {k: v for k, v in values.items() if k in push_keys}
-        if push:
-            push.update({k: v for k, v in values.items() if k in shared})
+        push = any(k in PUSH_KEYS for k in values)
         preset = _email_name(email)
-        email = _without_preset(preset, email) if preset else email
-        if preset == "unitysvc":
-            email.setdefault("smtp_username", UNITYSVC_SMTP_USERNAME)
-        existing = _same_section(docs, "email", email)
-        new = existing or _new_name(
-            docs, "email", [n for n in (preset, name, f"{name}_email") if n]
+        # in layered files, a value equal to the preset may override an earlier one: kept
+        strip = (
+            set() if layered or not preset else set(email) - set(_without_preset(preset, email))
         )
+        email = {k: v for k, v in email.items() if k not in strip}
+        username = preset == "unitysvc" and "smtp_username" not in email
+        if username:
+            email["smtp_username"] = UNITYSVC_SMTP_USERNAME  # what it used without one
+        existing = None if layered else _same_section(docs, "email", email)
+        new = existing or _new_name(docs, "email", _email_names(preset, name))
         # the users' lists first, while their entries still name the old section
         old_key = f"notification.{name}"
         refs = [f"email.{new}"] + ([old_key] if push else [])
-        for _, _, user in _tables(docs, "user"):
-            _replace_in_lists(docs, user, old_key, refs)
-        if existing is None:
-            moved = _copy_section(table, set(email).__contains__)
-            if preset == "unitysvc" and "smtp_username" not in moved:
-                moved["smtp_username"] = UNITYSVC_SMTP_USERNAME  # what it used without one
-            _add_table(doc, "email", new, moved)
-        if push:
-            for k in list(table):
-                if k not in push:
-                    del table[k]
-        else:
-            _delete_section(doc, "notification", name)
+        for user_name in _names(docs, "user"):
+            _replace_in_lists(docs, user_name, old_key, refs)
+        kept = EMAIL_SECTION_KEYS - strip
+        for index, (doc, table) in enumerate(defs):
+            if existing is None:
+                moved = _copy_section(table, kept.__contains__)
+                if username and index == 0:
+                    moved["smtp_username"] = UNITYSVC_SMTP_USERNAME
+                _add_table(doc, "email", new, moved)
+            if push:
+                for k in [k for k in table if k not in PUSH_KEYS | SHARED_KEYS]:
+                    _remove(table, k)
+            else:
+                _delete_section(doc, "notification", name)
         changes.append(
             f"[notification.{name}] sends email: it is now [email.{new}]"
             + (f", and [notification.{name}] keeps its other channels" if push else "")
@@ -320,26 +363,24 @@ def migrate_channels_from_user_to_sections(docs: Docs) -> List[str]:
     into a copy for this user if others receive it too. [user.*] keeps who receives.
     """
     changes = []
-    for _, user_name, user in list(_tables(docs, "user")):
+    for user_name in _names(docs, "user"):
+        user = _merged(docs, "user", user_name)
         for channel_type, keys in CHANNEL_KEYS.items():
-            values = {k: _plain(user[k]) for k in keys if k in user}
+            values = {k: user[k] for k in keys if k in user}
             if not values:
                 continue
             kind = "email" if channel_type == "email" else "notification"
             covering = [
                 key
-                for key in _received(docs, user)
+                for key in _received(docs, user_name)
                 if key.startswith(f"{kind}.")
-                and (kind == "email" or any(k in _find(docs, key) for k in keys))  # type: ignore[operator]
+                and (kind == "email" or any(k in _section(docs, key) for k in keys))
             ]
-            for k in values:
-                _remove(user, k)
+            _remove_everywhere(docs, "user", user_name, values)
             if covering:
                 moved = False
                 for key in covering:
-                    table = _find(docs, key)
-                    assert table is not None
-                    missing = {k: v for k, v in values.items() if k not in table}
+                    missing = {k: v for k, v in values.items() if k not in _section(docs, key)}
                     if missing:
                         new = _for_user(docs, key, user_name, missing)
                         changes.append(
@@ -361,15 +402,13 @@ def migrate_channels_from_user_to_sections(docs: Docs) -> List[str]:
             else:
                 wanted = [channel_type, f"{channel_type}_{user_name}"]
             name = _same_section(docs, kind, values)
+            _make_explicit(docs)
             if name is None:
                 name = _new_name(docs, kind, wanted)
-                _make_explicit(docs)
-                doc = next(d for d, n, _ in _tables(docs, "user") if n == user_name)
-                _add_section(doc, kind, name, values)
-            else:
-                _make_explicit(docs)
-            user["notify_with"] = list(
-                dict.fromkeys([*_listed(user["notify_with"]), f"{kind}.{name}"])
+                _add_section(_defs(docs, "user", user_name)[0][0], kind, name, values)
+            received = _listed(_merged(docs, "user", user_name)["notify_with"])
+            _set_list(
+                docs, user_name, "notify_with", list(dict.fromkeys([*received, f"{kind}.{name}"]))
             )
             changes.append(f"[user.{user_name}] {', '.join(values)}: moved to [{kind}.{name}]")
     return changes
@@ -381,24 +420,23 @@ def migrate_digest_from_user_to_notification_and_email(docs: Docs) -> List[str]:
     Each section the user received the digest from gets the user's digest_at. Users who
     receive the same section but differ in their digest get a copy of the section each.
     """
-    wants: Dict[str, Dict[str, Any]] = {}  # section: {user: digest_at or None}
-    users = [(n, u) for _, n, u in _tables(docs, "user")]
-    if not any("digest_at" in u or "digest_with" in u for _, u in users):
+    users = _names(docs, "user")
+    merged = {u: _merged(docs, "user", u) for u in users}
+    if not any("digest_at" in m or "digest_with" in m for m in merged.values()):
         return []
-    for user_name, user in users:
-        digest_at = _plain(user.get("digest_at"))
+    wants: Dict[str, Dict[str, Any]] = {}  # section: {user: digest_at or None}
+    for user_name in users:
+        digest_at = merged[user_name].get("digest_at")
         digest_with = (
             None
-            if "digest_with" not in user
-            else [_resolve(docs, e) for e in _listed(user["digest_with"])]
+            if "digest_with" not in merged[user_name]
+            else [_resolve(docs, e) for e in _listed(merged[user_name]["digest_with"])]
         )
-        for key in _received(docs, user):
+        for key in _received(docs, user_name):
             chosen = digest_at if digest_with is None or key in digest_with else None
             wants.setdefault(key, {})[user_name] = chosen or None
     changes = []
     for key, by_user in wants.items():
-        table = _find(docs, key)
-        assert table is not None
         # most users keep the section; the others get a copy with their digest
         values = list(by_user.values())
         kept = max(set(values), key=lambda v: (values.count(v), v is not None))
@@ -410,13 +448,12 @@ def migrate_digest_from_user_to_notification_and_email(docs: Docs) -> List[str]:
                     + (f"at {digest_at}" if digest_at else "not at all")
                     + f": through its own copy [{new}]"
                 )
-        if kept is not None and _plain(table.get("digest_at")) != kept:
-            table["digest_at"] = kept
+        if kept is not None and _section(docs, key).get("digest_at") != kept:
+            _last(docs, *key.split(".", 1))["digest_at"] = kept
             changes.append(f"[{key}] sends the digest at {kept}")
-    for user_name, user in users:
-        moved = [k for k in ("digest_at", "digest_with") if k in user]
-        for k in moved:
-            _remove(user, k)
+    for user_name in users:
+        moved = [k for k in ("digest_at", "digest_with") if k in merged[user_name]]
+        _remove_everywhere(docs, "user", user_name, moved)
         if moved:
             changes.append(f"[user.{user_name}] {', '.join(moved)}: now on its sections")
     return changes

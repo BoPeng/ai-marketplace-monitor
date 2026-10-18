@@ -1647,7 +1647,7 @@
     // ---- Email form: [email.unitysvc] and [email.gmail] are preset ----
     "email.*": [
       { key: "smtp_username", label: "SMTP username", type: "text",
-        help: "[email.unitysvc]: the UnitySVC service (default smtp-to-mailbox). [email.gmail]: your Gmail address." },
+        help: "[email.unitysvc] (required): the UnitySVC service, e.g. smtp-to-mailbox to your UnitySVC address. [email.gmail]: your Gmail address." },
       { key: "smtp_password", label: "SMTP password", type: "password",
         help: "Preset for [email.unitysvc] (${UNITYSVC_API_KEY}) and [email.gmail] (${GMAIL_SMTP_PASSWORD})." },
       { key: "digest_at", label: "Daily digest at", type: "text",
