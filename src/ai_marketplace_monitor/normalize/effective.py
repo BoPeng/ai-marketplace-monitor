@@ -81,7 +81,7 @@ def _item_target_view(config: Config, item: Any) -> Dict[str, Any]:
     entry: Dict[str, Any] = {
         "enabled": _runtime_enabled(item.enabled),
     }
-    # the options of this item's marketplace type (an OfferUp item has no availability)
+    # the options of this item's marketplace type (each type has its own options)
     own = option_names(type(item))
     entry.update({k: getattr(item, k) for k in _ITEM_ONLY_FIELDS if k in own})
     for key in COMMON_OPTIONS:

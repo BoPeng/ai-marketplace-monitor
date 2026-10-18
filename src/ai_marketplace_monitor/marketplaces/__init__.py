@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Mapping, Type
 from ..utils import hilight
 from .base import Marketplace
 from .facebook import FacebookMarketplace
-from .offerup import OfferUpMarketplace
 
 __all__ = [
     "item_marketplaces",
@@ -20,7 +19,6 @@ __all__ = [
 
 supported_marketplaces: Dict[str, Type[Marketplace]] = {
     "facebook": FacebookMarketplace,
-    "offerup": OfferUpMarketplace,
 }
 
 

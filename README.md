@@ -15,7 +15,7 @@
 
 </div>
 
-An intelligent tool that monitors **Facebook Marketplace** and **OfferUp** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
+An intelligent tool that monitors **Facebook Marketplace** listings using AI to help you find the best deals. Get instant notifications when items matching your criteria are posted, with AI-powered analysis of each listing.
 
 **📚 [Read the Full Documentation](https://ai-marketplace-monitor.readthedocs.io/)**
 
@@ -41,7 +41,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## What's New
 
-- **Two marketplaces**: AIMM searches [OfferUp](docs/README.md#offerup) (US) as well as Facebook Marketplace. OfferUp needs no account and no browser, and an item can be searched in both; `aimm configure` sets either up.
 - **Runs on your NAS or home server**: install AIMM on Unraid, TrueNAS SCALE, CasaOS, ZimaOS, Cosmos or Portainer from its template, or on a Synology or QNAP NAS with Docker, so it searches around the clock. See [Run with Docker](#run-with-docker).
 - **Seller reputation**: AIMM evaluates each seller, from how long they have been on Facebook, their listings and sales, their rating and what buyers say in reviews, and the AI identifies unreliable and malicious sellers automatically: new accounts, dealers posing as private sellers, bait listings, no-shows. Its rating and notifications tell you why. See [Seller information](https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration-guide.html#seller-information).
 - **Guided Facebook login**: AIMM types your Facebook username and password, then waits for you to complete any CAPTCHA or security code before it searches. In Docker, the web UI shows a banner with an **Open browser** button. See [Run the Monitor](#run-the-monitor).
@@ -68,8 +67,6 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 - Search multiple products using keywords
 - Filter by price and location
 - Exclude irrelevant results and spammers
-- Searches **Facebook Marketplace** and **[OfferUp](docs/README.md#offerup)** (US); OfferUp needs no account and no browser
-- An item can be searched in both marketplaces at once
 - Support for different Facebook Marketplace layouts
 
 🤖 **AI-Powered**
@@ -106,11 +103,11 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ## 🚀 Quick Start
 
-> **⚠️ Legal Notice**: Facebook's and OfferUp's terms prohibit automated data collection without authorization. This tool was developed for personal, hobbyist use only. You are solely responsible for ensuring compliance with platform terms and applicable laws.
+> **⚠️ Legal Notice**: Facebook's terms prohibit automated data collection without authorization. This tool was developed for personal, hobbyist use only. You are solely responsible for ensuring compliance with platform terms and applicable laws.
 
 ### What you need
 
-AIMM searches **Facebook Marketplace**, which needs a Facebook account for AIMM to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that AIMM controls (installed with `playwright install`), and **OfferUp** (US only), which needs neither. To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
+AIMM searches **Facebook Marketplace**, which needs a Facebook account for AIMM to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that AIMM controls (installed with `playwright install`). To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
 
 | Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
 | --- | --- | --- | --- |
