@@ -215,7 +215,7 @@ def test_unset_env_var_is_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_unknown_provider(tmp_path: Path) -> None:
     [section] = load_ai_sections([write(tmp_path / "config.toml", '[ai.x]\nprovider = "foo"\n')])
     assert section.problem == (
-        'Unknown provider "foo"; supported: anthropic, claude_code, deepseek, gemini, ollama, openai, unitysvc'
+        'Unknown provider "foo"; supported: anthropic, deepseek, gemini, ollama, openai, subscription, unitysvc'
     )
 
 

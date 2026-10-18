@@ -15,11 +15,11 @@ else:
 
 from .ai import (
     AnthropicBackend,
-    ClaudeCodeBackend,
     DeepSeekBackend,
     GeminiBackend,
     OllamaBackend,
     OpenAIBackend,
+    SubscriptionBackend,
     TAIConfig,
     UnitySVCBackend,
 )
@@ -54,7 +54,7 @@ supported_ai_backends = {
     "anthropic": AnthropicBackend,
     "ollama": OllamaBackend,
     "unitysvc": UnitySVCBackend,
-    "claude_code": ClaudeCodeBackend,
+    "subscription": SubscriptionBackend,
 }
 
 SYSTEM_CONFIG = Path(__file__).parent / "config.toml"

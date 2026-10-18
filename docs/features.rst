@@ -15,7 +15,7 @@ Features
 
 - **Intelligent Evaluation**: AI services analyze each listing against your specific criteria
 - **Smart Recommendations**: Get AI-generated insights on deal quality and condition assessment
-- **Multiple AI Providers**: UnitySVC (many models, or your own provider keys), OpenAI, Anthropic, Gemini, DeepSeek, Ollama, Claude Code (with a Claude subscription), and other OpenAI-compatible APIs
+- **Multiple AI Providers**: UnitySVC (many models, or your own provider keys), OpenAI, Anthropic, Gemini, DeepSeek, Ollama, subscription CLIs such as Claude Code (no API key), and other OpenAI-compatible APIs
 - **Self-Hosted Options**: Run your own AI models locally using Ollama
 - **Customizable Prompts**: Tailor AI evaluation criteria to your specific needs
 

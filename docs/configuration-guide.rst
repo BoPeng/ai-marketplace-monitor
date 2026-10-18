@@ -118,22 +118,37 @@ Without UnitySVC
     [ai.openai]
     api_key = '${OPENAI_API_KEY}'
 
-Claude with a Claude subscription (Claude Code)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+AI through a subscription CLI (Claude Code and others)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you have `Claude Code <https://claude.com/claude-code>`_ and a Claude subscription, ``[ai.claude_code]`` rates listings with ``claude -p`` instead of an API key, so ratings count toward your subscription's usage limits rather than being billed per token:
+``[ai.subscription]`` rates listings with an AI command-line tool that is signed in with a subscription, such as `Claude Code <https://claude.com/claude-code>`_, instead of an API key. Ratings then count toward the subscription's usage limits rather than being billed per token:
 
 .. code-block:: toml
 
-    [ai.claude_code]
-    model = "sonnet"   # optional: any model or alias `claude --model` accepts
-    # command = "/path/to/claude"   # optional, if `claude` is not on the PATH
+    [ai.subscription]
+    command = "claude -p --model sonnet"
 
-.. note::
-   1. Install Claude Code and sign in once by running ``claude`` as the user that runs aimm. The Docker image does not include Claude Code.
-   2. Listings are untrusted text, so ``claude`` runs with no tools, no MCP servers, no settings or hooks, and no saved session, in an empty directory.
-   3. ``ANTHROPIC_API_KEY`` is removed from ``claude``'s environment, so it never bills that key instead of your subscription.
-   4. ``[ai.claude_code]`` rates listings and writes digest summaries, but it cannot run the ``aimm configure`` chat, which needs an AI service with an API.
+Sign in once by running the tool as the user that runs aimm. The Docker image includes no such tool.
+
+Listings are written by strangers, and an AI that can use tools (run commands, read or change files) could be told to by one. So, whatever the command:
+
+- The prompt goes to the command's standard input, never into its arguments, and the command runs without a shell.
+- It runs in an empty temporary directory, removed afterwards, and its whole process group is killed at the ``timeout``.
+- Credentials that would bill an API account instead of the subscription (``ANTHROPIC_API_KEY``, ``ANTHROPIC_AUTH_TOKEN``, ``CLAUDE_CODE_USE_BEDROCK``, ``OPENAI_API_KEY``, ``GEMINI_API_KEY`` and the like) are removed from its environment. List any you want to keep in ``keep_env``.
+- Options that let an agent act without asking are refused, such as ``--dangerously-skip-permissions``, ``--full-auto``, ``--dangerously-bypass-approvals-and-sandbox``, ``--yolo`` and ``--approval-mode yolo``.
+- Its answer is only read for the rating.
+
+``claude`` has a built-in profile. aimm adds the options that remove its tools, MCP servers, settings (and so hooks), skills and saved session (``--tools ""``, ``--strict-mcp-config``, ``--setting-sources ""``, ``--disable-slash-commands``, ``--no-session-persistence``), and it refuses a command that sets them or others that would undo them. It also sends the listing photo, so set only options such as ``-p`` and ``--model`` yourself.
+
+Any other command runs only with ``allow_any_command = true``. That setting says the tool cannot run commands or change files in this mode, which aimm cannot check for you. Its standard output is the answer. ``{image}`` in its arguments is replaced by the path of the listing photo; otherwise the listing is sent as text only. For example:
+
+.. code-block:: toml
+
+    [ai.subscription]
+    command = "codex exec --sandbox read-only --skip-git-repo-check -i {image} -"
+    allow_any_command = true
+
+``[ai.subscription]`` rates listings and writes digest summaries, but it cannot run the ``aimm configure`` chat, which needs an AI service with an API.
 
 Self-hosted AI with Ollama
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
