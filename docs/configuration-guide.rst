@@ -23,7 +23,7 @@ aimm searches Facebook Marketplace, which needs a Facebook account for aimm to l
      - ``[ai.openai]``, ``[ai.anthropic]``, ``[ai.gemini]``, ``[ai.deepseek]``, or a local model with ``[ai.ollama]``
    * - **Email** with listing photos and the daily digest
      - ``[email.unitysvc]`` with ``smtp-to-mailbox``: free, to the address of your UnitySVC account
-     - ``[email.unitysvc]`` with ``smtp-byok``: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose
+     - ``[email.unitysvc]`` with ``smtp-relay``: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose
      - ``[email.gmail]`` with a Gmail app password, or any other SMTP server
    * - **Phone and chat alerts**
      - ``[notification.unitysvc]``: free, to your UnitySVC inbox and the destination you choose there (Discord, Slack, SMS, phone push and 100+ others; a paid destination such as SMS costs a little)
@@ -111,7 +111,7 @@ Setting Up Email Notifications
      - Without UnitySVC
    * - **Email** with listing photos and the daily digest
      - ``[email.unitysvc]`` with ``smtp-to-mailbox``: free, to the address of your UnitySVC account
-     - ``[email.unitysvc]`` with ``smtp-byok``: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose
+     - ``[email.unitysvc]`` with ``smtp-relay``: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose
      - ``[email.gmail]`` with a Gmail app password, or any other SMTP server
 
 aimm's email (all new listings in one message, with their photos) is sent by an ``[email.NAME]`` section, to the ``email`` of each user who receives it. You can configure multiple users with individual or multiple email addresses like this:
@@ -153,12 +153,12 @@ Notes on the UnitySVC services:
 UnitySVC with your own SMTP account (BYOK)
 ------------------------------------------
 
-UnitySVC's SMTP Relay forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the ``email`` of each user who receives the section, and your server's login stays in UnitySVC instead of aimm's configuration. Save the server's details as secrets in your UnitySVC account: ``SMTP_RELAY_HOST`` (e.g. ``smtp.gmail.com``), ``SMTP_RELAY_USERNAME`` (usually your address) and ``SMTP_RELAY_PASSWORD`` (an app password or API key), and if they differ from 587 and STARTTLS, ``SMTP_RELAY_PORT`` and ``SMTP_RELAY_TLS``. Then set ``smtp_username = 'smtp-byok'``, the relay's free channel:
+UnitySVC's SMTP Relay forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the ``email`` of each user who receives the section, and your server's login stays in UnitySVC instead of aimm's configuration. Save the server's details as secrets in your UnitySVC account: ``SMTP_RELAY_HOST`` (e.g. ``smtp.gmail.com``), ``SMTP_RELAY_USERNAME`` (usually your address) and ``SMTP_RELAY_PASSWORD`` (an app password or API key), and if they differ from 587 and STARTTLS, ``SMTP_RELAY_PORT`` and ``SMTP_RELAY_TLS``. Then set ``smtp_username = 'smtp-relay'``, the relay's free channel:
 
 .. code-block:: toml
 
     [email.unitysvc]
-    smtp_username = 'smtp-byok'
+    smtp_username = 'smtp-relay'
 
     [user.me]
     email = 'me@example.com'

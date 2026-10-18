@@ -298,7 +298,7 @@ Note that
 
 | Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
 | --- | --- | --- | --- |
-| **Email** with listing photos and the daily digest | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-byok`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
+| **Email** with listing photos and the daily digest | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-relay`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
 
 An `[email.NAME]` section sends aimm's full email, to the `email` of each user who receives it. It accepts the following options:
 
@@ -333,11 +333,11 @@ Two section names start from a preset, so that only what differs needs to be set
 UnitySVC's [SMTP Relay](https://unitysvc.com/market) forwards the email to your own SMTP server: Gmail, your domain's mail service (such as Zoho or Outlook), or a mail provider such as SendGrid or Amazon SES. It sends the email to the `email` of each user who receives the section, as your own server would, and your server's login stays in UnitySVC instead of aimm's configuration.
 
 1. Save your server's details as secrets in your UnitySVC account: `SMTP_RELAY_HOST` (e.g. `smtp.gmail.com`), `SMTP_RELAY_USERNAME` (usually your address) and `SMTP_RELAY_PASSWORD` (an app password or API key), and if they differ from 587 and STARTTLS, `SMTP_RELAY_PORT` and `SMTP_RELAY_TLS`.
-2. Set `smtp_username = 'smtp-byok'`, the relay's free channel:
+2. Set `smtp_username = 'smtp-relay'`, the relay's free channel:
 
 ```toml
 [email.unitysvc]
-smtp_username = 'smtp-byok'
+smtp_username = 'smtp-relay'
 
 [user.me]
 email = 'me@example.com'
@@ -345,7 +345,7 @@ email = 'me@example.com'
 
 To relay through more than one server, enroll the SMTP Relay once per server (its `plus` channel, $1 per 1,000 emails). Then either:
 
-- **Send to all of them from one section:** create a UnitySVC broadcast (a name and up to 10 targets, such as these enrollments, `smtp-byok` or `smtp-to-mailbox`) and set `smtp_username = 'b/<broadcast name>'`. The SMTP gateway sends each email to every target.
+- **Send to all of them from one section:** create a UnitySVC broadcast (a name and up to 10 targets, such as these enrollments, `smtp-relay` or `smtp-to-mailbox`) and set `smtp_username = 'b/<broadcast name>'`. The SMTP gateway sends each email to every target.
 - **Use one section per server:** set each enrollment's code as `smtp_username` in its own `[email.*]` section (with `smtp_server = "smtp.svcpass.com"` and `smtp_password = "${UNITYSVC_API_KEY}"`, as the preset has).
 
 #### Without UnitySVC
