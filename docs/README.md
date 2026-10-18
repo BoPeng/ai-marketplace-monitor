@@ -384,7 +384,7 @@ A `[notification.NAME]` section is one phone or chat channel. It sends a short t
 | Option              | Requirement | DataType | Description                                                                          |
 | ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
 | `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
-| `unitysvc_service`  | Optional    | String   | Service path, default `notify`. Use e.g. `labs/msg-to-discord` for a specific service. |
+| `unitysvc_service`  | Optional    | String   | The UnitySVC service that sends the message. The default, `notify`, sends it to your inbox on the UnitySVC website and to every destination set in your UnitySVC notification preferences. Use a service path such as `labs/msg-to-discord` to send to that one service only. |
 | `message_format`    | Optional    | String   | `plain_text` (default), `markdown`, or `html`.                                       |
 
 ```toml
@@ -393,7 +393,7 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 ```
 
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
-- The default `notify` service (free) shows messages in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences, so you can change where notifications go without touching aimm's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
+- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching aimm's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 - To reach several destinations at once, for example email plus SMS plus a chat app, create a UnitySVC broadcast (up to 10 targets) and use it as your notification destination, or set `unitysvc_service = "b/<broadcast name>"`.
 

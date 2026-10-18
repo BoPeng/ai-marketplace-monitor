@@ -233,7 +233,7 @@ With UnitySVC
 
 These notifications are short text messages without listing photos, best for phone and chat alerts. To receive aimm's full email, with all new listings and their photos in one message, use :ref:`UnitySVC email <unitysvc-smtp>` instead.
 
-By default, messages go to UnitySVC's ``notify`` service, which shows them in your UnitySVC inbox and forwards them to the notification destination saved in your UnitySVC preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your aimm config.
+By default, messages go to UnitySVC's ``notify`` service, which shows them in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences. No enrollment is needed, so you can change where notifications go on UnitySVC without touching your aimm config.
 
 The same ``UNITYSVC_API_KEY`` works for both UnitySVC AI and UnitySVC notifications, so one key covers rating listings and delivering the results:
 
