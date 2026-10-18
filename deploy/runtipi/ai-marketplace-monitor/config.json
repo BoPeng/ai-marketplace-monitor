@@ -11,8 +11,8 @@
   "categories": [
     "automation"
   ],
-  "description": "Watch Facebook Marketplace for the items you want, rate each new listing with AI, and get notified of good deals.",
-  "short_desc": "Find Facebook Marketplace deals with AI.",
+  "description": "Watch Facebook Marketplace and OfferUp for the items you want, rate each new listing with AI, and get notified of good deals.",
+  "short_desc": "Find Facebook Marketplace and OfferUp deals with AI.",
   "author": "BoPeng",
   "source": "https://github.com/BoPeng/ai-marketplace-monitor",
   "form_fields": [

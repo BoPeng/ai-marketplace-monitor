@@ -4,8 +4,115 @@ Configuration Guide
 
 This section covers advanced configuration options and setup procedures for AI Marketplace Monitor.
 
+Choosing Your Services
+======================
+
+aimm searches Facebook Marketplace, which needs a Facebook account for aimm to log in with, and OfferUp (US only), which needs no account. To rate listings and to tell you about them, it uses three kinds of external service, each set up in one of three ways:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 28 28 28
+
+   * - Service
+     - With UnitySVC
+     - UnitySVC with your own keys (BYOK)
+     - Without UnitySVC
+   * - **AI** that rates listings
+     - ``[ai.unitysvc]``: UnitySVC's model pool, paid per use
+     - ``[ai.unitysvc]`` with an OpenAI, Anthropic or other provider's service and your key for it saved in UnitySVC; the provider bills you
+     - ``[ai.openai]``, ``[ai.anthropic]``, ``[ai.gemini]``, ``[ai.deepseek]``, or a local model with ``[ai.ollama]``
+   * - **Email** with listing photos and the daily digest
+     - ``[email.unitysvc]`` with ``smtp-to-mailbox``: free, to the address of your UnitySVC account
+     - ``[email.unitysvc]`` with ``smtp-byok``: through your own SMTP account, its login saved in UnitySVC
+     - ``[email.gmail]`` with a Gmail app password, or any other SMTP server
+   * - **Phone and chat alerts**
+     - ``[notification.unitysvc]``: free, to your UnitySVC inbox and the destination you choose there (Discord, Slack, SMS, phone push and 100+ others; a paid destination such as SMS costs a little)
+     - the same section, with your own Pushover, Telegram, Discord or other account as the destination, its token saved in UnitySVC
+     - ``[notification.telegram]``, Pushbullet, Pushover or ntfy, with their tokens in your configuration
+
+With UnitySVC, one API key (``UNITYSVC_API_KEY``) covers all three, and the keys of your own accounts (BYOK) stay in your UnitySVC account instead of aimm's configuration. Each service is set up on its own, so you can mix the options. Without UnitySVC, each service needs its own account, and every part of aimm works that way too. The sections below follow the same order: UnitySVC first, then your own keys through UnitySVC, then the options without UnitySVC. UnitySVC is run by the maintainer of aimm.
+
+Setting Up AI
+=============
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 28 28 28
+
+   * - Service
+     - With UnitySVC
+     - UnitySVC with your own keys (BYOK)
+     - Without UnitySVC
+   * - **AI** that rates listings
+     - ``[ai.unitysvc]``: UnitySVC's model pool, paid per use
+     - ``[ai.unitysvc]`` with an OpenAI, Anthropic or other provider's service and your key for it saved in UnitySVC; the provider bills you
+     - ``[ai.openai]``, ``[ai.anthropic]``, ``[ai.gemini]``, ``[ai.deepseek]``, or a local model with ``[ai.ollama]``
+
+With UnitySVC
+-------------
+
+``[ai.unitysvc]`` uses UnitySVC's ``llm`` model pool, paid per use. Its default ``balanced`` tier is relatively inexpensive and reads listing photos:
+
+.. code-block:: toml
+
+    [ai.unitysvc]
+    api_key = '${UNITYSVC_API_KEY}'
+
+``aimm configure ai`` lists the models and tiers your key can use. See `AI Services <https://ai-marketplace-monitor.readthedocs.io/en/latest/configuration.html#ai-services>`_ for every option.
+
+UnitySVC with your own keys (BYOK)
+----------------------------------
+
+Save your provider's key once as a secret in your UnitySVC account (Developer → Secrets, e.g. ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY``), and point ``base_url`` at that provider's service in the `UnitySVC catalog <https://unitysvc.com/market>`_. Your provider bills you directly, and aimm's configuration still holds only ``UNITYSVC_API_KEY``:
+
+.. code-block:: toml
+
+    [ai.unitysvc]
+    api_key = '${UNITYSVC_API_KEY}'
+    base_url = 'https://api.svcpass.com/<service path>'
+    model = '<model name>'
+
+Without UnitySVC
+----------------
+
+``[ai.openai]``, ``[ai.anthropic]``, ``[ai.gemini]`` and ``[ai.deepseek]`` each need an API key from that provider:
+
+.. code-block:: toml
+
+    [ai.openai]
+    api_key = '${OPENAI_API_KEY}'
+
+Self-hosted AI with Ollama
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you have access to a decent machine and prefer not to pay for AI services from OpenAI or other vendors, you can opt to install Ollama locally and access it using the `provider = "ollama"`. If you have ollama on your local host, you can use:
+
+.. code-block:: toml
+
+    [ai.ollama]
+    base_url = "http://localhost:11434/v1"
+    model = "deepseek-r1:14b"
+    timeout = 120 # specified in seconds
+
+.. note::
+   1. Depending on your hardware configuration, you can choose any of the models listed at `ollama.com/library <https://ollama.com/library>`_. The default model is `deepseek-r1:14b` because it appears to work better than `llama-3.1:8b`.
+   2. You need to `pull` the model before you can use it.
+
 Setting Up Email Notifications
 ==============================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 28 28 28
+
+   * - Service
+     - With UnitySVC
+     - UnitySVC with your own keys (BYOK)
+     - Without UnitySVC
+   * - **Email** with listing photos and the daily digest
+     - ``[email.unitysvc]`` with ``smtp-to-mailbox``: free, to the address of your UnitySVC account
+     - ``[email.unitysvc]`` with ``smtp-byok``: through your own SMTP account, its login saved in UnitySVC
+     - ``[email.gmail]`` with a Gmail app password, or any other SMTP server
 
 aimm's email (all new listings in one message, with their photos) is sent by an ``[email.NAME]`` section, to the ``email`` of each user who receives it. You can configure multiple users with individual or multiple email addresses like this:
 
@@ -17,8 +124,10 @@ aimm's email (all new listings in one message, with their photos) is sent by an 
     [user.user2]
     email = ['user2@gmail.com', 'user2@outlook.com']
 
-Using UnitySVC instead of a Gmail app password
-----------------------------------------------
+.. _unitysvc-smtp:
+
+With UnitySVC
+-------------
 
 Gmail requires an app password, which many users find hard to create in their Google account settings. If you have a `UnitySVC <https://unitysvc.com/>`_ API key, for example for UnitySVC AI, you can send email through UnitySVC's SMTP gateway with that key instead:
 
@@ -30,10 +139,34 @@ Gmail requires an app password, which many users find hard to create in their Go
     [user.me]
     notify_with = 'email.unitysvc'
 
-``[email.unitysvc]`` is a preset: aimm fills in the server (``smtp.svcpass.com``), the port (587) and the password ``${UNITYSVC_API_KEY}``, and ``email`` is not needed. ``smtp_username`` names the UnitySVC service that delivers the email: ``smtp-to-mailbox`` sends it to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images. See :ref:`unitysvc-smtp` for other services.
+``[email.unitysvc]`` is a preset: aimm fills in the server (``smtp.svcpass.com``), the port (587) and the password ``${UNITYSVC_API_KEY}``, and ``email`` is not needed. ``smtp_username`` names the UnitySVC service that delivers the email: ``smtp-to-mailbox`` sends it to the email address registered and verified on your UnitySVC account (Settings → Account), which is usually your own Gmail anyway. The email is the same HTML email with listing images.
+
+Notes on the UnitySVC services:
+
+- **Emails go to your UnitySVC-registered email address**, the verified primary email under Settings → Account on UnitySVC, not to the address in ``email``. Make sure that address is set and verified.
+- ``smtp_username = 'smtp-to-mailbox'`` skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
+- ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To receive these notifications by email, your notification destination on UnitySVC must include ``smtp-to-mailbox``: set it as the destination, or add it to a broadcast used as the destination.
+- ``smtp_username`` can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases. For services that deliver to the ``To`` address, set ``email``.
+- ``email`` is optional with the preset: it only fills the ``To`` header, and ``smtp-to-mailbox`` and ``notify`` deliver to your registered address whatever it says.
+
+UnitySVC with your own SMTP account (BYOK)
+------------------------------------------
+
+With ``smtp_username = 'smtp-byok'``, ``[email.unitysvc]`` sends through your own SMTP account (Gmail, Outlook, or a mail service such as SendGrid or Amazon SES). Save its server, login and password as secrets in your UnitySVC account; aimm's configuration holds only ``UNITYSVC_API_KEY``, and the email goes to the ``email`` of each user who receives the section:
+
+.. code-block:: toml
+
+    [email.unitysvc]
+    smtp_username = 'smtp-byok'
+
+    [user.me]
+    email = 'me@example.com'
+
+Without UnitySVC
+----------------
 
 Gmail
------
+~~~~~
 
 ``[email.gmail]`` is a preset too: aimm fills in the server (``smtp.gmail.com``), the port (587) and the password ``${GMAIL_SMTP_PASSWORD}``. Set your Gmail address as ``smtp_username``, and a Gmail app password as the environment variable ``GMAIL_SMTP_PASSWORD``:
 
@@ -46,7 +179,7 @@ Gmail
     email = 'myemail@gmail.com'
 
 Other email providers
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 Any other ``[email.NAME]`` section is a plain SMTP account, with the ``smtp_server``, ``smtp_port``, ``smtp_username`` and ``smtp_password`` of your email service provider:
 
@@ -75,136 +208,24 @@ Daily digest
    - **Gmail Users**: You will need to create a separate app password for your Google account as `smtp_password`.
    - **Commercial Users**: If you are a subscriber to our Pro or Business Plans, detailed instructions on configuring the SMTP service we provide will be sent to you via email.
 
-Setting Up PushOver Notifications
-=================================
+Setting Up Phone and Chat Notifications
+=======================================
 
-To enable PushOver notifications, follow these steps:
+.. list-table::
+   :header-rows: 1
+   :widths: 16 28 28 28
 
-1. **Install the PushOver app** on your mobile device.
-2. **Create a PushOver account** at `pushover.net <https://pushover.net>`_. After registration, you will find your **User Key** labeled as `Your User Key` — this is your `pushover_user_key`.
-3. **Create a new application** (you can name it `AIMarketplaceMonitor`). After creation, you will receive an **API Token/Key**, referred to as `pushover_api_token`.
+   * - Service
+     - With UnitySVC
+     - UnitySVC with your own keys (BYOK)
+     - Without UnitySVC
+   * - **Phone and chat alerts**
+     - ``[notification.unitysvc]``: free, to your UnitySVC inbox and the destination you choose there (Discord, Slack, SMS, phone push and 100+ others; a paid destination such as SMS costs a little)
+     - the same section, with your own Pushover, Telegram, Discord or other account as the destination, its token saved in UnitySVC
+     - ``[notification.telegram]``, Pushbullet, Pushover or ntfy, with their tokens in your configuration
 
-Configuration Options
---------------------
-
-Once you have both the user key and API token, add them to your configuration file: the API token in a notification section, the user key on the user who receives it.
-
-.. code-block:: toml
-
-    [notification.pushover]
-    pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-
-    [user.me]
-    pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-    notify_with = 'notification.pushover'
-
-Description Settings
--------------------
-
-By default, notifications include the **title**, **price**, **location**, **description**, and **AI-generated comments** (if enabled). To exclude or limit the length of the **listing description**, you can add the `with_description` option to your config.
-
-You can set `with_description` to:
-
-- `true` — to include the **full description**.
-- `false` — to exclude the description (default behavior).
-- A **number** — to include only the **first N characters** of the description.
-
-For example:
-
-.. code-block:: toml
-
-    [notification.pushover]
-    pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-    with_description = 100
-
-This will include up to the first 100 characters of each listing's description in your notifications.
-
-Setting Up Telegram Notifications
-=================================
-
-To enable Telegram notifications, you'll need to create a Telegram bot and obtain a chat ID.
-
-Step 1: Create a Telegram Bot
------------------------------
-
-1. **Open Telegram** and search for `@BotFather` (the official bot for creating other bots).
-2. **Start a conversation** with BotFather by clicking "Start" or sending `/start`.
-3. **Create a new bot** by sending the command `/newbot`.
-4. **Choose a bot name** when prompted (e.g., "AI Marketplace Monitor").
-5. **Choose a bot username** that ends with "bot" (e.g., "my_marketplace_monitor_bot").
-6. **Save your bot token** - BotFather will provide a token that looks like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`. **Keep this token secure and never share it publicly.**
-
-Step 2: Get Your Chat ID
-------------------------
-
-You need to find your chat ID to receive messages. Here are two methods:
-
-**Method 1: Using @userinfobot**
-
-1. Search for `@userinfobot` in Telegram and start a conversation.
-2. Send any message to the bot.
-3. The bot will reply with your user information, including your **Chat ID** (a number like `123456789`).
-
-**Method 2: Using the Telegram Bot API**
-
-1. Start a conversation with your newly created bot (search for its username).
-2. Send any message to your bot (e.g., "Hello").
-3. Open this URL in your browser, replacing `YOUR_BOT_TOKEN` with your actual token::
-
-       https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
-
-4. Look for the `"chat":{"id":` field in the response - this number is your chat ID.
-
-Step 3: Configure Your Settings
--------------------------------
-
-Add the bot token to a notification section, and your chat ID to the user who receives it. Environment variables keep the token out of the file:
-
-.. code-block:: toml
-
-    [notification.telegram]
-    telegram_token = '${TELEGRAM_BOT_TOKEN}'
-
-    [user.me]
-    telegram_chat_id = '${TELEGRAM_CHAT_ID}'
-    notify_with = 'notification.telegram'
-
-Then set the environment variables:
-
-.. code-block:: bash
-
-    export TELEGRAM_BOT_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-    export TELEGRAM_CHAT_ID="123456789"
-
-Telegram Troubleshooting
-------------------------
-
-**401 Unauthorized Error**
-
-- **Cause**: Invalid or incorrect bot token
-- **Solution**:
-  1. Verify your bot token is correct (it should look like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
-  2. Make sure there are no extra spaces or characters
-  3. Create a new bot with @BotFather if the token is lost
-
-**403 Forbidden Error**
-
-- **Cause**: Bot doesn't have permission to send messages to the chat
-- **Solution**:
-  1. Start a conversation with your bot by searching for its username in Telegram
-  2. Send at least one message to the bot (e.g., "/start" or "Hello")
-  3. Verify the chat ID is correct
-
-**400 Bad Request Error**
-
-- **Cause**: Invalid chat ID format or the chat doesn't exist
-- **Solution**:
-  1. Double-check your chat ID is a number (positive for users, negative for groups)
-  2. For group chats, make sure the bot is added to the group
-  3. Use the getUpdates method to verify your chat ID
-
-Setting Up UnitySVC Notifications
-=================================
+With UnitySVC
+-------------
 
 `UnitySVC <https://unitysvc.com/>`_ notifications use the same API key as the UnitySVC AI provider and give aimm access to more than 100 notification channels and apps through one key: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 
@@ -245,28 +266,143 @@ To notify several destinations at once, for example email, SMS and a chat app, c
 .. note::
    - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
 
-.. _unitysvc-smtp:
+UnitySVC with your own accounts (BYOK)
+--------------------------------------
 
-Sending through UnitySVC's SMTP gateway
----------------------------------------
+Keep ``[notification.unitysvc]`` as it is, and choose your own account as the notification destination in UnitySVC: for example your Pushover, Telegram or Discord, with its token saved as a secret in your UnitySVC account. aimm's configuration still holds only ``UNITYSVC_API_KEY``, and you can change the destination on UnitySVC at any time. To send to one of these services directly instead of through ``notify``, set ``unitysvc_service`` to the path or enrollment that UnitySVC shows for it.
 
-Instead of the HTTP API, you can send aimm's regular email notifications through UnitySVC's SMTP gateway with an ``[email.unitysvc]`` section. aimm then sends its full HTML email with listing images, which suits forwarding emails through UnitySVC's email services:
+Without UnitySVC
+----------------
+
+Each of these channels needs its own account. Its token goes in the ``[notification.*]`` section, preferably as an environment variable reference, and where the user receives it (a user key or chat ID) goes on the user.
+
+Pushover
+~~~~~~~~
+
+To enable PushOver notifications, follow these steps:
+
+1. **Install the PushOver app** on your mobile device.
+2. **Create a PushOver account** at `pushover.net <https://pushover.net>`_. After registration, you will find your **User Key** labeled as `Your User Key` — this is your `pushover_user_key`.
+3. **Create a new application** (you can name it `AIMarketplaceMonitor`). After creation, you will receive an **API Token/Key**, referred to as `pushover_api_token`.
+
+Configuration Options
+^^^^^^^^^^^^^^^^^^^^^
+
+Once you have both the user key and API token, add them to your configuration file: the API token in a notification section, the user key on the user who receives it.
 
 .. code-block:: toml
 
-    [email.unitysvc]
-    smtp_username = 'smtp-to-mailbox'
+    [notification.pushover]
+    pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
     [user.me]
-    notify_with = 'email.unitysvc'
+    pushover_user_key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    notify_with = 'notification.pushover'
 
-The SMTP username selects the UnitySVC service, and is the one value the section must set; your API key is the password. The preset has the server ``smtp.svcpass.com``, port 587 and ``smtp_password = '${UNITYSVC_API_KEY}'``, and the sender is ``notify@svcpass.com``; set any of them to override it.
+Description Settings
+^^^^^^^^^^^^^^^^^^^^
 
-- **Emails go to your UnitySVC-registered email address**, the verified primary email under Settings → Account on UnitySVC, not to the address in ``email``. Make sure that address is set and verified.
-- ``smtp_username = 'smtp-to-mailbox'`` skips the inbox and emails your registered address directly, free of charge, keeping the HTML body and listing images.
-- ``smtp_username = 'notify'`` delivers to your UnitySVC inbox and your saved notification destination, as the HTTP ``notify`` service does. To receive these notifications by email, your notification destination on UnitySVC must include ``smtp-to-mailbox``: set it as the destination, or add it to a broadcast used as the destination.
-- ``smtp_username`` can also be any other service that accepts the SMTP gateway (use the SMTP username shown on its catalog page), or ``a/<alias>`` for one of your aliases. For services that deliver to the ``To`` address, set ``email``.
-- ``email`` is optional with the preset: it only fills the ``To`` header, and ``smtp-to-mailbox`` and ``notify`` deliver to your registered address whatever it says.
+By default, notifications include the **title**, **price**, **location**, **description**, and **AI-generated comments** (if enabled). To exclude or limit the length of the **listing description**, you can add the `with_description` option to your config.
+
+You can set `with_description` to:
+
+- `true` — to include the **full description**.
+- `false` — to exclude the description (default behavior).
+- A **number** — to include only the **first N characters** of the description.
+
+For example:
+
+.. code-block:: toml
+
+    [notification.pushover]
+    pushover_api_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    with_description = 100
+
+This will include up to the first 100 characters of each listing's description in your notifications.
+
+Telegram
+~~~~~~~~
+
+To enable Telegram notifications, you'll need to create a Telegram bot and obtain a chat ID.
+
+Step 1: Create a Telegram Bot
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. **Open Telegram** and search for `@BotFather` (the official bot for creating other bots).
+2. **Start a conversation** with BotFather by clicking "Start" or sending `/start`.
+3. **Create a new bot** by sending the command `/newbot`.
+4. **Choose a bot name** when prompted (e.g., "AI Marketplace Monitor").
+5. **Choose a bot username** that ends with "bot" (e.g., "my_marketplace_monitor_bot").
+6. **Save your bot token** - BotFather will provide a token that looks like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`. **Keep this token secure and never share it publicly.**
+
+Step 2: Get Your Chat ID
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+You need to find your chat ID to receive messages. Here are two methods:
+
+**Method 1: Using @userinfobot**
+
+1. Search for `@userinfobot` in Telegram and start a conversation.
+2. Send any message to the bot.
+3. The bot will reply with your user information, including your **Chat ID** (a number like `123456789`).
+
+**Method 2: Using the Telegram Bot API**
+
+1. Start a conversation with your newly created bot (search for its username).
+2. Send any message to your bot (e.g., "Hello").
+3. Open this URL in your browser, replacing `YOUR_BOT_TOKEN` with your actual token::
+
+       https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
+
+4. Look for the `"chat":{"id":` field in the response - this number is your chat ID.
+
+Step 3: Configure Your Settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Add the bot token to a notification section, and your chat ID to the user who receives it. Environment variables keep the token out of the file:
+
+.. code-block:: toml
+
+    [notification.telegram]
+    telegram_token = '${TELEGRAM_BOT_TOKEN}'
+
+    [user.me]
+    telegram_chat_id = '${TELEGRAM_CHAT_ID}'
+    notify_with = 'notification.telegram'
+
+Then set the environment variables:
+
+.. code-block:: bash
+
+    export TELEGRAM_BOT_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+    export TELEGRAM_CHAT_ID="123456789"
+
+Telegram Troubleshooting
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**401 Unauthorized Error**
+
+- **Cause**: Invalid or incorrect bot token
+- **Solution**:
+  1. Verify your bot token is correct (it should look like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
+  2. Make sure there are no extra spaces or characters
+  3. Create a new bot with @BotFather if the token is lost
+
+**403 Forbidden Error**
+
+- **Cause**: Bot doesn't have permission to send messages to the chat
+- **Solution**:
+  1. Start a conversation with your bot by searching for its username in Telegram
+  2. Send at least one message to the bot (e.g., "/start" or "Hello")
+  3. Verify the chat ID is correct
+
+**400 Bad Request Error**
+
+- **Cause**: Invalid chat ID format or the chat doesn't exist
+- **Solution**:
+  1. Double-check your chat ID is a number (positive for users, negative for groups)
+  2. For group chats, make sure the bot is added to the group
+  3. Use the getUpdates method to verify your chat ID
 
 AI Prompt Customization
 =======================
@@ -457,7 +593,7 @@ If you have special characters and spaces in your keywords, you will need to quo
 Multi-Location and Region Search
 ================================
 
-`search_city` is the name, sometimes numbers, used by Facebook marketplace to represent a city. To get the value of `search_city` for your region, visit facebook marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
+For Facebook Marketplace, `search_city` is the name, sometimes numbers, used by Facebook to represent a city; for OfferUp, it is a US ZIP code or `"latitude,longitude"`. To get the value of `search_city` for your region, visit facebook marketplace, perform a search, and the city should be the name after `marketplace` (e.g. `XXXXX` in a URL like `https://www.facebook.com/marketplace/XXXXX/search?query=YYYY`).
 
 The **Assistant** (in the web UI, or ``aimm configure``) finds it for you: tell it a city, neighborhood or ZIP code (for example ``Houston, TX``, ``Los Angeles, Texas`` or ``92101``). aimm asks Facebook Marketplace's location search, as Facebook's location dialog does, and shows the matching places with their codes (``houston``; ``487995858630733`` for Los Angeles, La Salle County, Texas; ``sandiego`` for 92101). No browser or Facebook account is involved, and nothing is changed on your account.
 
@@ -569,24 +705,6 @@ and *AI Marketplace Monitor* will automatically convert `100 EUR` to `GBP` when 
    1. The following currency codes are supported: `USD`, `JPY`, `BGN`, `CYP`, `EUR`, `CZK`, `DKK`, `EEK`, `GBP`, `HUF`, `LTL`, `LVL`, `MTL`, `PLN`, `ROL`, `RON`, `SEK`, `SIT`, `SKK`, `CHF`, `ISK`, `NOK`, `HRK`, `RUB`, `TRL`, `TRY`, `AUD`, `BRL`, `CAD`, `CNY`, `HKD`, `IDR`, `ILS`, `INR`, `KRW`, `MXN`, `MYR`, `NZD`, `PHP`, `SGD`, `THB`, `ZAR`, and `ARS`.
    2. Currency conversion only occurs if currencies are explicitly defined and differ between cities or from the currency used in `min_price`/`max_price`.
    3. Conversion rates are intended for basic filtering and may not reflect real-time market values.
-
-Self-hosted AI with Ollama
-==========================
-
-If you have access to a decent machine and prefer not to pay for AI services from OpenAI or other vendors, you can opt to install Ollama locally and access it using the `provider = "ollama"`. If you have ollama on your local host, you can use:
-
-.. code-block:: toml
-
-    [ai.ollama]
-    base_url = "http://localhost:11434/v1"
-    model = "deepseek-r1:14b"
-    timeout = 120 # specified in seconds
-
-.. note::
-   1. Depending on your hardware configuration, you can choose any of the models listed at `ollama.com/library <https://ollama.com/library>`_. The default model is `deepseek-r1:14b` because it appears to work better than `llama-3.1:8b`.
-   2. You need to `pull` the model before you can use it.
-
-
 
 Updates and Proxy
 =================
