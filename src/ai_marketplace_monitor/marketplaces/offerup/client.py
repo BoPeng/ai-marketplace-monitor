@@ -2,38 +2,40 @@
 
 OfferUp has no public API. Its website asks ``https://offerup.com/api/graphql`` for search
 results (``GetModularFeed``), a listing (``GetListingDetailByListingId``) and a seller's
-public profile (``PublicProfile``); these answer anonymous requests that look like a
-browser's. aimm writes its own queries with only the fields it reads, so changes to
-OfferUp's own query text do not matter; a field OfferUp removes shows as an error.
+public profile (``PublicProfile``); these answer anonymous requests. aimm writes its own
+queries with only the fields it reads, so changes to OfferUp's own query text do not
+matter; a field OfferUp removes shows as an error.
 
-OfferUp is behind Cloudflare, which refuses clients that do not look like a browser (and,
-presumably, too many requests) with HTTP 403. Requests are spaced by ``min_gap`` seconds.
-OfferUp is only available in the US.
+aimm says who it is: its User-Agent names aimm and links to the project, and it sends no
+headers that pretend the request comes from OfferUp's website. Requests are spaced by
+``min_gap`` seconds, and when OfferUp refuses one (HTTP 403 or 429, from Cloudflare), aimm
+sends none for ``BLOCK_PAUSE`` seconds, or longer if OfferUp asks with Retry-After, instead
+of trying the next request. OfferUp is only available in the US.
 """
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from typing import Any, Dict, List, Mapping
 
 import requests  # type: ignore
 
+from ... import __version__
+
 GRAPHQL = "https://offerup.com/api/graphql"
 TIMEOUT = 30  # seconds
 MIN_GAP = 3.0  # seconds between requests
+BLOCK_PAUSE = 60 * 60  # seconds without requests after OfferUp refuses one
 
-# what a browser sends with its GraphQL requests
+USER_AGENT = (
+    f"ai-marketplace-monitor/{__version__} (+https://github.com/BoPeng/ai-marketplace-monitor)"
+)
 _HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/141.0 Safari/537.36"
-    ),
-    "Accept": "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": USER_AGENT,
+    "Accept": "application/json",
     "Content-Type": "application/json",
-    "Origin": "https://offerup.com",
-    "Referer": "https://offerup.com/",
 }
 
 SEARCH_QUERY = """query GetModularFeed($searchParams: [SearchParam]) {
@@ -90,9 +92,17 @@ class OfferUpClient:
         self.min_gap = min_gap
         self._lock = threading.Lock()
         self._last = 0.0
+        # after OfferUp refuses a request, no request goes out before this time (monotonic)
+        self._paused_until = 0.0
 
     def _post(self: "OfferUpClient", operation: str, query: str, variables: Dict[str, Any]) -> Any:
         with self._lock:
+            paused = self._paused_until - time.monotonic()
+            if paused > 0:
+                raise OfferUpBlockedError(
+                    "OfferUp refused an earlier request; aimm sends it none for another "
+                    f"{math.ceil(paused / 60)} minute(s)."
+                )
             wait = self._last + self.min_gap - time.monotonic()
             if wait > 0:
                 time.sleep(wait)
@@ -107,6 +117,7 @@ class OfferUpClient:
             finally:
                 self._last = time.monotonic()
         if response.status_code in (403, 429):
+            self._pause(response)
             raise OfferUpBlockedError(
                 f"OfferUp refused the request (HTTP {response.status_code}): too many requests, "
                 "or a location outside the US (OfferUp is US-only; set proxy_server to a US "
@@ -122,6 +133,17 @@ class OfferUpClient:
         if response.status_code != 200 or "data" not in body:
             raise OfferUpError(f"OfferUp answered HTTP {response.status_code} to {operation}.")
         return body["data"]
+
+    def _pause(self: "OfferUpClient", response: Any) -> None:
+        """Send OfferUp nothing for BLOCK_PAUSE seconds, or as long as its Retry-After asks."""
+        pause = float(BLOCK_PAUSE)
+        try:
+            headers = getattr(response, "headers", None) or {}
+            pause = max(pause, float(headers.get("Retry-After", 0)))
+        except (TypeError, ValueError):
+            pass  # an HTTP date or nothing: keep BLOCK_PAUSE
+        with self._lock:
+            self._paused_until = max(self._paused_until, time.monotonic() + pause)
 
     def search(self: "OfferUpClient", params: Mapping[str, Any]) -> List[Dict[str, Any]]:
         """The listings of a search (``q``, ``zipcode``, ``radius``, ``PRICE_MAX``, ...)."""

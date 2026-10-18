@@ -231,7 +231,8 @@ radius = 30                # miles: OfferUp offers 5, 10, 20, 30 and 50 (the nea
 - OfferUp's search sorts newest first unless `sort_by` says otherwise, and filters by `condition` (`new`; `used_like_new` as open box or used; `used_good` and `used_fair` as used), `min_price` and `max_price` (in US dollars; other currencies are converted). It has no filter for a listing's age or delivery: `date_listed` and `delivery_method` are checked after AIMM reads the listing.
 - AIMM reads each seller's public profile (when they joined OfferUp, rating, items sold, what buyers praise, verifications such as TruYou) for the AI and the seller filters. OfferUp does not show a seller's number of active listings.
 - Without a Facebook section, AIMM starts no browser (the web UI's browser view starts one on demand) and needs no Facebook credentials. The web UI then signs you in with `AIMM_WEBUI_PASSWORD` (see [Who signs you in to the web UI](docker-installation.md#who-signs-you-in-to-the-web-ui)).
-- OfferUp answers only requests from the US: elsewhere, set `proxy_server` in `[monitor]` to a US proxy. AIMM spaces its requests by a few seconds; if OfferUp refuses them (HTTP 403), AIMM logs it and tries again at the next search.
+- OfferUp answers only requests from the US: elsewhere, set `proxy_server` in `[monitor]` to a US proxy.
+- AIMM identifies itself to OfferUp (its User-Agent names AIMM and links to this project) and spaces its requests by a few seconds. The same search (phrase, place and options) runs at most every 30 minutes, whatever `search_interval` says and across restarts. If OfferUp refuses a request (HTTP 403 or 429), AIMM sends it nothing for an hour, or longer if OfferUp asks.
 - OfferUp's terms prohibit automated collection, as Facebook's do. AIMM is meant for personal use.
 
 ### Users

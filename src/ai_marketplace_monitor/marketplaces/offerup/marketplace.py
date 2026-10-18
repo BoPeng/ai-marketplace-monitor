@@ -19,7 +19,7 @@ from ...control import control
 from ...evaluations import AVAILABLE, PENDING, SOLD, EvaluationRecord, update_evaluation
 from ...listing import Listing
 from ...seller import Seller
-from ...utils import CounterItem, KeyboardMonitor, counter, hilight
+from ...utils import CacheType, CounterItem, KeyboardMonitor, cache, counter, hilight
 from ..base import (
     Condition,
     DeliveryMethod,
@@ -75,6 +75,11 @@ SELLER_PREFIX = "offerup:"
 def _user_id(seller_id: str) -> str:
     """The OfferUp user id of an aimm seller id."""
     return seller_id[len(SELLER_PREFIX) :] if seller_id.startswith(SELLER_PREFIX) else seller_id
+
+
+# the same OfferUp search (phrase, place and options) runs at most this often (seconds), for
+# every schedule, restart and "search now"
+MIN_SEARCH_INTERVAL = 30 * 60
 
 
 def nearest_radius(radius: float) -> int:
@@ -211,6 +216,33 @@ class OfferUpMarketplace(Marketplace):
                     )
                 )
         return pages
+
+    def due_search_pages(
+        self: "OfferUpMarketplace", pages: List[SearchPage], item_config: ItemConfig
+    ) -> List[SearchPage]:
+        """The searches not run in the last MIN_SEARCH_INTERVAL; it records them as run.
+
+        The record is kept in the cache, so restarting aimm does not reset it.
+        """
+        due = []
+        for page in pages:
+            key = (CacheType.OFFERUP_SEARCHES.value, page.url)
+            if key in cache:
+                if self.logger:
+                    self.logger.info(
+                        f"""{hilight("[Search]", "info")} Skip OfferUp search for """
+                        f"""{hilight(item_config.name)} from {page.city_name or page.city}: """
+                        f"OfferUp searches run at most every {MIN_SEARCH_INTERVAL // 60} minutes."
+                    )
+                continue
+            cache.set(
+                key,
+                time.time(),
+                expire=MIN_SEARCH_INTERVAL,
+                tag=CacheType.OFFERUP_SEARCHES.value,
+            )
+            due.append(page)
+        return due
 
     def _dollars(self: "OfferUpMarketplace", price: str) -> str:
         """A price option ("300" or "300 EUR") in US dollars, as OfferUp's search takes it."""
