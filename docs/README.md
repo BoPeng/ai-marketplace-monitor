@@ -62,10 +62,11 @@ flowchart LR
     smtp -- "smtp-to-mailbox" --> mailbox["Your UnitySVC<br/>email address"]
     smtp -- "smtp-relay (BYOK)" --> ownsmtp["Your SMTP server<br/>Gmail, Outlook, ..."]
     api -- "msg-to-discord, ... (BYOK)" --> chat["Your Discord, Slack,<br/>Telegram, Pushover, ..."]
-    api -- "llm pool" --> llm["OpenAI, Anthropic,<br/>Google, Groq, ..."]
+    api -- "llm pool" --> llm["Vision models, chosen<br/>by tier: fast, balanced, ..."]
+    api -- "AI (BYOK)" --> aiown["Your OpenAI, Anthropic,<br/>Gemini, ... account"]
 ```
 
-AIMM sends everything with one key: email to UnitySVC's SMTP gateway, and notifications and AI requests to its API gateway. Email goes to the address of your UnitySVC account (`smtp-to-mailbox`) or, through your own SMTP server, to any address (`smtp-relay`). With your own keys (BYOK) saved in UnitySVC, notifications reach your Discord, Slack, Telegram or Pushover account, and the provider bills you. AI requests go to a pool of models from several providers, and UnitySVC fails over between them.
+AIMM sends everything with one key: email to UnitySVC's SMTP gateway, and notifications and AI requests to its API gateway. Email goes to the address of your UnitySVC account (`smtp-to-mailbox`) or, through your own SMTP server, to any address (`smtp-relay`). With your own keys (BYOK) saved in UnitySVC, notifications reach your Discord, Slack, Telegram or Pushover account, and the provider bills you. For AI, the two options work differently: the `llm` pool is chosen by capability, a tier of vision models that can read listing photos, and UnitySVC picks the provider behind it and fails over between them; with your own key (BYOK), you choose the provider, such as OpenAI or Anthropic, and it bills you.
 
 We recommend it because:
 
