@@ -111,6 +111,9 @@ def test_rejected_message_fails_after_retries(listing: Listing, post: MagicMock)
         [{"label": "Open", "url": "{url}"}],
         [{"action": "dance", "label": "Open"}],
         [{"action": "view", "label": "x", "url": "{url}"}] * 4,
+        [{"action": "view", "label": "Open"}],
+        [{"action": "http", "label": "Ask", "body": "{}"}],
+        [{"action": "copy", "label": "Copy link"}],
         "view, Open, {url}",
     ],
 )
@@ -125,3 +128,37 @@ def test_placeholders_keep_other_braces() -> None:
         '{"u": "https://x/1", "z": "{other}"}'
     )
     assert fill_placeholders({"a": ["{url}"], "b": 3}, values) == {"a": ["{url}"], "b": 3}
+
+
+def test_markdown_is_kept_per_listing(listing: Listing, post: MagicMock) -> None:
+    assert notify(config(ntfy_per_listing=True, message_format="markdown"), [listing])
+    assert post.call_args.kwargs["json"]["markdown"] is True
+    assert notify(config(ntfy_per_listing=True), [listing])
+    assert post.call_args.kwargs["json"]["markdown"] is False
+
+
+@pytest.mark.parametrize(
+    "server", ["http://localhost:8080", "http://127.0.0.1", "https://ntfy.example"]
+)
+def test_token_allowed_over_https_or_to_localhost(server: str) -> None:
+    assert NtfyNotificationConfig(name="n", ntfy_server=server, ntfy_token="tk").ntfy_token == "tk"
+
+
+def test_token_refused_over_plain_http() -> None:
+    with pytest.raises(ValueError, match="only over https"):
+        NtfyNotificationConfig(name="n", ntfy_server="http://ntfy.lan:80", ntfy_token="tk")
+    # without a token, plain http stays allowed (e.g. a server on the local network)
+    assert NtfyNotificationConfig(name="n", ntfy_server="http://ntfy.lan").ntfy_server
+
+
+def test_rejection_reason_is_logged(listing: Listing, post: MagicMock) -> None:
+    error = RuntimeError("400 Bad Request")
+    error.response = SimpleNamespace(text='{"error":"invalid action"}')  # type: ignore[attr-defined]
+
+    def raise_with_body() -> None:
+        raise error
+
+    post.return_value = SimpleNamespace(raise_for_status=raise_with_body)
+    logger = MagicMock()
+    assert not notify(config(ntfy_per_listing=True, max_retries=1), [listing], logger=logger)
+    assert any("invalid action" in str(c) for c in logger.debug.call_args_list)

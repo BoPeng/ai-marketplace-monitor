@@ -21,6 +21,9 @@ from .utils import hilight
 # the fields of a listing that ntfy_actions may use, as {name}
 ACTION_PLACEHOLDERS = ("url", "id", "title", "price", "location")
 ACTION_TYPES = ("view", "http", "broadcast", "copy")
+# the field each action type needs besides its label (https://docs.ntfy.sh/publish/#action-buttons)
+ACTION_REQUIRED = {"view": "url", "http": "url", "copy": "value"}
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 # ntfy shows at most three action buttons
 MAX_ACTIONS = 3
 
@@ -111,6 +114,24 @@ class NtfyNotificationConfig(PushNotificationConfig):
                     f"({', '.join(ACTION_TYPES)}) and a label, e.g. "
                     '{ action = "view", label = "Open", url = "{url}" }.'
                 )
+            required = ACTION_REQUIRED.get(action["action"])
+            if required and not isinstance(action.get(required), str):
+                raise ValueError(
+                    f'The {action["action"]} action "{action["label"]}" of ntfy_actions needs '
+                    f"a {required}."
+                )
+
+    def __post_init__(self: "NtfyNotificationConfig") -> None:
+        """Validate the fields, then refuse a token that would be sent unencrypted."""
+        super().__post_init__()
+        # a token is a password: never send it unencrypted, except to this machine
+        if self.ntfy_token and self.ntfy_server and self.ntfy_server.startswith("http://"):
+            host = self.ntfy_server[len("http://") :].split("/")[0].rsplit(":", 1)[0]
+            if host not in LOCAL_HOSTS:
+                raise ValueError(
+                    "ntfy_token is sent only over https:// (or to localhost); "
+                    f"use an https:// ntfy_server instead of {self.ntfy_server}."
+                )
 
     def _headers(self: "NtfyNotificationConfig") -> Dict[str, str]:
         if self.ntfy_token:
@@ -199,6 +220,7 @@ class NtfyNotificationConfig(PushNotificationConfig):
             "message": "\n".join(lines),
             "click": values["url"],
             "tags": ["shopping_cart"],
+            "markdown": self.message_format == "markdown",
         }
         if listing.image:
             message["attach"] = listing.image
@@ -232,8 +254,11 @@ class NtfyNotificationConfig(PushNotificationConfig):
                 raise
             except Exception as e:
                 if logger:
+                    # ntfy says what it rejected (e.g. an invalid action) in the response body
+                    body = getattr(getattr(e, "response", None), "text", "") or ""
+                    detail = f" ({body.strip()[:300]})" if body.strip() else ""
                     logger.debug(
-                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}"""
+                        f"""{hilight("[Notify]", "fail")} Attempt {attempt + 1} failed: {e}{detail}"""
                     )
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay)
