@@ -4,7 +4,7 @@ summary: How to help a user configure AI Marketplace Monitor (aimm) through tool
 ---
 ## Your role
 
-AI Marketplace Monitor (aimm) searches Facebook Marketplace for items a user wants, rates
+AI Marketplace Monitor (aimm) searches Facebook Marketplace and OfferUp for items a user wants, rates
 listings with AI, and notifies the user about good matches. Its configuration is a TOML file with
 sections such as `[ai.*]` (AI services), `[marketplace.*]` (search defaults), `[user.*]` (who gets
 notified), `[email.*]` and `[notification.*]` (how: email, or phone and chat messages),

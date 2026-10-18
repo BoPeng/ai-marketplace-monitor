@@ -1,16 +1,18 @@
 ---
 section: marketplace
-summary: Defaults for searching a marketplace, such as Facebook Marketplace (location, notifications, filters, schedule).
+summary: Defaults for searching a marketplace, Facebook Marketplace or OfferUp (location, notifications, filters, schedule).
 ---
 ## Goal
 
 A `[marketplace.NAME]` section that holds the defaults for searching one marketplace and fits how
-this user shops. aimm searches:
+this user shops. aimm searches two marketplaces:
 
 - **Facebook Marketplace** (`market_type = "facebook"`, the default): aimm logs in with the user's
   Facebook account and searches in a browser.
+- **OfferUp** (`market_type = "offerup"`): US only; no account, no login, no browser.
 
-A section named after its marketplace (`[marketplace.facebook]`) needs no `market_type`; aimm sets it when it creates a section with another name. Its shared values apply
+A section named after its marketplace (`[marketplace.facebook]`, `[marketplace.offerup]`) needs no
+`market_type`; aimm sets it when it creates a section with another name. Its shared values apply
 to every item of this marketplace unless an item sets its own value; its own values (language,
 login: Facebook only) apply to the marketplace itself. A new marketplace is also searched by every
 item that names no `marketplace`: aimm tells the user when they save it.
@@ -24,8 +26,15 @@ search, and who is notified / which AI rates listings.
 ### Location (required)
 
 Where to search: a city (`search_city`) and how far around it (`radius`), or a whole country
-or area (`search_region`). `search_city` is in the section's marketplace format: for Facebook, its
-code for the place.
+or area (`search_region`). `search_city` is in the section's marketplace format: Facebook's code
+for the place, or for OfferUp a US ZIP code or the place's coordinates.
+
+#### OfferUp
+
+Ask where to search. A ZIP code the user gives is the value as it is (`search_city = ["77096"]`).
+For a city or neighborhood, call `find_city` and confirm the place as below, then use the place's
+`offerup` value (its coordinates, e.g. `"29.7604,-95.3698"`). OfferUp offers a radius of 5, 10,
+20, 30 or 50 miles (aimm uses the nearest). A region works only if its cities have OfferUp values.
 
 #### Facebook
 
@@ -37,7 +46,7 @@ out reliably from a city's name, so never guess it. Instead:
 - Ask where to search: a city, neighborhood or ZIP code, and how far around it. Call
   `find_city` with what the user said, spelled correctly (fix obvious typos; "Los Angles" is
   "Los Angeles"). aimm asks Facebook's location search and returns its matching places, best
-  first, each labelled with its region and with its `facebook` code.
+  first, each labelled with its region and with its `facebook` code (and `offerup` coordinates).
 - Confirm the place with the user from that list before saving, in your own words:
   - one place clearly fits (a ZIP code, or "Houston, TX" → Houston, Texas): ask whether it is
     right;
@@ -78,7 +87,8 @@ services and a preference.
 ### Which listings
 
 Condition, delivery method, how recent listings are, availability (Facebook only), sort order, and
-a price range only if it applies to everything the user searches here. Ask only about what is likely to matter
+a price range only if it applies to everything the user searches here. OfferUp sections take the
+same options except Facebook's (`availability`, `category`, `language`, `currency`, login). Ask only about what is likely to matter
 for this user, for example condition and pickup versus shipping for furniture or electronics.
 
 ### Schedule
@@ -113,6 +123,6 @@ mentioned are set; anything not discussed stays unset so aimm's defaults apply.
 - Logging in to Facebook (Facebook sections only) happens outside this conversation. If the user
   brings it up, explain that aimm reads `FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD` from the
   environment; `username` and `password` may only be set to `${FACEBOOK_USERNAME}` /
-  `${FACEBOOK_PASSWORD}`.
+  `${FACEBOOK_PASSWORD}`. OfferUp needs no login.
 - Leave `market_type` as aimm set it. Change it only if the user wants this section to search
   another marketplace, and then unset the options the new one does not have.

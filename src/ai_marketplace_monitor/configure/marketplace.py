@@ -39,11 +39,6 @@ def _values(enum: Any) -> str:
 
 _TWO_VALUES = " A list of two values sets the first search and later searches separately."
 
-# how aimm configure marketplace offers each supported marketplace for a new section
-MARKETPLACE_CHOICES = {
-    "facebook": "Facebook Marketplace (aimm logs in with your Facebook account)",
-}
-
 MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "enabled", "only when the user wants to pause this marketplace", "`false`", "enabled"
@@ -51,10 +46,11 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
     FieldGuide(
         "market_type",
         "the marketplace: `facebook` (Facebook Marketplace; aimm logs in with the user's "
-        "Facebook account and uses a browser). Set it for a section not named after its "
-        "marketplace; a section named after its marketplace (facebook) needs none",
-        '`"facebook"`',
-        "the section's name if it names a marketplace (facebook), else facebook",
+        "Facebook account and uses a browser) or `offerup` (OfferUp, US only; no account, no "
+        "browser). Set it for a section not named after its marketplace, e.g. "
+        "[marketplace.houston] searching OfferUp; a section named facebook or offerup needs none",
+        '`"facebook"` or `"offerup"`',
+        "the section's name if it names a marketplace (facebook, offerup), else facebook",
     ),
     FieldGuide(
         "language",
@@ -92,9 +88,11 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
         "search_city",
         "where to search, in the section's marketplace format, from find_city with the city or "
         "ZIP code the user names (never guessed): Facebook, its code for the place (find_city's "
-        "`facebook`, or after /marketplace/ in a Marketplace URL the user pastes)",
-        'list, e.g. `["houston"]` or `["111979382146893"]` (Facebook); for an item searched in '
-        'marketplaces of different types, tables by type, e.g. `[{ facebook = "houston" }]`',
+        "`facebook`, or after /marketplace/ in a Marketplace URL the user pastes); OfferUp, a "
+        "US ZIP code the user gives or the place's coordinates (find_city's `offerup`)",
+        'list, e.g. `["houston"]` or `["111979382146893"]` (Facebook), `["77096"]` or '
+        '`["29.7604,-95.3698"]` (OfferUp); for an item searched in marketplaces of different '
+        'types, tables by type, e.g. `[{ facebook = "houston", offerup = "29.7604,-95.3698" }]`',
         "required unless search_region is set",
     ),
     FieldGuide(
@@ -107,7 +105,7 @@ MARKETPLACE_GUIDES: Tuple[FieldGuide, ...] = (
         "radius",
         "how far around each city to search, in miles (in the unit Facebook shows elsewhere); "
         "the nearest choice is used: Facebook offers 1, 2, 5, 10, 20, 40, 60, 80, 100, 250 and "
-        "500",
+        "500, OfferUp 5, 10, 20, 30 and 50",
         "list of integers, one per city or one for all, e.g. `[40]`",
         "Facebook's default",
     ),
@@ -457,15 +455,15 @@ class MarketplaceToolkit(Toolkit):
         return "\n\n".join([head, f"```toml\n{body}```" if body else "(no settings)"])
 
     async def _new_name(self: "MarketplaceToolkit", ui: SetupUI, ws: "Workspace") -> str:
-        choices = [
-            Choice(market, MARKETPLACE_CHOICES.get(market, market))
-            for market in supported_marketplaces
-        ]
-        # with one supported marketplace, there is nothing to choose
-        market_type = (
-            choices[0].value
-            if len(choices) == 1
-            else await ui.choose("Which marketplace?", choices, default="facebook")
+        market_type = await ui.choose(
+            "Which marketplace?",
+            [
+                Choice(
+                    "facebook", "Facebook Marketplace (aimm logs in with your Facebook account)"
+                ),
+                Choice("offerup", "OfferUp (US only; no account needed)"),
+            ],
+            default="facebook",
         )
         taken = set(ws.user_cfg.get("marketplace", {}))
         if market_type not in taken:

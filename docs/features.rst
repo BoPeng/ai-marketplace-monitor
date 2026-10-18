@@ -5,6 +5,7 @@ Features
 🔍 **Smart Search**
 -------------------
 
+- **Two Marketplaces**: Search Facebook Marketplace and OfferUp (US; no account or browser needed), one marketplace or both for each item
 - **Multi-Product Search**: Search for multiple products using customizable keywords
 - **Advanced Filtering**: Filter by price range, location, and seller criteria
 - **Spam Detection**: Automatically exclude irrelevant results and known spammers

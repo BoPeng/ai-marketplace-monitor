@@ -19,10 +19,10 @@ from ai_marketplace_monitor.utils import SleepStatus, doze
 
 
 class HttpMarketplace:
-    """A marketplace searched over HTTP, without a browser."""
+    """A marketplace searched over HTTP, such as OfferUp (#467)."""
 
     needs_browser = False
-    market_type = "httpmarket"
+    market_type = "offerup"
 
     def __init__(self, name: str = "", browser: Any = None, *args: Any) -> None:
         self.name = name
@@ -57,7 +57,7 @@ def _monitor(
     monkeypatch: pytest.MonkeyPatch, marketplaces: Dict[str, Tuple[str, bool | None]]
 ) -> mon.MarketplaceMonitor:
     """A monitor whose config has these marketplaces (name: (market_type, enabled))."""
-    monkeypatch.setitem(aimm_config.supported_marketplaces, "httpmarket", HttpMarketplace)  # type: ignore[arg-type]
+    monkeypatch.setitem(aimm_config.supported_marketplaces, "offerup", HttpMarketplace)  # type: ignore[arg-type]
     monitor = mon.MarketplaceMonitor.__new__(mon.MarketplaceMonitor)
     monitor.config = SimpleNamespace(  # type: ignore[assignment]
         marketplace={
@@ -85,9 +85,9 @@ def test_facebook_needs_the_browser() -> None:
     [
         ({"facebook": ("facebook", None)}, True),
         ({"mymarket": ("facebook", None)}, True),  # any section name
-        ({"facebook": ("facebook", True), "httpmarket": ("httpmarket", None)}, True),
-        ({"facebook": ("facebook", False), "httpmarket": ("httpmarket", None)}, False),  # disabled
-        ({"httpmarket": ("httpmarket", None)}, False),
+        ({"facebook": ("facebook", True), "offerup": ("offerup", None)}, True),
+        ({"facebook": ("facebook", False), "offerup": ("offerup", None)}, False),  # disabled
+        ({"offerup": ("offerup", None)}, False),
         ({}, False),
     ],
 )
@@ -108,7 +108,7 @@ def test_without_a_config_no_browser_is_needed(monkeypatch: pytest.MonkeyPatch) 
 def test_ensure_browser_starts_it_once_and_gives_it_to_who_needs_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monitor = _monitor(monkeypatch, {"httpmarket": ("httpmarket", None)})
+    monitor = _monitor(monkeypatch, {"offerup": ("offerup", None)})
     launched: List[str] = []
 
     def launch() -> str:
@@ -118,7 +118,7 @@ def test_ensure_browser_starts_it_once_and_gives_it_to_who_needs_it(
     monkeypatch.setattr(monitor, "_launch_browser", launch)
     http, browser_user = HttpMarketplace(), BrowserMarketplace()
     monkeypatch.setattr(
-        mon.MarketplaceMonitor, "active_marketplaces", {"httpmarket": http, "other": browser_user}
+        mon.MarketplaceMonitor, "active_marketplaces", {"offerup": http, "other": browser_user}
     )
     control.request_browser()
 
@@ -158,14 +158,14 @@ def test_a_request_wakes_the_monitor() -> None:
         ("mymarket", {}, "facebook"),  # section names are free
         ("mymarket", {"market_type": "facebook"}, "facebook"),
         ("mymarket", {"market_type": "Facebook"}, "facebook"),
-        ("httpmarket", {}, "httpmarket"),  # named after a supported marketplace
-        ("httpmarket", {"market_type": "facebook"}, "facebook"),  # market_type comes first
+        ("offerup", {}, "offerup"),  # named after a supported marketplace
+        ("offerup", {"market_type": "facebook"}, "facebook"),  # market_type comes first
     ],
 )
 def test_the_type_of_a_marketplace_section(
     monkeypatch: pytest.MonkeyPatch, name: str, section: Dict[str, Any], expected: str
 ) -> None:
-    monkeypatch.setitem(aimm_config.supported_marketplaces, "httpmarket", HttpMarketplace)  # type: ignore[arg-type]
+    monkeypatch.setitem(aimm_config.supported_marketplaces, "offerup", HttpMarketplace)  # type: ignore[arg-type]
     assert marketplace_type(name, section) == expected
 
 
@@ -195,15 +195,15 @@ def test_a_section_with_any_name_is_searched(tmp_path: Path) -> None:
 def test_the_normalizer_keeps_a_market_type_that_matters(monkeypatch: pytest.MonkeyPatch) -> None:
     from ai_marketplace_monitor.normalize.compact import _drop_explicit_defaults
 
-    monkeypatch.setitem(aimm_config.supported_marketplaces, "httpmarket", HttpMarketplace)  # type: ignore[arg-type]
+    monkeypatch.setitem(aimm_config.supported_marketplaces, "offerup", HttpMarketplace)  # type: ignore[arg-type]
     cfg = {
         "marketplace": {
             "mymarket": {"market_type": "facebook"},
-            "httpmarket": {"market_type": "facebook"},  # without it, the section is httpmarket
+            "offerup": {"market_type": "facebook"},  # without it, the section is OfferUp
         }
     }
     _drop_explicit_defaults(cfg, {})
-    assert cfg["marketplace"] == {"mymarket": {}, "httpmarket": {"market_type": "facebook"}}
+    assert cfg["marketplace"] == {"mymarket": {}, "offerup": {"market_type": "facebook"}}
 
 
 # ------------------------------------------------------------------ how the monitor uses them
@@ -212,7 +212,7 @@ def test_the_normalizer_keeps_a_market_type_that_matters(monkeypatch: pytest.Mon
 def test_schedule_jobs_starts_the_browser_only_for_who_needs_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monitor = _monitor(monkeypatch, {"httpmarket": ("httpmarket", None)})
+    monitor = _monitor(monkeypatch, {"offerup": ("offerup", None)})
     monkeypatch.setattr(monitor, "load_config_file", lambda: monitor.config)
     monkeypatch.setattr(monitor, "load_ai_agents", lambda: None)
     monitor.keyboard_monitor = None
@@ -225,7 +225,7 @@ def test_schedule_jobs_starts_the_browser_only_for_who_needs_it(
     monkeypatch.setattr(monitor, "_launch_browser", launch)
     monitor.schedule_jobs()
     assert launched == [] and monitor.browser is None
-    assert monitor.active_marketplaces["httpmarket"].browser is None
+    assert monitor.active_marketplaces["offerup"].browser is None
 
     # a config reload adds a Facebook marketplace, under any name
     monkeypatch.setitem(aimm_config.supported_marketplaces, "fb", BrowserMarketplace)  # type: ignore[arg-type]
@@ -236,13 +236,13 @@ def test_schedule_jobs_starts_the_browser_only_for_who_needs_it(
     monitor.schedule_jobs()
     assert launched == ["browser"]
     assert monitor.active_marketplaces["mymarket"].browser == "the browser"
-    assert monitor.active_marketplaces["httpmarket"].browser is None
+    assert monitor.active_marketplaces["offerup"].browser is None
 
 
 def test_a_browser_that_cannot_start_for_the_view_is_logged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monitor = _monitor(monkeypatch, {"httpmarket": ("httpmarket", None)})
+    monitor = _monitor(monkeypatch, {"offerup": ("offerup", None)})
     errors: List[str] = []
     monitor.logger = SimpleNamespace(  # type: ignore[assignment]
         info=lambda *a, **k: None, error=lambda msg, *a, **k: errors.append(msg)
@@ -306,7 +306,7 @@ def test_a_facebook_marketplace_can_have_any_section_name() -> None:
 def test_a_section_whose_type_changes_gets_a_new_marketplace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monitor = _monitor(monkeypatch, {"home": ("httpmarket", None)})
+    monitor = _monitor(monkeypatch, {"home": ("offerup", None)})
     monkeypatch.setattr(monitor, "load_config_file", lambda: monitor.config)
     monkeypatch.setattr(monitor, "load_ai_agents", lambda: None)
     monitor.keyboard_monitor = None

@@ -239,3 +239,32 @@ class _UserStub(MarketplaceToolkit):
 
 
 # --- items of several marketplace types (#472) ------------------------------------------------
+
+
+async def test_an_item_of_facebook_and_offerup_sets_a_table(tmp_path: Path) -> None:
+    text = ONE_ITEM + '\n[marketplace.offerup]\nsearch_city = "77002"\n'
+    ws = await ws_for(tmp_path, text)
+    draft = T.view(ws, "example")
+    assert T.show_extra(ws, draft)["searched_in"] == {"facebook": "facebook", "offerup": "offerup"}
+    table = {"facebook": "113623475314526", "offerup": "27.0000,-97.9000"}
+    draft.values = {**draft.values, "search_city": [table]}
+    errors = T.validate(ws, draft)
+    assert any("113623475314526" in e for e in errors) and any(
+        "27.0000,-97.9000" in e for e in errors
+    )
+    ws.found_city_codes |= set(table.values())  # from find_city
+    assert T.validate(ws, draft) == []
+
+
+async def test_an_offerup_item_takes_coordinates(tmp_path: Path) -> None:
+    text = (
+        BASE
+        + '\n[marketplace.offerup]\nsearch_city = "77002"\n[item.example]\nsearch_phrases = "bike"\n'
+    )
+    ws = await ws_for(tmp_path, text)
+    draft = T.view(ws, "example")
+    draft.values = {**draft.values, "search_city": ["29.7604,-95.3698"]}
+    ws.found_city_codes.add("29.7604,-95.3698")
+    assert T.validate(ws, draft) == []  # a Facebook check would refuse the comma
+    draft.values = {**draft.values, "availability": ["in"]}
+    assert "not options of offerup items" in T.validate(ws, draft)[0]
