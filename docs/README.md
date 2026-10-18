@@ -17,10 +17,12 @@
 
 The AI Marketplace Monitor uses [TOML](https://toml.io/en/) configuration files to control its behavior. The system will always check for a configuration file at `~/.ai-marketplace-monitor/config.toml`. You can specify additional configuration files using the `--config` or `--config-file` option.
 
-To inspect the canonical configuration without writing anything back to disk, use
-`aimm admin --normalize-config`; to inspect the expanded AI-editing form, use
-`aimm admin --expand-config`. Both options also accept explicit files, for example
-`aimm admin --config-file my-config.toml --normalize-config`.
+AIMM provides a large number of options, and most of them have default values or values derived from the rest of your configuration: an item takes its location, price range and other search options from its marketplace, and a user without `notify_with` receives every email and notification section. Two commands show your configuration in two equivalent forms, without writing anything back to disk:
+
+- `aimm admin --expand-config` prints the **expanded** form, which writes out these inherited values in each section: every item with the options it gets from its marketplace, and every user with the sections it receives. It shows what each item and user actually uses. Built-in defaults that no section sets (such as `max_retries`) are not listed; this reference gives them for each option.
+- `aimm admin --normalize-config` prints the **normalized** form, the most compact configuration that does the same: values shared by all the items of a marketplace move into the marketplace, identical sections are merged, and values that equal their default are dropped. This is the form in which `aimm configure` and the web UI's assistant write the file.
+
+Both options also accept explicit files, for example `aimm admin --config-file my-config.toml --normalize-config`.
 
 To avoid including sensitive information directly in the configuration file, all options that accept a string or a list of string can be specified using the `${ENV_VAR}` format. For example
 
