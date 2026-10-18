@@ -23,6 +23,7 @@ from ai_marketplace_monitor.marketplaces.offerup import (
     nearest_radius,
 )
 from ai_marketplace_monitor.marketplaces.offerup import marketplace as offerup_module
+from ai_marketplace_monitor.utils import CacheType, cache
 
 LID = "8fd87e4a-8aa6-3b79-8168-26e6abb3353f"
 
@@ -74,7 +75,10 @@ def test_the_client_sends_a_graphql_search_and_drops_the_ads() -> None:
         {"key": "q", "value": "bike"},
         {"key": "zipcode", "value": "77002"},
     ]
-    assert post["headers"]["Origin"] == "https://offerup.com"
+    # aimm says who it is, and does not pretend to be OfferUp's website
+    assert post["headers"]["User-Agent"].startswith("ai-marketplace-monitor/")
+    assert "github.com/BoPeng/ai-marketplace-monitor" in post["headers"]["User-Agent"]
+    assert "Origin" not in post["headers"] and "Referer" not in post["headers"]
     assert post["proxies"] == {"https": "http://proxy:8080"}
 
 
@@ -93,6 +97,43 @@ def test_the_client_reports_what_went_wrong(
 ) -> None:
     client = OfferUpClient(session=FakeSession(response), min_gap=0)
     with pytest.raises(error, match=match):
+        client.listing(LID)
+
+
+def test_the_client_sends_nothing_for_a_while_after_a_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_marketplace_monitor.marketplaces.offerup import client as client_module
+
+    clock = [100.0]
+    monkeypatch.setattr(client_module.time, "monotonic", lambda: clock[0])
+    ok = {"data": {"listing": None}}
+    session = FakeSession(FakeResponse(403, "blocked"), FakeResponse(200, ok))
+    client = OfferUpClient(session=session, min_gap=0)
+    with pytest.raises(OfferUpBlockedError, match="HTTP 403"):
+        client.listing(LID)
+    # within the pause, the next request is refused without contacting OfferUp
+    clock[0] += client_module.BLOCK_PAUSE - 60
+    with pytest.raises(OfferUpBlockedError, match="sends it none for another 1 minute"):
+        client.listing(LID)
+    assert len(session.posts) == 1
+    clock[0] += 61
+    assert client.listing(LID) is None
+    assert len(session.posts) == 2
+
+
+def test_the_client_waits_as_long_as_retry_after_asks(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ai_marketplace_monitor.marketplaces.offerup import client as client_module
+
+    clock = [100.0]
+    monkeypatch.setattr(client_module.time, "monotonic", lambda: clock[0])
+    refused = FakeResponse(429, {})
+    refused.headers = {"Retry-After": str(client_module.BLOCK_PAUSE * 2)}  # type: ignore[attr-defined]
+    client = OfferUpClient(session=FakeSession(refused), min_gap=0)
+    with pytest.raises(OfferUpBlockedError):
+        client.listing(LID)
+    clock[0] += client_module.BLOCK_PAUSE + 1
+    with pytest.raises(OfferUpBlockedError, match="sends it none"):
         client.listing(LID)
 
 
@@ -301,6 +342,19 @@ def aimm_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
     for module in (evaluations, listing, seller):
         monkeypatch.setattr(module, "cache", local)
     return local
+
+
+def test_the_same_search_runs_at_most_every_30_minutes(tmp_path: Path) -> None:
+    marketplace, item = _marketplace(tmp_path)
+    pages = marketplace.search_pages(item)
+    assert marketplace.due_search_pages(pages, item) == pages
+    # run again (another schedule, a restart, "search now"): held back
+    assert marketplace.due_search_pages(pages, item) == []
+    # the configure chat lists the searches without running them, so it is not held back
+    assert marketplace.search_pages(item) == pages
+    # once the interval is over, it runs again
+    cache.evict(CacheType.OFFERUP_SEARCHES.value)
+    assert marketplace.due_search_pages(pages, item) == pages
 
 
 def test_a_search_reads_cards_listings_and_sellers(tmp_path: Path) -> None:

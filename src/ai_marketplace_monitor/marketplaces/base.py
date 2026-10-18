@@ -924,6 +924,12 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         """The search pages of an item, in search order."""
         raise NotImplementedError("search_pages must be implemented by subclasses.")
 
+    def due_search_pages(
+        self: "Marketplace", pages: List[SearchPage], item_config: TItemConfig
+    ) -> List[SearchPage]:
+        """The pages a search reads now; a marketplace can hold back pages read too recently."""
+        return pages
+
     def read_search_page(self: "Marketplace", search: SearchPage) -> List[Listing]:
         """The listings a search page shows (title, price, location, link)."""
         raise NotImplementedError("read_search_page must be implemented by subclasses.")
@@ -967,7 +973,7 @@ class Marketplace(Generic[TMarketplaceConfig, TItemConfig]):
         ``read_seller_profile``).
         """
         self.prepare_search()
-        pages = self.search_pages(item_config)
+        pages = self.due_search_pages(self.search_pages(item_config), item_config)
         # increase the searched_count to differentiate first and subsequent searches
         item_config.searched_count += 1
         # there is a small chance that search by different keywords and city will return the same items.

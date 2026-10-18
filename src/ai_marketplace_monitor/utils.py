@@ -215,6 +215,7 @@ class CacheType(Enum):
     EVALUATIONS = "evaluations"
     DIGEST = "digest"
     SELLER_INFO = "seller-info"
+    OFFERUP_SEARCHES = "offerup-searches"
 
 
 class CounterItem(Enum):
