@@ -237,6 +237,44 @@ def test_a_preset_section_under_another_name_keeps_the_preset_values() -> None:
     }
 
 
+def test_inline_gmail_settings_of_two_users_both_keep_sending() -> None:
+    gmail = 'smtp_server = "smtp.gmail.com"\nsmtp_password = "${GMAIL_SMTP_PASSWORD}"\n'
+    cfg = _migrate(
+        f"""
+[user.alice]
+email = "alice@example.com"
+smtp_username = "alice@gmail.com"
+{gmail}
+[user.bob]
+email = "bob@example.com"
+smtp_username = "bob@gmail.com"
+{gmail}"""
+    )
+    assert cfg["email"]["gmail"] == {"smtp_username": "alice@gmail.com"}
+    # bob's section has no preset name: it keeps the server and password
+    assert cfg["email"]["email"] == {
+        "smtp_username": "bob@gmail.com",
+        "smtp_server": "smtp.gmail.com",
+        "smtp_password": "${GMAIL_SMTP_PASSWORD}",
+    }
+    assert cfg["user"]["bob"]["notify_with"] == ["email.email"]
+
+
+def test_inline_settings_of_two_users_share_a_preset_section() -> None:
+    gmail = 'smtp_server = "smtp.gmail.com"\nsmtp_username = "me@gmail.com"\n'
+    cfg = _migrate(
+        f"""
+[user.alice]
+email = "alice@example.com"
+{gmail}
+[user.bob]
+email = "bob@example.com"
+{gmail}"""
+    )
+    assert cfg["email"] == {"gmail": {"smtp_username": "me@gmail.com"}}
+    assert cfg["user"]["alice"]["notify_with"] == cfg["user"]["bob"]["notify_with"]
+
+
 def test_the_digest_tie_goes_to_the_first_user() -> None:
     text = """
     [email.mail]

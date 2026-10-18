@@ -410,16 +410,19 @@ def migrate_channels_from_user_to_sections(docs: Docs) -> List[str]:
                 continue
             if kind == "email":
                 preset = _email_name(values)
-                values = _without_preset(preset, values) if preset else values
                 if preset == "unitysvc":
                     values.setdefault("smtp_username", UNITYSVC_SMTP_USERNAME)
+                name = _same_email(docs, {**EMAIL_PRESETS.get(preset or "", {}), **values})
                 wanted = [n for n in (preset, "email") if n] + [f"email_{user_name}"]
             else:
+                name = _same_section(docs, kind, values)
                 wanted = [channel_type, f"{channel_type}_{user_name}"]
-            name = _same_section(docs, kind, values)
             _make_explicit(docs)
             if name is None:
                 name = _new_name(docs, kind, wanted)
+                if kind == "email" and name == preset:
+                    # only a section that keeps the preset's name can leave its values out
+                    values = _without_preset(name, values)
                 _add_section(_defs(docs, "user", user_name)[0][0], kind, name, values)
             received = _listed(_merged(docs, "user", user_name)["notify_with"])
             _set_list(
