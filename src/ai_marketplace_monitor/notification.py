@@ -16,6 +16,7 @@ from typing import (
     Optional,
     Tuple,
     Type,
+    cast,
 )
 
 from .ai import AIResponse  # type: ignore
@@ -520,6 +521,9 @@ class NotificationConfig(BaseConfig):
 @dataclass
 class PushNotificationConfig(NotificationConfig):
     notify_method = "push_notification"
+    # the listings of the message being sent, set by notify (empty otherwise); not
+    # annotated, so that it is not a config field
+    message_listings = cast(Tuple[Listing, ...], ())
     message_format: str | None = notification_field(COMMON)
     with_description: int | None = notification_field(COMMON)
 
@@ -648,7 +652,12 @@ class PushNotificationConfig(NotificationConfig):
                 title = f"Resend {len(listing_msg)} {p.plural_noun(listing.name, len(listing_msg))} from {listing.marketplace}"
 
             message = "\n\n".join([x[1] for x in listing_msg])
-            #
-            if not self.send_message_with_retry(title, message, logger=logger):
-                return False
+            # the listings of this message, for a channel that sends more than text
+            # (UnitySVC: their link and photos)
+            self.message_listings = tuple(x[0] for x in listing_msg)
+            try:
+                if not self.send_message_with_retry(title, message, logger=logger):
+                    return False
+            finally:
+                self.message_listings = ()
         return True

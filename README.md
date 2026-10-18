@@ -107,15 +107,9 @@ AI: Great deal; A well-priced, well-maintained camera meets all search criteria,
 
 ### What you need
 
-AIMM searches **Facebook Marketplace**, which needs a Facebook account for AIMM to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that AIMM controls (installed with `playwright install`). To rate listings and to tell you about them, it uses three kinds of external service. Each can be set up in one of three ways:
+AIMM searches **Facebook Marketplace**, which needs a Facebook account for AIMM to log in with (`FACEBOOK_USERNAME` and `FACEBOOK_PASSWORD`) and a browser that AIMM controls (installed with `playwright install`). To rate listings and to tell you about them, it uses three external services: an AI, email, and phone or chat alerts. You can set them up in one of two ways:
 
-| Service | With UnitySVC | UnitySVC with your own keys (BYOK) | Without UnitySVC |
-| --- | --- | --- | --- |
-| **AI** that rates listings ([`[ai.*]`](docs/README.md#ai-services)) | `[ai.unitysvc]`: UnitySVC's model pool, paid per use | `[ai.unitysvc]` with an OpenAI, Anthropic or other provider's service and your key for it saved in UnitySVC; the provider bills you | `[ai.openai]`, `[ai.anthropic]`, `[ai.gemini]`, `[ai.deepseek]`, or a local model with `[ai.ollama]` |
-| **Email** with listing photos and the daily digest ([`[email.*]`](docs/README.md#email)) | `[email.unitysvc]` with `smtp-to-mailbox`: free, to the address of your UnitySVC account | `[email.unitysvc]` with `smtp-relay`: free; UnitySVC's SMTP Relay forwards it to your own SMTP server (Gmail, your mail provider, ...), whose address and login you save in UnitySVC, and on to the addresses you choose | `[email.gmail]` with a Gmail app password, or any other SMTP server |
-| **Phone and chat alerts** ([`[notification.*]`](docs/README.md#phone-and-chat-notifications)) | `[notification.unitysvc]`: free, but only to your inbox on the UnitySVC website, which is of little use on its own | the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
-
-With UnitySVC, AIMM reaches all three services with a single API key (`UNITYSVC_API_KEY`), and the keys of your own accounts stay in UnitySVC instead of AIMM's configuration. UnitySVC is run by the maintainer of AIMM; [Why UnitySVC](docs/README.md#why-unitysvc) explains how it works and why AIMM recommends it.
+**1. With UnitySVC (recommended).** One API key (`UNITYSVC_API_KEY`) covers all three: AI models paid per use, free email to your UnitySVC address or through your own mail server, and alerts to Discord, Slack, Telegram, Pushover, SMS and 100+ other channels. Accounts you already have, such as an OpenAI key or a Telegram bot, are saved once in UnitySVC instead of in AIMM's configuration. UnitySVC is run by the maintainer of AIMM; [Why UnitySVC](docs/README.md#why-unitysvc) explains how it works.
 
 ```mermaid
 flowchart LR
@@ -137,9 +131,10 @@ flowchart LR
     api -- "AI (BYOK)" --> aiown["Your OpenAI, Anthropic,<br/>Gemini, ... account"]
 ```
 
-- **Default configuration.** It uses UnitySVC for AI, email and phone alerts. Its phone alerts reach only your inbox on the UnitySVC website until you choose a destination of your own in UnitySVC, such as your Discord, Slack, Telegram or Pushover.
+**2. Without UnitySVC.** Set up each service with its own provider: OpenAI, Anthropic, Gemini, DeepSeek or a local Ollama for AI; Gmail or any other mail server for email; Telegram, Pushbullet, Pushover or ntfy for alerts. Each needs its own account, with its key or password in your configuration or environment.
+
+- **The default configuration** uses UnitySVC for all three. Its phone alerts reach only your inbox on the UnitySVC website until you choose a destination of your own in UnitySVC, such as your Discord, Slack, Telegram or Pushover.
 - **Mix and match.** Each service is set up on its own, so you can, for example, use UnitySVC email with your own OpenAI key.
-- **Without UnitySVC**, each service needs its own account, and its key or password goes in your configuration or environment. Every part of AIMM works this way too.
 - `aimm configure` sets up any of these for you.
 
 ### Installation

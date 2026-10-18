@@ -10,7 +10,7 @@ from ai_marketplace_monitor.ai import AIResponse
 from ai_marketplace_monitor.config import Config
 from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.notification import NotificationConfig, NotificationStatus
-from ai_marketplace_monitor.unitysvc_notify import UnitySVCNotificationConfig
+from ai_marketplace_monitor.unitysvc_notify import UnitySVCNotificationConfig, listing_extras
 from ai_marketplace_monitor.user import UserConfig
 
 KEY = "svcpass_" + "a1" * 26
@@ -249,3 +249,87 @@ def test_html_is_not_a_message_format() -> None:
         UnitySVCNotificationConfig(
             name="me", unitysvc_api_key="svcpass_test", message_format="html"
         )
+
+
+def _listing(lid: str, image: str = "", title: str = "Road bike") -> Listing:
+    return Listing(
+        marketplace="facebook",
+        name="bike",
+        id=lid,
+        title=title,
+        image=image,
+        price="$50",
+        post_url=f"https://www.facebook.com/marketplace/item/{lid}/?ref=search",
+        location="Houston",
+        seller="",
+        condition="",
+        description="",
+    )
+
+
+def test_the_first_listing_is_the_link_and_photos_are_attached() -> None:
+    listings = [
+        _listing("1", "https://scontent.example/1.jpg", "Trek Domane"),
+        _listing("2", "https://scontent.example/2.jpg"),
+        _listing("3", ""),  # no photo
+        _listing("4", "https://scontent.example/1.jpg"),  # the same photo once
+        _listing("5", "file:///etc/passwd"),  # not a web URL
+    ]
+    assert listing_extras(listings) == {
+        # the body links every listing; only the first is the tap target
+        "links": [{"url": "https://www.facebook.com/marketplace/item/1/", "label": "Trek Domane"}],
+        "attachment": ["https://scontent.example/1.jpg", "https://scontent.example/2.jpg"],
+    }
+
+
+def test_at_most_ten_photos_and_nothing_without_listings() -> None:
+    many = [_listing(str(i), f"https://scontent.example/{i}.jpg") for i in range(15)]
+    assert len(listing_extras(many)["attachment"]) == 10
+    assert listing_extras([]) == {}
+
+
+@pytest.mark.parametrize(
+    ("service", "expected"),
+    [
+        (None, "text"),  # the platform notify service delivers plain text
+        ("notify", "text"),
+        ("labs/msg-to-ntfy", "markdown"),  # msg-to-* services render markdown
+        ("/labs/msg-to-telegram/", "markdown"),
+    ],
+)
+def test_markdown_by_default_except_for_the_notify_service(
+    posts: List[Dict[str, Any]], service: str | None, expected: str
+) -> None:
+    config = UnitySVCNotificationConfig(name="u", unitysvc_api_key=KEY, unitysvc_service=service)
+    config.send_message("t", "m")
+    assert posts[0]["json"]["format"] == expected
+
+
+def test_a_message_format_that_is_set_is_kept(posts: List[Dict[str, Any]]) -> None:
+    config = UnitySVCNotificationConfig(
+        name="u",
+        unitysvc_api_key=KEY,
+        unitysvc_service="labs/msg-to-ntfy",
+        message_format="plain_text",
+    )
+    config.send_message("t", "m")
+    assert posts[0]["json"]["format"] == "text"
+
+
+def test_a_notification_carries_its_listings_link_and_photo(
+    posts: List[Dict[str, Any]],
+) -> None:
+    config = UnitySVCNotificationConfig(
+        name="u", unitysvc_api_key=KEY, unitysvc_service="labs/msg-to-ntfy"
+    )
+    listing = _listing("7", "https://scontent.example/7.jpg", "Trek Domane")
+    assert config.notify(
+        [listing], [AIResponse(score=5, comment="Great match")], [NotificationStatus.NOT_NOTIFIED]
+    )
+    body = posts[0]["json"]
+    assert body["format"] == "markdown"
+    assert "[**Trek Domane**](https://www.facebook.com/marketplace/item/7/)" in body["body"]
+    assert body["links"] == [
+        {"url": "https://www.facebook.com/marketplace/item/7/", "label": "Trek Domane"}
+    ]
+    assert body["attachment"] == ["https://scontent.example/7.jpg"]

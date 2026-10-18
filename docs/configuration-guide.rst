@@ -285,7 +285,8 @@ A configuration that uses UnitySVC for both the AI and the notifications:
     notify_with = 'notification.unitysvc'
 
 .. note::
-   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. Keep the default ``message_format = 'plain_text'`` with ``notify``; ``markdown`` or ``html`` take effect only with a specific service such as ``labs/msg-to-discord``.
+   - The ``notify`` service delivers plain text only: the inbox stores plain text and forwarded copies are sent as text. AIMM sends it plain text by default; ``markdown``, the default with a specific service such as ``labs/msg-to-discord``, takes effect only there.
+   - Each message also carries the first listing's link and the listings' photos. Services that support them show them; others deliver the text.
 
 UnitySVC with your own accounts (BYOK)
 --------------------------------------

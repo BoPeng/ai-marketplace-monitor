@@ -2,10 +2,11 @@ import os
 import re
 from dataclasses import dataclass
 from logging import Logger
-from typing import ClassVar, List
+from typing import Any, ClassVar, Dict, List, Sequence
 
 import requests  # type: ignore
 
+from .listing import Listing
 from .notification import CHANNEL, PushNotificationConfig, notification_field
 from .utils import hilight
 
@@ -14,6 +15,8 @@ DEFAULT_UNITYSVC_SERVICE = "notify"
 # UnitySVC stores notification titles in a 255-character column
 MAX_TITLE_LENGTH = 255
 MESSAGE_FORMATS = {"plain_text": "text", "markdown": "markdown"}
+# the msg envelope takes at most 10 links and 10 attachments (unitysvc/unitysvc#2650)
+MAX_ATTACHMENTS = 10
 UNITYSVC_TOKEN_RE = re.compile(r"svcpass_[A-Za-z0-9_-]+")
 REDACTED = "<redacted>"
 
@@ -46,6 +49,16 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
                 'unitysvc_api_key must be a UnitySVC API key starting with "svcpass_", '
                 'e.g. unitysvc_api_key = "${UNITYSVC_API_KEY}".'
             )
+
+    def handle_message_format(self: "UnitySVCNotificationConfig") -> None:
+        # msg-to-* services render markdown for their channel (bold, italic, code, links);
+        # the platform notify service still delivers plain text, so it keeps plain_text
+        if self.message_format is None:
+            service = (self.unitysvc_service or DEFAULT_UNITYSVC_SERVICE).strip("/ ")
+            self.message_format = (
+                "plain_text" if service == DEFAULT_UNITYSVC_SERVICE else "markdown"
+            )
+        super().handle_message_format()
 
     def handle_unitysvc_service(self: "UnitySVCNotificationConfig") -> None:
         if self.unitysvc_service is None:
@@ -90,6 +103,7 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
                 "body": msg,
                 "type": "info",
                 "format": MESSAGE_FORMATS.get(self.message_format or "plain_text", "text"),
+                **listing_extras(self.message_listings),
             },
             headers={"Authorization": f"Bearer {self.unitysvc_api_key}"},
             timeout=10,
@@ -105,6 +119,32 @@ class UnitySVCNotificationConfig(PushNotificationConfig):
                 f"""{hilight("[Notify]", "succ")} Sent {self.name} a message with title {hilight(title)} via {self.unitysvc_url}"""
             )
         return True
+
+
+def listing_extras(listings: Sequence[Listing]) -> Dict[str, Any]:
+    """The msg ``links`` and ``attachment`` of the listings in a message.
+
+    The first listing is the link: tapping the notification opens it. The body already links
+    every listing, so the others are not repeated as links (a channel that cannot show a
+    link as such appends it to the body). Each listing's photo is an attachment, up to
+    MAX_ATTACHMENTS; channels show the first image as the notification's picture, or all
+    of them where they can. A service that does not adapt the envelope ignores both.
+    """
+    extras: Dict[str, Any] = {}
+    urls = [listing.post_url.split("?")[0] for listing in listings if listing.post_url]
+    if urls:
+        first = next(listing for listing in listings if listing.post_url)
+        extras["links"] = [{"url": urls[0], "label": first.title or "View listing"}]
+    images = list(
+        dict.fromkeys(
+            listing.image
+            for listing in listings
+            if listing.image and listing.image.startswith(("https://", "http://"))
+        )
+    )
+    if images:
+        extras["attachment"] = images[:MAX_ATTACHMENTS]
+    return extras
 
 
 def _redact_secret(text: str, secret: str | None = None) -> str:
