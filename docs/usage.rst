@@ -20,8 +20,8 @@ Run with a custom configuration file:
 
     $ aimm run --config /path/to/your/config.toml
 
-aimm always shows its browser window, because Facebook may ask you to complete a CAPTCHA or a
-security code while logging in. To run aimm on a machine without a screen (a server or a NAS),
+AIMM always shows its browser window, because Facebook may ask you to complete a CAPTCHA or a
+security code while logging in. To run AIMM on a machine without a screen (a server or a NAS),
 use the Docker image: it has a virtual display, and its web UI shows you the browser when you
 need it.
 
@@ -96,7 +96,7 @@ own words, for example "limit my Houston search to 20 miles", and it finds the s
 drafts the change and asks you to confirm before writing. If you have no usable AI service
 yet, it starts with the AI setup, ``aimm configure ai``, which works without AI.
 
-aimm uses the **first** ``[ai.*]`` section as your default AI, and the others only if it
+AIMM uses the **first** ``[ai.*]`` section as your default AI, and the others only if it
 fails. So the AI setup checks only the default and lists the others, then offers to keep or
 update it (or fix it if the check failed), to make one of the other sections the default
 (which moves it to the top of the file), or to create a new AI section, which becomes the
@@ -112,8 +112,8 @@ want ("use a cheaper model", "add Claude as a backup", "make the backup the defa
 what the menus above do, with the same checks. It tries a section before saving, offers the
 models the provider lists, and writes a new section first (the new default) unless you want it as
 a backup. A section only becomes the default if it works. The session keeps using the AI it
-started with; changes take effect the next time aimm starts. The key's
-environment variable must be set before an AI section is saved, because aimm cannot start with an
+started with; changes take effect the next time AIMM starts. The key's
+environment variable must be set before an AI section is saved, because AIMM cannot start with an
 unset AI key. Without a working AI, ``aimm configure ai`` runs the menus.
 
 Use ``aimm configure ai.NAME`` to work on one section. A section named after a provider
@@ -147,8 +147,8 @@ The AI then leads a short conversation. You answer in your own words, for exampl
 
 It works out what is still needed (a location is required), asks about what is likely
 to matter to you, fills in the section, and decides from your answers when you are done.
-The AI acts only through tools that aimm provides: it can read and draft this one section,
-and ask you questions; aimm checks every value, and nothing is written until you confirm
+The AI acts only through tools that AIMM provides: it can read and draft this one section,
+and ask you questions; AIMM checks every value, and nothing is written until you confirm
 the change to your config file. Type ``/show`` to see the drafts so far, or ``/quit`` to
 stop without writing.
 
@@ -190,8 +190,8 @@ Notifications and users
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 ``aimm configure notification`` (or ``aimm configure email``, or ``aimm configure user``) sets up
-how and to whom aimm sends notifications. Users, email and notifications are set up together: an
-``[email.NAME]`` section sends aimm's full email, a ``[notification.NAME]`` section is one phone
+how and to whom AIMM sends notifications. Users, email and notifications are set up together: an
+``[email.NAME]`` section sends AIMM's full email, a ``[notification.NAME]`` section is one phone
 or chat channel, and a ``[user.NAME]`` section says where a person receives them (email address,
 chat ID, ...) and which sections they get (``notify_with``). Either kind of section can send the
 daily digest (``digest_at``). If you have no user yet, notifications go to a new ``[user.me]``,
@@ -205,7 +205,7 @@ The AI offers the options that fit: email through UnitySVC (``[email.unitysvc]``
 UnitySVC key, sent to your UnitySVC-registered address) or Gmail (``[email.gmail]``, which needs
 an app password), UnitySVC notifications, Pushbullet, Pushover, ntfy or Telegram. Passwords,
 tokens and keys are written only as environment-variable references such as
-``${GMAIL_SMTP_PASSWORD}``; you never type them in the chat. After saving, aimm lists any
+``${GMAIL_SMTP_PASSWORD}``; you never type them in the chat. After saving, AIMM lists any
 variable that is not set yet, with the ``export`` line to add to your shell profile.
 ``aimm configure user.NAME``, ``aimm configure email.NAME`` and
 ``aimm configure notification.NAME`` start at that section; the session may still change any
@@ -216,14 +216,14 @@ Proxy, regions and translations
 
 Three smaller section types have their own commands:
 
-- ``aimm configure monitor`` sets up the proxy aimm's browser uses (``[monitor]``). The proxy
+- ``aimm configure monitor`` sets up the proxy AIMM's browser uses (``[monitor]``). The proxy
   account's user name and password are written as environment-variable references.
 - ``aimm configure region`` (or ``region.NAME``) adds a region of your own, or changes a built-in
   one such as ``usa`` ("search the USA within 300 miles" sets only its radius). Each city is a
   Facebook location code taken from a Marketplace URL you paste, as for marketplaces. Use a region
   with ``search_region`` on a marketplace or item.
 - ``aimm configure translation`` (or ``translation.NAME``) is for a Facebook in another language:
-  the AI drafts the page labels aimm looks for ("Condition", "Description", ...) in your language,
+  the AI drafts the page labels AIMM looks for ("Condition", "Description", ...) in your language,
   and you check them against a Facebook listing before saving, because they must match the page
   exactly. Use it with ``language`` on a marketplace.
 
@@ -245,7 +245,7 @@ Cost Considerations
 
 **Usage-Based Costs:**
 - Notification services (PushBullet, SMTP, etc.)
-- AI platforms (OpenAI, DeepSeek, etc.). aimm uses AI to configure itself, rate listings and
+- AI platforms (OpenAI, DeepSeek, etc.). AIMM uses AI to configure itself, rate listings and
   summarize the daily digest. None of these needs a top-tier model: a mid-tier mainstream model
   is enough, if it reads images when ``use_images`` is on (the default). UnitySVC's ``balanced``
   tier is such a model.
