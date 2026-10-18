@@ -10,7 +10,7 @@ The Docker image runs AIMM on a server, a NAS or any machine without a screen. I
 
 The default configuration uses this one key for the AI that rates listings, the email and the phone and chat alerts. The keys of your own accounts (BYOK, such as `OPENAI_API_KEY`) are saved as secrets in your UnitySVC account (Developer → Secrets), so `.env` holds only `UNITYSVC_API_KEY`. See [Why UnitySVC](https://github.com/BoPeng/ai-marketplace-monitor/blob/main/docs/README.md#why-unitysvc).
 
-You can also skip UnitySVC and configure OpenAI, Gmail and other services in `config.toml` directly, with their keys in `.env`. The [What you need](https://github.com/BoPeng/ai-marketplace-monitor#what-you-need) table compares the three ways to set up each service.
+You can also skip UnitySVC and configure OpenAI, Gmail and other services in `config.toml` directly, with their keys in `.env`. The [What you need](https://github.com/BoPeng/ai-marketplace-monitor#what-you-need) section compares the two ways to set up the services.
 
 ## Quick start with docker run
 

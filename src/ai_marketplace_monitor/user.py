@@ -12,7 +12,13 @@ from .email_notify import EmailNotificationConfig
 from .evaluations import NOTIFIED, EvaluationRecord, record_evaluation
 from .listing import Listing
 from .marketplaces.base import TItemConfig
-from .notification import TEST_TIMEOUT, ChannelResult, NotificationConfig, NotificationStatus
+from .notification import (
+    TEST_TIMEOUT,
+    ChannelResult,
+    NotificationConfig,
+    NotificationStatus,
+    PushNotificationConfig,
+)
 from .ntfy import NtfyNotificationConfig
 from .pushbullet import PushbulletNotificationConfig
 from .pushover import PushoverNotificationConfig
@@ -44,6 +50,10 @@ class UserConfig(
     remind: int | None = None
     # the user's channels, set by Config.expand_notifications
     _channels: List[Channel] | None = field(default=None, repr=False, compare=False)
+
+    def handle_message_format(self: "UserConfig") -> None:
+        # Shared defaults must not inherit a specific channel's format restriction.
+        PushNotificationConfig.handle_message_format(self)
 
     def channels(self: "UserConfig") -> List[Channel]:
         """The channels the user is notified through (see ``channels.user_channels``).

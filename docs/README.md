@@ -393,7 +393,9 @@ See [Setting up email notifications](https://ai-marketplace-monitor.readthedocs.
 | --- | --- | --- | --- |
 | **Phone and chat alerts** | `[notification.unitysvc]`: free, but only to your inbox on the UnitySVC website, which is of little use on its own | the same section, forwarded to your own Discord, Slack, Telegram, Pushover, SMS or other account (100+ services), its token saved in UnitySVC | `[notification.telegram]`, Pushbullet, Pushover or ntfy, with their tokens in your configuration |
 
-A `[notification.NAME]` section is one phone or chat channel. It sends a short text message for each batch of new listings, without photos.
+A `[notification.NAME]` section is one phone or chat channel. It sends a short message for each batch of new listings. A UnitySVC section also sends the listings' link and photos, which services that support them show.
+
+Notifications default to `markdown`. Set `message_format` to `plain_text` or `markdown` on a user or notification section; an explicit section value takes precedence. Channels can enforce their supported format: Pushbullet uses plain text, and Pushover renders HTML internally.
 
 #### With UnitySVC
 
@@ -401,7 +403,7 @@ A `[notification.NAME]` section is one phone or chat channel. It sends a short t
 | ------------------- | ----------- | -------- | ------------------------------------------------------------------------------------ |
 | `unitysvc_api_key`  | Required    | String   | UnitySVC API key (`svcpass_...`), e.g. `"${UNITYSVC_API_KEY}"`.                       |
 | `unitysvc_service`  | Optional    | String   | The UnitySVC service that sends the message. The default, `notify`, sends it to your inbox on the UnitySVC website and to every destination set in your UnitySVC notification preferences. Use a service path such as `labs/msg-to-discord` to send to that one service only. |
-| `message_format`    | Optional    | String   | `plain_text` (default) or `markdown`.                                                |
+| `message_format`    | Optional    | String   | `plain_text` or `markdown`. Default: `markdown`. |
 
 ```toml
 [notification.unitysvc]
@@ -409,7 +411,8 @@ unitysvc_api_key = '${UNITYSVC_API_KEY}'
 ```
 
 - Use the same `UNITYSVC_API_KEY` as `[ai.unitysvc]` and `[email.unitysvc]`.
-- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching AIMM's configuration. It delivers plain text only, so `markdown` and `html` take effect only with a specific service.
+- The default `notify` service (free) shows messages in your inbox on the UnitySVC website and forwards them to every destination set in your UnitySVC notification preferences, so you can change where notifications go without touching AIMM's configuration.
+- Each message also carries the first listing's link (tapping the notification opens it) and the listings' photos (up to 10). Services that support them show them; others ignore them and deliver the text. See UnitySVC's [msg format](https://unitysvc.com/topics/msg-format).
 - UnitySVC's notification catalog covers more than 100 channels: chat apps (Slack, Discord, Microsoft Teams, Telegram, WhatsApp, Matrix, ...), phone push (Pushover, ntfy, Pushbullet, Bark, ...), SMS (Twilio, Vonage, Plivo, ...), email (SendGrid, Mailgun, Amazon SES, SMTP, ...), and incident tools (PagerDuty, Opsgenie, ...).
 
 #### UnitySVC with your own accounts (BYOK)
@@ -477,9 +480,9 @@ Please refer to [PushBullet documentation](https://github.com/richard-better/pus
 | ---------------- | ----------- | -------- | ------------------------------------------------- |
 | `ntfy_server`    | Optional    | String   | ntfy server, default to `https://ntfy.sh`         |
 | `ntfy_topic`     | Optional    | String   | A unique topic to receive your notification.      |
-| `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` |
+| `message_format` | Optional    | String   | Format notification as `plain_text` or `markdown` (default) |
 
-- According to [ntfy documentation](https://docs.ntfy.sh/publish/#markdown-formatting), markdown format is supported only by web app. Therefore, `message_format` is by default set to `plain_text`.
+- Notifications default to `markdown`. Set `message_format = "plain_text"` if your ntfy client does not support markdown.
 
 ### Items to search
 
