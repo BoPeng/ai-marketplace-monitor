@@ -33,7 +33,7 @@ dependencies = [
   "jinja2>=3.0.0",
   "pyparsing>=3.1.0",
   "requests>=2.30.0",
-  "CurrencyConverter>=0.18.0",
+  "CurrencyConverter>=0.18.22",
   "tomli==2.2.1; python_version < '3.11'",
   "safety>=3.5.2",
   "pip-audit>=2.9.0",
