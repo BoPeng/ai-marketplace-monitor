@@ -796,6 +796,11 @@ class AnthropicBackend(AIBackend):
             if self.logger:
                 self.logger.info(f"""{hilight("[AI]", "name")} {self.config.name} connected.""")
 
+    @staticmethod
+    def _answer(response: Any) -> str:
+        # the reply can open with a thinking block, which has no text
+        return next((b.text for b in response.content if b.type == "text"), "")
+
     def summarize(self: "AnthropicBackend", prompt: str) -> str:
         def ask() -> str:
             # no SDK retries: SUMMARY_RETRIES is the whole budget
@@ -806,7 +811,7 @@ class AnthropicBackend(AIBackend):
                 messages=[{"role": "user", "content": prompt}],
                 timeout=SUMMARY_TIMEOUT,
             )
-            return response.content[0].text if response.content else ""
+            return self._answer(response)
 
         return self._summarize_with(ask)
 
@@ -871,7 +876,7 @@ class AnthropicBackend(AIBackend):
                 f"{self.config.name} failed to evaluate {listing.title} after {retries} retries"
             ) from last_error
 
-        answer = response.content[0].text if response.content else ""
+        answer = self._answer(response)
         if self.logger:
             self.logger.debug(
                 f"""{hilight("[AI-Response]", "info")} {answer}{token_usage(response)}"""
