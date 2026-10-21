@@ -366,7 +366,7 @@ def test_openai_summarize() -> None:
 
 def test_anthropic_summarize() -> None:
     ai = AnthropicBackend(AnthropicConfig(name="claude-summary", api_key="test"))
-    response = SimpleNamespace(content=[SimpleNamespace(text="Nothing stands out.")])
+    response = SimpleNamespace(content=[SimpleNamespace(type="text", text="Nothing stands out.")])
     create = MagicMock(return_value=response)
     ai.client = sdk_client(messages=SimpleNamespace(create=create))
 
@@ -377,6 +377,34 @@ def test_anthropic_summarize() -> None:
     assert kwargs["timeout"] == ai_module.SUMMARY_TIMEOUT
     # aimm's own tries are the whole budget: no hidden retries by the SDK
     ai.client.with_options.assert_called_with(max_retries=0)
+
+
+def test_anthropic_answer_skips_a_thinking_block(
+    listing: Listing,
+    item_config: FacebookItemConfig,
+    marketplace_config: FacebookMarketplaceConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from anthropic.types import TextBlock, ThinkingBlock
+
+    suffix = uuid4().hex
+    listing.id = f"thinking-test-{suffix}"
+    listing.title = f"Thinking test {suffix}"
+    listing.image = ""
+    item_config.name = f"test-{suffix}"
+    ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test"))
+    response = SimpleNamespace(
+        content=[
+            ThinkingBlock(type="thinking", thinking="Teak, right size.", signature="sig"),
+            TextBlock(type="text", text="Rating 4: Good."),
+        ]
+    )
+    create = MagicMock(return_value=response)
+    client = sdk_client(messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
+
+    assert ai.evaluate(listing, item_config, marketplace_config).score == 4
+    assert ai.summarize("Summarize this") == "Rating 4: Good."
 
 
 def test_summarize_gives_up_after_a_few_tries(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -578,7 +606,7 @@ def test_rate_limited_evaluation_waits_as_asked(
     listing.image = ""
     item_config.name = f"test-{suffix}"
     ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test"))
-    response = SimpleNamespace(content=[SimpleNamespace(text="Rating 4: Good.")])
+    response = SimpleNamespace(content=[SimpleNamespace(type="text", text="Rating 4: Good.")])
     create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
     client = SimpleNamespace(messages=SimpleNamespace(create=create))
     monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
@@ -685,7 +713,7 @@ def test_rate_limited_request_keeps_the_photo(
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     else:
         ai = AnthropicBackend(AnthropicConfig(name=f"claude-{suffix}", api_key="test"))
-        response = SimpleNamespace(content=[SimpleNamespace(text="Rating 4: Good.")])
+        response = SimpleNamespace(content=[SimpleNamespace(type="text", text="Rating 4: Good.")])
         create = MagicMock(side_effect=[_rate_limited({"retry-after": "30"}), response])
         client = SimpleNamespace(messages=SimpleNamespace(create=create))
     monkeypatch.setattr(ai, "connect", lambda: setattr(ai, "client", client))
