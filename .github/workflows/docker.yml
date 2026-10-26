@@ -122,7 +122,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0 # the release tags decide which version the templates must pin
 
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
 
