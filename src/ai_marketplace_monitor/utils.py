@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Tuple, TypeVar, cast
 import parsedatetime  # type: ignore
 import requests  # type: ignore
 import rich
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache, SafeDisk
 from pyparsing import (
     CharsNotIn,
     Keyword,
@@ -99,7 +99,7 @@ def cache_corrupted_message(directory: Path, error: Exception) -> str:
 
 def open_cache(directory: Path) -> Cache:
     try:
-        return Cache(directory)
+        return Cache(directory, disk=SafeDisk.with_options(on_error="miss"))
     except sqlite3.DatabaseError as e:
         return cast(Cache, BrokenCache(directory, e))
 

@@ -103,7 +103,7 @@ def test_pypi_is_asked_once_a_day(pypi: PyPI) -> None:
     update_check.check(None, current="0.10.3")
     assert pypi.calls == [update_check.PYPI_URL]
     key = (update_check.CacheType.UPDATE_CHECK.value, "latest")
-    assert update_check.cache.expire[key] == 24 * 60 * 60  # type: ignore[attr-defined]
+    assert update_check.cache.expire[key] == 24 * 60 * 60  # type: ignore[index]
 
 
 def test_refresh_asks_pypi_again(pypi: PyPI) -> None:

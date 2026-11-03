@@ -10,7 +10,7 @@ from typing import Any, Iterator, List
 from unittest.mock import MagicMock, patch
 
 import pytest
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 from fastapi.testclient import TestClient
 
 from ai_marketplace_monitor import evaluations

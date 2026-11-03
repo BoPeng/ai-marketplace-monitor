@@ -98,7 +98,7 @@ class FakeMarketplace:
 
 @pytest.fixture
 def evaluations_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
-    from diskcache import Cache  # type: ignore
+    from diskcache_community import Cache
 
     from ai_marketplace_monitor import evaluations
 

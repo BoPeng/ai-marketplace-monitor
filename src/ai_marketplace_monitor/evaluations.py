@@ -15,7 +15,7 @@ import time
 from dataclasses import MISSING, asdict, dataclass, fields
 from typing import Any, Dict, Iterable, Iterator, List
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from .listing import Listing
 from .utils import CacheType, cache, is_cache_broken

@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Optional, Tuple, Type
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from .utils import CacheType, cache, hash_dict
 

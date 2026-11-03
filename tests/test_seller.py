@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor.listing import Listing
 from ai_marketplace_monitor.marketplaces.facebook.seller import (
