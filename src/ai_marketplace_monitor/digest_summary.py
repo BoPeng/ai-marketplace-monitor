@@ -10,7 +10,7 @@ from contextlib import suppress
 from logging import Logger
 from typing import Any, Callable, List, Mapping, Tuple
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from .digest import (
     DIGEST_PERIOD,

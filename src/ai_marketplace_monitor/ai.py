@@ -10,7 +10,7 @@ from logging import Logger
 from typing import Any, Callable, ClassVar, Generic, Optional, Tuple, Type, TypeVar
 
 import requests  # type: ignore
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 from PIL import Image
 
 from .listing import Listing

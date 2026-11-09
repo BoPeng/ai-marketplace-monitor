@@ -16,7 +16,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ..evaluations import STAGES, EvaluationRecord, filter_evaluations, iter_evaluations
 from ..listing import Listing

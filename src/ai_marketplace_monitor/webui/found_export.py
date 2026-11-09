@@ -19,7 +19,7 @@ import io
 import logging
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ..utils import CacheType
 

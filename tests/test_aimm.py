@@ -2,7 +2,7 @@
 
 import time
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor.ai import AIResponse  # type: ignore
 from ai_marketplace_monitor.listing import Listing

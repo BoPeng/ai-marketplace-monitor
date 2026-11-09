@@ -3,7 +3,7 @@ import tempfile
 from typing import Callable, Generator
 
 import pytest
-from diskcache import Cache
+from diskcache_community import Cache
 from pytest import TempPathFactory
 
 import ai_marketplace_monitor

@@ -10,7 +10,7 @@ from typing import Any, Coroutine, Dict, Iterator, List, Tuple, TypeVar
 
 import pytest
 import requests  # type: ignore
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 

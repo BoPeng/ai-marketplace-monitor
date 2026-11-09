@@ -52,7 +52,7 @@ from pathlib import Path  # noqa: E402
 from typing import Iterator  # noqa: E402
 
 import pytest  # noqa: E402
-from diskcache import Cache  # type: ignore  # noqa: E402
+from diskcache_community import Cache  # noqa: E402
 
 from ai_marketplace_monitor.listing import Listing  # noqa: E402
 from ai_marketplace_monitor.utils import CacheType  # noqa: E402

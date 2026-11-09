@@ -7,7 +7,7 @@ from typing import Iterator, List, Tuple
 from unittest.mock import MagicMock
 
 import pytest
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor import digest as dg
 from ai_marketplace_monitor import digest_summary as ds

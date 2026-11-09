@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from logging import Logger
 from typing import Any, Dict, List, Tuple, Type
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from .ai import AIResponse  # type: ignore
 from .channels import Channel

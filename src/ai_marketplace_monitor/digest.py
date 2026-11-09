@@ -39,7 +39,7 @@ from typing import (
     Tuple,
 )
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from .channels import channel_classes
 from .evaluations import (

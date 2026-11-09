@@ -78,7 +78,7 @@ class HttpMarketplace(Marketplace):
 
 @pytest.fixture(autouse=True)
 def aimm_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
-    from diskcache import Cache  # type: ignore
+    from diskcache_community import Cache
 
     from ai_marketplace_monitor import evaluations, listing, seller
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor.config import Config, load_config_dicts
 from ai_marketplace_monitor.digest import digest_channels

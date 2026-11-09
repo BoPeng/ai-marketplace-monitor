@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterator, List
 from unittest.mock import MagicMock
 
 import pytest
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor import evaluations
 from ai_marketplace_monitor import monitor as mon

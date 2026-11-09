@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 import typer
+from diskcache_community import Cache, Disk
 
 from ai_marketplace_monitor import utils
 from ai_marketplace_monitor.commands import admin, common
@@ -82,3 +83,29 @@ def test_commands_stop_early_on_a_corrupted_cache(
     assert "docker exec aimm aimm admin --clear-cache all" in caplog.text
     monkeypatch.setattr(common, "cache", utils.open_cache(corrupted / "backups"))
     common.require_readable_cache(logger)  # a healthy cache passes
+
+
+def _write_marker(path: str) -> str:
+    Path(path).write_text("ran")
+    return "9.9.9"
+
+
+class _Planted:
+    def __init__(self: "_Planted", path: str) -> None:
+        self.path = path
+
+    def __reduce__(self: "_Planted") -> Any:
+        return (_write_marker, (self.path,))
+
+
+def test_an_entry_rewritten_as_a_pickle_reads_as_missing(tmp_path: Path) -> None:
+    cache = utils.open_cache(tmp_path / "cache")
+    key = (utils.CacheType.UPDATE_CHECK.value, "latest")
+    cache.set(key, "0.10.17")
+    assert cache.get(key) == "0.10.17"
+    marker = tmp_path / "marker"
+    with Cache(tmp_path / "cache", disk=Disk) as other_writer:
+        other_writer.set(key, _Planted(str(marker)))
+    assert cache.get(key) is None
+    assert not marker.exists()
+    cache.close()

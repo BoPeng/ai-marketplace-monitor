@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
 
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from .utils import CacheType, cache
 

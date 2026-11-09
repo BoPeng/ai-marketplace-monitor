@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import schedule  # type: ignore
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor import digest as dg
 from ai_marketplace_monitor import utils
@@ -257,7 +257,7 @@ def test_search_counts_when_daylight_saving_time_ends(
 
 
 def test_broken_cache_has_no_records(tmp_path: Path) -> None:
-    broken = BrokenCache(tmp_path, ValueError("malformed"))
+    broken: Any = BrokenCache(tmp_path, ValueError("malformed"))
     assert dg.load_evaluations(SINCE, local_cache=broken) == []
 
 

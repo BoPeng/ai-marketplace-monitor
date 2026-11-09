@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator
 
 import pytest
-from diskcache import Cache  # type: ignore
+from diskcache_community import Cache
 
 from ai_marketplace_monitor import evaluations
 from ai_marketplace_monitor.configure.history import listing_id

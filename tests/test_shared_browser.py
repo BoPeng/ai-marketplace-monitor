@@ -281,7 +281,7 @@ def test_evaluate_listing_reports_the_search_and_the_ai(
 
 @pytest.fixture
 def aimm_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
-    from diskcache import Cache  # type: ignore
+    from diskcache_community import Cache
 
     from ai_marketplace_monitor import ai, listing, seller
 
